@@ -11,3 +11,7 @@ Single-context layout: `CONTEXT.md` at the repo root (created lazily) + `docs/ad
 ### Git workflow
 
 Branch naming, commit message format, PR body template, merge strategy, and AI co-author conventions. See `docs/agents/git-workflow.md`.
+
+### Legacy reference
+
+VMB is being migrated from `ubeann/vmb-warehouse` (Laravel + Filament). See `docs/agents/legacy-reference.md` for where it lives and how to use it as a parity reference.
