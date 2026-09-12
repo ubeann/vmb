@@ -30,6 +30,8 @@ VMB is being rebuilt from a monolithic Laravel + Filament application into a dec
 | Monorepo tooling | Turborepo | Build orchestration + remote caching |
 | Remote cache | Vercel remote cache (via `turbo link`) | Free, used for CI/dev speed only — not hosting |
 | CI/CD | GitHub Actions + `wrangler deploy` | Deploys to Cloudflare Workers/Pages |
+| Toolchain versioning | [mise](https://mise.jdx.dev) | Pins Node/pnpm (and other CLIs) via `.mise.toml`, shared by local dev and CI |
+| Dev/CI secrets | [fnox](https://github.com/jdx/fnox) | Age-encrypted secrets committed to repo for local dev + CI only; production Worker secrets stay in `wrangler secret` |
 
 ## 3. High-Level Architecture
 
@@ -160,6 +162,8 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
   - `apps/api`: `wrangler deploy`
   - `apps/web`: `wrangler pages deploy` (or framework-specific Cloudflare adapter build)
 - GitHub Actions (or equivalent) runs `turbo build` then deploy scripts on merge to main.
+- Node/pnpm versions are pinned via `mise` (`.mise.toml`) and installed in CI via `jdx/mise-action`, so local and CI toolchains match exactly. Cloudflare Pages' own build environment doesn't read `.mise.toml`, so its dashboard `NODE_VERSION` is set manually to stay in sync.
+- Local and CI dev secrets (e.g. Neon connection string) are managed with `fnox`, age-encrypted and committed to the repo; decrypted via `fnox exec` locally and in CI using an age key stored as a GitHub Actions secret. Production Worker secrets remain in `wrangler secret` / the Cloudflare dashboard, not fnox.
 
 ## 10. Migration Plan (from Laravel/Filament)
 
@@ -174,6 +178,8 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - [x] API type-safety approach: **Hono RPC**, not tRPC (decided)
 - [x] Data fetching: **TanStack Query** (decided)
 - [x] Forms/validation: **Superforms + Zod** (decided)
+- [x] Toolchain versioning: **mise** (decided)
+- [x] Dev/CI secrets management: **fnox** (decided)
 - [ ] Auth provider: Lucia (self-hosted) vs Clerk (managed)
 - [ ] Whether file storage (R2) is needed based on current Filament media usage
 - [ ] Whether Cloudflare Queues are needed for any specific heavy endpoint (bulk import/export, reports)
@@ -182,4 +188,4 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
-*Last updated: 2026-09-12*
+*Last updated: 2026-09-13*
