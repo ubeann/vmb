@@ -1,0 +1,10 @@
+name = "vmb-web"
+pages_build_output_dir = ".svelte-kit/cloudflare"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# API_URL points at the deployed vmb-api Worker; set per-environment in the
+# Cloudflare Pages dashboard (and locally via fnox for `wrangler pages dev`).
+
+[env.staging]
+name = "vmb-web-staging"

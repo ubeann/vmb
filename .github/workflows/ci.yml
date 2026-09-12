@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+
+      - run: pnpm install --frozen-lockfile
+
+      # DATABASE_URL and other dev secrets are age-encrypted and committed
+      # via fnox (ADR-0011); FNOX_AGE_KEY unlocks them in CI.
+      - run: fnox exec -- pnpm turbo build test lint typecheck
+        env:
+          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: fnox exec -- pnpm turbo build
+        env:
+          FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+
+      - name: Deploy API (Cloudflare Workers)
+        run: pnpm --filter @vmb/api deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy web (Cloudflare Pages)
+        run: pnpm --filter @vmb/web deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

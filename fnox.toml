@@ -1,0 +1,8 @@
+# Dev/CI secrets (ADR-0011). Encrypted values below are safe to commit; only
+# holders of the matching private key (FNOX_AGE_KEY env var, or
+# ~/.config/fnox/age.txt) can decrypt. Run `fnox set <NAME> <value>` to add a
+# secret once you have the private key — see PR description / team password
+# manager for how it was shared.
+[providers.local]
+type = "age"
+recipients = ["age1z8gzzgg2us3lrr6g3wm8lc2szwx3gn03sqaulq4rgg8m4l3tevwqm8dxsm"]
