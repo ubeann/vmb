@@ -26,7 +26,7 @@ VMB is being rebuilt from a monolithic Laravel + Filament application into a dec
 | Validation | [Zod](https://zod.dev) | Shared schemas between backend validation and frontend forms |
 | File Storage | Cloudflare R2 | Needed — legacy `FileUpload` usage is broad (ADR-0013) |
 | Background jobs | Cloudflare Queues *(not for MVP)* | Not needed yet — legacy queue is configured but unused (ADR-0014) |
-| Auth | Clerk (managed, free tier) | Decided (ADR-0012) |
+| Auth | Better Auth (self-hosted, on `apps/api`) | Decided (ADR-0012) |
 | Monorepo tooling | Turborepo | Build orchestration + remote caching |
 | Remote cache | Vercel remote cache (via `turbo link`) | Free, used for CI/dev speed only — not hosting |
 | CI/CD | GitHub Actions + `wrangler deploy` | Deploys to Cloudflare Workers/Pages |
@@ -151,8 +151,8 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 
 ## 8. Auth
 
-- **Decided: Clerk** (managed, free tier) — see ADR-0012. Hosted auth UI, session management, and MFA/OAuth out of the box, trading off an external dependency and free-tier MAU ceiling against not having to build and maintain those flows in-house.
-- Session/token integration strategy (how Clerk sessions are verified in the Hono API) is left for the auth implementation ticket, not this scaffold.
+- **Decided: Better Auth**, self-hosted, mounted directly in the `apps/api` Hono Worker and backed by `packages/db` — see ADR-0012. No external auth vendor or MAU ceiling; trades that for owning the login/signup UI and a known, accepted risk around Workers free-tier CPU time for password hashing (measure-then-migrate plan in ADR-0012).
+- Session/token integration strategy (Better Auth session verification in the Hono API + SvelteKit `hooks.server.ts`) is left for the auth implementation ticket, not this scaffold.
 
 ## 9. Deployment & CI/CD
 
@@ -179,7 +179,7 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - [x] Forms/validation: **Superforms + Zod** (decided)
 - [x] Toolchain versioning: **mise** (decided)
 - [x] Dev/CI secrets management: **fnox** (decided)
-- [x] Auth provider: **Clerk** (managed) — decided (ADR-0012)
+- [x] Auth provider: **Better Auth** (self-hosted) — decided (ADR-0012)
 - [x] File storage: **R2 is needed** — decided (ADR-0013)
 - [x] Cloudflare Queues: **not needed for MVP** — decided (ADR-0014)
 - [x] Staging environment strategy: **separate Neon branch + separate Workers/Pages environment** — decided (ADR-0015)
