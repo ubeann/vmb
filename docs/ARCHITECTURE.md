@@ -24,9 +24,9 @@ VMB is being rebuilt from a monolithic Laravel + Filament application into a dec
 | Server-state / data fetching | [TanStack Query (Svelte Query)](https://tanstack.com/query) | Caching, refetching, optimistic updates for CRUD-heavy screens |
 | Forms | [Superforms](https://superforms.rocks) | SvelteKit-idiomatic form handling, progressive enhancement, server-side validation |
 | Validation | [Zod](https://zod.dev) | Shared schemas between backend validation and frontend forms |
-| File Storage | Cloudflare R2 *(if needed)* | S3-compatible, no egress fees |
-| Background jobs | Cloudflare Queues *(if needed)* | For heavy operations that risk the 10ms Workers CPU limit |
-| Auth | Lucia (self-hosted) *(or Clerk free tier)* | TBD based on team preference |
+| File Storage | Cloudflare R2 | Needed — legacy `FileUpload` usage is broad (ADR-0013) |
+| Background jobs | Cloudflare Queues *(not for MVP)* | Not needed yet — legacy queue is configured but unused (ADR-0014) |
+| Auth | Clerk (managed, free tier) | Decided (ADR-0012) |
 | Monorepo tooling | Turborepo | Build orchestration + remote caching |
 | Remote cache | Vercel remote cache (via `turbo link`) | Free, used for CI/dev speed only — not hosting |
 | CI/CD | GitHub Actions + `wrangler deploy` | Deploys to Cloudflare Workers/Pages |
@@ -151,9 +151,8 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 
 ## 8. Auth
 
-- Given the small, internal user base, a self-hosted solution (e.g., Lucia) avoids external dependency and cost.
-- Alternative: Clerk's free tier if managed auth/UI is preferred over building it in-house.
-- Decision pending — document final choice and session/token strategy here once decided.
+- **Decided: Clerk** (managed, free tier) — see ADR-0012. Hosted auth UI, session management, and MFA/OAuth out of the box, trading off an external dependency and free-tier MAU ceiling against not having to build and maintain those flows in-house.
+- Session/token integration strategy (how Clerk sessions are verified in the Hono API) is left for the auth implementation ticket, not this scaffold.
 
 ## 9. Deployment & CI/CD
 
@@ -180,12 +179,12 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - [x] Forms/validation: **Superforms + Zod** (decided)
 - [x] Toolchain versioning: **mise** (decided)
 - [x] Dev/CI secrets management: **fnox** (decided)
-- [ ] Auth provider: Lucia (self-hosted) vs Clerk (managed)
-- [ ] Whether file storage (R2) is needed based on current Filament media usage
-- [ ] Whether Cloudflare Queues are needed for any specific heavy endpoint (bulk import/export, reports)
-- [ ] Staging environment strategy (separate Neon branch + separate Workers/Pages environment)
+- [x] Auth provider: **Clerk** (managed) — decided (ADR-0012)
+- [x] File storage: **R2 is needed** — decided (ADR-0013)
+- [x] Cloudflare Queues: **not needed for MVP** — decided (ADR-0014)
+- [x] Staging environment strategy: **separate Neon branch + separate Workers/Pages environment** — decided (ADR-0015)
 
 See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
-*Last updated: 2026-09-13*
+*Last updated: 2026-09-13 (§8, §11: auth/R2/Queues/staging decisions closed out per issue #4)*
