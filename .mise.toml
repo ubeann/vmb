@@ -1,5 +1,5 @@
 [tools]
-node = "24"
+node = "26"
 pnpm = "12"
 fnox = "1.25.1"
 wrangler = "4.131.1"
