@@ -1,6 +1,5 @@
-import { createDb } from "@vmb/db";
+import { createDb, sql } from "@vmb/db";
 import { HealthResponseSchema, type HealthResponse } from "@vmb/types";
-import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Bindings } from "../bindings.js";
 
