@@ -2,6 +2,7 @@
 node = "24"
 pnpm = "12"
 fnox = "1.25.1"
+wrangler = "4.131.1"
 
 [env]
 _.path = ["./node_modules/.bin"]
