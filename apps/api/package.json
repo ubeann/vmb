@@ -20,15 +20,16 @@
   "dependencies": {
     "@vmb/db": "workspace:*",
     "@vmb/types": "workspace:*",
-    "drizzle-orm": "^0.36.0",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",
+    "@neondatabase/serverless": "^1.1.0",
     "@vmb/config": "workspace:*",
-    "eslint": "^9.17.0",
+    "eslint": "^10.10.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.2.7",
+    "vitest": "^5.0.0",
     "wrangler": "^4.0.0"
   }
 }
