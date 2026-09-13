@@ -1,0 +1,35 @@
+{
+  "name": "@vmb/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "predev": "fnox export -f env -o .dev.vars",
+    "dev": "wrangler dev",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@vmb/db": "workspace:*",
+    "@vmb/types": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260911.1",
+    "@neondatabase/serverless": "^1.1.0",
+    "@vmb/config": "workspace:*",
+    "eslint": "^10.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^5.0.0",
+    "wrangler": "^4.0.0"
+  }
+}

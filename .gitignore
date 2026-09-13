@@ -116,6 +116,14 @@ web_modules/
 .env.production.local
 .env.local
 
+# fnox age private keys must never be committed (ADR-0011)
+age.txt
+*age-key*.txt
+.secrets-local/
+
+# fnox-exported plaintext secrets for local `wrangler dev` (ADR-0011)
+.dev.vars
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -164,6 +172,10 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+### Turborepo / Cloudflare ###
+.turbo/
+.wrangler/
 
 ### Node Patch ###
 # Serverless Webpack directories

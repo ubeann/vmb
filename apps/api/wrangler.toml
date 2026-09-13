@@ -1,0 +1,10 @@
+name = "vmb-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# DATABASE_URL is injected via fnox for local `wrangler dev`, and set with
+# `wrangler secret put DATABASE_URL` in production (see ARCHITECTURE.md §9).
+
+[env.staging]
+name = "vmb-api-staging"
