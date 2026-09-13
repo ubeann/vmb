@@ -21,10 +21,16 @@ export const actions: Actions = {
 
     const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
 
-    const { error } = await client.signIn.email({ email, password });
+    let result: Awaited<ReturnType<typeof client.signIn.email>>;
+    try {
+      result = await client.signIn.email({ email, password });
+    } catch (err) {
+      console.error("login action: request to API failed", err);
+      return fail(500, { error: "Something went wrong. Please try again." });
+    }
 
-    if (error) {
-      return fail(400, { error: error.message ?? "Invalid email or password." });
+    if (result.error) {
+      return fail(400, { error: result.error.message ?? "Invalid email or password." });
     }
 
     redirect(303, "/");

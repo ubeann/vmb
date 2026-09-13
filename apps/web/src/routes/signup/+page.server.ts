@@ -29,10 +29,16 @@ export const actions: Actions = {
 
     const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
 
-    const { error } = await client.signUp.email({ name, email, password });
+    let result: Awaited<ReturnType<typeof client.signUp.email>>;
+    try {
+      result = await client.signUp.email({ name, email, password });
+    } catch (err) {
+      console.error("signup action: request to API failed", err);
+      return fail(500, { error: "Something went wrong. Please try again." });
+    }
 
-    if (error) {
-      return fail(400, { error: error.message ?? "Could not create account." });
+    if (result.error) {
+      return fail(400, { error: result.error.message ?? "Could not create account." });
     }
 
     redirect(303, "/");
