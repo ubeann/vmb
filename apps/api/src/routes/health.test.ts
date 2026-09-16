@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 const executeMock = vi.fn();
 const createDbMock = vi.fn((_databaseUrl: string) => ({ execute: executeMock }));
 
-vi.mock("@vmb/db", () => ({
+vi.mock("@vmb/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@vmb/db")>()),
   createDb: (databaseUrl: string) => createDbMock(databaseUrl)
 }));
 

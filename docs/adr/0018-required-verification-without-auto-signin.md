@@ -1,0 +1,11 @@
+# ADR-0018: Email verification — required, with no auto sign-in after verifying
+
+**Context:** Verification is now required before a session exists, and Better Auth can optionally sign the user in as a side effect of opening the verification link (`autoSignInAfterVerification`). That link is opened from the user's inbox, so the request hits `apps/api`'s own origin directly — it does not pass through `apps/web`'s cookie-forwarding flow (ADR-0012). Any session cookie set by that request would be scoped to `apps/api`'s origin and stranded there: the browser holds no session for the origin the app actually runs on.
+
+**Options considered:**
+- `autoSignInAfterVerification: true`: one fewer step for the user, but the session is created on the wrong origin, so the user arrives back at the app logged out anyway — strictly worse than an explicit login, and it leaves a cookie in a place nothing reads. (Confirmed via Better Auth's own route handler — `if (options.emailVerification?.autoSignInAfterVerification)`, no default coalescing — that this is opt-in, not the framework default; the option was briefly set to `true` in this project before this ADR's revert, not inherited from Better Auth.)
+- `autoSignInAfterVerification: false`, with the verification link redirecting back to `apps/web`'s login carrying a `?verified=true` signal.
+
+**Decision:** `autoSignInAfterVerification: false`. Verification's job is to mark the address verified; sign-in stays a separate, deliberate step on the origin that will own the session. Signup's `callbackURL` points at `${origin}/login?verified=true` — without it Better Auth defaults the redirect to `apps/api`'s own origin, which has no `/` route, producing a 404 after every successful verification. Signup no longer redirects to `/` on success (no session exists yet under required verification) and instead shows a "check your email" state; login renders a "verified" banner from the query parameter via `$app/state`.
+
+**Trade-offs:** One extra step for the user (verify, then log in) in exchange for a session that exists where the app can use it, and no phantom cookie on the API origin. The `?verified=true` parameter is a small piece of state smuggled through a redirect, which is acceptable here because it carries no authority — it only toggles a banner and is not an auth token.

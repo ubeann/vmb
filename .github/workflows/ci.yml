@@ -4,6 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+
+# Cancel a PR's superseded runs on new pushes, but never cancel an
+# in-flight run on `main` — that's what triggers `deploy`, and cancelling
+# a live Cloudflare deploy mid-flight can leave things half-deployed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-test:
@@ -15,7 +25,34 @@ jobs:
         with:
           experimental: true
 
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
       - run: pnpm install --frozen-lockfile
+
+      # apps/web's component tests render .svelte files in a real browser
+      # (vitest-browser-svelte + @vitest/browser-playwright). Cache the
+      # downloaded browser binaries; OS deps still need installing every
+      # run since GitHub-hosted runners are ephemeral.
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @vmb/web exec playwright install --with-deps chromium
+
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @vmb/web exec playwright install-deps chromium
 
       # DATABASE_URL and other dev secrets are age-encrypted and committed
       # via fnox (ADR-0011); FNOX_AGE_KEY unlocks them in CI.
@@ -33,6 +70,17 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           experimental: true
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
 
       - run: pnpm install --frozen-lockfile
 

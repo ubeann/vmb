@@ -3,8 +3,26 @@ main = "src/index.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
 
-# DATABASE_URL is injected via fnox for local `wrangler dev`, and set with
-# `wrangler secret put DATABASE_URL` in production (see ARCHITECTURE.md §9).
+# DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, WEB_URL, RESEND_API_KEY,
+# and EMAIL_FROM are injected via fnox for local `wrangler dev`, and set with
+# `wrangler secret put <NAME>` per environment in staging/production (see
+# ARCHITECTURE.md §9). BETTER_AUTH_SECRET signs/encrypts sessions — generate
+# it with `openssl rand -base64 32`. BETTER_AUTH_URL is this Worker's own
+# public URL (used to build cookie/callback URLs) and WEB_URL is the deployed
+# vmb-web origin (used for the auth route's CORS allowlist and Better Auth's
+# trustedOrigins) — neither is secret, but they're set the same way as
+# DATABASE_URL/BETTER_AUTH_SECRET so every environment (including a bare
+# `wrangler deploy`) requires an explicit value instead of silently falling
+# back to a wrangler.toml default meant for another environment.
+#
+# RESEND_API_KEY authenticates outbound verification emails via Resend
+# (resend.com) — chosen over SMTP because Workers doesn't support the raw TCP
+# connections a traditional SMTP client needs, and Resend's HTTP API works
+# natively with fetch(). Get a key from the Resend dashboard; the local dev
+# placeholder in fnox needs replacing with a real one before signup emails
+# will actually send. EMAIL_FROM is the verified sender address — Resend's
+# sandbox `onboarding@resend.dev` works without owning a domain for local
+# dev/testing, but production needs a real domain verified in Resend.
 
 [env.staging]
 name = "vmb-api-staging"
