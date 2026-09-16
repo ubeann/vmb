@@ -27,11 +27,20 @@ export const actions: Actions = {
       return fail(400, { error: "Name, email, and password are required." });
     }
 
-    const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
-
-    let result: Awaited<ReturnType<typeof client.signUp.email>>;
+    let result: Awaited<ReturnType<ReturnType<typeof createAuthApiClient>["signUp"]["email"]>>;
     try {
-      result = await client.signUp.email({ name, email, password });
+      const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
+      result = await client.signUp.email({
+        name,
+        email,
+        password,
+        // Absolute URL required: Better Auth's verify-email link is opened
+        // directly from the user's inbox (hitting apps/api's own origin),
+        // and this is checked against trustedOrigins before it's honored.
+        // Without it, the link would redirect back to apps/api itself,
+        // which has no "/" route.
+        callbackURL: `${event.url.origin}/login?verified=true`
+      });
     } catch (err) {
       console.error("signup action: request to API failed", err);
       return fail(500, { error: "Something went wrong. Please try again." });
@@ -41,6 +50,10 @@ export const actions: Actions = {
       return fail(400, { error: result.error.message ?? "Could not create account." });
     }
 
-    redirect(303, "/");
+    // requireEmailVerification is on: signUp.email succeeding here does NOT
+    // create a session (no Set-Cookie) — the user still needs to click the
+    // verification link, then log in normally. Don't redirect to "/" as if
+    // they're already signed in.
+    return { success: true };
   }
 };

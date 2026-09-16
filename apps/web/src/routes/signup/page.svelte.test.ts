@@ -28,6 +28,13 @@ describe("signup page", () => {
     await expect.element(screen.getByRole("alert")).toHaveTextContent("Could not create account.");
   });
 
+  it("shows a check-your-email message instead of the form on success", async () => {
+    const screen = await render(Page, { form: { success: true } });
+
+    await expect.element(screen.getByText(/check your email/i)).toBeVisible();
+    expect(screen.getByLabelText("Email").elements()).toHaveLength(0);
+  });
+
   it("links to the login page", async () => {
     const screen = await render(Page, { form: null });
 

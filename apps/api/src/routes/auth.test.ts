@@ -13,7 +13,9 @@ const bindings = {
   DATABASE_URL: "postgres://test",
   BETTER_AUTH_SECRET: "secret",
   BETTER_AUTH_URL: "http://localhost:8787",
-  WEB_URL: "http://localhost:5173"
+  WEB_URL: "http://localhost:5173",
+  RESEND_API_KEY: "re_test",
+  EMAIL_FROM: "onboarding@resend.dev"
 };
 
 describe("ALL /api/auth/*", () => {

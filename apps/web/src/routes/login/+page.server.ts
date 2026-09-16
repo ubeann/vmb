@@ -19,10 +19,9 @@ export const actions: Actions = {
       return fail(400, { error: "Email and password are required." });
     }
 
-    const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
-
-    let result: Awaited<ReturnType<typeof client.signIn.email>>;
+    let result: Awaited<ReturnType<ReturnType<typeof createAuthApiClient>["signIn"]["email"]>>;
     try {
+      const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
       result = await client.signIn.email({ email, password });
     } catch (err) {
       console.error("login action: request to API failed", err);

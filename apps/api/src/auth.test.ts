@@ -21,11 +21,19 @@ vi.mock("better-auth/adapters/drizzle", () => ({
   drizzleAdapter: (db: unknown, config: unknown) => drizzleAdapterMock(db, config)
 }));
 
+const sendVerificationEmailMock = vi.fn();
+
+vi.mock("./email.js", () => ({
+  sendVerificationEmail: (env: unknown, to: string, url: string) => sendVerificationEmailMock(env, to, url)
+}));
+
 const env = {
   DATABASE_URL: "postgres://test",
   BETTER_AUTH_SECRET: "secret",
   BETTER_AUTH_URL: "http://localhost:8787",
-  WEB_URL: "http://localhost:5173"
+  WEB_URL: "http://localhost:5173",
+  RESEND_API_KEY: "re_test",
+  EMAIL_FROM: "onboarding@resend.dev"
 };
 
 beforeEach(() => {
@@ -54,9 +62,32 @@ describe("createAuth", () => {
         secret: "secret",
         baseURL: "http://localhost:8787",
         trustedOrigins: ["http://localhost:5173"],
-        emailAndPassword: expect.objectContaining({ enabled: true })
+        emailAndPassword: expect.objectContaining({ enabled: true, requireEmailVerification: true }),
+        emailVerification: expect.objectContaining({
+          sendOnSignUp: true,
+          sendOnSignIn: true,
+          autoSignInAfterVerification: false,
+          sendVerificationEmail: expect.any(Function)
+        })
       })
     );
+  });
+
+  it("sends the verification email through the configured provider when Better Auth calls sendVerificationEmail", async () => {
+    const { createAuth } = await import("./auth.js");
+
+    createAuth(env);
+
+    const options = betterAuthMock.mock.calls[0]?.[0] as {
+      emailVerification: { sendVerificationEmail: (data: { user: { email: string }; url: string }) => Promise<void> };
+    };
+
+    await options.emailVerification.sendVerificationEmail({
+      user: { email: "user@example.com" },
+      url: "https://example.com/verify"
+    });
+
+    expect(sendVerificationEmailMock).toHaveBeenCalledWith(env, "user@example.com", "https://example.com/verify");
   });
 
   it("reuses a single instance across calls, so in-memory rate-limit state survives across requests", async () => {
