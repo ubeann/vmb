@@ -1,8 +1,14 @@
 <script lang="ts">
+  import { enhance } from "$app/forms";
+  import { resolve } from "$app/paths";
   import type { ActionData } from "./$types.js";
 
   let { form }: { form: ActionData } = $props();
 </script>
+
+<svelte:head>
+  <title>Log in — VMB</title>
+</svelte:head>
 
 <h1>Log in</h1>
 
@@ -10,7 +16,7 @@
   <p role="alert">{form.error}</p>
 {/if}
 
-<form method="POST">
+<form method="POST" use:enhance>
   <label>
     Email
     <input type="email" name="email" autocomplete="email" required />
@@ -24,4 +30,4 @@
   <button type="submit">Log in</button>
 </form>
 
-<p>Don't have an account? <a href="/signup">Sign up</a></p>
+<p>Don't have an account? <a href={resolve("/signup")}>Sign up</a></p>

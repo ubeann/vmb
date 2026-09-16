@@ -1,9 +1,18 @@
 // @ts-check
 import { baseConfig } from "@vmb/config/eslint.config.js";
+import svelte from "eslint-plugin-svelte";
+import tseslint from "typescript-eslint";
 
 export default [
   ...baseConfig,
-  // .svelte files are covered by `svelte-check` (typecheck) instead — no
-  // eslint-plugin-svelte wired up yet for this vertical slice.
-  { ignores: ["**/*.svelte", ".svelte-kit/**"] }
+  ...svelte.configs.recommended,
+  {
+    files: ["**/*.svelte"],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser
+      }
+    }
+  },
+  { ignores: [".svelte-kit/**"] }
 ];

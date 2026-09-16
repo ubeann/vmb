@@ -17,6 +17,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # apps/web's component tests render .svelte files in a real browser
+      # (vitest-browser-svelte + @vitest/browser-playwright).
+      - run: pnpm --filter @vmb/web exec playwright install --with-deps chromium
+
       # DATABASE_URL and other dev secrets are age-encrypted and committed
       # via fnox (ADR-0011); FNOX_AGE_KEY unlocks them in CI.
       - run: fnox exec -- pnpm turbo build test lint typecheck
