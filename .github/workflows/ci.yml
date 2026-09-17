@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   build-and-test:
+    name: Verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -64,6 +65,7 @@ jobs:
           FNOX_IF_MISSING: error
 
   deploy:
+    name: Release
     needs: build-and-test
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -93,13 +95,15 @@ jobs:
           FNOX_IF_MISSING: error
 
       - name: Deploy API (Cloudflare Workers)
-        run: pnpm --filter @vmb/api deploy
+        # `run deploy`: bare `pnpm deploy` is pnpm's own deploy command, not
+        # this package's `deploy` script (ERR_PNPM_INVALID_DEPLOY_TARGET).
+        run: pnpm --filter @vmb/api run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy web (Cloudflare Pages)
-        run: pnpm --filter @vmb/web deploy
+        run: pnpm --filter @vmb/web run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,8 +1,9 @@
-name: Preview cleanup
+name: Cleanup
 
-# Tears down the one per-PR preview resource that isn't self-cleaning (issue
-# #23): the Neon branch. Workers preview aliases and Pages preview deployments
-# are left alone, per Cloudflare's docs — neither needs explicit cleanup.
+# The teardown half of preview.yml. Tears down the one per-PR preview resource
+# that isn't self-cleaning (issue #23): the Neon branch. Workers preview aliases
+# and Pages preview deployments are left alone, per Cloudflare's docs — neither
+# needs explicit cleanup.
 #
 # Runs on `closed`, which covers both merged and closed-without-merge. The
 # branch-name lookup makes this idempotent: if the preview workflow never got
@@ -25,6 +26,7 @@ permissions:
 
 jobs:
   delete-neon-branch:
+    name: Destroy Database
     runs-on: ubuntu-latest
     steps:
       - name: Check whether this PR has a Neon branch
