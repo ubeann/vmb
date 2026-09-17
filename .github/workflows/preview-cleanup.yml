@@ -1,0 +1,58 @@
+name: Preview cleanup
+
+# Tears down the one per-PR preview resource that isn't self-cleaning (issue
+# #23): the Neon branch. Workers preview aliases and Pages preview deployments
+# are left alone, per Cloudflare's docs — neither needs explicit cleanup.
+#
+# Runs on `closed`, which covers both merged and closed-without-merge. The
+# branch-name lookup makes this idempotent: if the preview workflow never got
+# as far as creating the branch (or it was already removed), there's nothing to
+# delete and the job succeeds quietly instead of erroring on a 404.
+
+on:
+  pull_request:
+    types: [closed]
+
+# Shares preview.yml's concurrency group on purpose: closing a PR cancels any
+# in-flight preview deploy here *before* deleting the branch, so a cancelled
+# run can't create the branch after deletion and leak it.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  delete-neon-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether this PR has a Neon branch
+        id: branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          BRANCH_NAME: pr-${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          branch_id=$(curl -fsS \
+            -H "Authorization: Bearer $NEON_API_KEY" \
+            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" \
+            | jq -r --arg name "$BRANCH_NAME" '[.branches[] | select(.name == $name) | .id] | first // ""')
+
+          if [ -z "$branch_id" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No Neon branch named '$BRANCH_NAME' — nothing to delete."
+          else
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Found Neon branch '$BRANCH_NAME' ($branch_id)."
+          fi
+
+      - name: Delete Neon branch
+        if: steps.branch.outputs.exists == 'true'
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          branch: pr-${{ github.event.pull_request.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}

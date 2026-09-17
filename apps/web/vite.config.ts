@@ -3,6 +3,12 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // SvelteKit reads PUBLIC_-prefixed vars through $env/*, but resolveApiUrl
+  // reads import.meta.env.PUBLIC_API_URL directly so it stays a pure,
+  // dependency-free function the node-environment unit tests can call. Expose
+  // the prefix to Vite so `PUBLIC_API_URL=<url> vite build` (issue #23's
+  // per-PR previews) is inlined into the bundle.
+  envPrefix: ["VITE_", "PUBLIC_"],
   // sveltekit() opens an HMR websocket that vitest never closes, hanging test
   // teardown in the node-environment "unit" project below — only load it for
   // `vite dev`/`vite build` there. The browser-mode "component" project below

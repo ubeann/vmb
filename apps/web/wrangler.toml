@@ -5,6 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 
 # API_URL points at the deployed vmb-api Worker; set per-environment in the
 # Cloudflare Pages dashboard (and locally via fnox for `wrangler pages dev`).
-
-[env.staging]
-name = "vmb-web-staging"
+#
+# No [env.staging] block: Cloudflare Pages supports only the named
+# environments "preview" and "production", and wrangler rejects any other
+# environment name — an [env.staging] block fails every `wrangler pages
+# deploy` outright. staging's dry-run role is covered by per-PR previews
+# (ADR-0019); see that ADR for the standing-staging decision.
