@@ -183,7 +183,7 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - [x] Auth provider: **Better Auth** (self-hosted) — decided (ADR-0012)
 - [x] File storage: **R2 is needed** — decided (ADR-0013)
 - [x] Cloudflare Queues: **not needed for MVP** — decided (ADR-0014)
-- [x] Staging environment strategy: separate Neon branch + separate Workers/Pages environment (ADR-0015), now largely superseded by **per-PR preview deployments** (ADR-0019). The standing `[env.staging]` targets are left in place, unprovisioned, pending an explicit decision on whether they're still worth keeping.
+- [x] Staging environment strategy: separate Neon branch + separate Workers/Pages environment (ADR-0015), now largely superseded by **per-PR preview deployments** (ADR-0019). Pages allows only `preview`/`production`, so the Pages `[env.staging]` was invalid and removed; the `apps/api` `[env.staging]` remains, unprovisioned, pending an explicit decision.
 
 See `DECISIONS.md` for the rationale behind each finalized choice.
 
