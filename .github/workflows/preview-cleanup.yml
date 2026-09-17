@@ -25,6 +25,7 @@ permissions:
 
 jobs:
   delete-neon-branch:
+    name: Delete database branch
     runs-on: ubuntu-latest
     steps:
       - name: Check whether this PR has a Neon branch

@@ -36,6 +36,7 @@ permissions:
 
 jobs:
   preview:
+    name: Deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -163,11 +164,16 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Passed through the environment, never interpolated into the script:
+          # a pull request title is attacker-controlled text.
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           pnpm exec wrangler versions upload \
-            --preview-alias "pr-${{ github.event.pull_request.number }}" \
+            --preview-alias "pr-$PR_NUMBER" \
             --secrets-file "$RUNNER_TEMP/api-preview-secrets.json" \
-            --message "PR #${{ github.event.pull_request.number }} preview"
+            --message "PR #$PR_NUMBER: $PR_TITLE" \
+            --tag "pr-$PR_NUMBER-${GITHUB_SHA:0:7}"
 
       # Pages Preview environment variables are shared across every preview
       # deployment, so the per-PR API URL is injected at build time instead —
@@ -181,29 +187,70 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
+          # The commit metadata makes the Cloudflare Pages dashboard readable;
+          # the branch name stays the stable `pr-<n>` preview alias.
           pnpm --filter @vmb/web exec wrangler pages deploy .svelte-kit/cloudflare \
-            --branch "pr-${{ github.event.pull_request.number }}"
+            --branch "pr-$PR_NUMBER" \
+            --commit-message "$PR_TITLE" \
+            --commit-hash "$GITHUB_SHA"
 
-      - name: Comment preview URLs on the PR
+      # Runs even when an earlier step failed, so a broken deploy updates the
+      # same comment instead of leaving a stale green one. `job.status` is
+      # "success", "failure" or "cancelled" at this point.
+      - name: Update preview comment
+        if: always()
         uses: actions/github-script@v7
         env:
           WEB_PREVIEW_URL: ${{ steps.urls.outputs.web_url }}
           API_PREVIEW_URL: ${{ steps.urls.outputs.api_url }}
+          JOB_STATUS: ${{ job.status }}
         with:
           script: |
             const marker = "<!-- preview-deployments -->";
-            const body = [
-              marker,
-              "### Preview deployments",
-              "",
-              "| App | URL |",
-              "| --- | --- |",
-              `| Web | ${process.env.WEB_PREVIEW_URL} |`,
-              `| API | ${process.env.API_PREVIEW_URL} |`,
-              "",
-              `Updated from ${context.sha.slice(0, 7)}.`,
-            ].join("\n");
+
+            // A superseded run is cancelled by the concurrency group; leave the
+            // comment to the newer run rather than briefly flashing a failure.
+            if (process.env.JOB_STATUS === "cancelled") return;
+
+            const repoUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`;
+            const shortSha = context.sha.slice(0, 7);
+            const commit = `[\`${shortSha}\`](${repoUrl}/commit/${context.sha})`;
+            const runUrl = `${repoUrl}/actions/runs/${context.runId}`;
+            const branch = context.payload.pull_request?.head?.ref ?? context.ref;
+            const webUrl = process.env.WEB_PREVIEW_URL;
+            const apiUrl = process.env.API_PREVIEW_URL;
+
+            const deployed = process.env.JOB_STATUS === "success" && webUrl && apiUrl;
+            const body = deployed
+              ? [
+                  marker,
+                  "## Preview environment",
+                  "",
+                  `Deployed commit ${commit} on \`${branch}\`.`,
+                  "",
+                  "| App | URL |",
+                  "| --- | --- |",
+                  `| Web preview | ${webUrl} |`,
+                  `| API preview | ${apiUrl} |`,
+                  `| API health | ${apiUrl}/health |`,
+                  "",
+                  `The preview API uses an isolated Neon branch (\`pr-${context.issue.number}\`), which is deleted when this pull request closes.`,
+                  "",
+                  `<sub>This comment updates on every push. [Workflow run](${runUrl})</sub>`,
+                ].join("\n")
+              : [
+                  marker,
+                  "## Preview environment",
+                  "",
+                  `The preview deploy did not finish, so the URLs below the last successful run may be stale.`,
+                  "",
+                  `Commit ${commit} on \`${branch}\`. [Workflow run](${runUrl})`,
+                  "",
+                  "Push a new commit, or re-run the workflow, to try again.",
+                ].join("\n");
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
