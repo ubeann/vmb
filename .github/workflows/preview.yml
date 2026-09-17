@@ -18,9 +18,14 @@ name: Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "turbo.json"
+      - "package.json"
+      - "fnox.toml"
 
 # Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
 # therefore cancels any in-flight preview deploy in this group *before* the
@@ -40,6 +45,7 @@ jobs:
   preview:
     name: Create Environment
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 

@@ -28,6 +28,7 @@ jobs:
   delete-neon-branch:
     name: Destroy Database
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check whether this PR has a Neon branch
         id: branch
