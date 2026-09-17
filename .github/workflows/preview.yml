@@ -11,9 +11,11 @@ name: Preview
 #   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
 #   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
 #   - DB:    Neon branch named `pr-<N>`                          (see the Resolve step)
-# The Neon branch is the only one that needs explicit teardown — see
-# cleanup.yml. Workers preview aliases and Pages preview deployments need no
-# cleanup (Cloudflare docs, verified for this ticket).
+# Teardown is handled by cleanup.yml and covers the two resources that aren't
+# self-cleaning: the Neon branch and the Pages deployment(s). The Workers
+# preview alias needs nothing — aliases are LRU-pruned past 1000 concurrent
+# ones and the version behind an alias is CF-retained (issue #55). See
+# cleanup.yml for the full three-way distinction.
 
 on:
   pull_request:
@@ -104,9 +106,10 @@ jobs:
       # guarantees.
       #
       # The Neon branch stays `pr-<number>`: it's internal, and keying cleanup
-      # on the immutable number means a branch rename cannot orphan a database
-      # branch (those do count against Neon's branch limit), whereas a renamed
-      # branch only costs a stale Pages preview URL.
+      # on the immutable number means a branch rename cannot orphan it. The
+      # Pages deployment's branch *is* the alias above, so a rename orphans the
+      # old slug's deployments — cleanup.yml recovers them by the `pr<N>-`
+      # prefix, which is why the alias carries the immutable number too.
       #
       # The account's workers.dev subdomain is not known to the workflow —
       # read it from the Cloudflare API rather than a hardcoded repo variable.
@@ -226,7 +229,9 @@ jobs:
       # `versions upload` (not `deploy`) uploads a version without shifting
       # production traffic; `--preview-alias` gives that version a stable URL
       # for the life of the PR. No cleanup needed — aliases are only LRU-pruned
-      # past 1000 concurrent aliases.
+      # past 1000 concurrent aliases, and the version behind one is CF-retained
+      # (issue #55). The Pages deployment below is a different story; see
+      # cleanup.yml.
       - name: Deploy API preview version
         working-directory: apps/api
         env:

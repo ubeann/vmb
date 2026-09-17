@@ -1,22 +1,29 @@
 name: Cleanup
 
-# The teardown half of preview.yml. Tears down the one per-PR preview resource
-# that isn't self-cleaning (issue #23): the Neon branch. Workers preview aliases
-# and Pages preview deployments are left alone, per Cloudflare's docs — neither
-# needs explicit cleanup.
+# The teardown half of preview.yml. Two of the three per-PR preview resources
+# are not self-cleaning and are deleted here (issue #55):
+#   - Neon branch — Neon caps branches per project, so a leaked branch blocks
+#     new previews.
+#   - Pages preview deployment — retained indefinitely, and every push to a PR
+#     (and every branch rename) creates another, so they accumulate until
+#     explicitly deleted.
+# The Workers preview alias needs no cleanup: aliases are LRU-pruned past 1000
+# concurrent ones, and the version behind an alias is CF-retained with no
+# supported individual delete (issue #55). That is the distinction the original
+# "neither needs cleanup" claim collapsed.
 #
-# Runs on `closed`, which covers both merged and closed-without-merge. The
-# branch-name lookup makes this idempotent: if the preview workflow never got
-# as far as creating the branch (or it was already removed), there's nothing to
-# delete and the job succeeds quietly instead of erroring on a 404.
+# Runs on `closed`, which covers both merged and closed-without-merge. Both the
+# Neon and Pages lookups make this idempotent: if the preview workflow never got
+# as far as creating the resource (or it was already removed), there's nothing
+# to delete and the job succeeds quietly instead of erroring on a 404.
 
 on:
   pull_request:
     types: [closed]
 
 # Shares preview.yml's concurrency group on purpose: closing a PR cancels any
-# in-flight preview deploy here *before* deleting the branch, so a cancelled
-# run can't create the branch after deletion and leak it.
+# in-flight preview deploy here *before* deleting, so a cancelled run can't
+# create a resource after deletion and leak it.
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -25,14 +32,15 @@ permissions:
   contents: read
 
 jobs:
-  delete-neon-branch:
-    name: Destroy Database
+  cleanup:
+    name: Destroy Preview Resources
     runs-on: ubuntu-latest
     # Dependabot-authored PRs never get a Preview environment (preview.yml
-    # skips them), so there is no Neon branch to delete for them — and their
-    # runs carry no Actions secrets, so the lookup below would fail on an empty
-    # NEON_API_KEY. Skip on either signal, actor or PR author, rather than fail
-    # for a reason unrelated to the change (issue #45).
+    # skips them), so there is no Neon branch or Pages deployment to delete for
+    # them — and their runs carry no Actions secrets, so the lookups below would
+    # fail on an empty NEON_API_KEY / CLOUDFLARE_API_TOKEN. Skip on either
+    # signal, actor or PR author, rather than fail for a reason unrelated to the
+    # change (issue #45).
     if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     timeout-minutes: 10
     steps:
@@ -67,3 +75,65 @@ jobs:
           curl -fsS -X DELETE \
             -H "Authorization: Bearer $NEON_API_KEY" \
             "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$branch_id"
+
+      # Pages preview deployments are never reaped on their own: each push to
+      # the PR creates another deployment for the branch, and each earlier one
+      # is retained (issue #55). `preview.yml` names the deployment's branch
+      # `<alias>` (`pr<N>-<slug>`, or `pr-<N>` when the branch name sanitizes to
+      # nothing), so every deployment this PR ever made shares the `pr<N>-`
+      # prefix — including ones orphaned by a branch rename (`pr<N>-<old>` →
+      # `pr<N>-<new>`), which a branch-name lookup alone would miss. This is why
+      # cleanup keys on the PR number rather than the current branch name.
+      #
+      # The list endpoint is paginated, so the loop follows `total_pages`
+      # instead of trusting the first page; a match on a later page would
+      # otherwise leak. `force=true` deletes a deployment that still carries an
+      # active alias. The one deployment Cloudflare refuses to delete is the
+      # active *production* deployment, which `env=preview` already excludes,
+      # so no residual is expected here.
+      - name: Find and delete this PR's Pages preview deployments
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PROJECT_NAME: vmb-web
+        run: |
+          set -euo pipefail
+
+          prefix="pr${PR_NUMBER}-"
+          fallback="pr-${PR_NUMBER}"
+          deployment_ids=""
+
+          page=1
+          while :; do
+            response=$(curl -fsS \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments?env=preview&per_page=100&page=$page")
+
+            matches=$(printf '%s' "$response" \
+              | jq -r --arg prefix "$prefix" --arg fallback "$fallback" \
+                '.result[]? | select(((.deployment_trigger.metadata.branch // "") == $fallback) or ((.deployment_trigger.metadata.branch // "") | startswith($prefix))) | .id')
+
+            if [ -n "$matches" ]; then
+              deployment_ids="${deployment_ids}${matches}"$'\n'
+            fi
+
+            total_pages=$(printf '%s' "$response" | jq -r '.result_info.total_pages // 1')
+            if [ "$page" -ge "$total_pages" ]; then
+              break
+            fi
+            page=$((page + 1))
+          done
+
+          if [ -z "$deployment_ids" ]; then
+            echo "No Pages preview deployments for PR #$PR_NUMBER — nothing to delete."
+            exit 0
+          fi
+
+          while IFS= read -r deployment_id; do
+            [ -n "$deployment_id" ] || continue
+            echo "Deleting Pages deployment $deployment_id."
+            curl -fsS -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments/$deployment_id?force=true"
+          done <<< "$deployment_ids"
