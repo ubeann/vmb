@@ -3,6 +3,7 @@
 **Context:** Legacy app used a self-managed Postgres instance. Small internal user base, low traffic, cost-sensitivity.
 
 **Options considered:**
+
 - Keep self-managed Postgres (e.g., on a VPS)
 - Supabase
 - Neon

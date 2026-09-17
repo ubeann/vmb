@@ -3,6 +3,7 @@
 **Context:** Verification is now required before a session exists, and Better Auth can optionally sign the user in as a side effect of opening the verification link (`autoSignInAfterVerification`). That link is opened from the user's inbox, so the request hits `apps/api`'s own origin directly — it does not pass through `apps/web`'s cookie-forwarding flow (ADR-0012). Any session cookie set by that request would be scoped to `apps/api`'s origin and stranded there: the browser holds no session for the origin the app actually runs on.
 
 **Options considered:**
+
 - `autoSignInAfterVerification: true`: one fewer step for the user, but the session is created on the wrong origin, so the user arrives back at the app logged out anyway — strictly worse than an explicit login, and it leaves a cookie in a place nothing reads. (Confirmed via Better Auth's own route handler — `if (options.emailVerification?.autoSignInAfterVerification)`, no default coalescing — that this is opt-in, not the framework default; the option was briefly set to `true` in this project before this ADR's revert, not inherited from Better Auth.)
 - `autoSignInAfterVerification: false`, with the verification link redirecting back to `apps/web`'s login carrying a `?verified=true` signal.
 

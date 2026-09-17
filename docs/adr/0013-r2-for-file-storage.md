@@ -3,6 +3,7 @@
 **Context:** `ARCHITECTURE.md` §2 listed R2 as "if needed," pending a check of how heavily the legacy app uses file uploads. Per `docs/agents/legacy-reference.md`, the legacy Filament app's `FileUpload` field is used across Clients, Drivers, Routes, Users, Invoices, Orders, Procurement Requests, and Expense Requests — a wide, load-bearing surface, not an edge case.
 
 **Options considered:**
+
 - No object storage; keep files out of scope for the rebuild's initial phases.
 - Cloudflare R2 (S3-compatible, no egress fees, same platform as the rest of the stack per ADR-0009).
 

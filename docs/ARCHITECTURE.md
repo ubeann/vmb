@@ -7,6 +7,7 @@
 VMB is being rebuilt from a monolithic Laravel + Filament application into a decoupled frontend/backend architecture, deployed entirely on Cloudflare's platform to maximize free-tier usage while keeping operational complexity low.
 
 **Goals:**
+
 - Replace Laravel/Filament admin panel with a modern, faster frontend
 - Move database from self-managed Postgres to Neon (serverless Postgres)
 - Keep hosting costs at $0 given small internal user count
@@ -14,24 +15,24 @@ VMB is being rebuilt from a monolithic Laravel + Filament application into a dec
 
 ## 2. Tech Stack Summary
 
-| Layer | Technology | Notes |
-|---|---|---|
-| Database | [Neon](https://neon.tech) (Postgres) | Serverless Postgres, autosuspend on idle |
-| ORM | [Drizzle ORM](https://orm.drizzle.team) | Edge-runtime compatible, no binary engine |
-| Backend API | [Hono](https://hono.dev) | Deployed on Cloudflare Workers |
-| API type-safety | Hono RPC (`hono/client`) | Types inferred directly from routes — no separate tRPC layer needed |
-| Frontend | **SvelteKit** | Deployed on Cloudflare Pages |
-| Server-state / data fetching | [TanStack Query (Svelte Query)](https://tanstack.com/query) | Caching, refetching, optimistic updates for CRUD-heavy screens |
-| Forms | [Superforms](https://superforms.rocks) | SvelteKit-idiomatic form handling, progressive enhancement, server-side validation |
-| Validation | [Zod](https://zod.dev) | Shared schemas between backend validation and frontend forms |
-| File Storage | Cloudflare R2 | Needed — legacy `FileUpload` usage is broad (ADR-0013) |
-| Background jobs | Cloudflare Queues *(not for MVP)* | Not needed yet — legacy queue is configured but unused (ADR-0014) |
-| Auth | Better Auth (self-hosted, on `apps/api`) | Decided (ADR-0012) |
-| Monorepo tooling | Turborepo | Build orchestration + remote caching |
-| Remote cache | Vercel remote cache (`TURBO_TOKEN`/`TURBO_TEAM` in CI) | Free, used for CI/dev speed only — not hosting |
-| CI/CD | GitHub Actions + `wrangler deploy` | Deploys to Cloudflare Workers/Pages |
-| Toolchain versioning | [mise](https://mise.jdx.dev) | Pins Node/pnpm (and other CLIs) via `.mise.toml`, shared by local dev and CI |
-| Dev/CI secrets | [fnox](https://github.com/jdx/fnox) | Age-encrypted secrets committed to repo for local dev + CI only; production Worker secrets stay in `wrangler secret` |
+| Layer                        | Technology                                                  | Notes                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Database                     | [Neon](https://neon.tech) (Postgres)                        | Serverless Postgres, autosuspend on idle                                                                             |
+| ORM                          | [Drizzle ORM](https://orm.drizzle.team)                     | Edge-runtime compatible, no binary engine                                                                            |
+| Backend API                  | [Hono](https://hono.dev)                                    | Deployed on Cloudflare Workers                                                                                       |
+| API type-safety              | Hono RPC (`hono/client`)                                    | Types inferred directly from routes — no separate tRPC layer needed                                                  |
+| Frontend                     | **SvelteKit**                                               | Deployed on Cloudflare Pages                                                                                         |
+| Server-state / data fetching | [TanStack Query (Svelte Query)](https://tanstack.com/query) | Caching, refetching, optimistic updates for CRUD-heavy screens                                                       |
+| Forms                        | [Superforms](https://superforms.rocks)                      | SvelteKit-idiomatic form handling, progressive enhancement, server-side validation                                   |
+| Validation                   | [Zod](https://zod.dev)                                      | Shared schemas between backend validation and frontend forms                                                         |
+| File Storage                 | Cloudflare R2                                               | Needed — legacy `FileUpload` usage is broad (ADR-0013)                                                               |
+| Background jobs              | Cloudflare Queues _(not for MVP)_                           | Not needed yet — legacy queue is configured but unused (ADR-0014)                                                    |
+| Auth                         | Better Auth (self-hosted, on `apps/api`)                    | Decided (ADR-0012)                                                                                                   |
+| Monorepo tooling             | Turborepo                                                   | Build orchestration + remote caching                                                                                 |
+| Remote cache                 | Vercel remote cache (`TURBO_TOKEN`/`TURBO_TEAM` in CI)      | Free, used for CI/dev speed only — not hosting                                                                       |
+| CI/CD                        | GitHub Actions + `wrangler deploy`                          | Deploys to Cloudflare Workers/Pages                                                                                  |
+| Toolchain versioning         | [mise](https://mise.jdx.dev)                                | Pins Node/pnpm (and other CLIs) via `.mise.toml`, shared by local dev and CI                                         |
+| Dev/CI secrets               | [fnox](https://github.com/jdx/fnox)                         | Age-encrypted secrets committed to repo for local dev + CI only; production Worker secrets stay in `wrangler secret` |
 
 ## 3. High-Level Architecture
 
@@ -189,4 +190,5 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
-*Last updated: 2026-09-17 (§9, §11: per-PR preview deployments, ADR-0019)*
+
+_Last updated: 2026-09-17 (§9, §11: per-PR preview deployments, ADR-0019)_

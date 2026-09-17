@@ -3,6 +3,7 @@
 **Context:** Dev-time secrets (Neon connection string, third-party API keys) are currently shared ad hoc between the small internal team via `.env` copy-paste. Production secrets for the deployed Worker are separately handled by `wrangler secret` / the Cloudflare dashboard and are out of scope here.
 
 **Options considered:**
+
 - Plain `.env` files shared manually
 - Hosted vault (1Password, HashiCorp Vault)
 - sops + age

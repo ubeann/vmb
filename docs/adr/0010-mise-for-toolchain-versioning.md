@@ -3,6 +3,7 @@
 **Context:** Monorepo with two apps (`apps/web`, `apps/api`) that need identical Node and pnpm versions across every contributor's machine and CI, without falling back to ad hoc `.nvmrc`/`engines` conventions that drift silently.
 
 **Options considered:**
+
 - nvm
 - Volta
 - asdf

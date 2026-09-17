@@ -17,7 +17,7 @@ docs: add architecture guide and decision records
 - 9 ADRs documenting major decisions (database, ORM, backend, frontend, data fetching, forms, monorepo tooling, hosting)
 ```
 
-Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`. The body is a bullet list of *what* changed; *why* belongs in the PR body, not the commit.
+Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`. The body is a bullet list of _what_ changed; _why_ belongs in the PR body, not the commit.
 
 ## PR body
 

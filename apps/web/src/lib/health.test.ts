@@ -7,7 +7,11 @@ function fakeClient(get: () => Promise<Response>) {
 
 describe("loadHealth", () => {
   it("returns the parsed body when the request succeeds", async () => {
-    const body = { status: "ok" as const, db: "connected" as const, timestamp: "2026-01-01T00:00:00.000Z" };
+    const body = {
+      status: "ok" as const,
+      db: "connected" as const,
+      timestamp: "2026-01-01T00:00:00.000Z"
+    };
     const client = fakeClient(async () => new Response(JSON.stringify(body), { status: 200 }));
 
     await expect(loadHealth(client)).resolves.toEqual(body);
