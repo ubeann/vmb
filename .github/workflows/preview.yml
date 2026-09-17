@@ -64,9 +64,16 @@ jobs:
     # secret-free — it needs Neon and Cloudflare — so there is no narrower
     # option. See ADR-0020.
     #
-    # A skipped job reports "Success", so this does not block a required check.
-    # Cleanup stays idempotent because no Neon branch is created here.
-    if: github.actor != 'dependabot[bot]'
+    # "Dependabot" is detected by the triggering actor *or* the pull request
+    # author, so a maintainer re-run or a push to the branch cannot flip a
+    # Dependabot PR onto the secret path.
+    #
+    # GitHub counts a conditionally-skipped job as satisfying a required check
+    # (it concludes `skipped`, which branch protection treats as success), so
+    # this does not wall Dependabot PRs off from merging. Because no Neon
+    # branch is created here, cleanup.yml has nothing to delete for them either
+    # and skips them the same way.
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7

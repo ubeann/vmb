@@ -165,7 +165,7 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - Per-PR preview deployments (ADR-0019): each PR gets an isolated `apps/api` Worker version, `apps/web` Pages deployment, and Neon branch, torn down on close. Replaces the standing staging environment as the dry-run mechanism.
 - Node/pnpm versions are pinned via `mise` (`.mise.toml`) and installed in CI via `jdx/mise-action`, so local and CI toolchains match exactly. Cloudflare Pages' own build environment doesn't read `.mise.toml`, so its dashboard `NODE_VERSION` is set manually to stay in sync.
 - Workflow action versions are kept current by Dependabot (`.github/dependabot.yml`, grouped weekly for `github-actions` and for npm minor/patch), so an action's runtime deprecation is fixed by a PR rather than noticed only once GitHub force-runs the old one.
-- Dependabot runs receive no Actions secrets, so Dependabot PRs take a secret-free path (ADR-0020): `ci.yml` runs build/test/lint/typecheck/format without `fnox exec`, and `preview.yml` skips `Create Environment` outright. Withholding `FNOX_AGE_KEY` and `CLOUDFLARE_API_TOKEN` from a run that builds freshly-bumped dependencies is deliberate; human PRs keep the full secret path.
+- Dependabot runs receive no Actions secrets, so Dependabot-authored PRs take a secret-free path (ADR-0020): `ci.yml` runs build/test/lint/typecheck/format without `fnox exec`, and `preview.yml`/`cleanup.yml` skip their environment jobs outright. Withholding `FNOX_AGE_KEY` and `CLOUDFLARE_API_TOKEN` from a run that builds freshly-bumped dependencies is deliberate; human PRs keep the full secret path.
 - Local and CI dev secrets (e.g. Neon connection string) are managed with `fnox`, age-encrypted and committed to the repo; decrypted via `fnox exec` locally and in CI using an age key stored as a GitHub Actions secret. Production Worker secrets remain in `wrangler secret` / the Cloudflare dashboard, not fnox — ephemeral preview versions are the one exception (ADR-0019).
 
 ## 10. Migration Plan (from Laravel/Filament)
@@ -192,4 +192,4 @@ See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-17 (§9: per-PR preview deployments ADR-0019, Dependabot secret-free CI ADR-0020)_
+_Last updated: 2026-09-17 (§9: per-PR previews ADR-0019 and Dependabot secret-free CI ADR-0020; §11: staging strategy superseded by previews)_

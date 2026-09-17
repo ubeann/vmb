@@ -76,8 +76,15 @@ jobs:
       # FNOX_AGE_KEY (which unlocks every dev secret in the committed store)
       # from a run that installs freshly-bumped third-party code is deliberate;
       # see ADR-0020.
+      #
+      # "Dependabot" is detected by the triggering actor *or* the pull request
+      # author. The author term matters: a maintainer re-running this job, or
+      # pushing to the branch, sets the actor to the human, and without it that
+      # would flip the run — and its secrets — onto freshly-bumped code. On
+      # `master` pushes there is no pull request, so the author term is empty
+      # and the full path below runs.
       - name: Verify (Dependabot)
-        if: github.actor == 'dependabot[bot]'
+        if: github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]'
         run: pnpm turbo build test lint typecheck format:check
 
       # DATABASE_URL and other dev secrets are age-encrypted and committed
@@ -86,7 +93,7 @@ jobs:
       # secrets aren't provisioned they resolve to empty strings, and turbo
       # falls back to the local cache rather than failing.
       - name: Verify
-        if: github.actor != 'dependabot[bot]'
+        if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
         run: fnox exec -- pnpm turbo build test lint typecheck format:check
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
