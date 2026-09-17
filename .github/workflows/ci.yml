@@ -59,6 +59,9 @@ jobs:
       - run: fnox exec -- pnpm turbo build test lint typecheck
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+          # Without this, fnox warns and exits 0 while exporting empty values
+          # when the key can't decrypt — so a broken FNOX_AGE_KEY fails open.
+          FNOX_IF_MISSING: error
 
   deploy:
     needs: build-and-test
@@ -87,6 +90,7 @@ jobs:
       - run: fnox exec -- pnpm turbo build
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+          FNOX_IF_MISSING: error
 
       - name: Deploy API (Cloudflare Workers)
         run: pnpm --filter @vmb/api deploy

@@ -113,6 +113,9 @@ jobs:
       - name: Assemble API preview secrets
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
+          # fnox exits 0 with empty values when FNOX_AGE_KEY can't decrypt;
+          # error keeps a broken/missing key from silently shipping empties.
+          FNOX_IF_MISSING: error
           NEON_DB_URL: ${{ steps.neon.outputs.db_url }}
           API_PREVIEW_URL: ${{ steps.urls.outputs.api_url }}
           WEB_PREVIEW_URL: ${{ steps.urls.outputs.web_url }}
