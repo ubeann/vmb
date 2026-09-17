@@ -1,22 +1,12 @@
 name: Toolchain Drift
 
-# The other half of dependency upkeep (issue #51). Dependabot keeps npm and the
-# Actions current (`.github/dependabot.yml`), but it has no `mise` ecosystem, so
-# the tools pinned in `.mise.toml` (ADR-0010) would drift silently — nothing
-# would notice a pin falling behind until a stale tool broke CI or the local/CI
-# parity ADR-0010 set out to guarantee. This workflow is the notice.
+# Dependency upkeep for the tools Dependabot cannot see (ADR-0021). Dependabot
+# keeps npm and the Actions current (`.github/dependabot.yml`), but it has no
+# `mise` ecosystem, so the pins in `.mise.toml` need their own watch: a weekly
+# check that makes a pin falling behind a decision rather than a surprise.
 #
-# It reports, it does not gate. A pin being behind is a judgement call — a major
-# bump is a decision, not a chore — so the run stays green and the signal is the
-# issue it opens or refreshes. Failing instead would add a weekly red X that
-# nobody owns, which is the failure mode issue #45 was about; the point is that
-# drift cannot pass unnoticed, not that it blocks anything.
-#
-# `mise.lock` is not used here, so a ranged pin ("26", "12", "4") resolves to
-# the newest matching release at install time, and `mise outdated --bump` only
-# reports a tool when a release exists *outside* the pin's range. A ranged pin
-# therefore absorbs patch and minor churn, and the alarm speaks only when there
-# is something to decide.
+# It reports, it does not gate — it opens an issue, never a PR and never a red
+# X. A pin being behind is a judgement call, and the issue is the signal.
 
 on:
   schedule:
@@ -67,23 +57,23 @@ jobs:
         run: |
           set -euo pipefail
 
+          # `--bump` is what makes this a report about the pin rather than about
+          # this runner's install: it reports a tool only when a release exists
+          # outside the pin's range, so a ranged pin that already covers the
+          # newest release (`node = "26"` while 26.x is current) is not drift,
+          # while an exact pin speaks as soon as a newer release exists. Without
+          # `--bump` the command instead lists tools whose *installed* copy
+          # trails the newest in-range release — local state, not a stale pin.
           outdated=$(mise outdated --local --bump --json)
 
-          # `--bump` reports a tool only when a release exists beyond what the
-          # pin allows: a ranged pin that already covers the newest release
-          # (e.g. `node = "26"` while 26.x is current) yields a null `bump` and
-          # is not drift. Without `--bump` the command instead lists tools whose
-          # *installed* copy trails the newest in-range release, which is local
-          # state on this runner, not a stale pin.
-          jq -r '
-            to_entries
-            | map(select(.value.bump != null))
-            | sort_by(.key)
-            | .[]
-            | "| `\(.key)` | `\(.value.requested // "n/a")` | `\(.value.bump)` |"
-          ' <<<"$outdated" > "$RUNNER_TEMP/drift-table.md"
+          drift=$(jq -c '
+            to_entries | map(select(.value.bump != null)) | sort_by(.key)
+          ' <<<"$outdated")
 
-          count=$(jq 'to_entries | map(select(.value.bump != null)) | length' <<<"$outdated")
+          jq -r '.[] | "| `\(.key)` | `\(.value.requested // "n/a")` | `\(.value.bump)` |"' \
+            <<<"$drift" > "$RUNNER_TEMP/drift-table.md"
+
+          count=$(jq 'length' <<<"$drift")
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "$count pin(s) behind upstream"
 
