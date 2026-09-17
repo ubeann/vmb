@@ -201,10 +201,15 @@ banner "VMB: per-PR previews + production deploy setup"
 
 # put_worker_secret NAME VALUE attaches a runtime secret to the vmb-api Worker.
 # Value via stdin so it never lands in argv, shell history, or `ps`.
+#
+# `--env=""` selects the top-level (production) environment explicitly. It is
+# the mechanism wrangler's own multi-environment warning documents: without it,
+# the [env.staging] block in wrangler.toml makes every deploy-class command warn
+# that no target was chosen.
 put_worker_secret() {
   local name="$1" value="$2" err
   if [[ -z "$value" ]]; then warn "skipping Worker secret $name (empty)"; return 0; fi
-  if err=$(printf '%s' "$value" | pnpm --filter @vmb/api exec wrangler secret put "$name" --name vmb-api 2>&1 >/dev/null); then
+  if err=$(printf '%s' "$value" | pnpm --filter @vmb/api exec wrangler secret put "$name" --name vmb-api --env="" 2>&1 >/dev/null); then
     say "set Worker secret: $name"
   else
     warn "failed to set Worker secret: $name"
@@ -367,7 +372,7 @@ ask WEB_URL "Public web URL (WEB_URL):"
 
 if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   say "Creating/updating the Worker so secrets can be attached to it..."
-  pnpm --filter @vmb/api exec wrangler deploy \
+  pnpm --filter @vmb/api exec wrangler deploy --env="" \
     || warn "wrangler deploy failed — set the secrets once the Worker exists."
 
   put_worker_secret DATABASE_URL "$DATABASE_URL"
