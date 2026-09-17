@@ -35,6 +35,6 @@
     "vite": "^8.3.0",
     "vitest": "^5.0.0",
     "vitest-browser-svelte": "^3.1.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.131.2"
   }
 }
