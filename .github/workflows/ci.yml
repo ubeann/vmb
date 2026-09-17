@@ -62,12 +62,32 @@ jobs:
       - if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @vmb/web exec playwright install-deps chromium
 
+      # Dependabot-triggered runs receive no Actions secrets — GitHub keeps a
+      # separate Dependabot secrets store, and this repo's is empty — so the
+      # fnox-wrapped step below cannot run for them: FNOX_AGE_KEY is missing,
+      # and FNOX_IF_MISSING: error turns that into a hard failure. Those runs
+      # would otherwise be born red for a reason unrelated to the bump, which
+      # teaches everyone to ignore the check (issue #45).
+      #
+      # This secret-free step keeps the signal meaningful instead. The suite
+      # needs no secrets — every test mocks its database, and build/lint/
+      # typecheck/format read none — so a bump that breaks one of them still
+      # turns the check red, and a clean bump turns it green. Withholding
+      # FNOX_AGE_KEY (which unlocks every dev secret in the committed store)
+      # from a run that installs freshly-bumped third-party code is deliberate;
+      # see ADR-0020.
+      - name: Verify (Dependabot)
+        if: github.actor == 'dependabot[bot]'
+        run: pnpm turbo build test lint typecheck format:check
+
       # DATABASE_URL and other dev secrets are age-encrypted and committed
       # via fnox (ADR-0011); FNOX_AGE_KEY unlocks them in CI.
       # TURBO_TOKEN/TURBO_TEAM enable the Vercel remote cache. When the
       # secrets aren't provisioned they resolve to empty strings, and turbo
       # falls back to the local cache rather than failing.
-      - run: fnox exec -- pnpm turbo build test lint typecheck format:check
+      - name: Verify
+        if: github.actor != 'dependabot[bot]'
+        run: fnox exec -- pnpm turbo build test lint typecheck format:check
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
           # Without this, fnox warns and exits 0 while exporting empty values
