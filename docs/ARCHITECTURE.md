@@ -160,9 +160,10 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - Each app has its own deploy script:
   - `apps/api`: `wrangler deploy`
   - `apps/web`: `wrangler pages deploy` (or framework-specific Cloudflare adapter build)
-- GitHub Actions (or equivalent) runs `turbo build` then deploy scripts on merge to main.
+- GitHub Actions (or equivalent) runs `turbo build` then deploy scripts on merge to `master`.
+- Per-PR preview deployments (ADR-0019): each PR gets an isolated `apps/api` Worker version, `apps/web` Pages deployment, and Neon branch, torn down on close. Replaces the standing staging environment as the dry-run mechanism.
 - Node/pnpm versions are pinned via `mise` (`.mise.toml`) and installed in CI via `jdx/mise-action`, so local and CI toolchains match exactly. Cloudflare Pages' own build environment doesn't read `.mise.toml`, so its dashboard `NODE_VERSION` is set manually to stay in sync.
-- Local and CI dev secrets (e.g. Neon connection string) are managed with `fnox`, age-encrypted and committed to the repo; decrypted via `fnox exec` locally and in CI using an age key stored as a GitHub Actions secret. Production Worker secrets remain in `wrangler secret` / the Cloudflare dashboard, not fnox.
+- Local and CI dev secrets (e.g. Neon connection string) are managed with `fnox`, age-encrypted and committed to the repo; decrypted via `fnox exec` locally and in CI using an age key stored as a GitHub Actions secret. Production Worker secrets remain in `wrangler secret` / the Cloudflare dashboard, not fnox — ephemeral preview versions are the one exception (ADR-0019).
 
 ## 10. Migration Plan (from Laravel/Filament)
 
@@ -182,9 +183,9 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - [x] Auth provider: **Better Auth** (self-hosted) — decided (ADR-0012)
 - [x] File storage: **R2 is needed** — decided (ADR-0013)
 - [x] Cloudflare Queues: **not needed for MVP** — decided (ADR-0014)
-- [x] Staging environment strategy: **separate Neon branch + separate Workers/Pages environment** — decided (ADR-0015)
+- [x] Staging environment strategy: separate Neon branch + separate Workers/Pages environment (ADR-0015), now largely superseded by **per-PR preview deployments** (ADR-0019). The standing `[env.staging]` targets are left in place, unprovisioned, pending an explicit decision on whether they're still worth keeping.
 
 See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
-*Last updated: 2026-09-13 (§8, §11: auth/R2/Queues/staging decisions closed out per issue #4)*
+*Last updated: 2026-09-17 (§9, §11: per-PR preview deployments, ADR-0019)*

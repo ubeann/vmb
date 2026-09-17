@@ -2,14 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
     paths-ignore:
       - "docs/**"
       - "**.md"
 
 # Cancel a PR's superseded runs on new pushes, but never cancel an
-# in-flight run on `main` — that's what triggers `deploy`, and cancelling
+# in-flight run on `master` — that's what triggers `deploy`, and cancelling
 # a live Cloudflare deploy mid-flight can leave things half-deployed.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -62,7 +62,7 @@ jobs:
 
   deploy:
     needs: build-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
