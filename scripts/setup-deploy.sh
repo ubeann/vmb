@@ -202,12 +202,13 @@ banner "VMB: per-PR previews + production deploy setup"
 # put_worker_secret NAME VALUE attaches a runtime secret to the vmb-api Worker.
 # Value via stdin so it never lands in argv, shell history, or `ps`.
 put_worker_secret() {
-  local name="$1" value="$2"
+  local name="$1" value="$2" err
   if [[ -z "$value" ]]; then warn "skipping Worker secret $name (empty)"; return 0; fi
-  if printf '%s' "$value" | pnpm --filter @vmb/api exec wrangler secret put "$name" --name vmb-api >/dev/null 2>&1; then
+  if err=$(printf '%s' "$value" | pnpm --filter @vmb/api exec wrangler secret put "$name" --name vmb-api 2>&1 >/dev/null); then
     say "set Worker secret: $name"
   else
     warn "failed to set Worker secret: $name"
+    note "$err"
     SKIPPED+=("wrangler secret put $name")
   fi
 }
@@ -382,14 +383,25 @@ fi
 
 # ── Stage 7: Pages production API_URL binding ─────────────────────────────
 stage "Pages: production API_URL binding"
-say "In production the web app reads its API URL from a Pages binding."
+say "In production the web app reads its API URL from a Pages env var."
 if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${BETTER_AUTH_URL:-}" ]]; then
-  # API_URL is not really a secret, but this is the scriptable Pages env-var
-  # path; it is exposed to the app the same way.
-  if printf '%s' "$BETTER_AUTH_URL" | pnpm --filter @vmb/web exec wrangler pages secret put API_URL --project-name vmb-web >/dev/null 2>&1; then
-    say "set Pages production binding: API_URL"
+  # Plaintext Pages env var, set through the Pages project API. `wrangler pages
+  # secret put` mislabels it an encrypted secret and needs an existing
+  # deployment to target, which a freshly created project doesn't have.
+  # PATCH: /accounts/{account_id}/pages/projects/{project_name}
+  pages_body=$(jq -n --arg url "$BETTER_AUTH_URL" \
+    '{deployment_configs:{production:{env_vars:{API_URL:{type:"plain_text",value:$url}}}}}')
+  pages_response=$(curl -sS -X PATCH \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/vmb-web" \
+    --data "$pages_body" 2>&1)
+
+  if printf '%s' "$pages_response" | jq -e '.success == true' >/dev/null 2>&1; then
+    say "set Pages production env var: API_URL"
   else
-    warn "couldn't set it via wrangler — set API_URL in the dashboard (Settings → Variables and Secrets → Production)."
+    warn "couldn't set API_URL — set it in the dashboard (Settings → Variables and Secrets → Production)."
+    note "$(printf '%s' "$pages_response" | jq -r '.errors[0].message // empty' 2>/dev/null || true)"
     SKIPPED+=("Pages production API_URL binding")
   fi
 else
