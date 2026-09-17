@@ -11,7 +11,10 @@ describe("loadSession", () => {
     const user = { id: "user_1", email: "a@example.com" };
     const client = fakeClient(async () => ({ data: { session, user } }));
 
-    await expect(loadSession(client, "better-auth.session_token=abc")).resolves.toEqual({ session, user });
+    await expect(loadSession(client, "better-auth.session_token=abc")).resolves.toEqual({
+      session,
+      user
+    });
   });
 
   it("returns null session/user when there is no active session", async () => {

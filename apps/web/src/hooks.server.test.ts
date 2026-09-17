@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-const createAuthApiClientMock = vi.fn((baseUrl: string, fetchFn?: typeof fetch) => ({ baseUrl, fetchFn }));
+const createAuthApiClientMock = vi.fn((baseUrl: string, fetchFn?: typeof fetch) => ({
+  baseUrl,
+  fetchFn
+}));
 const loadSessionMock = vi.fn();
 const resolveApiUrlMock = vi.fn((_platform: unknown) => "http://localhost:8787");
 
 vi.mock("$lib/auth.js", () => ({
-  createAuthApiClient: (baseUrl: string, fetchFn?: typeof fetch) => createAuthApiClientMock(baseUrl, fetchFn)
+  createAuthApiClient: (baseUrl: string, fetchFn?: typeof fetch) =>
+    createAuthApiClientMock(baseUrl, fetchFn)
 }));
 
 vi.mock("$lib/env.js", () => ({
@@ -41,7 +45,10 @@ describe("handle", () => {
 
     const res = await handle({ event, resolve } as never);
 
-    expect(loadSessionMock).toHaveBeenCalledWith(expect.anything(), "better-auth.session_token=abc");
+    expect(loadSessionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "better-auth.session_token=abc"
+    );
     expect(event.locals.session).toBe(session);
     expect(event.locals.user).toBe(user);
     expect(resolve).toHaveBeenCalledWith(event);

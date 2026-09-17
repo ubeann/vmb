@@ -3,6 +3,7 @@
 **Context:** Admin panel is largely CRUD forms; needed validation shared between client and server.
 
 **Options considered:**
+
 - Hand-rolled form state + manual validation
 - Superforms + Zod
 

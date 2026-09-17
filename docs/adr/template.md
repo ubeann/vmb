@@ -6,6 +6,7 @@
 **Context:** <What problem/situation prompted this decision?>
 
 **Options considered:**
+
 - Option A
 - Option B
 

@@ -27,7 +27,11 @@ describe("sendVerificationEmail", () => {
   it("sends via Resend using the configured from address and the verification url", async () => {
     sendMock.mockResolvedValueOnce({ data: { id: "email_1" }, error: null });
 
-    await sendVerificationEmail(env, "user@example.com", "https://vmb-api.example.com/api/auth/verify-email?token=abc");
+    await sendVerificationEmail(
+      env,
+      "user@example.com",
+      "https://vmb-api.example.com/api/auth/verify-email?token=abc"
+    );
 
     expect(resendConstructorMock).toHaveBeenCalledWith("re_test");
     expect(sendMock).toHaveBeenCalledWith(
@@ -46,8 +50,8 @@ describe("sendVerificationEmail", () => {
       error: { message: "Invalid from address", statusCode: 422, name: "validation_error" }
     });
 
-    await expect(sendVerificationEmail(env, "user@example.com", "https://example.com/verify")).rejects.toThrow(
-      "Invalid from address"
-    );
+    await expect(
+      sendVerificationEmail(env, "user@example.com", "https://example.com/verify")
+    ).rejects.toThrow("Invalid from address");
   });
 });

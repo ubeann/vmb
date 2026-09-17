@@ -3,6 +3,7 @@
 **Context:** `ARCHITECTURE.md` §8 originally decided Clerk (managed, free tier) — see the superseded rationale below. Revisited after checking Better Auth's docs against this project's actual stack: it officially supports mounting directly on Hono (Web Standard `Request`/`Response`, no adapter needed), runs on Cloudflare Workers with the `nodejs_compat` flag (already set in both `wrangler.toml` files for `AsyncLocalStorage`), has a documented SvelteKit integration (`hooks.server.ts` + `svelteKitHandler` + client), and its Drizzle adapter reuses `packages/db` directly — no second data store or vendor schema.
 
 **Options considered:**
+
 - Clerk (managed, free tier): hosted UI/session/MFA, but sits beside the stack as a separate vendor rather than integrating with it, and adds a free-tier MAU ceiling.
 - Better Auth (self-hosted library, not roll-your-own): 2FA/passkeys/OAuth/SSO built in, so the "self-hosted = build auth from scratch" cost that originally favored Clerk mostly doesn't apply — it's a library, not a from-scratch build.
 - Neon Auth (managed Better Auth): elegant "auth branches with the DB branch" story fitting ADR-0015, but its docs only cover Next.js/React — no Hono/SvelteKit/Workers guidance — and it locks auth data into Neon's managed schema. Rejected: would mean building an undocumented integration anyway, without gaining the managed convenience it's meant to provide.

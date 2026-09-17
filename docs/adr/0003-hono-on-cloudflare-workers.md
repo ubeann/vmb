@@ -3,6 +3,7 @@
 **Context:** Needed a backend framework/runtime combo that fits the free-tier-maximizing, edge-first strategy.
 
 **Options considered:**
+
 - Express/Fastify on a traditional Node host
 - Next.js API routes on Vercel
 - Hono on Cloudflare Workers

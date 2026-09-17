@@ -3,6 +3,7 @@
 **Context:** `ARCHITECTURE.md` §11 left the staging strategy open. The scaffold in this ticket already needs a place to validate CI/deploy changes without touching the production Neon database or the production Workers/Pages deployments.
 
 **Options considered:**
+
 - No separate staging environment; test against production directly (viable only because of the small internal user base, but risky for schema migrations and deploy changes).
 - Separate Neon branch (production-like data via Neon's branching) + separate Cloudflare Workers/Pages environment (`[env.staging]` in `wrangler.toml`, deployed from a non-`main` branch or manually).
 

@@ -3,6 +3,7 @@
 **Context:** Wanted to maximize free-tier usage across the project while minimizing platforms to manage.
 
 **Options considered:**
+
 - Split: frontend on Vercel, backend on Cloudflare Workers
 - All on Cloudflare (Pages + Workers)
 

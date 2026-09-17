@@ -3,6 +3,7 @@
 **Context:** Wanted end-to-end type safety between frontend and backend without duplicating routing logic.
 
 **Options considered:**
+
 - tRPC
 - Hono RPC (`hono/client`)
 - Manual OpenAPI + codegen

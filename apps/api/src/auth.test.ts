@@ -24,7 +24,8 @@ vi.mock("better-auth/adapters/drizzle", () => ({
 const sendVerificationEmailMock = vi.fn();
 
 vi.mock("./email.js", () => ({
-  sendVerificationEmail: (env: unknown, to: string, url: string) => sendVerificationEmailMock(env, to, url)
+  sendVerificationEmail: (env: unknown, to: string, url: string) =>
+    sendVerificationEmailMock(env, to, url)
 }));
 
 const env = {
@@ -62,7 +63,10 @@ describe("createAuth", () => {
         secret: "secret",
         baseURL: "http://localhost:8787",
         trustedOrigins: ["http://localhost:5173"],
-        emailAndPassword: expect.objectContaining({ enabled: true, requireEmailVerification: true }),
+        emailAndPassword: expect.objectContaining({
+          enabled: true,
+          requireEmailVerification: true
+        }),
         emailVerification: expect.objectContaining({
           sendOnSignUp: true,
           sendOnSignIn: true,
@@ -79,7 +83,9 @@ describe("createAuth", () => {
     createAuth(env);
 
     const options = betterAuthMock.mock.calls[0]?.[0] as {
-      emailVerification: { sendVerificationEmail: (data: { user: { email: string }; url: string }) => Promise<void> };
+      emailVerification: {
+        sendVerificationEmail: (data: { user: { email: string }; url: string }) => Promise<void>;
+      };
     };
 
     await options.emailVerification.sendVerificationEmail({
@@ -87,7 +93,11 @@ describe("createAuth", () => {
       url: "https://example.com/verify"
     });
 
-    expect(sendVerificationEmailMock).toHaveBeenCalledWith(env, "user@example.com", "https://example.com/verify");
+    expect(sendVerificationEmailMock).toHaveBeenCalledWith(
+      env,
+      "user@example.com",
+      "https://example.com/verify"
+    );
   });
 
   it("reuses a single instance across calls, so in-memory rate-limit state survives across requests", async () => {

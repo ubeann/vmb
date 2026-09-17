@@ -3,6 +3,7 @@
 **Context:** Replacing Laravel Filament's admin UI; app is CRUD/form-heavy rather than content/marketing-heavy.
 
 **Options considered:**
+
 - Next.js
 - SvelteKit
 
