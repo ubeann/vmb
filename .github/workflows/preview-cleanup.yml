@@ -1,4 +1,4 @@
-name: Preview cleanup
+name: Cleanup
 
 # Tears down the one per-PR preview resource that isn't self-cleaning (issue
 # #23): the Neon branch. Workers preview aliases and Pages preview deployments
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   delete-neon-branch:
-    name: Delete database branch
+    name: Destroy Database
     runs-on: ubuntu-latest
     steps:
       - name: Check whether this PR has a Neon branch

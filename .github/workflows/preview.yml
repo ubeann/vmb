@@ -5,10 +5,12 @@ name: Preview
 # and the full stack get a real dry run before merging, without touching
 # production or a shared staging database.
 #
-# All three resources are derived from the PR number and are idempotent per PR:
-#   - API:   https://pr-<N>-vmb-api.<account>.workers.dev   (Workers preview alias)
-#   - Web:   https://pr-<N>.vmb-web.pages.dev               (Pages branch alias)
-#   - DB:    Neon branch named `pr-<N>`
+# The API alias and Pages branch share one identifier, `<pr><number>-<slug>`,
+# where the slug is the branch name sanitized to what Cloudflare accepts; the
+# Neon branch is named `pr-<number>`. All three are idempotent per PR:
+#   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
+#   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
+#   - DB:    Neon branch named `pr-<N>`                          (see the Resolve step)
 # The Neon branch is the only one that needs explicit teardown — see
 # preview-cleanup.yml. Workers preview aliases and Pages preview deployments
 # need no cleanup (Cloudflare docs, verified for this ticket).
@@ -36,7 +38,7 @@ permissions:
 
 jobs:
   preview:
-    name: Deploy
+    name: Create Environment
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -58,9 +60,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The Worker preview alias URL is deterministic from the PR number, but
-      # the account's workers.dev subdomain is not known to the workflow — read
-      # it from the Cloudflare API rather than hardcoding it in a repo variable.
+      # The preview identifier is `<pr><number>-<slug>`, where the slug is the
+      # branch name sanitized the way Cloudflare does (lowercase, runs of
+      # non-alphanumerics to a single dash, trimmed), capped so
+      # `<alias>-vmb-api` stays inside the 63-char DNS label limit, and falling
+      # back to `pr-<number>` when the branch name sanitizes to nothing. Worker
+      # aliases must start with a lowercase letter, which the `pr` prefix
+      # guarantees.
+      #
+      # The Neon branch stays `pr-<number>`: it's internal, and keying cleanup
+      # on the immutable number means a branch rename cannot orphan a database
+      # branch (those do count against Neon's branch limit), whereas a renamed
+      # branch only costs a stale Pages preview URL.
+      #
+      # The account's workers.dev subdomain is not known to the workflow —
+      # read it from the Cloudflare API rather than a hardcoded repo variable.
       # (`<ALIAS>-<WORKER_NAME>.<SUBDOMAIN>.workers.dev`, per Cloudflare's
       # preview-URL docs.)
       - name: Resolve preview URLs
@@ -68,6 +82,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Passed through the environment, never interpolated into the script:
+          # a branch name is attacker-controlled text.
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           subdomain=$(curl -fsS \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -79,9 +97,22 @@ jobs:
             exit 1
           fi
 
-          pr="${{ github.event.pull_request.number }}"
-          echo "api_url=https://pr-${pr}-vmb-api.${subdomain}.workers.dev" >> "$GITHUB_OUTPUT"
-          echo "web_url=https://pr-${pr}.vmb-web.pages.dev" >> "$GITHUB_OUTPUT"
+          slug=$(printf '%s' "$HEAD_REF" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+            | cut -c1-32 \
+            | sed -E 's/-+$//')
+
+          if [ -n "$slug" ]; then
+            alias="pr${PR_NUMBER}-${slug}"
+          else
+            alias="pr-${PR_NUMBER}"
+          fi
+
+          echo "alias=$alias" >> "$GITHUB_OUTPUT"
+          echo "api_url=https://${alias}-vmb-api.${subdomain}.workers.dev" >> "$GITHUB_OUTPUT"
+          echo "web_url=https://${alias}.vmb-web.pages.dev" >> "$GITHUB_OUTPUT"
+          echo "Resolved preview alias: $alias"
 
       # Idempotent: if a branch named `pr-<N>` already exists (a re-push to the
       # same PR), the action returns the existing branch instead of failing.
@@ -165,15 +196,16 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PREVIEW_ALIAS: ${{ steps.urls.outputs.alias }}
           # Passed through the environment, never interpolated into the script:
           # a pull request title is attacker-controlled text.
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           pnpm exec wrangler versions upload \
-            --preview-alias "pr-$PR_NUMBER" \
+            --preview-alias "$PREVIEW_ALIAS" \
             --secrets-file "$RUNNER_TEMP/api-preview-secrets.json" \
             --message "PR #$PR_NUMBER: $PR_TITLE" \
-            --tag "pr-$PR_NUMBER-${GITHUB_SHA:0:7}"
+            --tag "${PREVIEW_ALIAS}-${GITHUB_SHA:0:7}"
 
       # Pages Preview environment variables are shared across every preview
       # deployment, so the per-PR API URL is injected at build time instead —
@@ -187,13 +219,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PREVIEW_ALIAS: ${{ steps.urls.outputs.alias }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # The commit metadata makes the Cloudflare Pages dashboard readable;
-          # the branch name stays the stable `pr-<n>` preview alias.
+          # Same identifier as the API alias, so the Pages branch alias and the
+          # Workers preview alias line up. The commit metadata makes the
+          # Cloudflare Pages dashboard readable.
           pnpm --filter @vmb/web exec wrangler pages deploy .svelte-kit/cloudflare \
-            --branch "pr-$PR_NUMBER" \
+            --branch "$PREVIEW_ALIAS" \
             --commit-message "$PR_TITLE" \
             --commit-hash "$GITHUB_SHA"
 

@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Test
+    name: Verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -65,7 +65,7 @@ jobs:
           FNOX_IF_MISSING: error
 
   deploy:
-    name: Deploy to production
+    name: Release
     needs: build-and-test
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
