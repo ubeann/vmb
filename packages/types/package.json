@@ -9,13 +9,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "zod": "^4.6.2"
   },
   "devDependencies": {
     "@vmb/config": "workspace:*",
+    "eslint": "^10.10.0",
     "typescript": "^5.7.0"
   }
 }
