@@ -51,6 +51,29 @@ jobs:
   preview:
     name: Create Environment
     runs-on: ubuntu-latest
+    # Dependabot-triggered runs receive no Actions secrets, and this job cannot
+    # work without them: `Resolve preview URLs` 404s on an empty
+    # CLOUDFLARE_API_TOKEN, and the Neon and fnox steps need their secrets too.
+    # Rather than fail for a reason unrelated to the bump, skip it entirely
+    # (issue #45).
+    #
+    # Skipping is also the safer choice: a run whose purpose is to install and
+    # build freshly-bumped third-party code should not hold
+    # CLOUDFLARE_API_TOKEN (which deploys production) or FNOX_AGE_KEY (which
+    # unlocks every dev secret in the committed store). The job cannot be made
+    # secret-free — it needs Neon and Cloudflare — so there is no narrower
+    # option. See ADR-0020.
+    #
+    # "Dependabot" is detected by the triggering actor *or* the pull request
+    # author, so a maintainer re-run or a push to the branch cannot flip a
+    # Dependabot PR onto the secret path.
+    #
+    # GitHub counts a conditionally-skipped job as satisfying a required check
+    # (it concludes `skipped`, which branch protection treats as success), so
+    # this does not wall Dependabot PRs off from merging. Because no Neon
+    # branch is created here, cleanup.yml has nothing to delete for them either
+    # and skips them the same way.
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7

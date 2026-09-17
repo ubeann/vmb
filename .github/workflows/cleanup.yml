@@ -28,6 +28,12 @@ jobs:
   delete-neon-branch:
     name: Destroy Database
     runs-on: ubuntu-latest
+    # Dependabot-authored PRs never get a Preview environment (preview.yml
+    # skips them), so there is no Neon branch to delete for them — and their
+    # runs carry no Actions secrets, so the lookup below would fail on an empty
+    # NEON_API_KEY. Skip on either signal, actor or PR author, rather than fail
+    # for a reason unrelated to the change (issue #45).
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     timeout-minutes: 10
     steps:
       # Lookup and delete in one step. Deletion used to be delegated to
