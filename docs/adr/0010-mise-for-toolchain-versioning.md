@@ -12,3 +12,5 @@
 **Decision:** mise.
 
 **Trade-offs:** nvm only manages Node and needs manual `nvm use` per shell; Volta is Node/JS-only and less actively developed; asdf is more general but slower and plugin-fragile. mise covers Node + pnpm (and any future CLI, e.g. `wrangler`) from one `.mise.toml`, auto-activates per directory, and has a first-party GitHub Action (`jdx/mise-action`) for CI parity. Cloudflare Pages' own build step doesn't read `.mise.toml` — its dashboard `NODE_VERSION` still needs to be set to match by hand, which is a minor manual sync point, not a blocker.
+
+**Bumping these pins:** manual, with a scheduled drift alarm — see [ADR-0021](0021-drift-alarm-for-mise-pins.md).

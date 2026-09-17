@@ -1,0 +1,137 @@
+name: Toolchain Drift
+
+# Dependency upkeep for the tools Dependabot cannot see (ADR-0021). Dependabot
+# keeps npm and the Actions current (`.github/dependabot.yml`), but it has no
+# `mise` ecosystem, so the pins in `.mise.toml` need their own watch: a weekly
+# check that makes a pin falling behind a decision rather than a surprise.
+#
+# It reports, it does not gate — it opens an issue, never a PR and never a red
+# X. A pin being behind is a judgement call, and the issue is the signal.
+
+on:
+  schedule:
+    # Mondays at 06:00 UTC — the same weekly cadence as Dependabot, but its own
+    # signal, so a stale toolchain pin and a dependency bump read separately.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Opening, editing and closing the drift issue — and creating the label it is
+  # found by. Nothing else is written.
+  issues: write
+
+jobs:
+  check:
+    name: Check mise pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # `install: false`: the comparison reads `.mise.toml` and asks each tool's
+      # upstream what the newest release is. It never needs the tools
+      # themselves, so there is no reason to install a whole toolchain — nor to
+      # fail here because one pin can't be installed.
+      - uses: jdx/mise-action@v4
+        with:
+          experimental: true
+          install: false
+
+      # Dependabot-authored runs are the ones that lack Actions secrets
+      # (ADR-0020); a scheduled run on `master` has them. Nothing here needs a
+      # credential beyond the workflow's own token, and this job builds none of
+      # the pinned code — so there is no secret to withhold and no reason to
+      # branch the path.
+      - name: Compare each pin against upstream
+        id: drift
+        env:
+          # mise asks GitHub releases for most of these tools; the token keeps
+          # those lookups off the unauthenticated rate limit a shared runner
+          # would otherwise hit.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # `--bump` is what makes this a report about the pin rather than about
+          # this runner's install: it reports a tool only when a release exists
+          # outside the pin's range, so a ranged pin that already covers the
+          # newest release (`node = "26"` while 26.x is current) is not drift,
+          # while an exact pin speaks as soon as a newer release exists. Without
+          # `--bump` the command instead lists tools whose *installed* copy
+          # trails the newest in-range release — local state, not a stale pin.
+          outdated=$(mise outdated --local --bump --json)
+
+          drift=$(jq -c '
+            to_entries | map(select(.value.bump != null)) | sort_by(.key)
+          ' <<<"$outdated")
+
+          jq -r '.[] | "| `\(.key)` | `\(.value.requested // "n/a")` | `\(.value.bump)` |"' \
+            <<<"$drift" > "$RUNNER_TEMP/drift-table.md"
+
+          count=$(jq 'length' <<<"$drift")
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "$count pin(s) behind upstream"
+
+      - name: Open, refresh, or close the drift issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ steps.drift.outputs.count }}
+        run: |
+          set -euo pipefail
+
+          # The label is the search key, so the issue is found whether or not
+          # its title changed between runs. Creating it is idempotent (`--force`
+          # updates an existing label instead of erroring), which keeps this
+          # workflow self-contained rather than leaning on out-of-band setup.
+          gh label create toolchain-drift \
+            --description "A mise-pinned tool in .mise.toml is behind upstream" \
+            --color "fbca04" \
+            --force
+
+          existing=$(gh issue list \
+            --label toolchain-drift --state open --limit 1 \
+            --json number --jq '.[0].number // empty')
+
+          if [ "$COUNT" -eq 0 ]; then
+            if [ -z "$existing" ]; then
+              echo "Every pin is current, and no issue is open. Nothing to do."
+              exit 0
+            fi
+            gh issue close "$existing" --reason completed \
+              --comment "Every pin in \`.mise.toml\` is current as of $(date -u +%Y-%m-%d). Closed by the weekly drift check; it reopens if anything falls behind again."
+            echo "Closed #$existing"
+            exit 0
+          fi
+
+          {
+            echo "## What is behind"
+            echo
+            echo "| Tool | Pinned in \`.mise.toml\` | Newest upstream |"
+            echo "| --- | --- | --- |"
+            cat "$RUNNER_TEMP/drift-table.md"
+            echo
+            echo "## What to do"
+            echo
+            echo "1. Bump the pin(s) in \`.mise.toml\`."
+            echo "2. \`mise install\` — CI picks the new pin up on its next run."
+            echo "3. If the bump moves \`node\` or \`pnpm\`, re-run \`pnpm install\` and commit any lockfile change."
+            echo "4. Verify: \`pnpm turbo build test lint typecheck format:check\`."
+            echo "5. Close this issue. The next weekly run reopens it if anything is still behind."
+            echo
+            echo "Only \`.mise.toml\` pins are listed here. Versions that also live in \`package.json\` — the \`wrangler\` devDependency, \`packageManager\`, \`engines\` — are covered by Dependabot or bumped by hand; see ADR-0010."
+            echo
+            echo "_Generated by \`.github/workflows/toolchain-drift.yml\`, last checked $(date -u +%Y-%m-%d)._"
+          } > "$RUNNER_TEMP/drift-body.md"
+
+          title="Toolchain drift: mise pins behind upstream"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --title "$title" --body-file "$RUNNER_TEMP/drift-body.md"
+            echo "Refreshed #$existing"
+          else
+            gh issue create --title "$title" --label toolchain-drift --body-file "$RUNNER_TEMP/drift-body.md"
+          fi
