@@ -93,10 +93,14 @@ jobs:
       # Cloudflare guards one deployment per branch: "The latest deployment for
       # a branch cannot be deleted", and `force=true` lifts only the
       # aliased-deployment guard, not that one. So each alias this PR used keeps
-      # exactly one residual deployment — a documented limitation (ADR-0019),
-      # and the reason a failed delete below is a warning, not a job failure: a
-      # residual is the expected outcome, not an error. The others are deleted,
-      # so a branch of N pushes leaves one deployment, not N.
+      # exactly one residual deployment — the others are deleted, so a branch of
+      # N pushes leaves one, not N. That residual is documented in ADR-0019.
+      #
+      # A guarded delete and a real failure are not the same, so the loop reads
+      # the response rather than treating every failure as the guard: only a
+      # non-2xx that names the guard is an expected residual (a warning), while
+      # anything else — bad token, missing Pages Write scope, 5xx — fails the
+      # step instead of passing as a green run that leaked everything.
       - name: Find and delete this PR's Pages preview deployments
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -137,21 +141,58 @@ jobs:
           fi
 
           deleted=0
-          guarded=0
+          residual=0
+          failed=0
           while IFS= read -r deployment_id; do
             [ -n "$deployment_id" ] || continue
-            # A guarded (latest-for-branch) deployment must not abort the loop,
-            # or the remaining deployments would be skipped; every match is
-            # attempted.
-            if curl -fsS -X DELETE \
+
+            # `-sS` without `-f`, so a non-2xx status and body stay inspectable;
+            # the status is appended as the last line. A curl-level failure
+            # (DNS, TLS, network) is counted and skipped rather than aborting the
+            # loop and leaving the remaining deployments behind.
+            if ! response=$(curl -sS -w '\n%{http_code}' -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments/$deployment_id?force=true"; then
-              deleted=$((deleted + 1))
-              echo "Deleted Pages deployment $deployment_id."
-            else
-              guarded=$((guarded + 1))
-              echo "::warning::Could not delete Pages deployment $deployment_id — likely the latest deployment for its branch, which Cloudflare protects from deletion."
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments/$deployment_id?force=true"); then
+              failed=$((failed + 1))
+              echo "::error::Could not reach the Cloudflare API to delete Pages deployment $deployment_id."
+              continue
             fi
+
+            status=$(printf '%s' "$response" | tail -n1)
+            body=$(printf '%s' "$response" | sed '$d')
+
+            case "$status" in
+              2??)
+                deleted=$((deleted + 1))
+                echo "Deleted Pages deployment $deployment_id."
+                ;;
+              404)
+                # Already gone — another close-time run or a manual delete. Not
+                # a failure.
+                deleted=$((deleted + 1))
+                echo "Pages deployment $deployment_id was already gone."
+                ;;
+              4??|5??)
+                # Benign only when Cloudflare names the latest-for-branch guard;
+                # any other non-2xx (auth, permissions, server error) is a real
+                # failure and must fail the run, not hide behind the guard.
+                if printf '%s' "$body" | grep -qiE 'latest deployment|cannot be deleted'; then
+                  residual=$((residual + 1))
+                  echo "::warning::Left Pages deployment $deployment_id in place: Cloudflare does not delete the latest deployment for a branch."
+                else
+                  failed=$((failed + 1))
+                  echo "::error::Failed to delete Pages deployment $deployment_id (HTTP $status): $body"
+                fi
+                ;;
+              *)
+                failed=$((failed + 1))
+                echo "::error::Unexpected response deleting Pages deployment $deployment_id (HTTP $status): $body"
+                ;;
+            esac
           done <<< "$deployment_ids"
 
-          echo "Deleted $deleted Pages deployment(s); $guarded left in place by Cloudflare's latest-for-branch guard."
+          echo "Deleted $deleted Pages deployment(s); $residual left as Cloudflare's protected latest-for-branch residual."
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed Pages deployment(s) failed to delete for a reason other than the latest-for-branch guard."
+            exit 1
+          fi
