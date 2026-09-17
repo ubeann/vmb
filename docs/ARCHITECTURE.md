@@ -28,7 +28,7 @@ VMB is being rebuilt from a monolithic Laravel + Filament application into a dec
 | Background jobs | Cloudflare Queues *(not for MVP)* | Not needed yet — legacy queue is configured but unused (ADR-0014) |
 | Auth | Better Auth (self-hosted, on `apps/api`) | Decided (ADR-0012) |
 | Monorepo tooling | Turborepo | Build orchestration + remote caching |
-| Remote cache | Vercel remote cache (via `turbo link`) | Free, used for CI/dev speed only — not hosting |
+| Remote cache | Vercel remote cache (`TURBO_TOKEN`/`TURBO_TEAM` in CI) | Free, used for CI/dev speed only — not hosting |
 | CI/CD | GitHub Actions + `wrangler deploy` | Deploys to Cloudflare Workers/Pages |
 | Toolchain versioning | [mise](https://mise.jdx.dev) | Pins Node/pnpm (and other CLIs) via `.mise.toml`, shared by local dev and CI |
 | Dev/CI secrets | [fnox](https://github.com/jdx/fnox) | Age-encrypted secrets committed to repo for local dev + CI only; production Worker secrets stay in `wrangler secret` |
@@ -156,7 +156,7 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 
 ## 9. Deployment & CI/CD
 
-- Turborepo orchestrates builds across `apps/web` and `apps/api`, with task caching via Vercel's free remote cache (`turbo link`) — used purely for build speed, not hosting.
+- Turborepo orchestrates builds across `apps/web` and `apps/api`, with task caching via Vercel's free remote cache. CI authenticates it with the `TURBO_TOKEN`/`TURBO_TEAM` repo secrets; `build` declares `PUBLIC_API_URL` as an env input so preview and production builds keep distinct cache keys. Used purely for build speed, not hosting.
 - Each app has its own deploy script:
   - `apps/api`: `wrangler deploy`
   - `apps/web`: `wrangler pages deploy` (or framework-specific Cloudflare adapter build)
