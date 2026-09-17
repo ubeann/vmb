@@ -67,7 +67,7 @@ jobs:
       # TURBO_TOKEN/TURBO_TEAM enable the Vercel remote cache. When the
       # secrets aren't provisioned they resolve to empty strings, and turbo
       # falls back to the local cache rather than failing.
-      - run: fnox exec -- pnpm turbo build test lint typecheck
+      - run: fnox exec -- pnpm turbo build test lint typecheck format:check
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
           # Without this, fnox warns and exits 0 while exporting empty values
