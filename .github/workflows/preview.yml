@@ -12,8 +12,8 @@ name: Preview
 #   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
 #   - DB:    Neon branch named `pr-<N>`                          (see the Resolve step)
 # The Neon branch is the only one that needs explicit teardown — see
-# preview-cleanup.yml. Workers preview aliases and Pages preview deployments
-# need no cleanup (Cloudflare docs, verified for this ticket).
+# cleanup.yml. Workers preview aliases and Pages preview deployments need no
+# cleanup (Cloudflare docs, verified for this ticket).
 
 on:
   pull_request:
@@ -22,7 +22,7 @@ on:
       - "docs/**"
       - "**.md"
 
-# Shared with preview-cleanup.yml's `pull_request: closed` run. Closing a PR
+# Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
 # therefore cancels any in-flight preview deploy in this group *before* the
 # cleanup deletes the Neon branch, so a half-finished run can't create the
 # branch after deletion and leak it. Otherwise, a new push cancels this PR's
