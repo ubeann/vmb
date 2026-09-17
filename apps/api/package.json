@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy --env=\"\""
   },
   "dependencies": {
     "@vmb/db": "workspace:*",

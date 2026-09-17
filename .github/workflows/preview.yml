@@ -227,6 +227,11 @@ jobs:
       # production traffic; `--preview-alias` gives that version a stable URL
       # for the life of the PR. No cleanup needed — aliases are only LRU-pruned
       # past 1000 concurrent aliases.
+      #
+      # `--env=""` states the top-level (production) Worker explicitly. Without
+      # it wrangler warns, because wrangler.toml defines [env.staging]; the
+      # preview version must attach to vmb-api, not vmb-api-staging, for the
+      # `<alias>-vmb-api.<subdomain>.workers.dev` URL below to resolve.
       - name: Deploy API preview version
         working-directory: apps/api
         env:
@@ -244,6 +249,7 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           pnpm exec wrangler versions upload \
+            --env="" \
             --preview-alias "$PREVIEW_ALIAS" \
             --secrets-file "$RUNNER_TEMP/api-preview-secrets.json" \
             --message "PR #$PR_NUMBER: $PR_TITLE" \
