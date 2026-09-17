@@ -15,7 +15,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Both jobs only read the repo. Cloudflare auth is its own token
+# All jobs only read the repo. Cloudflare auth is its own token
 # (CLOUDFLARE_API_TOKEN), not the GITHUB_TOKEN, so nothing here needs write
 # scope — stating it keeps the deploy path off the repository default.
 permissions:
@@ -75,6 +75,30 @@ jobs:
           FNOX_IF_MISSING: error
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+  # Kept as its own job so a broken workflow file reads as a workflow failure,
+  # not a test failure. This is also the only place the workflow YAML itself is
+  # validated before it runs: actionlint catches bad expressions and dangling
+  # `needs:` references that GitHub happily accepts until the run fails, and
+  # shellcheck (found on PATH below) lints every `run:` block.
+  lint-workflows:
+    name: Lint Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      # Both tools come from .mise.toml (ADR-0010), so their versions are
+      # pinned with the rest of the toolchain instead of a floating download.
+      # `install_args` installs only these two — this job has no use for
+      # Node/pnpm/wrangler, and skipping them keeps it fast.
+      - uses: jdx/mise-action@v4
+        with:
+          experimental: true
+          install_args: actionlint shellcheck
+
+      # No arguments: actionlint walks .github/workflows on its own.
+      - run: actionlint
 
   deploy:
     name: Release

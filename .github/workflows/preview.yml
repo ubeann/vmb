@@ -121,9 +121,11 @@ jobs:
             alias="pr-${PR_NUMBER}"
           fi
 
-          echo "alias=$alias" >> "$GITHUB_OUTPUT"
-          echo "api_url=https://${alias}-vmb-api.${subdomain}.workers.dev" >> "$GITHUB_OUTPUT"
-          echo "web_url=https://${alias}.vmb-web.pages.dev" >> "$GITHUB_OUTPUT"
+          {
+            echo "alias=$alias"
+            echo "api_url=https://${alias}-vmb-api.${subdomain}.workers.dev"
+            echo "web_url=https://${alias}.vmb-web.pages.dev"
+          } >> "$GITHUB_OUTPUT"
           echo "Resolved preview alias: $alias"
 
       # Idempotent: if a branch named `pr-<N>` already exists (a re-push to the
