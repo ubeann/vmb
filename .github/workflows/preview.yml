@@ -122,16 +122,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          fnox export -f env -o "$RUNNER_TEMP/fnox.env"
-          read_secret() { grep -E "^$1=" "$RUNNER_TEMP/fnox.env" | head -n1 | cut -d= -f2-; }
+          # `fnox get`, not `fnox export -f env` — the export writes
+          # `export KEY=value` lines (plus comment headers), so grepping
+          # `^KEY=` finds nothing. get returns the raw value, and with
+          # FNOX_IF_MISSING: error an unresolvable key fails here, not as "".
+          better_auth_secret=$(fnox get BETTER_AUTH_SECRET)
+          resend_api_key=$(fnox get RESEND_API_KEY)
+          email_from=$(fnox get EMAIL_FROM)
 
           jq -n \
             --arg DATABASE_URL "$NEON_DB_URL" \
-            --arg BETTER_AUTH_SECRET "$(read_secret BETTER_AUTH_SECRET)" \
+            --arg BETTER_AUTH_SECRET "$better_auth_secret" \
             --arg BETTER_AUTH_URL "$API_PREVIEW_URL" \
             --arg WEB_URL "$WEB_PREVIEW_URL" \
-            --arg RESEND_API_KEY "$(read_secret RESEND_API_KEY)" \
-            --arg EMAIL_FROM "$(read_secret EMAIL_FROM)" \
+            --arg RESEND_API_KEY "$resend_api_key" \
+            --arg EMAIL_FROM "$email_from" \
             '{
               DATABASE_URL: $DATABASE_URL,
               BETTER_AUTH_SECRET: $BETTER_AUTH_SECRET,
@@ -148,8 +153,6 @@ jobs:
               exit 1
             fi
           done
-
-          rm -f "$RUNNER_TEMP/fnox.env"
 
       # `versions upload` (not `deploy`) uploads a version without shifting
       # production traffic; `--preview-alias` gives that version a stable URL
