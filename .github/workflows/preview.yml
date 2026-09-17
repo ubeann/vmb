@@ -216,10 +216,16 @@ jobs:
       # Pages Preview environment variables are shared across every preview
       # deployment, so the per-PR API URL is injected at build time instead —
       # resolveApiUrl() prefers it over the shared Pages API_URL binding.
+      #
+      # Routed through turbo (not `--filter @vmb/web build`) so it shares the
+      # remote cache with CI. `build`'s env declares PUBLIC_API_URL, so this
+      # per-PR hash can never restore the production (URL-less) entry.
       - name: Build web with this PR's API URL
         env:
           PUBLIC_API_URL: ${{ steps.urls.outputs.api_url }}
-        run: pnpm --filter @vmb/web build
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+        run: pnpm turbo build --filter=@vmb/web
 
       - name: Deploy web preview
         env:
