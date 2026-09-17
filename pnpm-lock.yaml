@@ -330,6 +330,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      eslint:
+        specifier: ^10.10.0
+        version: 10.10.0(supports-color@10.2.2)
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -343,6 +346,9 @@ importers:
       '@vmb/config':
         specifier: workspace:*
         version: link:../config
+      eslint:
+        specifier: ^10.10.0
+        version: 10.10.0(supports-color@10.2.2)
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

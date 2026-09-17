@@ -10,6 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -21,6 +22,7 @@
     "@cloudflare/workers-types": "^5.20260911.1",
     "@vmb/config": "workspace:*",
     "drizzle-kit": "^0.31.10",
+    "eslint": "^10.10.0",
     "typescript": "^5.7.0"
   }
 }
