@@ -30,8 +30,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check whether this PR has a Neon branch
-        id: branch
+      # Lookup and delete in one step. Deletion used to be delegated to
+      # `neondatabase/delete-branch-action`, but that is a composite action that
+      # pins `actions/setup-node` at a Node 20 commit, so every Cleanup run
+      # carried a Node 20 deprecation warning (issue #33). The lookup was
+      # already a direct API call, so the delete is one more of the same.
+      #
+      # `search` narrows server-side because list-branches is cursor-paginated;
+      # `limit` is well past any project's branch limit so the match can't fall
+      # onto a second page and silently leak the branch.
+      - name: Find and delete this PR's Neon branch
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
@@ -41,21 +49,15 @@ jobs:
 
           branch_id=$(curl -fsS \
             -H "Authorization: Bearer $NEON_API_KEY" \
-            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches" \
+            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?limit=100&search=$BRANCH_NAME" \
             | jq -r --arg name "$BRANCH_NAME" '[.branches[] | select(.name == $name) | .id] | first // ""')
 
           if [ -z "$branch_id" ]; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "No Neon branch named '$BRANCH_NAME' — nothing to delete."
-          else
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Found Neon branch '$BRANCH_NAME' ($branch_id)."
+            exit 0
           fi
 
-      - name: Delete Neon branch
-        if: steps.branch.outputs.exists == 'true'
-        uses: neondatabase/delete-branch-action@v3
-        with:
-          project_id: ${{ secrets.NEON_PROJECT_ID }}
-          branch: pr-${{ github.event.pull_request.number }}
-          api_key: ${{ secrets.NEON_API_KEY }}
+          echo "Deleting Neon branch '$BRANCH_NAME' ($branch_id)."
+          curl -fsS -X DELETE \
+            -H "Authorization: Bearer $NEON_API_KEY" \
+            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$branch_id"

@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Actions are pinned to moving major tags. Without a bump mechanism, a new
+  # action runtime only surfaces here once GitHub starts force-running the old
+  # one (the Node 20 deprecation warnings, issue #33). Grouped so the whole
+  # workflow surface arrives as one PR a week rather than a trickle.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # The workspace is pnpm at the repo root; Dependabot reads pnpm-lock.yaml.
+  # Minor and patch bumps are grouped to keep the queue quiet — majors stay as
+  # individual PRs, since those are the ones that need reading.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
