@@ -26,6 +26,12 @@ on:
       - "turbo.json"
       - "package.json"
       - "fnox.toml"
+      # A toolchain bump changes what a preview build produces, so it has to
+      # re-run the preview.
+      - ".mise.toml"
+      # Including the workflows themselves means an edit to this file is
+      # exercised by the preview before it lands, rather than after.
+      - ".github/workflows/**"
 
 # Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
 # therefore cancels any in-flight preview deploy in this group *before* the

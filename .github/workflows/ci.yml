@@ -15,6 +15,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Both jobs only read the repo. Cloudflare auth is its own token
+# (CLOUDFLARE_API_TOKEN), not the GITHUB_TOKEN, so nothing here needs write
+# scope — stating it keeps the deploy path off the repository default.
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     name: Verify
