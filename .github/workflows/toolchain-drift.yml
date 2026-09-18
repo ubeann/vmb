@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   check:
-    name: Check mise pins
+    name: Check Mise Pins
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
