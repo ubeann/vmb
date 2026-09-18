@@ -20,6 +20,14 @@ name: Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    # This `paths` list is the canonical definition of a "code-relevant
+    # change" — what a build or deploy actually depends on. `ci.yml`'s
+    # `Detect code-relevant changes` step mirrors this set minus
+    # `.github/workflows/**` to decide whether a `master` push deploys (issue
+    # #63). The workflow entry below is Preview-only: a workflow edit cannot
+    # change the deployed artifact, but it should still be exercised by the PR's
+    # own run. The two lists are kept in step by hand (issue #70); see
+    # ADR-0019.
     paths:
       - "apps/**"
       - "packages/**"
@@ -29,7 +37,9 @@ on:
       - "package.json"
       - "fnox.toml"
       # A toolchain bump changes what a preview build produces, so it has to
-      # re-run the preview.
+      # re-run the preview. This stays even though a dev-only pin (e.g.
+      # `lefthook`) never changes the build: `paths` cannot tell the two apart,
+      # and a build-affecting pin (`node`, `pnpm`, `wrangler`) shares the file.
       - ".mise.toml"
       # Including the workflows themselves means an edit to this file is
       # exercised by the preview before it lands, rather than after.

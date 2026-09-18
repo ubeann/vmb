@@ -46,10 +46,12 @@ jobs:
 
       # Issue #63: the gate (`Verify`) still runs on every `master` push
       # (#61); only the redundant deploy is skipped. The baseline is the
-      # pushed event's `before`, and the path list is preview.yml's minus
+      # pushed event's `before`, and the path list is the canonical
+      # "code-relevant change" definition in preview.yml's `paths`, minus
       # `.github/workflows/**` — a workflow edit self-tests in that PR's
-      # Preview run, but it cannot change the deployed artifact, so it must
-      # not force a deploy. Unifying the two lists is issue #70.
+      # Preview run but cannot change the deployed artifact, so it must not
+      # force a deploy. The two lists are kept in step by hand (issue #70);
+      # see ADR-0019.
       #
       # Living inside `Verify` rather than a job of its own is deliberate: a
       # separate job would add one more skipped check to every pull request.
