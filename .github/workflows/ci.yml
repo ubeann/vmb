@@ -50,8 +50,10 @@ jobs:
       # "code-relevant change" definition in preview.yml's `paths`, minus
       # `.github/workflows/**` — a workflow edit self-tests in that PR's
       # Preview run but cannot change the deployed artifact, so it must not
-      # force a deploy. The two lists are kept in step by hand (issue #70);
-      # see ADR-0019.
+      # force a deploy. `.github/actions/**` stays in the list: the composite
+      # action chooses the toolchain and the install flags, so editing it can
+      # change what the build produces. The two lists are kept in step by hand
+      # (issue #70); see ADR-0019.
       #
       # Living inside `Verify` rather than a job of its own is deliberate: a
       # separate job would add one more skipped check to every pull request.
@@ -89,7 +91,8 @@ jobs:
             turbo.json \
             package.json \
             fnox.toml \
-            .mise.toml
+            .mise.toml \
+            .github/actions
           status=$?
 
           # `--quiet` exits 1 when there are differences and 0 when there are
@@ -111,22 +114,10 @@ jobs:
           esac
           echo "code_changed=$code_changed" >> "$GITHUB_OUTPUT"
 
-      - uses: jdx/mise-action@v4
-        with:
-          experimental: true
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@v6
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-store-${{ runner.os }}-
-
-      - run: pnpm install --frozen-lockfile
+      # Toolchain, pnpm store cache, and a frozen-lockfile install: one
+      # composite action so the cache key and install flags live in a single
+      # place (issue #79).
+      - uses: ./.github/actions/setup
 
       # The format gate is its own step so a formatting failure reads as a
       # formatting failure rather than a cancelled typecheck (issue #59). It
@@ -203,6 +194,8 @@ jobs:
   # `needs:` references that GitHub happily accepts until the run fails, and
   # shellcheck (found on PATH below) lints every `run:` block — plus the
   # `scripts/**/*.sh` wizards, which nothing else checked (issue #61).
+  # actionlint also checks the local composite action the workflows reference,
+  # so `.github/actions/setup/action.yml` is validated here too (issue #79).
   lint-workflows-and-scripts:
     name: Lint Workflows and Scripts
     runs-on: ubuntu-latest
@@ -212,12 +205,14 @@ jobs:
 
       # Both tools come from .mise.toml (ADR-0010), so their versions are
       # pinned with the rest of the toolchain instead of a floating download.
-      # `install_args` installs only these two — this job has no use for
-      # Node/pnpm/wrangler, and skipping them keeps it fast.
-      - uses: jdx/mise-action@v4
+      # The composite action is the same one every other job bootstraps with;
+      # `install-args` narrows it to these two and `install-dependencies` opts
+      # out of the pnpm store and install this job has no use for, keeping it
+      # fast (issue #79).
+      - uses: ./.github/actions/setup
         with:
-          experimental: true
-          install_args: actionlint shellcheck
+          install-args: actionlint shellcheck
+          install-dependencies: "false"
 
       # No arguments: actionlint walks .github/workflows on its own.
       - run: actionlint
@@ -240,22 +235,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: jdx/mise-action@v4
-        with:
-          experimental: true
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@v6
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-store-${{ runner.os }}-
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       # Reads from the remote cache that build-and-test just populated:
       # PUBLIC_API_URL is unset here, so this is the production hash — the

@@ -1,0 +1,49 @@
+name: Setup
+description: >-
+  Install the mise-pinned toolchain, restore the pnpm store cache, and install
+  dependencies with a frozen lockfile — the bootstrap the build, test, release,
+  and preview jobs share (issue #79).
+
+inputs:
+  install-args:
+    description: >-
+      Space-separated mise tools to install. Empty installs the full
+      `.mise.toml` toolchain; a narrower job names only the tools it needs.
+    required: false
+    default: ""
+  install-dependencies:
+    description: >-
+      Run `pnpm install --frozen-lockfile` against the restored store. Set to
+      false for a job that needs no node_modules; it also skips the store
+      cache, which cannot be resolved without pnpm on PATH.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - uses: jdx/mise-action@v4
+      with:
+        experimental: true
+        install_args: ${{ inputs.install-args }}
+
+    # The store path is only knowable once pnpm is on PATH, so the cache sits
+    # below the toolchain install. Both steps share the `install-dependencies`
+    # guard: a job that installs no dependencies needs neither.
+    - name: Get pnpm store directory
+      if: inputs.install-dependencies == 'true'
+      id: pnpm-cache
+      shell: bash
+      run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+    - if: inputs.install-dependencies == 'true'
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+        key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-store-${{ runner.os }}-
+
+    - if: inputs.install-dependencies == 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile
