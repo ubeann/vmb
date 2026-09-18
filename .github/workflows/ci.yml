@@ -3,10 +3,11 @@ name: CI
 on:
   push:
     branches: [master]
+  # No path filter: a PR runs the same gate a push to `master` does, so nothing
+  # reaches `master` that a PR could have skipped (ADR-0023). A docs-only PR is
+  # affordable because turbo replays its code tasks from the remote cache; only
+  # `format:check`, whose inputs are the whole tree, misses.
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
 
 # Cancel a PR's superseded runs on new pushes, but never cancel an
 # in-flight run on `master` — that's what triggers `deploy`, and cancelling
@@ -45,6 +46,18 @@ jobs:
             pnpm-store-${{ runner.os }}-
 
       - run: pnpm install --frozen-lockfile
+
+      # The format gate is its own step so a formatting failure reads as a
+      # formatting failure rather than a cancelled typecheck (issue #59). It
+      # needs no fnox secrets, so it needs no `fnox exec` wrapper and no
+      # Dependabot split, and it runs before the Playwright install below to
+      # fail fast. Always repo-wide, never scoped to the diff (ADR-0023).
+      - name: Format
+        run: pnpm turbo format:check
+        env:
+          # Empty on a Dependabot run, where turbo falls back to the local cache.
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       # apps/web's component tests render .svelte files in a real browser
       # (vitest-browser-svelte + @vitest/browser-playwright). Cache the
@@ -85,7 +98,7 @@ jobs:
       # and the full path below runs.
       - name: Verify (Dependabot)
         if: github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]'
-        run: pnpm turbo build test lint typecheck format:check
+        run: pnpm turbo build test lint typecheck
 
       # DATABASE_URL and other dev secrets are age-encrypted and committed
       # via fnox (ADR-0011); FNOX_AGE_KEY unlocks them in CI.
@@ -94,7 +107,7 @@ jobs:
       # falls back to the local cache rather than failing.
       - name: Verify
         if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
-        run: fnox exec -- pnpm turbo build test lint typecheck format:check
+        run: fnox exec -- pnpm turbo build test lint typecheck
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
           # Without this, fnox warns and exits 0 while exporting empty values
@@ -107,9 +120,10 @@ jobs:
   # not a test failure. This is also the only place the workflow YAML itself is
   # validated before it runs: actionlint catches bad expressions and dangling
   # `needs:` references that GitHub happily accepts until the run fails, and
-  # shellcheck (found on PATH below) lints every `run:` block.
-  lint-workflows:
-    name: Lint Workflows
+  # shellcheck (found on PATH below) lints every `run:` block — plus the
+  # `scripts/**/*.sh` wizards, which nothing else checked (issue #61).
+  lint-workflows-and-scripts:
+    name: Lint Workflows and Scripts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -126,6 +140,12 @@ jobs:
 
       # No arguments: actionlint walks .github/workflows on its own.
       - run: actionlint
+
+      # actionlint shellchecks only the shell inside workflow `run:` blocks.
+      # `find` (not a `**` glob) so this works whatever the shell's `globstar`
+      # setting is, and `-r` so an empty result is not an error.
+      - name: Shellcheck scripts
+        run: find scripts -name '*.sh' -print0 | xargs -0 -r shellcheck
 
   deploy:
     name: Release
