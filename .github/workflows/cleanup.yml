@@ -27,6 +27,11 @@ on:
     # code was reverted. Path filters evaluate the current base…head diff, not
     # the union over history, so that branch would leak (issue #66). The job is
     # idempotent and cheap, so it runs on every close.
+    #
+    # This is the one preview trigger that deliberately opts out of the
+    # "code-relevant change" definition (ADR-0019, issue #70): filtered or not,
+    # it must run on every close to reap whatever an earlier push created, and
+    # filtering it would leak again exactly as issue #66 describes.
 
 # Shares preview.yml's concurrency group on purpose: closing a PR cancels any
 # in-flight preview deploy here *before* deleting, so a cancelled run can't
