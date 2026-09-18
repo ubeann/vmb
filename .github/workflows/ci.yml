@@ -36,13 +36,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           # `Detect code-relevant changes` diffs `github.event.before..HEAD`,
-          # so the baseline commit has to be in the clone. The default shallow
-          # checkout (depth 1) does not contain it. A conditional depth would
-          # avoid the full fetch on pull requests, but the obvious expression
-          # `event == 'push' && 0 || 1` silently evaluates to 1 — `0` is falsy
-          # in GitHub expressions — so the baseline stayed missing and this
-          # gate deployed on every push (#71). Full history is cheap here.
-          fetch-depth: 0
+          # so a push to `master` needs the baseline commit in the clone; the
+          # default shallow depth (1) does not contain it. A pull request skips
+          # that step, so there the full clone is wasted disk and transfer
+          # (issue #80). `case()` returns the matching value as-is, so depth
+          # `0` survives. The obvious numeric conditional
+          # `event == 'push' && 0 || 1` does not: `0` is falsy in GitHub
+          # expressions, so it falls through to `1`, the baseline goes missing,
+          # and the gate deploys on every push (issue #71).
+          fetch-depth: ${{ case(github.event_name == 'push', 0, 1) }}
 
       # Issue #63: the gate (`Verify`) still runs on every `master` push
       # (#61); only the redundant deploy is skipped. The baseline is the
