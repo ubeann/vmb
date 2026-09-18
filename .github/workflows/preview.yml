@@ -5,9 +5,11 @@ name: Preview
 # and the full stack get a real dry run before merging, without touching
 # production or a shared staging database.
 #
-# The API alias and Pages branch share one identifier, `<pr><number>-<slug>`,
-# where the slug is the branch name sanitized to what Cloudflare accepts; the
-# Neon branch is named `pr-<number>`. All three are idempotent per PR:
+# The three identifiers — the Workers alias / Pages branch (`pr<N>-<slug>` or
+# the `pr-<N>` fallback), the Pages deployment prefix (`pr<N>-`), and the Neon
+# branch (`pr-<N>`) — come from `scripts/preview-identifiers.sh`, the one
+# definition this workflow shares with cleanup.yml (issue #78). All three are
+# idempotent per PR:
 #   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
 #   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
 #   - DB:    Neon branch named `pr-<N>`                          (see the Resolve step)
@@ -107,26 +109,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The preview identifier is `<pr><number>-<slug>`, where the slug is the
-      # branch name sanitized the way Cloudflare does (lowercase, runs of
-      # non-alphanumerics to a single dash, trimmed), capped so
-      # `<alias>-vmb-api` stays inside the 63-char DNS label limit, and falling
-      # back to `pr-<number>` when the branch name sanitizes to nothing. Worker
-      # aliases must start with a lowercase letter, which the `pr` prefix
-      # guarantees.
-      #
-      # The Neon branch stays `pr-<number>`: it's internal, and keying cleanup
-      # on the immutable number means a branch rename cannot orphan it. The
-      # Pages deployment's branch *is* the alias above, so a rename orphans the
-      # old slug's deployments — cleanup.yml recovers them by the `pr<N>-`
-      # prefix, which is why the alias carries the immutable number too.
+      # The alias, the Pages prefix, and the Neon branch name all come from
+      # `scripts/preview-identifiers.sh` (issue #78), so create and destroy
+      # read one definition. The alias is sanitized from the branch name the
+      # way Cloudflare does, capped so `<alias>-vmb-api` stays inside the
+      # 63-char DNS label limit, and falls back to `pr-<N>` when the branch
+      # name sanitizes to nothing.
       #
       # The account's workers.dev subdomain is not known to the workflow —
       # read it from the Cloudflare API rather than a hardcoded repo variable.
       # (`<ALIAS>-<WORKER_NAME>.<SUBDOMAIN>.workers.dev`, per Cloudflare's
       # preview-URL docs.)
-      - name: Resolve preview URLs
-        id: urls
+      - name: Resolve preview identifiers
+        id: ids
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -135,6 +130,9 @@ jobs:
           # a branch name is attacker-controlled text.
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+
           subdomain=$(curl -fsS \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
@@ -145,33 +143,28 @@ jobs:
             exit 1
           fi
 
-          slug=$(printf '%s' "$HEAD_REF" \
-            | tr '[:upper:]' '[:lower:]' \
-            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
-            | cut -c1-32 \
-            | sed -E 's/-+$//')
-
-          if [ -n "$slug" ]; then
-            alias="pr${PR_NUMBER}-${slug}"
-          else
-            alias="pr-${PR_NUMBER}"
-          fi
+          alias=$(preview_alias "$PR_NUMBER" "$HEAD_REF")
+          neon_branch=$(preview_neon_branch "$PR_NUMBER")
 
           {
             echo "alias=$alias"
+            echo "neon_branch=$neon_branch"
             echo "api_url=https://${alias}-vmb-api.${subdomain}.workers.dev"
             echo "web_url=https://${alias}.vmb-web.pages.dev"
           } >> "$GITHUB_OUTPUT"
           echo "Resolved preview alias: $alias"
+          echo "Resolved Neon branch: $neon_branch"
 
       # Idempotent: if a branch named `pr-<N>` already exists (a re-push to the
       # same PR), the action returns the existing branch instead of failing.
+      # The name comes from the shared module (via the Resolve step), not a
+      # second inline definition (issue #78).
       - name: Create Neon branch
         id: neon
         uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ secrets.NEON_PROJECT_ID }}
-          branch_name: pr-${{ github.event.pull_request.number }}
+          branch_name: ${{ steps.ids.outputs.neon_branch }}
           api_key: ${{ secrets.NEON_API_KEY }}
 
       - name: Run database migrations against the PR's Neon branch
@@ -199,8 +192,8 @@ jobs:
           # error keeps a broken/missing key from silently shipping empties.
           FNOX_IF_MISSING: error
           NEON_DB_URL: ${{ steps.neon.outputs.db_url }}
-          API_PREVIEW_URL: ${{ steps.urls.outputs.api_url }}
-          WEB_PREVIEW_URL: ${{ steps.urls.outputs.web_url }}
+          API_PREVIEW_URL: ${{ steps.ids.outputs.api_url }}
+          WEB_PREVIEW_URL: ${{ steps.ids.outputs.web_url }}
         run: |
           set -euo pipefail
 
@@ -253,7 +246,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PREVIEW_ALIAS: ${{ steps.urls.outputs.alias }}
+          PREVIEW_ALIAS: ${{ steps.ids.outputs.alias }}
           # The PR's head commit, not `GITHUB_SHA`. On `pull_request` the latter
           # is the synthetic merge commit (`refs/pull/<n>/merge`), so the version
           # tag would name a commit the author never pushed (issue #46). This
@@ -279,7 +272,7 @@ jobs:
       # per-PR hash can never restore the production (URL-less) entry.
       - name: Build web with this PR's API URL
         env:
-          PUBLIC_API_URL: ${{ steps.urls.outputs.api_url }}
+          PUBLIC_API_URL: ${{ steps.ids.outputs.api_url }}
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
         run: pnpm turbo build --filter=@vmb/web
@@ -288,7 +281,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREVIEW_ALIAS: ${{ steps.urls.outputs.alias }}
+          PREVIEW_ALIAS: ${{ steps.ids.outputs.alias }}
           # Same head commit as the API version tag above (issue #46).
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -308,8 +301,9 @@ jobs:
         if: always()
         uses: actions/github-script@v9
         env:
-          WEB_PREVIEW_URL: ${{ steps.urls.outputs.web_url }}
-          API_PREVIEW_URL: ${{ steps.urls.outputs.api_url }}
+          WEB_PREVIEW_URL: ${{ steps.ids.outputs.web_url }}
+          API_PREVIEW_URL: ${{ steps.ids.outputs.api_url }}
+          NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
           JOB_STATUS: ${{ job.status }}
         with:
           script: |
@@ -330,6 +324,9 @@ jobs:
             const branch = context.payload.pull_request.head.ref;
             const webUrl = process.env.WEB_PREVIEW_URL;
             const apiUrl = process.env.API_PREVIEW_URL;
+            // The shared module's Neon name (via the Resolve step), not a
+            // second inline definition (issue #78).
+            const neonBranch = process.env.NEON_BRANCH;
 
             const deployed = process.env.JOB_STATUS === "success" && webUrl && apiUrl;
             const body = deployed
@@ -345,7 +342,7 @@ jobs:
                   `| API preview | ${apiUrl} |`,
                   `| API health | ${apiUrl}/health |`,
                   "",
-                  `The preview API uses an isolated Neon branch (\`pr-${context.issue.number}\`), which is deleted when this pull request closes.`,
+                  `The preview API uses an isolated Neon branch (\`${neonBranch}\`), which is deleted when this pull request closes.`,
                   "",
                   `<sub>This comment updates on every push. [Workflow run](${runUrl})</sub>`,
                 ].join("\n")
