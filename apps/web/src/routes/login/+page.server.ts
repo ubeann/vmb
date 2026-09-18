@@ -1,5 +1,4 @@
-import { createAuthApiClient } from "$lib/auth.js";
-import { resolveApiUrl } from "$lib/env.js";
+import { withAuthApiClient } from "$lib/api-access.js";
 import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
 
@@ -19,17 +18,17 @@ export const actions: Actions = {
       return fail(400, { error: "Email and password are required." });
     }
 
-    let result: Awaited<ReturnType<ReturnType<typeof createAuthApiClient>["signIn"]["email"]>>;
-    try {
-      const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
-      result = await client.signIn.email({ email, password });
-    } catch (err) {
-      console.error("login action: request to API failed", err);
+    const access = await withAuthApiClient(event, (client) =>
+      client.signIn.email({ email, password })
+    );
+
+    if (!access.ok) {
+      console.error("login action: request to API failed", access.error);
       return fail(500, { error: "Something went wrong. Please try again." });
     }
 
-    if (result.error) {
-      return fail(400, { error: result.error.message ?? "Invalid email or password." });
+    if (access.value.error) {
+      return fail(400, { error: access.value.error.message ?? "Invalid email or password." });
     }
 
     redirect(303, "/");

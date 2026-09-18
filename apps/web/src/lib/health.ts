@@ -1,13 +1,11 @@
 import type { HealthResponse } from "@vmb/types";
-import type { createApiClient } from "./api.js";
+import type { ApiClient } from "./api.js";
 
 export function unreachableHealth(): HealthResponse {
   return { status: "error", db: "unreachable", timestamp: new Date().toISOString() };
 }
 
-export async function loadHealth(
-  client: ReturnType<typeof createApiClient>
-): Promise<HealthResponse> {
+export async function loadHealth(client: ApiClient): Promise<HealthResponse> {
   try {
     const res = await client.health.$get();
     return res.ok ? await res.json() : unreachableHealth();
