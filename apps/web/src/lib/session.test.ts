@@ -42,4 +42,12 @@ describe("loadSession", () => {
 
     expect(getSession).toHaveBeenCalledWith({ fetchOptions: undefined });
   });
+
+  it("propagates a transport failure so the API access seam can own it", async () => {
+    const client = fakeClient(async () => {
+      throw new Error("network down");
+    });
+
+    await expect(loadSession(client, null)).rejects.toThrow("network down");
+  });
 });

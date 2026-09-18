@@ -25,4 +25,12 @@ describe("loadHealth", () => {
     expect(result.status).toBe("error");
     expect(result.db).toBe("unreachable");
   });
+
+  it("propagates a transport failure so the API access seam can own it", async () => {
+    const client = fakeClient(async () => {
+      throw new Error("network down");
+    });
+
+    await expect(loadHealth(client)).rejects.toThrow("network down");
+  });
 });
