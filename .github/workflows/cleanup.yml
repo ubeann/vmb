@@ -56,6 +56,13 @@ jobs:
     if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     timeout-minutes: 10
     steps:
+      # Needed so the job can source `scripts/preview-identifiers.sh`, the one
+      # definition of the names it re-derives (issue #78). Cleanup previously
+      # inlined the `pr-<N>` Neon name and the `pr<N>-` Pages prefix; sourcing
+      # the same module preview.yml uses is what keeps create and destroy from
+      # drifting apart.
+      - uses: actions/checkout@v7
+
       # Lookup and delete in one step. Deletion used to be delegated to
       # `neondatabase/delete-branch-action`, but that is a composite action that
       # pins `actions/setup-node` at a Node 20 commit, so every Cleanup run
@@ -69,9 +76,13 @@ jobs:
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
-          BRANCH_NAME: pr-${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          BRANCH_NAME=$(preview_neon_branch "$PR_NUMBER")
 
           branch_id=$(curl -fsS \
             -H "Authorization: Bearer $NEON_API_KEY" \
@@ -95,7 +106,8 @@ jobs:
       # nothing), so every deployment this PR ever made shares the `pr<N>-`
       # prefix — including ones orphaned by a branch rename (`pr<N>-<old>` →
       # `pr<N>-<new>`), which a branch-name lookup alone would miss. This is why
-      # cleanup keys on the PR number rather than the current branch name.
+      # cleanup keys on the PR number rather than the current branch name. Both
+      # the prefix and the fallback come from the shared module (issue #78).
       #
       # The list endpoint is paginated, so the loop follows `total_pages`
       # instead of trusting the first page; a match on a later page would
@@ -123,8 +135,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          prefix="pr${PR_NUMBER}-"
-          fallback="pr-${PR_NUMBER}"
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          prefix=$(preview_pages_prefix "$PR_NUMBER")
+          fallback=$(preview_neon_branch "$PR_NUMBER")
           deployment_ids=""
 
           page=1
