@@ -21,38 +21,23 @@ name: Preview
 # this prune left behind. The Workers preview alias needs nothing — aliases are
 # LRU-pruned past 1000 concurrent ones and the version behind an alias is
 # CF-retained (issue #55). See cleanup.yml for the full three-way distinction.
+#
+# Whether a PR gets a preview at all is decided by the `Detect code-relevant
+# changes` job, not a trigger-level `paths` filter. The canonical
+# "code-relevant change" definition lives in `scripts/code-relevant-paths.sh`
+# (issue #83), and a workflow's `on.paths` cannot reference a shared value — as
+# a hand-kept copy it could only drift from `ci.yml`'s deploy gate (issue #70,
+# ADR-0019). The job gates the preview job, so a docs-only PR pays one cheap,
+# secret-free job instead of starting no run at all.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    # This `paths` list is the canonical definition of a "code-relevant
-    # change" — what a build or deploy actually depends on. `ci.yml`'s
-    # `Detect code-relevant changes` step mirrors this set minus
-    # `.github/workflows/**` to decide whether a `master` push deploys (issue
-    # #63). The workflow entry below is Preview-only: a workflow edit cannot
-    # change the deployed artifact, but it should still be exercised by the PR's
-    # own run. The two lists are kept in step by hand (issue #70); see
-    # ADR-0019.
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "turbo.json"
-      - "package.json"
-      - "fnox.toml"
-      # A toolchain bump changes what a preview build produces, so it has to
-      # re-run the preview. This stays even though a dev-only pin (e.g.
-      # `lefthook`) never changes the build: `paths` cannot tell the two apart,
-      # and a build-affecting pin (`node`, `pnpm`, `wrangler`) shares the file.
-      - ".mise.toml"
-      # Including the workflows themselves means an edit to this file is
-      # exercised by the preview before it lands, rather than after. The
-      # composite action the jobs bootstrap with is included for the same
-      # reason: it decides the toolchain and install flags the preview builds
-      # with, so a change to it is a change to what the preview runs.
-      - ".github/workflows/**"
-      - ".github/actions/**"
+    # No `paths` filter — see the header: the definition is shared from
+    # `scripts/code-relevant-paths.sh` and consumed by the `changes` job below.
+    # A docs-only PR still runs this workflow, but the preview job (the one that
+    # holds secrets and creates Cloudflare/Neon resources) is skipped before it
+    # starts.
 
 # Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
 # therefore cancels any in-flight preview deploy in this group *before* the
@@ -69,9 +54,53 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Decides whether this PR is code-relevant before the secret-bearing preview
+  # job starts. Secret-free by design — it only diffs the checkout — so it also
+  # runs for Dependabot PRs whose preview is skipped below (issue #45).
+  changes:
+    name: Detect code-relevant changes
+    runs-on: ubuntu-latest
+    # The workflow grants `pull-requests: write` for the preview job's sticky
+    # comment; this job needs only the checkout.
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    outputs:
+      code_changed: ${{ steps.changes.outputs.code_changed }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # The canonical definition is `scripts/code-relevant-paths.sh`; the
+      # `preview` mode adds `.github/workflows/**`, because a workflow edit
+      # cannot change the deployed artifact but still has to be exercised by the
+      # PR's own preview before it lands (ADR-0023, issue #83).
+      - name: Detect code-relevant changes
+        id: changes
+        env:
+          # The default checkout is the test merge commit, whose first parent is
+          # the PR's base commit — the baseline the diff is measured against.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -uo pipefail
+
+          # shellcheck source=scripts/code-relevant-paths.sh
+          . scripts/code-relevant-paths.sh
+
+          # A depth-1 clone carries the merge commit but not its parent. Fetch
+          # the base commit so the diff can name it; if the fetch fails the
+          # module returns "undetermined" (2) and the preview runs (fail open),
+          # so the warning below is not a silent skip.
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA" \
+              || echo "::warning::Could not fetch the base commit $BASE_SHA; running the preview to be safe."
+          fi
+
+          emit_code_relevant_change "$BASE_SHA" HEAD preview
+
   preview:
     name: Create Environment
     runs-on: ubuntu-latest
+    needs: changes
     # Dependabot-triggered runs receive no Actions secrets, and this job cannot
     # work without them: `Resolve preview URLs` 404s on an empty
     # CLOUDFLARE_API_TOKEN, and the Neon and fnox steps need their secrets too.
@@ -94,7 +123,14 @@ jobs:
     # this does not wall Dependabot PRs off from merging. Because no Neon
     # branch is created here, cleanup.yml has nothing to delete for them either
     # and skips them the same way.
-    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+    #
+    # A docs-only PR skips this job the same way: `changes` above concludes
+    # `code_changed=false` and no secret-bearing runner starts (issue #83).
+    #
+    # Fail open, like the deploy gate: `!cancelled()` lets this job run when
+    # `changes` itself failed, and an absent output is not `false`, so a broken
+    # `changes` job runs the preview rather than silently skipping a code PR.
+    if: "!cancelled() && needs.changes.outputs.code_changed != 'false' && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'"
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
