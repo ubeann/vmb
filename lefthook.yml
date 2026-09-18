@@ -1,0 +1,44 @@
+# Local git hooks: fast feedback before a push, never the gate (issue #62).
+# CI is the gate (#61). Keep these fast and honest — a slow or flaky hook just
+# teaches people to reach for `--no-verify`. Bypass deliberately with
+# `git commit --no-verify`; the GitButler CLI has no equivalent flag.
+#
+# `mise install` runs `lefthook install`; run that by hand if you cloned before
+# the hooks existed.
+#
+# Standard glob semantics: under the default `gobwas` matcher `**/` means one or
+# more directories, so `scripts/**/*.sh` would miss `scripts/x.sh`. `doublestar`
+# makes `**/` match zero or more, like bash.
+glob_matcher: doublestar
+
+pre-commit:
+  parallel: true
+  commands:
+    # Auto-fix formatting on the staged files and re-stage the result — the one
+    # thing CI cannot do for the author. `--ignore-unknown` skips file types
+    # prettier has no parser for, so this runs on every staged file.
+    format:
+      run: pnpm exec prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+    # eslint is a per-package devDependency with a per-package flat config, so
+    # there is no root binary to run it from; the script maps each staged file
+    # to its package.
+    eslint:
+      glob: "**/*.{js,mjs,cjs,ts,tsx,svelte}"
+      run: scripts/lint-staged-eslint.sh {staged_files}
+    # actionlint shellchecks only the shell inside workflow `run:` blocks, so
+    # the wizard scripts are checked here explicitly.
+    shellcheck:
+      glob: "scripts/**/*.sh"
+      run: shellcheck {staged_files}
+    actionlint:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: actionlint
+
+commit-msg:
+  commands:
+    # The only hard enforcement of the message conventions (the repo has no
+    # required status checks): Conventional Commits, and the co-author
+    # trailer's shape when one is present.
+    message:
+      run: scripts/check-commit-msg.sh {1}

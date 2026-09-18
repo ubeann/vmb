@@ -10,6 +10,15 @@ wrangler = "4"
 # to. Pinned here like every other tool (ADR-0010) so CI and local agree.
 actionlint = "1.7.12"
 shellcheck = "0.11.0"
+# Local git hooks (lefthook.yml). Pinned like every other real tool (ADR-0010);
+# the hooks themselves are fast feedback, never the gate (issue #62).
+lefthook = "2.1.14"
+
+[hooks]
+# Install the hooks after `mise install` so a fresh clone gets them without a
+# separate step. `lefthook install` is idempotent, and skipped in CI, where
+# nothing commits and a hook write would only add noise.
+postinstall = '[ "$CI" = "true" ] || lefthook install'
 
 [env]
 _.path = ["./node_modules/.bin"]
