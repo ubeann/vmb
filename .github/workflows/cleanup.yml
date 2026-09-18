@@ -47,7 +47,7 @@ permissions:
 
 jobs:
   cleanup:
-    name: Destroy Preview Resources
+    name: Destroy preview resources
     runs-on: ubuntu-latest
     # Dependabot-authored PRs never get a Preview environment (preview.yml
     # skips them), so there is no Neon branch or Pages deployment to delete for

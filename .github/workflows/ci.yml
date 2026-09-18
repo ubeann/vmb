@@ -254,7 +254,7 @@ jobs:
   # actionlint also checks the local composite action the workflows reference,
   # so `.github/actions/setup/action.yml` is validated here too (issue #79).
   lint-workflows-and-scripts:
-    name: Lint Workflows and Scripts
+    name: Lint workflows and scripts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

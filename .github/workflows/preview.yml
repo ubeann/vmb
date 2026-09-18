@@ -70,7 +70,7 @@ permissions:
 
 jobs:
   preview:
-    name: Create Environment
+    name: Create environment
     runs-on: ubuntu-latest
     # Dependabot-triggered runs receive no Actions secrets, and this job cannot
     # work without them: `Resolve preview URLs` 404s on an empty
