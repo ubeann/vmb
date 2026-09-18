@@ -1,5 +1,5 @@
-import { withAuthApiClient } from "$lib/api-access.js";
-import { fail, redirect } from "@sveltejs/kit";
+import { createAuthAction } from "$lib/auth-action.js";
+import { redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
 
 export const load: PageServerLoad = ({ locals }) => {
@@ -9,50 +9,25 @@ export const load: PageServerLoad = ({ locals }) => {
 };
 
 export const actions: Actions = {
-  default: async (event) => {
-    const form = await event.request.formData();
-    const name = form.get("name");
-    const email = form.get("email");
-    const password = form.get("password");
-
-    if (
-      typeof name !== "string" ||
-      typeof email !== "string" ||
-      typeof password !== "string" ||
-      !name ||
-      !email ||
-      !password
-    ) {
-      return fail(400, { error: "Name, email, and password are required." });
-    }
-
-    const access = await withAuthApiClient(event, (client) =>
+  default: createAuthAction({
+    fields: ["name", "email", "password"],
+    missingFieldsMessage: "Name, email, and password are required.",
+    fallbackErrorMessage: "Could not create account.",
+    logLabel: "signup action",
+    run: (client, values, event) =>
       client.signUp.email({
-        name,
-        email,
-        password,
+        ...values,
         // Absolute URL required: Better Auth's verify-email link is opened
         // directly from the user's inbox (hitting apps/api's own origin),
         // and this is checked against trustedOrigins before it's honored.
         // Without it, the link would redirect back to apps/api itself,
         // which has no "/" route.
         callbackURL: `${event.url.origin}/login?verified=true`
-      })
-    );
-
-    if (!access.ok) {
-      console.error("signup action: request to API failed", access.error);
-      return fail(500, { error: "Something went wrong. Please try again." });
-    }
-
-    if (access.value.error) {
-      return fail(400, { error: access.value.error.message ?? "Could not create account." });
-    }
-
+      }),
     // requireEmailVerification is on: signUp.email succeeding here does NOT
     // create a session (no Set-Cookie) — the user still needs to click the
     // verification link, then log in normally. Don't redirect to "/" as if
     // they're already signed in.
-    return { success: true };
-  }
+    onSuccess: () => ({ success: true })
+  })
 };
