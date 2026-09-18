@@ -56,14 +56,15 @@ jobs:
 
       # Issue #63: the gate (`Verify`) still runs on every `master` push
       # (#61); only the redundant deploy is skipped. The baseline is the
-      # pushed event's `before`, and the path list is the canonical
-      # "code-relevant change" definition in preview.yml's `paths`, minus
-      # `.github/workflows/**` — a workflow edit self-tests in that PR's
-      # Preview run but cannot change the deployed artifact, so it must not
-      # force a deploy. `.github/actions/**` stays in the list: the composite
-      # action chooses the toolchain and the install flags, so editing it can
-      # change what the build produces. The two lists are kept in step by hand
-      # (issue #70); see ADR-0019.
+      # pushed event's `before`, and the path list — the canonical
+      # "code-relevant change" definition — lives in
+      # `scripts/code-relevant-paths.sh`, the same module preview.yml's
+      # `Detect code-relevant changes` job consumes (issue #83; see ADR-0019).
+      # This gate passes no mode, so it takes the canonical list alone: a
+      # workflow edit self-tests in that PR's Preview run but cannot change the
+      # deployed artifact, so it must not force a deploy. `.github/actions/**`
+      # stays canonical: the composite action chooses the toolchain and the
+      # install flags, so editing it can change what the build produces.
       #
       # Living inside `Verify` rather than a job of its own is deliberate: a
       # separate job would add one more skipped check to every pull request.
@@ -73,6 +74,11 @@ jobs:
       # visible instead of silent. A skipped deploy is invisible until someone
       # notices production is stale; a spurious one is only wasteful, but a
       # silent fail-open hides a broken gate — see the checkout comment above.
+      #
+      # The module is errexit-safe on its own: it guards `git diff --quiet` in
+      # an `if`, so its exit-1 "changes found" signal is classified rather than
+      # killing the step under the runner's inherited `-e` (issue #97). No
+      # `set +e` is needed here; the guard lives with the diff it protects.
       - name: Detect code-relevant changes
         id: changes
         if: github.event_name == 'push'
@@ -80,12 +86,10 @@ jobs:
           # Passed through the environment, never interpolated into the script.
           BEFORE: ${{ github.event.before }}
         run: |
-          # `git diff --quiet` exits 1 as its normal "changes found" signal, so
-          # the runner's inherited `-e` must be cleared for the `case` below to
-          # classify that status rather than fail the step (same pattern as
-          # preview.yml's prune step).
-          set +e
           set -uo pipefail
+
+          # shellcheck source=scripts/code-relevant-paths.sh
+          . scripts/code-relevant-paths.sh
 
           # An unusable baseline must deploy, not skip: GitHub sends the
           # all-zero SHA on a first push or a new branch, and a force-push can
@@ -98,36 +102,10 @@ jobs:
             exit 0
           fi
 
-          git diff --quiet "$BEFORE" HEAD -- \
-            apps \
-            packages \
-            pnpm-lock.yaml \
-            pnpm-workspace.yaml \
-            turbo.json \
-            package.json \
-            fnox.toml \
-            .mise.toml \
-            .github/actions
-          status=$?
-
-          # `--quiet` exits 1 when there are differences and 0 when there are
-          # none; anything else (a missing object, a bad baseline) is a real
-          # error and must not be read as "no changes".
-          case "$status" in
-            0)
-              echo "No code-relevant changes in $BEFORE..HEAD; the deploy will be skipped."
-              code_changed=false
-              ;;
-            1)
-              echo "Code-relevant changes detected in $BEFORE..HEAD."
-              code_changed=true
-              ;;
-            *)
-              echo "::warning::git diff $BEFORE..HEAD failed (exit $status); deploying to be safe."
-              code_changed=true
-              ;;
-          esac
-          echo "code_changed=$code_changed" >> "$GITHUB_OUTPUT"
+          # The module publishes `code_changed` and fails open: only a
+          # definitive "no code-relevant change" skips the deploy, so a missing
+          # object or bad baseline can never silently skip a needed release.
+          emit_code_relevant_change "$BEFORE" HEAD
 
       # Toolchain, pnpm store cache, and a frozen-lockfile install: one
       # composite action so the cache key and install flags live in a single

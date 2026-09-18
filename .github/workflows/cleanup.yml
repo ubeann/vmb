@@ -31,7 +31,7 @@ on:
     # idempotent and cheap, so it runs on every close.
     #
     # This is the one preview trigger that deliberately opts out of the
-    # "code-relevant change" definition (ADR-0019, issue #70): filtered or not,
+    # "code-relevant change" definition (ADR-0019, issue #83): filtered or not,
     # it must run on every close to reap whatever an earlier push created, and
     # filtering it would leak again exactly as issue #66 describes.
 
