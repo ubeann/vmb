@@ -258,9 +258,16 @@ say "A fresh BETTER_AUTH_SECRET will be used unless you paste your own."
 ask_secret BETTER_AUTH_SECRET "BETTER_AUTH_SECRET (Enter to use the generated one):"
 BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-$generated_secret}"
 
-# Reuse the URLs setup-deploy.sh already worked out, if present.
-[[ -n "$(_existing API_PROD_URL)" ]] && write_env BETTER_AUTH_URL "$(_existing API_PROD_URL)"
-[[ -n "$(_existing WEB_PROD_URL)" ]] && write_env WEB_URL "$(_existing WEB_PROD_URL)"
+# Default the public URLs to the custom domain (issue #31, ADR-0022). If
+# setup-deploy.sh already ran, reuse the URLs it worked out — custom domain
+# when the zone is active, otherwise the workers.dev/pages.dev fallback —
+# and fall back to the canonical hostnames so a rotation on a fresh checkout
+# does not leave them empty.
+PROD_DOMAIN="${PROD_DOMAIN:-vmblogistics.id}"
+api_prod_url=$(_existing API_PROD_URL || true)
+web_prod_url=$(_existing WEB_PROD_URL || true)
+write_env BETTER_AUTH_URL "${api_prod_url:-https://api.$PROD_DOMAIN}"
+write_env WEB_URL "${web_prod_url:-https://$PROD_DOMAIN}"
 ask BETTER_AUTH_URL "BETTER_AUTH_URL:"
 ask WEB_URL "WEB_URL:"
 

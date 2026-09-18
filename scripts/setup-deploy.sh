@@ -199,6 +199,11 @@ cd "$(git rev-parse --show-toplevel)"
 
 banner "VMB: per-PR previews + production deploy setup"
 
+# The production apex. The vmb-web Pages project serves it and the vmb-api
+# Worker serves the `api` subdomain (ADR-0022); override to target another
+# zone. Set from the environment or prompted for in stage 3.
+PROD_DOMAIN="${PROD_DOMAIN:-vmblogistics.id}"
+
 # put_worker_secret NAME VALUE attaches a runtime secret to the vmb-api Worker.
 # Value via stdin so it never lands in argv, shell history, or `ps`.
 #
@@ -266,11 +271,17 @@ step "Create an API token with these account permissions:"
 note "  • Account → Workers Scripts → Edit   (upload API preview versions)"
 note "  • Account → Cloudflare Pages → Edit  (deploy the web preview + production)"
 note "  • Account → Account Settings → Read  (read the workers.dev subdomain)"
+note "  • Zone → Zone → Read                 (look up the production zone)"
+note "  • Zone → Workers Routes → Edit       (bind the API custom domain on deploy)"
 step "Copy the token."
 ask_secret CLOUDFLARE_API_TOKEN "Paste the Cloudflare API token:"
 step "Copy the Account ID from the Workers & Pages overview (right sidebar, or the dashboard URL)."
 open_url "https://dash.cloudflare.com/?to=/:account/workers-and-pages"
 ask CLOUDFLARE_ACCOUNT_ID "Paste the Cloudflare account ID:"
+PROD_DOMAIN_DEFAULT="$PROD_DOMAIN"
+step "Confirm the production domain whose zone serves the app (default: $PROD_DOMAIN_DEFAULT)."
+ask PROD_DOMAIN "Production domain (apex):"
+PROD_DOMAIN="${PROD_DOMAIN:-$PROD_DOMAIN_DEFAULT}"
 
 if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" ]]; then
   set_secret CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
@@ -279,24 +290,45 @@ if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" ]]; then
   write_env CLOUDFLARE_ACCOUNT_ID "$CLOUDFLARE_ACCOUNT_ID"
   write_env CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
 
-  # Resolve the account's workers.dev subdomain so the production URLs can be
-  # computed. Response shape: {"result":{"subdomain":"..."}}.
+  # Resolve the account's workers.dev subdomain so a fallback production URL
+  # exists. Response shape: {"result":{"subdomain":"..."}}.
   response=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
     "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" || true)
   CLOUDFLARE_WORKERS_SUBDOMAIN=$(printf '%s' "$response" | sed -n 's/.*"subdomain"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
-  if [[ -n "$CLOUDFLARE_WORKERS_SUBDOMAIN" ]]; then
+  # Prefer the custom domain (issue #31, ADR-0022). It is only usable once the
+  # zone is active in this account, so look the zone up by name and fall back to
+  # workers.dev / pages.dev otherwise. Resolving the zone needs Zone:Read; the
+  # call returns an empty result set (not an error) when the domain is not in
+  # this account.
+  zone_response=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    "https://api.cloudflare.com/client/v4/zones?name=$PROD_DOMAIN" || true)
+  ZONE_ID=$(printf '%s' "$zone_response" | jq -r '.result[0].id // empty' 2>/dev/null || true)
+  ZONE_STATUS=$(printf '%s' "$zone_response" | jq -r '.result[0].status // empty' 2>/dev/null || true)
+
+  if [[ -n "$ZONE_ID" && "$ZONE_STATUS" == "active" ]]; then
+    API_PROD_URL="https://api.${PROD_DOMAIN}"
+    WEB_PROD_URL="https://${PROD_DOMAIN}"
+    write_env PROD_DOMAIN "$PROD_DOMAIN"
+    write_env ZONE_ID "$ZONE_ID"
+    say "zone '$PROD_DOMAIN' is active — production URLs use the custom domain."
+  elif [[ -n "$CLOUDFLARE_WORKERS_SUBDOMAIN" ]]; then
     API_PROD_URL="https://vmb-api.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev"
     WEB_PROD_URL="https://vmb-web.pages.dev"
-    write_env CLOUDFLARE_WORKERS_SUBDOMAIN "$CLOUDFLARE_WORKERS_SUBDOMAIN"
-    write_env API_PROD_URL "$API_PROD_URL"
-    write_env WEB_PROD_URL "$WEB_PROD_URL"
-    say "workers.dev subdomain: $CLOUDFLARE_WORKERS_SUBDOMAIN"
-    say "API will live at: $API_PROD_URL"
-    say "Web will live at: $WEB_PROD_URL"
+    warn "zone '$PROD_DOMAIN' is not active in this account — falling back to workers.dev / pages.dev."
+    warn "add the domain as a zone, then re-run to switch production to the custom domain."
   else
-    warn "could not read the workers.dev subdomain — check the token's Workers scope."
+    warn "neither an active zone '$PROD_DOMAIN' nor a workers.dev subdomain was found."
+    warn "check the token's Workers and Zone scopes, then re-run."
+    SKIPPED+=("Resolve production URLs (Cloudflare credentials/scopes)")
   fi
+
+  [[ -n "$CLOUDFLARE_WORKERS_SUBDOMAIN" ]] && write_env CLOUDFLARE_WORKERS_SUBDOMAIN "$CLOUDFLARE_WORKERS_SUBDOMAIN"
+  [[ -n "${API_PROD_URL:-}" ]] && write_env API_PROD_URL "$API_PROD_URL"
+  [[ -n "${WEB_PROD_URL:-}" ]] && write_env WEB_PROD_URL "$WEB_PROD_URL"
+  [[ -n "$CLOUDFLARE_WORKERS_SUBDOMAIN" ]] && say "workers.dev subdomain: $CLOUDFLARE_WORKERS_SUBDOMAIN"
+  [[ -n "${API_PROD_URL:-}" ]] && say "API will live at: $API_PROD_URL"
+  [[ -n "${WEB_PROD_URL:-}" ]] && say "Web will live at: $WEB_PROD_URL"
 else
   warn "missing Cloudflare credentials — later deploy stages will be skipped."
 fi
@@ -331,6 +363,33 @@ else
   warn "skipped: no Cloudflare credentials from stage 3."
   SKIPPED+=("Create the vmb-web Pages project (production branch master)")
 fi
+
+# Attach the apex to the Pages project so the zone serves the app at the custom
+# domain (ADR-0022). Pages custom domains are configured through the Pages API,
+# not wrangler.toml, and the apex must not also carry a Worker route — which is
+# why the API Worker takes the `api` subdomain instead.
+if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${ZONE_ID:-}" && "${ZONE_STATUS:-}" == "active" ]]; then
+  say "Attaching $PROD_DOMAIN to the vmb-web Pages project..."
+  domains_response=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/vmb-web/domains" 2>/dev/null || true)
+  if printf '%s' "$domains_response" | jq -r '.result[]?.name' 2>/dev/null | grep -Fxq "$PROD_DOMAIN"; then
+    say "$PROD_DOMAIN is already attached."
+  else
+    attach_response=$(curl -sS -X POST \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/vmb-web/domains" \
+      --data "$(jq -n --arg name "$PROD_DOMAIN" '{name:$name}')" 2>&1)
+    if printf '%s' "$attach_response" | jq -e '.success == true' >/dev/null 2>&1; then
+      say "attached $PROD_DOMAIN to vmb-web"
+    else
+      warn "couldn't attach $PROD_DOMAIN — add it in the dashboard (Pages → vmb-web → Custom domains)."
+      note "$(printf '%s' "$attach_response" | jq -r '.errors[0].message // empty' 2>/dev/null || true)"
+      SKIPPED+=("Attach $PROD_DOMAIN to the vmb-web Pages project")
+    fi
+  fi
+  say "www: add a Single Redirect rule for https://www.$PROD_DOMAIN/* → https://$PROD_DOMAIN/\$1 (301) in the zone."
+fi
 open_url "https://dash.cloudflare.com/?to=/:account/workers-and-pages"
 
 # ── Stage 5: Resend ───────────────────────────────────────────────────────
@@ -339,7 +398,9 @@ say "Signup verification emails need a real key to actually send."
 open_url "https://resend.com/api-keys"
 step "Create an API key with Sending access and copy it."
 ask_secret RESEND_API_KEY "Paste the Resend API key:"
-step "Use a verified sender. Resend's sandbox 'onboarding@resend.dev' works for testing without a domain."
+step "Use the verified custom-domain sender (e.g. noreply@$PROD_DOMAIN)."
+note "Resend's sandbox 'onboarding@resend.dev' only delivers to the account owner's address, so it cannot be the production sender."
+note "Every Resend DNS record must be DNS only (grey cloud) — a proxied record fails verification with error 1004."
 ask EMAIL_FROM "Sender address (From):"
 
 # Previews read RESEND_API_KEY / EMAIL_FROM from the committed fnox store, so
@@ -369,6 +430,11 @@ BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-$generated_secret}"
 [[ -n "${WEB_PROD_URL:-}" ]] && write_env WEB_URL "$WEB_PROD_URL"
 ask BETTER_AUTH_URL "Public API URL (BETTER_AUTH_URL):"
 ask WEB_URL "Public web URL (WEB_URL):"
+
+# BETTER_AUTH_URL/WEB_URL reach the Worker secrets and the Pages API_URL
+# binding only — deliberately NOT the fnox store. Local `wrangler dev` reads
+# fnox and needs its own origin, and previews override both per PR (ADR-0019),
+# so the stored values are not on the production path.
 
 if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   say "Creating/updating the Worker so secrets can be attached to it..."

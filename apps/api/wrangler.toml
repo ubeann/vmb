@@ -24,5 +24,22 @@ compatibility_flags = ["nodejs_compat"]
 # sandbox `onboarding@resend.dev` works without owning a domain for local
 # dev/testing, but production needs a real domain verified in Resend.
 
+# Production custom domain (issue #31, ADR-0022). The apex belongs to the
+# vmb-web Pages project, so the API takes the `api` subdomain — a hostname can
+# be owned by only one of Pages/Worker, and Worker custom domains are
+# exact-host only (no wildcard). Cloudflare issues the certificate. This is
+# the top-level (production) target, which `wrangler deploy --env=""` selects.
+[[routes]]
+pattern = "api.vmblogistics.id"
+custom_domain = true
+
 [env.staging]
 name = "vmb-api-staging"
+
+# `routes` is an inheritable key (workers-sdk #13925): with no override here, a
+# `wrangler deploy --env staging` would re-assert the top-level custom domain
+# on the staging Worker and steal `api.vmblogistics.id` from production on
+# every deploy. The empty array is the documented way to break the
+# inheritance. (An earlier note on issue #31 assumed routes were not
+# inherited; that is wrong for current wrangler.)
+routes = []
