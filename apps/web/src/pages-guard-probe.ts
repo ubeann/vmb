@@ -1,1 +1,1 @@
-export const pagesGuardProbe = 1;
+export const pagesGuardProbe = 2;
