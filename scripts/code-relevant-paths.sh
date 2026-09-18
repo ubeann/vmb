@@ -77,6 +77,15 @@ code_relevant_paths() {
 # when a code-relevant path changed, 1 when none did, and 2 when `git diff`
 # could not answer. `emit_code_relevant_change` maps that to the shared
 # fail-open policy both gates use.
+#
+# Errexit-safe: `git diff --quiet` exits 1 as its normal "changes found" signal,
+# so it is guarded in an `if` to suspend errexit for that command and classify
+# the status instead of aborting. GitHub runs `run:` blocks as `bash -e`, and a
+# step's `set -uo pipefail` does not clear that inherited errexit (issue #97);
+# guarding the diff here means no caller needs `set +e` around it. The function
+# still returns its classified status like any command, so a caller that wants
+# the code rather than the abort calls it from an `if` (as
+# `emit_code_relevant_change` does).
 detect_code_relevant_change() {
   local base=$1
   local head=$2
@@ -88,8 +97,11 @@ detect_code_relevant_change() {
     paths+=("$pathspec")
   done < <(code_relevant_paths "$mode")
 
-  git diff --quiet "$base" "$head" -- "${paths[@]}"
-  diff_status=$?
+  if git diff --quiet "$base" "$head" -- "${paths[@]}"; then
+    diff_status=0
+  else
+    diff_status=$?
+  fi
 
   case "$diff_status" in
     0) return 1 ;;

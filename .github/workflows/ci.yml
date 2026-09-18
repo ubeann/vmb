@@ -74,6 +74,11 @@ jobs:
       # visible instead of silent. A skipped deploy is invisible until someone
       # notices production is stale; a spurious one is only wasteful, but a
       # silent fail-open hides a broken gate — see the checkout comment above.
+      #
+      # The module is errexit-safe on its own: it guards `git diff --quiet` in
+      # an `if`, so its exit-1 "changes found" signal is classified rather than
+      # killing the step under the runner's inherited `-e` (issue #97). No
+      # `set +e` is needed here; the guard lives with the diff it protects.
       - name: Detect code-relevant changes
         id: changes
         if: github.event_name == 'push'
@@ -81,11 +86,6 @@ jobs:
           # Passed through the environment, never interpolated into the script.
           BEFORE: ${{ github.event.before }}
         run: |
-          # `git diff --quiet` exits 1 as its normal "changes found" signal, so
-          # the runner's inherited `-e` must be cleared for the `case` below to
-          # classify that status rather than fail the step (same pattern as
-          # preview.yml's prune step).
-          set +e
           set -uo pipefail
 
           # shellcheck source=scripts/code-relevant-paths.sh
