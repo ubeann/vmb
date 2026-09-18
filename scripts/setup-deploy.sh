@@ -400,6 +400,7 @@ step "Create an API key with Sending access and copy it."
 ask_secret RESEND_API_KEY "Paste the Resend API key:"
 step "Use the verified custom-domain sender (default: noreply@$PROD_DOMAIN)."
 note "Resend's sandbox 'onboarding@resend.dev' only delivers to the account owner's address, so it cannot be the production sender."
+note "Copy the records exactly from the Resend dashboard — current accounts issue return-path CNAMEs (send/rsend → *.forge.rmta.net), not the older MX + SPF TXT pair."
 note "Every Resend DNS record must be DNS only (grey cloud) — a proxied record fails verification with error 1004."
 # Pre-fill the verified custom-domain sender so Enter accepts it, then persist
 # whatever is entered so a re-run offers it as the default.
