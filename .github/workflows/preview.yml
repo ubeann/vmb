@@ -58,7 +58,7 @@ jobs:
   # job starts. Secret-free by design — it only diffs the checkout — so it also
   # runs for Dependabot PRs whose preview is skipped below (issue #45).
   changes:
-    name: Detect code-relevant changes
+    name: Detect Code-Relevant Changes
     runs-on: ubuntu-latest
     # The workflow grants `pull-requests: write` for the preview job's sticky
     # comment; this job needs only the checkout.

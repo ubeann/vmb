@@ -59,7 +59,7 @@ jobs:
       # pushed event's `before`, and the path list — the canonical
       # "code-relevant change" definition — lives in
       # `scripts/code-relevant-paths.sh`, the same module preview.yml's
-      # `Detect code-relevant changes` job consumes (issue #83; see ADR-0019).
+      # `Detect Code-Relevant Changes` job consumes (issue #83; see ADR-0019).
       # This gate passes no mode, so it takes the canonical list alone: a
       # workflow edit self-tests in that PR's Preview run but cannot change the
       # deployed artifact, so it must not force a deploy. `.github/actions/**`

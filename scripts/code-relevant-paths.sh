@@ -9,7 +9,7 @@
 #     on a push to `master` (issue #63). It uses the canonical list only: a
 #     workflow edit cannot change the deployed artifact, so it must not force a
 #     deploy.
-#   - `preview.yml`'s `Detect code-relevant changes` job gates the preview on a
+#   - `preview.yml`'s `Detect Code-Relevant Changes` job gates the preview on a
 #     pull request. It uses the canonical list plus `.github/workflows/**`: a
 #     workflow edit still has to be exercised by that PR's own preview run
 #     before it lands (ADR-0023).
