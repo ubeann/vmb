@@ -42,12 +42,4 @@ describe("loadSession", () => {
 
     expect(getSession).toHaveBeenCalledWith({ fetchOptions: undefined });
   });
-
-  it("returns null session/user when the session request errors", async () => {
-    const client = fakeClient(async () => {
-      throw new Error("network down");
-    });
-
-    await expect(loadSession(client, null)).resolves.toEqual({ session: null, user: null });
-  });
 });

@@ -14,7 +14,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     event.locals.session = access.value.session;
     event.locals.user = access.value.user;
   } else {
-    console.error("handle: failed to resolve session", access.error);
+    console.error("handle: failed to load session", access.error);
     event.locals.session = null;
     event.locals.user = null;
   }
