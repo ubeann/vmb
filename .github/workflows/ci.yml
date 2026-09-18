@@ -36,10 +36,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           # `Detect code-relevant changes` diffs `github.event.before..HEAD`,
-          # so the baseline commit has to be present on a push. The default
-          # shallow checkout (depth 1) does not contain it; pull requests skip
-          # that step, so they keep the cheap shallow clone.
-          fetch-depth: ${{ github.event_name == 'push' && 0 || 1 }}
+          # so the baseline commit has to be in the clone. The default shallow
+          # checkout (depth 1) does not contain it. A conditional depth would
+          # avoid the full fetch on pull requests, but the obvious expression
+          # `event == 'push' && 0 || 1` silently evaluates to 1 — `0` is falsy
+          # in GitHub expressions — so the baseline stayed missing and this
+          # gate deployed on every push (#71). Full history is cheap here.
+          fetch-depth: 0
 
       # Issue #63: the gate (`Verify`) still runs on every `master` push
       # (#61); only the redundant deploy is skipped. The baseline is the
@@ -52,9 +55,10 @@ jobs:
       # separate job would add one more skipped check to every pull request.
       #
       # Fail open: an unusable baseline (force-push, first push, bad SHA) or a
-      # `git diff` error deploys rather than skips. A skipped deploy is
-      # invisible until someone notices production is stale; a spurious one is
-      # only wasteful.
+      # `git diff` error deploys rather than skips, and warns so the failure is
+      # visible instead of silent. A skipped deploy is invisible until someone
+      # notices production is stale; a spurious one is only wasteful, but a
+      # silent fail-open hides a broken gate — see the checkout comment above.
       - name: Detect code-relevant changes
         id: changes
         if: github.event_name == 'push'
@@ -75,7 +79,7 @@ jobs:
             exit 0
           fi
 
-          if git diff --quiet "$BEFORE" HEAD -- \
+          git diff --quiet "$BEFORE" HEAD -- \
             apps \
             packages \
             pnpm-lock.yaml \
@@ -83,13 +87,27 @@ jobs:
             turbo.json \
             package.json \
             fnox.toml \
-            .mise.toml; then
-            echo "No code-relevant changes in $BEFORE..HEAD; the deploy will be skipped."
-            echo "code_changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Code-relevant changes detected in $BEFORE..HEAD."
-            echo "code_changed=true" >> "$GITHUB_OUTPUT"
-          fi
+            .mise.toml
+          status=$?
+
+          # `--quiet` exits 1 when there are differences and 0 when there are
+          # none; anything else (a missing object, a bad baseline) is a real
+          # error and must not be read as "no changes".
+          case "$status" in
+            0)
+              echo "No code-relevant changes in $BEFORE..HEAD; the deploy will be skipped."
+              code_changed=false
+              ;;
+            1)
+              echo "Code-relevant changes detected in $BEFORE..HEAD."
+              code_changed=true
+              ;;
+            *)
+              echo "::warning::git diff $BEFORE..HEAD failed (exit $status); deploying to be safe."
+              code_changed=true
+              ;;
+          esac
+          echo "code_changed=$code_changed" >> "$GITHUB_OUTPUT"
 
       - uses: jdx/mise-action@v4
         with:
