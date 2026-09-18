@@ -31,7 +31,9 @@
 # Paginates: the deployments endpoint caps `per_page` at 25 and a match on a
 # later page would otherwise leak. Ordering is computed here rather than trusted
 # from the API, and with `LC_ALL=C` so the ISO-8601 `created_on` sort is not
-# locale-dependent.
+# locale-dependent. A deployment without a `created_on` is left out entirely:
+# it cannot be ordered, and guessing would risk presenting a stale one as the
+# newest — which for the prune would mean deleting the live deployment.
 pages_matching_deployments() {
   local account_id=$1
   local token=$2
@@ -61,7 +63,7 @@ pages_matching_deployments() {
 
     page_matches=$(printf '%s' "$body" \
       | jq -r --arg prefix "$prefix" --arg fallback "$fallback" \
-        '.result[]? | select(((.deployment_trigger.metadata.branch // "") == $fallback) or ((.deployment_trigger.metadata.branch // "") | startswith($prefix))) | "\(.created_on // "")\t\(.id)"')
+        '.result[]? | select(.created_on != null) | select(((.deployment_trigger.metadata.branch // "") == $fallback) or ((.deployment_trigger.metadata.branch // "") | startswith($prefix))) | "\(.created_on)\t\(.id)"')
     if [ -n "$page_matches" ]; then
       matches="${matches}${page_matches}"$'\n'
     fi

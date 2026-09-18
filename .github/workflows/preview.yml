@@ -310,8 +310,9 @@ jobs:
       # superseded. Keeping the newest also keeps the deployment the branch
       # alias points at, so the live `pr<N>-<slug>.vmb-web.pages.dev` URL keeps
       # resolving after the older ones go (issue #84). If the list were ever
-      # stale and the new deployment absent, the previous one is kept and
-      # nothing is pruned; the next push corrects it and Cleanup is the backstop.
+      # stale and the new deployment not yet visible, the newest visible match
+      # is kept, so the prune never deletes a live deployment; the next push or
+      # Cleanup reconciles.
       #
       # Best-effort, the opposite of Cleanup: a failed delete must not fail a
       # deploy that otherwise succeeded (issue #84). GitHub's default shell runs

@@ -58,10 +58,12 @@ jobs:
     if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
     timeout-minutes: 10
     steps:
-      # Needed so the job can source `scripts/preview-identifiers.sh`, the one
-      # definition of the names it re-derives (issue #78). Cleanup previously
-      # inlined the `pr-<N>` Neon name and the `pr<N>-` Pages prefix; sourcing
-      # the same module preview.yml uses is what keeps create and destroy from
+      # Needed so the job can source the two shared modules preview.yml also
+      # uses: `scripts/preview-identifiers.sh`, the one definition of the names
+      # it re-derives (issue #78), and `scripts/pages-preview-deployments.sh`,
+      # the shared Pages list-and-delete (issue #84). Cleanup previously inlined
+      # the `pr-<N>` Neon name and the `pr<N>-` Pages prefix; sourcing the same
+      # definitions preview.yml uses is what keeps create and destroy from
       # drifting apart.
       - uses: actions/checkout@v7
 
