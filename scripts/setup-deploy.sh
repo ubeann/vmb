@@ -398,10 +398,14 @@ say "Signup verification emails need a real key to actually send."
 open_url "https://resend.com/api-keys"
 step "Create an API key with Sending access and copy it."
 ask_secret RESEND_API_KEY "Paste the Resend API key:"
-step "Use the verified custom-domain sender (e.g. noreply@$PROD_DOMAIN)."
+step "Use the verified custom-domain sender (default: noreply@$PROD_DOMAIN)."
 note "Resend's sandbox 'onboarding@resend.dev' only delivers to the account owner's address, so it cannot be the production sender."
 note "Every Resend DNS record must be DNS only (grey cloud) — a proxied record fails verification with error 1004."
+# Pre-fill the verified custom-domain sender so Enter accepts it, then persist
+# whatever is entered so a re-run offers it as the default.
+[[ -n "$(_existing EMAIL_FROM || true)" ]] || write_env EMAIL_FROM "noreply@$PROD_DOMAIN"
 ask EMAIL_FROM "Sender address (From):"
+[[ "$EMAIL_FROM" == "$(_existing EMAIL_FROM || true)" ]] || write_env EMAIL_FROM "$EMAIL_FROM"
 
 # Previews read RESEND_API_KEY / EMAIL_FROM from the committed fnox store, so
 # update it there too — not just the production Worker (ADR-0019).
@@ -432,9 +436,9 @@ ask BETTER_AUTH_URL "Public API URL (BETTER_AUTH_URL):"
 ask WEB_URL "Public web URL (WEB_URL):"
 
 # BETTER_AUTH_URL/WEB_URL reach the Worker secrets and the Pages API_URL
-# binding only — deliberately NOT the fnox store. Local `wrangler dev` reads
-# fnox and needs its own origin, and previews override both per PR (ADR-0019),
-# so the stored values are not on the production path.
+# binding only — deliberately NOT the fnox store. fnox is the local-dev / CI
+# store (ADR-0011) holding the `wrangler dev` origins; previews override both
+# per PR (ADR-0019), so the production origins are not written there.
 
 if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   say "Creating/updating the Worker so secrets can be attached to it..."
