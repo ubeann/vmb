@@ -27,6 +27,14 @@ jobs:
     name: Verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Pins turbo's local cache to the path the Actions cache step below
+    # persists. `turbo.json` deliberately sets no `cacheDir` — leaving it unset
+    # lets a local git worktree share the main worktree's cache — so CI states
+    # the path it caches rather than relying on turbo's default. Because
+    # `TURBO_CACHE_DIR` takes precedence over `cacheDir`, a future change to
+    # `turbo.json` cannot silently move the cache out from under this step.
+    env:
+      TURBO_CACHE_DIR: .turbo/cache
     # Consumed by `deploy`: whether this push changed anything the deployed
     # artifact depends on (issue #63). Empty on pull requests, where the step
     # below is skipped — `deploy` stays a master-push-only job regardless.
@@ -120,6 +128,48 @@ jobs:
       # composite action so the cache key and install flags live in a single
       # place (issue #79).
       - uses: ./.github/actions/setup
+
+      # Restore turbo's local cache on the credential-free path (Dependabot
+      # runs, and any run before TURBO_TOKEN/TURBO_TEAM are provisioned). With
+      # no remote cache, turbo falls back to `.turbo/cache` — a directory the
+      # ephemeral runner builds from scratch and discards, so those runs
+      # rebuild every task. Persisting it with the Actions cache gives the
+      # secret-free path the same task replay the remote cache gives every
+      # other run (issue #81).
+      #
+      # Scoped so it cannot be mistaken for the remote cache. The entry's key
+      # is namespaced `turbo-local-`, and it is only saved on a run with no
+      # remote credentials. Persisting this path unconditionally was rejected:
+      # a token-bearing run also mirrors its task outputs into `.turbo/cache`,
+      # so restoring here when the token is present would let a local copy of a
+      # remote entry answer as a local hit, erasing the distinction the two
+      # caches exist to keep. The remote path is otherwise untouched.
+      - name: Detect turbo remote-cache credentials
+        id: turbo-remote-cache
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+        run: |
+          if [ -n "$TURBO_TOKEN" ] && [ -n "$TURBO_TEAM" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/cache@v6
+        if: steps.turbo-remote-cache.outputs.configured == 'false'
+        with:
+          # The directory `TURBO_CACHE_DIR` pins for this job (see the job-level
+          # env), so the Actions cache and turbo's local cache always agree on
+          # the path.
+          path: .turbo/cache
+          # `github.sha` makes a re-run of the same commit an exact hit;
+          # `restore-keys` lets a later commit in the same ref scope restore
+          # the most recent entry and replay whatever its unchanged tasks hashed
+          # to.
+          key: turbo-local-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-local-${{ runner.os }}-
 
       # The format gate is its own step so a formatting failure reads as a
       # formatting failure rather than a cancelled typecheck (issue #59). It
