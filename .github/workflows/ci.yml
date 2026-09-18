@@ -27,8 +27,69 @@ jobs:
     name: Verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Consumed by `deploy`: whether this push changed anything the deployed
+    # artifact depends on (issue #63). Empty on pull requests, where the step
+    # below is skipped — `deploy` stays a master-push-only job regardless.
+    outputs:
+      code_changed: ${{ steps.changes.outputs.code_changed }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # `Detect code-relevant changes` diffs `github.event.before..HEAD`,
+          # so the baseline commit has to be present on a push. The default
+          # shallow checkout (depth 1) does not contain it; pull requests skip
+          # that step, so they keep the cheap shallow clone.
+          fetch-depth: ${{ github.event_name == 'push' && 0 || 1 }}
+
+      # Issue #63: the gate (`Verify`) still runs on every `master` push
+      # (#61); only the redundant deploy is skipped. The baseline is the
+      # pushed event's `before`, and the path list is preview.yml's minus
+      # `.github/workflows/**` — a workflow edit self-tests in that PR's
+      # Preview run, but it cannot change the deployed artifact, so it must
+      # not force a deploy. Unifying the two lists is issue #70.
+      #
+      # Living inside `Verify` rather than a job of its own is deliberate: a
+      # separate job would add one more skipped check to every pull request.
+      #
+      # Fail open: an unusable baseline (force-push, first push, bad SHA) or a
+      # `git diff` error deploys rather than skips. A skipped deploy is
+      # invisible until someone notices production is stale; a spurious one is
+      # only wasteful.
+      - name: Detect code-relevant changes
+        id: changes
+        if: github.event_name == 'push'
+        env:
+          # Passed through the environment, never interpolated into the script.
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -uo pipefail
+
+          # An unusable baseline must deploy, not skip: GitHub sends the
+          # all-zero SHA on a first push or a new branch, and a force-push can
+          # name a commit that is no longer reachable. The all-zero SHA matches
+          # the hex shape, so it is rejected explicitly.
+          if ! printf '%s' "$BEFORE" | grep -qE '^[0-9a-f]{40}$' \
+            || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No usable baseline ('$BEFORE'); assuming code changed."
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --quiet "$BEFORE" HEAD -- \
+            apps \
+            packages \
+            pnpm-lock.yaml \
+            pnpm-workspace.yaml \
+            turbo.json \
+            package.json \
+            fnox.toml \
+            .mise.toml; then
+            echo "No code-relevant changes in $BEFORE..HEAD; the deploy will be skipped."
+            echo "code_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Code-relevant changes detected in $BEFORE..HEAD."
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: jdx/mise-action@v4
         with:
@@ -150,7 +211,10 @@ jobs:
   deploy:
     name: Release
     needs: build-and-test
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    # Skip the redundant deploy when the push changed nothing the artifact
+    # depends on. `Verify` above still ran; only the deploy is gated, so the
+    # PR gate still mirrors the master gate (ADR-0023). Issue #63.
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push' && needs.build-and-test.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
