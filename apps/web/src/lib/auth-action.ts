@@ -31,12 +31,9 @@ export interface AuthActionConfig<Field extends string> {
     event: RequestEvent
   ) => Promise<AuthCallResult>;
   // What a successful call should do: redirect, or hand back the action data
-  // the page expects. Receives the event for the same reason `run` does.
-  onSuccess: (values: Record<Field, string>, event: RequestEvent) => MaybePromise<Data>;
+  // the page expects.
+  onSuccess: () => MaybePromise<Data>;
 }
-
-// Same message for both routes' transport failure, so it lives here once.
-const transportFailure = { error: "Something went wrong. Please try again." };
 
 // Login and signup were near-identical: read fields, type-check them, build the
 // auth client, call a Better Auth method, map `error` to a failure (issue #85).
@@ -59,7 +56,7 @@ export function createAuthAction<const Field extends string>(config: AuthActionC
 
     if (!access.ok) {
       console.error(`${config.logLabel}: request to API failed`, access.error);
-      return fail(500, transportFailure);
+      return fail(500, { error: "Something went wrong. Please try again." });
     }
 
     if (access.value.error) {
@@ -68,6 +65,6 @@ export function createAuthAction<const Field extends string>(config: AuthActionC
       });
     }
 
-    return config.onSuccess(values, event);
+    return config.onSuccess();
   };
 }

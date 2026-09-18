@@ -8,20 +8,9 @@ vi.mock("./api-access.js", () => ({
 }));
 
 const { createAuthAction } = await import("./auth-action.js");
+const { fakeAuthEvent } = await import("./test-support.js");
 
 const clientSentinel = { kind: "auth" };
-
-function fakeEvent(fields: Record<string, string> = {}) {
-  const form = new FormData();
-  for (const [key, value] of Object.entries(fields)) form.set(key, value);
-
-  return {
-    request: new Request("http://localhost/login", { method: "POST", body: form }),
-    url: new URL("http://localhost/login"),
-    platform: undefined,
-    fetch: vi.fn()
-  } as never;
-}
 
 type Run = (
   client: unknown,
@@ -58,7 +47,7 @@ describe("createAuthAction", () => {
     const run = vi.fn<Run>();
     const action = makeAction(run);
 
-    const result = await action(fakeEvent({ email: "a@example.com" }));
+    const result = await action(fakeAuthEvent({ email: "a@example.com" }));
 
     expect(result).toMatchObject({
       status: 400,
@@ -71,7 +60,7 @@ describe("createAuthAction", () => {
   it("treats an empty string as a missing field", async () => {
     const action = makeAction();
 
-    const result = await action(fakeEvent({ email: "", password: "secret" }));
+    const result = await action(fakeAuthEvent({ email: "", password: "secret" }));
 
     expect(result).toMatchObject({
       status: 400,
@@ -86,7 +75,7 @@ describe("createAuthAction", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const action = makeAction();
 
-    const result = await action(fakeEvent({ email: "a@example.com", password: "secret" }));
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "secret" }));
 
     expect(result).toMatchObject({
       status: 500,
@@ -99,7 +88,7 @@ describe("createAuthAction", () => {
   it("uses the Better Auth error's message when it has one", async () => {
     const action = makeAction(async () => ({ error: { message: "Invalid email or password" } }));
 
-    const result = await action(fakeEvent({ email: "a@example.com", password: "nope" }));
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "nope" }));
 
     expect(result).toMatchObject({
       status: 400,
@@ -110,7 +99,7 @@ describe("createAuthAction", () => {
   it("falls back to the route's error when Better Auth reports none", async () => {
     const action = makeAction(async () => ({ error: {} }));
 
-    const result = await action(fakeEvent({ email: "a@example.com", password: "nope" }));
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "nope" }));
 
     expect(result).toMatchObject({
       status: 400,
@@ -121,7 +110,7 @@ describe("createAuthAction", () => {
   it("passes the built client, validated values, and the event to the route's call", async () => {
     const run = vi.fn<Run>(async () => ({ error: null }));
     const action = makeAction(run);
-    const event = fakeEvent({ email: "a@example.com", password: "secret" });
+    const event = fakeAuthEvent({ email: "a@example.com", password: "secret" });
 
     await action(event);
 
@@ -136,7 +125,7 @@ describe("createAuthAction", () => {
     const action = makeAction(undefined, () => ({ success: true }));
 
     await expect(
-      action(fakeEvent({ email: "a@example.com", password: "secret" }))
+      action(fakeAuthEvent({ email: "a@example.com", password: "secret" }))
     ).resolves.toEqual({ success: true });
   });
 });

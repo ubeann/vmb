@@ -13,19 +13,8 @@ vi.mock("../../lib/api-access.js", () => ({
 }));
 
 const { actions } = await import("./+page.server.js");
+const { fakeAuthEvent } = await import("../../lib/test-support.js");
 const action = actions.default!;
-
-function fakeEvent(fields: Record<string, string> = {}) {
-  const form = new FormData();
-  for (const [key, value] of Object.entries(fields)) form.set(key, value);
-
-  return {
-    request: new Request("http://localhost/signup", { method: "POST", body: form }),
-    url: new URL("http://localhost/signup"),
-    platform: undefined,
-    fetch: vi.fn()
-  };
-}
 
 const signUpEmail = vi.fn<() => Promise<{ data: null; error: { message?: string } | null }>>(
   async () => ({ data: null, error: null })
@@ -45,7 +34,7 @@ beforeEach(() => {
 
 describe("signup action", () => {
   it("fails with the same message when any field is missing", async () => {
-    const result = await action(fakeEvent({ email: "a@example.com", password: "secret" }) as never);
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "secret" }));
 
     expect(result).toMatchObject({
       status: 400,
@@ -55,7 +44,7 @@ describe("signup action", () => {
   });
 
   it("signs up with the fields and an absolute verification callback URL", async () => {
-    await action(fakeEvent({ name: "Ada", email: "a@example.com", password: "secret" }) as never);
+    await action(fakeAuthEvent({ name: "Ada", email: "a@example.com", password: "secret" }));
 
     expect(signUpEmail).toHaveBeenCalledWith({
       name: "Ada",
@@ -67,7 +56,7 @@ describe("signup action", () => {
 
   it("returns success without a session on a clean signup", async () => {
     await expect(
-      action(fakeEvent({ name: "Ada", email: "a@example.com", password: "secret" }) as never)
+      action(fakeAuthEvent({ name: "Ada", email: "a@example.com", password: "secret" }))
     ).resolves.toEqual({ success: true });
   });
 
@@ -75,7 +64,7 @@ describe("signup action", () => {
     signUpEmail.mockResolvedValueOnce({ data: null, error: { message: "Email already in use" } });
 
     const result = await action(
-      fakeEvent({ name: "Ada", email: "a@example.com", password: "secret" }) as never
+      fakeAuthEvent({ name: "Ada", email: "a@example.com", password: "secret" })
     );
 
     expect(result).toMatchObject({ status: 400, data: { error: "Email already in use" } });
@@ -85,7 +74,7 @@ describe("signup action", () => {
     signUpEmail.mockResolvedValueOnce({ data: null, error: {} });
 
     const result = await action(
-      fakeEvent({ name: "Ada", email: "a@example.com", password: "secret" }) as never
+      fakeAuthEvent({ name: "Ada", email: "a@example.com", password: "secret" })
     );
 
     expect(result).toMatchObject({ status: 400, data: { error: "Could not create account." } });
