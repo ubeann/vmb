@@ -116,9 +116,11 @@ jobs:
       # number rather than the current branch name. Both the prefix and the
       # fallback come from the shared module (issue #78).
       #
-      # The list endpoint is paginated, so the loop follows `total_pages`
-      # instead of trusting the first page; a match on a later page would
-      # otherwise leak.
+      # The list and delete calls come from
+      # `scripts/pages-preview-deployments.sh` (issue #84), the same helper
+      # `preview.yml` prunes with: pagination, the `per_page` cap, and the match
+      # predicate live there once. This step still owns the failure policy —
+      # unlike the prune, a delete failure here fails the run.
       #
       # Cloudflare's documentation says "the latest deployment for a branch
       # cannot be deleted", but in practice every match is deleted, latest
@@ -144,48 +146,20 @@ jobs:
 
           # shellcheck source=scripts/preview-identifiers.sh
           . scripts/preview-identifiers.sh
+          # shellcheck source=scripts/pages-preview-deployments.sh
+          . scripts/pages-preview-deployments.sh
           prefix=$(preview_pages_prefix "$PR_NUMBER")
           fallback=$(preview_neon_branch "$PR_NUMBER")
-          deployment_ids=""
 
-          page=1
-          while :; do
-            # `-sS` without `-f`: a non-2xx must stay inspectable so the
-            # Cloudflare error body is printed, instead of collapsing to a bare
-            # `curl: (22)` that says nothing about the cause (issue #66).
-            #
-            # `per_page` is pinned at 25, the Pages deployments endpoint's
-            # hard ceiling — anything larger is rejected with a 400, which is
-            # what made this step fail on every run since it landed. The API
-            # reference documents the parameter but not the cap.
-            if ! response=$(curl -sS -w '\n%{http_code}' \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments?env=preview&per_page=25&page=$page"); then
-              echo "::error::Could not reach the Cloudflare API to list Pages deployments."
-              exit 1
-            fi
+          if ! deployments=$(pages_matching_deployments \
+            "$CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_API_TOKEN" "$PROJECT_NAME" "$prefix" "$fallback"); then
+            echo "::error::Could not list this PR's Pages preview deployments."
+            exit 1
+          fi
 
-            status=$(printf '%s' "$response" | tail -n1)
-            body=$(printf '%s' "$response" | sed '$d')
-            if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-              echo "::error::Listing Pages deployments failed (HTTP $status): $body"
-              exit 1
-            fi
-
-            matches=$(printf '%s' "$body" \
-              | jq -r --arg prefix "$prefix" --arg fallback "$fallback" \
-                '.result[]? | select(((.deployment_trigger.metadata.branch // "") == $fallback) or ((.deployment_trigger.metadata.branch // "") | startswith($prefix))) | .id')
-
-            if [ -n "$matches" ]; then
-              deployment_ids="${deployment_ids}${matches}"$'\n'
-            fi
-
-            total_pages=$(printf '%s' "$body" | jq -r '.result_info.total_pages // 1')
-            if [ "$page" -ge "$total_pages" ]; then
-              break
-            fi
-            page=$((page + 1))
-          done
+          # The helper returns `<created_on>\t<id>` lines, newest first; this
+          # sweep deletes every match, so only the id matters.
+          deployment_ids=$(printf '%s' "$deployments" | cut -f2)
 
           if [ -z "$deployment_ids" ]; then
             echo "No Pages preview deployments for PR #$PR_NUMBER — nothing to delete."
@@ -197,41 +171,19 @@ jobs:
           while IFS= read -r deployment_id; do
             [ -n "$deployment_id" ] || continue
 
-            # `-sS` without `-f`, so a non-2xx status and body stay inspectable;
-            # the status is appended as the last line. A curl-level failure
-            # (DNS, TLS, network) is counted and skipped rather than aborting the
-            # loop and leaving the remaining deployments behind.
-            if ! response=$(curl -sS -w '\n%{http_code}' -X DELETE \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments/$deployment_id?force=true"); then
+            # The helper prints the reason to stderr. A delete failure here is
+            # real — auth, permissions, server error — and must fail the run
+            # rather than pass as a green run that leaked. A curl-level failure
+            # is counted and skipped rather than aborting the loop and leaving
+            # the rest behind. 404 is not a failure: the helper returns 0 for it
+            # (issue #68).
+            if pages_delete_deployment \
+              "$CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_API_TOKEN" "$PROJECT_NAME" "$deployment_id"; then
+              deleted=$((deleted + 1))
+            else
               failed=$((failed + 1))
-              echo "::error::Could not reach the Cloudflare API to delete Pages deployment $deployment_id."
-              continue
+              echo "::error::Pages deployment $deployment_id failed to delete."
             fi
-
-            status=$(printf '%s' "$response" | tail -n1)
-            body=$(printf '%s' "$response" | sed '$d')
-
-            case "$status" in
-              2??)
-                deleted=$((deleted + 1))
-                echo "Deleted Pages deployment $deployment_id."
-                ;;
-              404)
-                # Already gone — another close-time run or a manual delete. Not
-                # a failure.
-                deleted=$((deleted + 1))
-                echo "Pages deployment $deployment_id was already gone."
-                ;;
-              *)
-                # Any other status — auth, permissions, server error — is a
-                # real failure and must fail the run rather than pass as a green
-                # run that leaked. 404 is handled above; there is no guard to
-                # excuse (issue #68).
-                failed=$((failed + 1))
-                echo "::error::Failed to delete Pages deployment $deployment_id (HTTP $status): $body"
-                ;;
-            esac
           done <<< "$deployment_ids"
 
           echo "Deleted $deleted Pages deployment(s)."

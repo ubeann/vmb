@@ -304,18 +304,21 @@ jobs:
       # close stays the safety net for anything this misses (issue #84).
       #
       # Matched by the same `pr<N>-` prefix / `pr-<N>` fallback Cleanup uses,
-      # from `scripts/preview-identifiers.sh` (issue #78), so the deployment
+      # from `scripts/preview-identifiers.sh` (issue #78), through the shared
+      # `scripts/pages-preview-deployments.sh` (issue #84), so the deployment
       # this run just created is the newest match and every older match is
       # superseded. Keeping the newest also keeps the deployment the branch
       # alias points at, so the live `pr<N>-<slug>.vmb-web.pages.dev` URL keeps
-      # resolving after the older ones go (issue #84).
+      # resolving after the older ones go (issue #84). If the list were ever
+      # stale and the new deployment absent, the previous one is kept and
+      # nothing is pruned; the next push corrects it and Cleanup is the backstop.
       #
       # Best-effort, the opposite of Cleanup: a failed delete must not fail a
-      # deploy that otherwise succeeded (issue #84). Every failure warns and
-      # leaves the step green; a leaked deployment is reaped at close, which is
-      # cheaper than a red deploy over a cleanup miss. The step runs only on the
-      # default `success()`, so a failed deploy can't prune the live deployment
-      # away.
+      # deploy that otherwise succeeded (issue #84). GitHub's default shell runs
+      # `bash -e`, so errexit is cleared explicitly and every call is checked by
+      # hand; a leaked deployment is reaped at close, which is cheaper than a
+      # red deploy over a cleanup miss. The step runs only on the default
+      # `success()`, so a failed deploy can't prune the live deployment away.
       - name: Prune superseded Pages preview deployments
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -323,59 +326,32 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PROJECT_NAME: vmb-web
         run: |
+          # Best-effort by design: clear the runner's inherited `-e` so an
+          # unexpected failure here cannot fail an otherwise-green deploy.
+          set +e
           set -uo pipefail
 
           # shellcheck source=scripts/preview-identifiers.sh
           . scripts/preview-identifiers.sh
+          # shellcheck source=scripts/pages-preview-deployments.sh
+          . scripts/pages-preview-deployments.sh
           prefix=$(preview_pages_prefix "$PR_NUMBER")
           fallback=$(preview_neon_branch "$PR_NUMBER")
 
-          # Collect every matching deployment as `<created_on>\t<id>`, across all
-          # pages: the list endpoint is paginated, and a match on a later page
-          # would otherwise survive as a leak.
-          matches=""
-          page=1
-          while :; do
-            # `-sS` without `-f`, as in Cleanup: a non-2xx must stay inspectable
-            # so the Cloudflare error body is printed. A listing failure skips
-            # the whole prune rather than deleting from a half-seen list.
-            if ! response=$(curl -sS -w '\n%{http_code}' \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments?env=preview&per_page=25&page=$page"); then
-              echo "::warning::Could not reach the Cloudflare API to list Pages deployments; skipping the prune."
-              exit 0
-            fi
+          if ! deployments=$(pages_matching_deployments \
+            "$CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_API_TOKEN" "$PROJECT_NAME" "$prefix" "$fallback"); then
+            echo "::warning::Could not list this PR's Pages preview deployments; skipping the prune."
+            exit 0
+          fi
 
-            status=$(printf '%s' "$response" | tail -n1)
-            body=$(printf '%s' "$response" | sed '$d')
-            if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-              echo "::warning::Listing Pages deployments failed (HTTP $status); skipping the prune: $body"
-              exit 0
-            fi
-
-            page_matches=$(printf '%s' "$body" \
-              | jq -r --arg prefix "$prefix" --arg fallback "$fallback" \
-                '.result[]? | select(((.deployment_trigger.metadata.branch // "") == $fallback) or ((.deployment_trigger.metadata.branch // "") | startswith($prefix))) | "\(.created_on)\t\(.id)"')
-            if [ -n "$page_matches" ]; then
-              matches="${matches}${page_matches}"$'\n'
-            fi
-
-            total_pages=$(printf '%s' "$body" | jq -r '.result_info.total_pages // 1')
-            if [ "$page" -ge "$total_pages" ]; then
-              break
-            fi
-            page=$((page + 1))
-          done
-
-          if [ -z "$matches" ]; then
+          if [ -z "$deployments" ]; then
             echo "No Pages preview deployments for PR #$PR_NUMBER — nothing to prune."
             exit 0
           fi
 
-          # Keep the newest match — the deployment this run just made — and
-          # delete the rest. `created_on` is ISO-8601, so a reverse lexical sort
-          # is a reverse chronological one; `tail -n +2` drops the keeper.
-          superseded=$(printf '%s' "$matches" | sed '/^$/d' | sort -r | tail -n +2 | cut -f2)
+          # The helper returns `<created_on>\t<id>` lines, newest first. Keep the
+          # first (the deployment this run just made) and delete the rest.
+          superseded=$(printf '%s' "$deployments" | tail -n +2 | cut -f2)
 
           if [ -z "$superseded" ]; then
             echo "Only one Pages preview deployment for PR #$PR_NUMBER — nothing to prune."
@@ -386,33 +362,14 @@ jobs:
           while IFS= read -r deployment_id; do
             [ -n "$deployment_id" ] || continue
 
-            # `-sS` without `-f`, so a non-2xx status and body stay inspectable,
-            # exactly as in Cleanup. A curl-level failure is skipped rather than
-            # aborting the loop and leaving the remaining deployments behind.
-            if ! response=$(curl -sS -w '\n%{http_code}' -X DELETE \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments/$deployment_id?force=true"); then
-              echo "::warning::Could not reach the Cloudflare API to delete Pages deployment $deployment_id; leaving it for Cleanup."
-              continue
+            # The helper explains a failure on stderr; warn and leave the
+            # deployment for Cleanup rather than failing the deploy.
+            if pages_delete_deployment \
+              "$CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_API_TOKEN" "$PROJECT_NAME" "$deployment_id"; then
+              pruned=$((pruned + 1))
+            else
+              echo "::warning::Pages deployment $deployment_id was not pruned; leaving it for Cleanup."
             fi
-
-            status=$(printf '%s' "$response" | tail -n1)
-            body=$(printf '%s' "$response" | sed '$d')
-            case "$status" in
-              2??)
-                pruned=$((pruned + 1))
-                echo "Pruned superseded Pages deployment $deployment_id."
-                ;;
-              404)
-                pruned=$((pruned + 1))
-                echo "Pages deployment $deployment_id was already gone."
-                ;;
-              *)
-                # Auth, permissions, server error — warn, never fail. Unlike
-                # Cleanup, a miss here is not a leak: close still removes it.
-                echo "::warning::Failed to delete Pages deployment $deployment_id (HTTP $status): $body — leaving it for Cleanup."
-                ;;
-            esac
           done <<< "$superseded"
 
           echo "Pruned $pruned superseded Pages deployment(s); PR #$PR_NUMBER keeps only its newest."
