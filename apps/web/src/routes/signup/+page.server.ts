@@ -1,5 +1,4 @@
-import { createAuthApiClient } from "$lib/auth.js";
-import { resolveApiUrl } from "$lib/env.js";
+import { withAuthApiClient } from "$lib/api-access.js";
 import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
 
@@ -27,10 +26,8 @@ export const actions: Actions = {
       return fail(400, { error: "Name, email, and password are required." });
     }
 
-    let result: Awaited<ReturnType<ReturnType<typeof createAuthApiClient>["signUp"]["email"]>>;
-    try {
-      const client = createAuthApiClient(resolveApiUrl(event.platform), event.fetch);
-      result = await client.signUp.email({
+    const access = await withAuthApiClient(event, (client) =>
+      client.signUp.email({
         name,
         email,
         password,
@@ -40,14 +37,16 @@ export const actions: Actions = {
         // Without it, the link would redirect back to apps/api itself,
         // which has no "/" route.
         callbackURL: `${event.url.origin}/login?verified=true`
-      });
-    } catch (err) {
-      console.error("signup action: request to API failed", err);
+      })
+    );
+
+    if (!access.ok) {
+      console.error("signup action: request to API failed", access.error);
       return fail(500, { error: "Something went wrong. Please try again." });
     }
 
-    if (result.error) {
-      return fail(400, { error: result.error.message ?? "Could not create account." });
+    if (access.value.error) {
+      return fail(400, { error: access.value.error.message ?? "Could not create account." });
     }
 
     // requireEmailVerification is on: signUp.email succeeding here does NOT

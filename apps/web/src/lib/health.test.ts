@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { loadHealth } from "./health.js";
 
 function fakeClient(get: () => Promise<Response>) {
@@ -26,12 +26,11 @@ describe("loadHealth", () => {
     expect(result.db).toBe("unreachable");
   });
 
-  it("returns an error status when the request throws", async () => {
-    const client = fakeClient(vi.fn().mockRejectedValue(new Error("network down")));
+  it("propagates a transport failure so the API access seam can own it", async () => {
+    const client = fakeClient(async () => {
+      throw new Error("network down");
+    });
 
-    const result = await loadHealth(client);
-
-    expect(result.status).toBe("error");
-    expect(result.db).toBe("unreachable");
+    await expect(loadHealth(client)).rejects.toThrow("network down");
   });
 });

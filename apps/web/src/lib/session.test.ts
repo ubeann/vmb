@@ -43,11 +43,11 @@ describe("loadSession", () => {
     expect(getSession).toHaveBeenCalledWith({ fetchOptions: undefined });
   });
 
-  it("returns null session/user when the session request errors", async () => {
+  it("propagates a transport failure so the API access seam can own it", async () => {
     const client = fakeClient(async () => {
       throw new Error("network down");
     });
 
-    await expect(loadSession(client, null)).resolves.toEqual({ session: null, user: null });
+    await expect(loadSession(client, null)).rejects.toThrow("network down");
   });
 });
