@@ -1,7 +1,8 @@
 name: Setup
 description: >-
   Install the mise-pinned toolchain, restore the pnpm store cache, and install
-  dependencies with a frozen lockfile — the bootstrap every CI job shares.
+  dependencies with a frozen lockfile — the bootstrap the build, test, release,
+  and preview jobs share (issue #79).
 
 inputs:
   install-args:

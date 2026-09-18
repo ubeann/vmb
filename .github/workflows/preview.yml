@@ -42,8 +42,12 @@ on:
       # and a build-affecting pin (`node`, `pnpm`, `wrangler`) shares the file.
       - ".mise.toml"
       # Including the workflows themselves means an edit to this file is
-      # exercised by the preview before it lands, rather than after.
+      # exercised by the preview before it lands, rather than after. The
+      # composite action the jobs bootstrap with is included for the same
+      # reason: it decides the toolchain and install flags the preview builds
+      # with, so a change to it is a change to what the preview runs.
       - ".github/workflows/**"
+      - ".github/actions/**"
 
 # Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
 # therefore cancels any in-flight preview deploy in this group *before* the

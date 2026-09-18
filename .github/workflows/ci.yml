@@ -50,8 +50,10 @@ jobs:
       # "code-relevant change" definition in preview.yml's `paths`, minus
       # `.github/workflows/**` — a workflow edit self-tests in that PR's
       # Preview run but cannot change the deployed artifact, so it must not
-      # force a deploy. The two lists are kept in step by hand (issue #70);
-      # see ADR-0019.
+      # force a deploy. `.github/actions/**` stays in the list: the composite
+      # action chooses the toolchain and the install flags, so editing it can
+      # change what the build produces. The two lists are kept in step by hand
+      # (issue #70); see ADR-0019.
       #
       # Living inside `Verify` rather than a job of its own is deliberate: a
       # separate job would add one more skipped check to every pull request.
@@ -89,7 +91,8 @@ jobs:
             turbo.json \
             package.json \
             fnox.toml \
-            .mise.toml
+            .mise.toml \
+            .github/actions
           status=$?
 
           # `--quiet` exits 1 when there are differences and 0 when there are
@@ -191,6 +194,8 @@ jobs:
   # `needs:` references that GitHub happily accepts until the run fails, and
   # shellcheck (found on PATH below) lints every `run:` block — plus the
   # `scripts/**/*.sh` wizards, which nothing else checked (issue #61).
+  # actionlint also checks the local composite action the workflows reference,
+  # so `.github/actions/setup/action.yml` is validated here too (issue #79).
   lint-workflows-and-scripts:
     name: Lint Workflows and Scripts
     runs-on: ubuntu-latest
