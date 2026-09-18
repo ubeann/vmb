@@ -21,6 +21,12 @@ name: Cleanup
 on:
   pull_request:
     types: [closed]
+    # Deliberately unfiltered. A `paths` filter (mirroring preview.yml's) would
+    # skip Cleanup for a PR whose final diff is docs-only — but Preview can have
+    # created a Neon branch and Pages deployments on an earlier push, before the
+    # code was reverted. Path filters evaluate the current base…head diff, not
+    # the union over history, so that branch would leak (issue #66). The job is
+    # idempotent and cheap, so it runs on every close.
 
 # Shares preview.yml's concurrency group on purpose: closing a PR cancels any
 # in-flight preview deploy here *before* deleting, so a cancelled run can't
@@ -101,6 +107,10 @@ jobs:
       # non-2xx that names the guard is an expected residual (a warning), while
       # anything else — bad token, missing Pages Write scope, 5xx — fails the
       # step instead of passing as a green run that leaked everything.
+      #
+      # Hand-rolled `curl` over `wrangler pages deployment delete` is deliberate:
+      # wrangler surfaces the guard as a generic failure, and this step has to
+      # tell that apart from a real error to avoid failing on a normal close.
       - name: Find and delete this PR's Pages preview deployments
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -116,11 +126,29 @@ jobs:
 
           page=1
           while :; do
-            response=$(curl -fsS \
+            # `-sS` without `-f`: a non-2xx must stay inspectable so the
+            # Cloudflare error body is printed, instead of collapsing to a bare
+            # `curl: (22)` that says nothing about the cause (issue #66).
+            #
+            # `per_page` is pinned at 25, the Pages deployments endpoint's
+            # hard ceiling — anything larger is rejected with a 400, which is
+            # what made this step fail on every run since it landed. The API
+            # reference documents the parameter but not the cap.
+            if ! response=$(curl -sS -w '\n%{http_code}' \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments?env=preview&per_page=100&page=$page")
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments?env=preview&per_page=25&page=$page"); then
+              echo "::error::Could not reach the Cloudflare API to list Pages deployments."
+              exit 1
+            fi
 
-            matches=$(printf '%s' "$response" \
+            status=$(printf '%s' "$response" | tail -n1)
+            body=$(printf '%s' "$response" | sed '$d')
+            if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+              echo "::error::Listing Pages deployments failed (HTTP $status): $body"
+              exit 1
+            fi
+
+            matches=$(printf '%s' "$body" \
               | jq -r --arg prefix "$prefix" --arg fallback "$fallback" \
                 '.result[]? | select(((.deployment_trigger.metadata.branch // "") == $fallback) or ((.deployment_trigger.metadata.branch // "") | startswith($prefix))) | .id')
 
@@ -128,7 +156,7 @@ jobs:
               deployment_ids="${deployment_ids}${matches}"$'\n'
             fi
 
-            total_pages=$(printf '%s' "$response" | jq -r '.result_info.total_pages // 1')
+            total_pages=$(printf '%s' "$body" | jq -r '.result_info.total_pages // 1')
             if [ "$page" -ge "$total_pages" ]; then
               break
             fi
