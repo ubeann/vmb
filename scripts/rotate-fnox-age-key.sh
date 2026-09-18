@@ -258,11 +258,17 @@ say "A fresh BETTER_AUTH_SECRET will be used unless you paste your own."
 ask_secret BETTER_AUTH_SECRET "BETTER_AUTH_SECRET (Enter to use the generated one):"
 BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-$generated_secret}"
 
-# Reuse the URLs setup-deploy.sh already worked out, if present.
-[[ -n "$(_existing API_PROD_URL)" ]] && write_env BETTER_AUTH_URL "$(_existing API_PROD_URL)"
-[[ -n "$(_existing WEB_PROD_URL)" ]] && write_env WEB_URL "$(_existing WEB_PROD_URL)"
-ask BETTER_AUTH_URL "BETTER_AUTH_URL:"
-ask WEB_URL "WEB_URL:"
+# fnox is the local-dev / CI store (ADR-0011), so BETTER_AUTH_URL and WEB_URL
+# re-enter the *local* `wrangler dev` origins here — not the production ones.
+# Production origins reach the Worker secrets and the Pages API_URL binding
+# (scripts/setup-deploy.sh) and never enter fnox (ADR-0022). Default to the
+# local origins so a rotation on a fresh checkout does not leave them empty.
+DEV_API_URL="${DEV_API_URL:-http://localhost:8787}"
+DEV_WEB_URL="${DEV_WEB_URL:-http://localhost:5173}"
+write_env BETTER_AUTH_URL "${BETTER_AUTH_URL:-$DEV_API_URL}"
+write_env WEB_URL "${WEB_URL:-$DEV_WEB_URL}"
+ask BETTER_AUTH_URL "BETTER_AUTH_URL (local dev):"
+ask WEB_URL "WEB_URL (local dev):"
 
 open_url "https://resend.com/api-keys"
 step "Create (or copy) a Sending-access Resend API key."
