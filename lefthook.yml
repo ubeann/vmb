@@ -32,7 +32,13 @@ pre-commit:
       glob: "scripts/**/*.sh"
       run: shellcheck {staged_files}
     actionlint:
-      glob: ".github/workflows/*.{yml,yaml}"
+      # actionlint with no arguments walks .github/workflows and also checks
+      # the local actions those workflows reference, so the composite action is
+      # linted whenever a workflow is staged; the second glob makes it run when
+      # only the action file changes.
+      glob:
+        - ".github/workflows/*.{yml,yaml}"
+        - ".github/actions/**/action.yml"
       run: actionlint
 
 commit-msg:

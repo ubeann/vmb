@@ -47,8 +47,12 @@ on:
       # and a build-affecting pin (`node`, `pnpm`, `wrangler`) shares the file.
       - ".mise.toml"
       # Including the workflows themselves means an edit to this file is
-      # exercised by the preview before it lands, rather than after.
+      # exercised by the preview before it lands, rather than after. The
+      # composite action the jobs bootstrap with is included for the same
+      # reason: it decides the toolchain and install flags the preview builds
+      # with, so a change to it is a change to what the preview runs.
       - ".github/workflows/**"
+      - ".github/actions/**"
 
 # Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
 # therefore cancels any in-flight preview deploy in this group *before* the
@@ -95,22 +99,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: jdx/mise-action@v4
-        with:
-          experimental: true
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@v6
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-store-${{ runner.os }}-
-
-      - run: pnpm install --frozen-lockfile
+      # Toolchain, pnpm store cache, and a frozen-lockfile install: the same
+      # composite action `ci.yml` bootstraps with (issue #79).
+      - uses: ./.github/actions/setup
 
       # The alias, the Pages prefix, and the Neon branch name all come from
       # `scripts/preview-identifiers.sh` (issue #78), so create and destroy
