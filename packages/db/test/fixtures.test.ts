@@ -1,7 +1,14 @@
-import type { PGlite } from "@electric-sql/pglite";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { SqlClient } from "../src/import/client.js";
 import { fixtures } from "./fixtures/index.js";
-import { count, loadFixture, migratedDatabase, scalar } from "./harness.js";
+import {
+  count,
+  createDatabase,
+  loadFixture,
+  scalar,
+  withMigratedDatabase,
+  type TestDatabase
+} from "./harness.js";
 
 const edgeCases = fixtures.find((fixture) => fixture.name === "edge-cases");
 if (!edgeCases) {
@@ -10,38 +17,47 @@ if (!edgeCases) {
 
 describe.each(fixtures)("fixture: $name", ({ file, purpose }) => {
   it(`loads over the migrated baseline — ${purpose}`, async () => {
-    const client = await migratedDatabase();
-
-    await expect(loadFixture(client, file)).resolves.toBeUndefined();
+    await withMigratedDatabase(async (client) => {
+      await expect(loadFixture(client, file)).resolves.toBeUndefined();
+    });
   });
 });
 
 describe("database-minted identity", () => {
   it("assigns a uuid when the insert omits one, and keeps an explicit value", async () => {
-    const client = await migratedDatabase();
+    await withMigratedDatabase(async (client) => {
+      const minted = await scalar<string>(
+        client,
+        "insert into master.divisions (name) values ('Minted Division') returning id"
+      );
+      expect(minted).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      );
 
-    const minted = await scalar<string>(
-      client,
-      "insert into master.divisions (name) values ('Minted Division') returning id"
-    );
-    expect(minted).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-
-    const explicit = await scalar<string>(
-      client,
-      `insert into master.divisions (id, name)
-        values ('b1111111-1111-4111-8111-111111111111', 'Explicit Division')
-        returning id`
-    );
-    expect(explicit).toBe("b1111111-1111-4111-8111-111111111111");
+      const explicit = await scalar<string>(
+        client,
+        `insert into master.divisions (id, name)
+          values ('b1111111-1111-4111-8111-111111111111', 'Explicit Division')
+          returning id`
+      );
+      expect(explicit).toBe("b1111111-1111-4111-8111-111111111111");
+    });
   });
 });
 
 describe("the edge-cases fixture", () => {
-  let client: PGlite;
+  let database: TestDatabase;
+  let client: SqlClient;
 
   beforeAll(async () => {
-    client = await migratedDatabase();
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
     await loadFixture(client, edgeCases.file);
+  });
+
+  afterAll(async () => {
+    await database?.close();
   });
 
   it("keeps a user with no division", async () => {

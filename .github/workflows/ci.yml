@@ -258,6 +258,48 @@ jobs:
       - name: Shellcheck scripts
         run: find scripts -name '*.sh' -print0 | xargs -0 -r shellcheck
 
+  # The same database suite, against a real server instead of embedded Postgres
+  # (issue #109): embedded Postgres is a re-implementation, so this is the check
+  # that catches the two disagreeing. That job is the default and needs no
+  # service; the reasoning, and how to run this locally, live in
+  # `docs/migration/import-pipeline.md` rather than being repeated here.
+  #
+  # No secrets: the service container is the whole environment. That keeps it
+  # runnable for Dependabot, whose runs receive no secrets (ADR-0020), so a bump
+  # that breaks the suite still turns this check red.
+  #
+  # The image tracks Node's embedded version and Neon's, which is where these
+  # migrations run in practice; a mismatch here would be a difference that
+  # matters. The harness reads `TEST_DATABASE_URL` and gives each test a database
+  # of its own, so files stay parallel-safe.
+  postgres:
+    name: Real Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        # Without a health check the first test can start before the server
+        # accepts connections, which reads as a flaky suite rather than a race.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Run the database suite against Postgres
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+        run: pnpm --filter @vmb/db test
+
   deploy:
     name: Release
     needs: build-and-test
