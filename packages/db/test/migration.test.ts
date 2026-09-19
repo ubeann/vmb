@@ -89,16 +89,6 @@ describe("the migration chain", () => {
           and pg_get_constraintdef(oid) like '%status%'`
     );
     expect(statusChecks).toBe(1);
-
-    // a redundant index sits beside the unique constraint on the same column
-    const licensePlateIndexes = await count(
-      client,
-      `select count(*)::int as value from pg_indexes
-        where schemaname = 'trucking'
-          and tablename = 'trucks'
-          and indexdef like '%(license_plate)%'`
-    );
-    expect(licensePlateIndexes).toBe(2);
   });
 
   it("mints identity in the database for new rows", async () => {
@@ -319,5 +309,173 @@ describe("the master and warehouse hygiene migrations", () => {
           )`
     );
     expect(indexes).toBe(2);
+  });
+});
+
+describe("the trucking hygiene migrations", () => {
+  // #107: one migration per deviation, each named by its ledger row.
+  let database: TestDatabase;
+  let client: SqlClient;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("restricts the orders client key, which is what it already did", async () => {
+    const [key] = await client.query<{ confdeltype: string }>(
+      `select confdeltype from pg_constraint
+        where conname = 'trucking_orders_client_id_foreign'`
+    );
+    // 'r' is RESTRICT: the declaration now says what the not-null column did
+    expect(key?.confdeltype).toBe("r");
+
+    await client.exec(
+      `insert into trucking.clients (id, name, code)
+       values ('f1111111-1111-4111-8111-111111111111', 'Hygiene Client', 'HC-1')`
+    );
+    await client.exec(
+      `insert into trucking.orders (id, client_id, code, type, party_count, status)
+       values ('f2222222-2222-4222-8222-222222222222',
+               'f1111111-1111-4111-8111-111111111111', 9001, 'export', 1, 'draft')`
+    );
+
+    // the delete that used to fail on a not-null violation is still refused,
+    // now by the key itself
+    await expect(
+      client.exec(`delete from trucking.clients where id = 'f1111111-1111-4111-8111-111111111111'`)
+    ).rejects.toThrow(/foreign key constraint/);
+  });
+
+  it("makes the four pairs unique", async () => {
+    const uniques = await client.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where contype = 'u' and conname in (
+          'trucking_daily_trucking_actuals_trip_id_plan_code_unique',
+          'trucking_daily_trucking_plans_trip_id_plan_code_unique',
+          'trucking_locations_code_unique',
+          'trucking_route_locations_route_id_position_unique'
+        )
+        order by conname`
+    );
+    expect(uniques.map((row) => row.conname)).toEqual([
+      "trucking_daily_trucking_actuals_trip_id_plan_code_unique",
+      "trucking_daily_trucking_plans_trip_id_plan_code_unique",
+      "trucking_locations_code_unique",
+      "trucking_route_locations_route_id_position_unique"
+    ]);
+
+    // invoice_shipments is deliberately not among them: the legacy database
+    // permits many shipments per invoice, so 1:1 was never established
+    const shipments = await count(
+      client,
+      `select count(*)::int as value from pg_constraint
+        where conname = 'trucking_invoice_shipments_invoice_id_unique'`
+    );
+    expect(shipments).toBe(0);
+
+    // and the uniqueness bites: a second location with the same code is refused
+    await client.exec(
+      `insert into trucking.locations (id, code)
+       values ('f3333333-3333-4333-8333-333333333333', 'LOC-1')`
+    );
+    await expect(
+      client.exec(
+        `insert into trucking.locations (id, code)
+         values ('f4444444-4444-4444-8444-444444444444', 'LOC-1')`
+      )
+    ).rejects.toThrow(/trucking_locations_code_unique/);
+  });
+
+  it("drops every index a unique constraint or a primary key already covers", async () => {
+    const redundant = await count(
+      client,
+      // `approvable_index` is also the name on trucking's and expense's
+      // approvals, where it is not redundant; only the warehouse one is
+      `select count(*)::int as value from pg_indexes
+        where indexname in (
+          'trucking_client_route_client_id_index',
+          'trucking_clients_code_index',
+          'trucking_locations_code_index',
+          'trucking_orders_code_index',
+          'trucking_route_locations_route_id_index',
+          'trucking_trucks_license_plate_index'
+        )
+        or (schemaname = 'warehouse' and indexname = 'approvable_index')`
+    );
+    expect(redundant).toBe(0);
+
+    // the uniqueness each of them stood for is still there
+    const stillUnique = await count(
+      client,
+      `select count(*)::int as value from pg_constraint
+        where contype in ('p', 'u') and conname in (
+          'trucking_clients_code_unique',
+          'trucking_orders_code_unique',
+          'trucking_trucks_license_plate_unique',
+          'trucking_locations_code_unique',
+          'trucking_route_locations_route_id_position_unique',
+          'client_route_pkey',
+          'warehouse_approvals_approvable_type_approvable_id_type_unique'
+        )`
+    );
+    expect(stillUnique).toBe(7);
+  });
+
+  it("aligns the plan and actual fee with the route fee", async () => {
+    const fees = await client.query<{
+      table_name: string;
+      data_type: string;
+      numeric_precision: number;
+      numeric_scale: number;
+    }>(
+      `select table_name, data_type, numeric_precision, numeric_scale
+         from information_schema.columns
+        where table_schema = 'trucking' and column_name = 'fee'
+        order by table_name`
+    );
+
+    // an integer fee lost the cents a route fee carries
+    expect(fees).toEqual([
+      {
+        table_name: "daily_trucking_actuals",
+        data_type: "numeric",
+        numeric_precision: 15,
+        numeric_scale: 2
+      },
+      {
+        table_name: "daily_trucking_plans",
+        data_type: "numeric",
+        numeric_precision: 15,
+        numeric_scale: 2
+      },
+      {
+        table_name: "routes",
+        data_type: "numeric",
+        numeric_precision: 15,
+        numeric_scale: 2
+      }
+    ]);
+  });
+
+  it("defaults an invoice to the first status in its workflow", async () => {
+    await client.exec(
+      `insert into trucking.clients (id, name, code)
+       values ('f5555555-5555-4555-8555-555555555555', 'Invoice Client', 'IC-1')`
+    );
+
+    const status = await scalar<string>(
+      client,
+      `insert into trucking.invoices (client_id)
+       values ('f5555555-5555-4555-8555-555555555555')
+       returning status`
+    );
+    // 'draft' was not a value of the vocabulary; the create path uses this one
+    expect(status).toBe("receive_document");
   });
 });

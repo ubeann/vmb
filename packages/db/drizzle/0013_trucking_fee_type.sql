@@ -1,0 +1,2 @@
+ALTER TABLE "trucking"."daily_trucking_actuals" ALTER COLUMN "fee" SET DATA TYPE numeric(15, 2);--> statement-breakpoint
+ALTER TABLE "trucking"."daily_trucking_plans" ALTER COLUMN "fee" SET DATA TYPE numeric(15, 2);

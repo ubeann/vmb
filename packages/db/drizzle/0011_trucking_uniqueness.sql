@@ -1,0 +1,4 @@
+ALTER TABLE "trucking"."daily_trucking_actuals" ADD CONSTRAINT "trucking_daily_trucking_actuals_trip_id_plan_code_unique" UNIQUE("trip_id","plan_code");--> statement-breakpoint
+ALTER TABLE "trucking"."daily_trucking_plans" ADD CONSTRAINT "trucking_daily_trucking_plans_trip_id_plan_code_unique" UNIQUE("trip_id","plan_code");--> statement-breakpoint
+ALTER TABLE "trucking"."locations" ADD CONSTRAINT "trucking_locations_code_unique" UNIQUE("code");--> statement-breakpoint
+ALTER TABLE "trucking"."route_locations" ADD CONSTRAINT "trucking_route_locations_route_id_position_unique" UNIQUE("route_id","position");

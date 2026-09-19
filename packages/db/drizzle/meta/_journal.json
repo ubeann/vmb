@@ -71,6 +71,48 @@
       "when": 1789838831549,
       "tag": "0009_warehouse_workflow_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789842622672,
+      "tag": "0010_orders_client_fk_restrict",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789842631612,
+      "tag": "0011_trucking_uniqueness",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789842684993,
+      "tag": "0012_drop_redundant_trucking_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789842703802,
+      "tag": "0013_trucking_fee_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789842704253,
+      "tag": "0014_invoice_status_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789842718993,
+      "tag": "0015_drop_covered_approvals_index",
+      "breakpoints": true
     }
   ]
 }
