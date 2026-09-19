@@ -1,7 +1,7 @@
-import type { PGlite } from "@electric-sql/pglite";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { SqlClient } from "../src/import/client.js";
 import { fixtures } from "./fixtures/index.js";
-import { count, loadFixture, migratedDatabase, scalar } from "./harness.js";
+import { count, createDatabase, loadFixture, scalar, type TestDatabase } from "./harness.js";
 
 const edgeCases = fixtures.find((fixture) => fixture.name === "edge-cases");
 if (!edgeCases) {
@@ -9,17 +9,37 @@ if (!edgeCases) {
 }
 
 describe.each(fixtures)("fixture: $name", ({ file, purpose }) => {
-  it(`loads over the migrated baseline — ${purpose}`, async () => {
-    const client = await migratedDatabase();
+  let database: TestDatabase;
 
-    await expect(loadFixture(client, file)).resolves.toBeUndefined();
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+  });
+
+  afterAll(async () => {
+    await database?.close();
+  });
+
+  it(`loads over the migrated baseline — ${purpose}`, async () => {
+    await expect(loadFixture(database.client, file)).resolves.toBeUndefined();
   });
 });
 
 describe("database-minted identity", () => {
-  it("assigns a uuid when the insert omits one, and keeps an explicit value", async () => {
-    const client = await migratedDatabase();
+  let database: TestDatabase;
+  let client: SqlClient;
 
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database?.close();
+  });
+
+  it("assigns a uuid when the insert omits one, and keeps an explicit value", async () => {
     const minted = await scalar<string>(
       client,
       "insert into master.divisions (name) values ('Minted Division') returning id"
@@ -37,11 +57,18 @@ describe("database-minted identity", () => {
 });
 
 describe("the edge-cases fixture", () => {
-  let client: PGlite;
+  let database: TestDatabase;
+  let client: SqlClient;
 
   beforeAll(async () => {
-    client = await migratedDatabase();
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
     await loadFixture(client, edgeCases.file);
+  });
+
+  afterAll(async () => {
+    await database?.close();
   });
 
   it("keeps a user with no division", async () => {

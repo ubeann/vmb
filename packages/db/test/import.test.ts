@@ -1,26 +1,38 @@
-import { PGlite } from "@electric-sql/pglite";
-import { pgliteClient } from "../src/import/client.js";
-import { beforeAll, describe, expect, it } from "vitest";
-import { importSnapshot, summarise } from "../src/import/run.js";
-import { parseSnapshot } from "../src/import/snapshot.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { SqlClient } from "../src/import/client.js";
 import { loadStatements } from "../src/import/load.js";
 import { excludedTables, portedTables } from "../src/import/manifest.js";
-import { schemaOrder } from "../src/import/schema-order.js";
 import { byPhase, readChain } from "../src/import/phases.js";
-import { count, migrationsFolder, scalar } from "./harness.js";
-import { readSnapshot } from "../src/import/snapshot.js";
+import { importSnapshot, summarise } from "../src/import/run.js";
+import { schemaOrder } from "../src/import/schema-order.js";
+import { parseSnapshot, readSnapshot } from "../src/import/snapshot.js";
 import { verify } from "../src/import/verify.js";
+import { count, createDatabase, migrationsFolder, scalar, type TestDatabase } from "./harness.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const snapshotFile = path.join(testDir, "fixtures", "snapshot.sql");
 
+/**
+ * Run a test against a database of its own, and give it back afterwards.
+ *
+ * The suite runs its files in parallel and every test wants pristine schema
+ * names, so each one gets a fresh database — free with embedded Postgres, and a
+ * create/drop pair with a real one.
+ */
+async function withDatabase<T>(fn: (client: SqlClient) => Promise<T>): Promise<T> {
+  const database = await createDatabase();
+  try {
+    return await fn(database.client);
+  } finally {
+    await database?.close();
+  }
+}
+
 describe("the snapshot parser", () => {
   it("reads a COPY block's columns and rows", async () => {
-    const snapshot = await import("../src/import/snapshot.js").then((m) =>
-      m.readSnapshot(snapshotFile)
-    );
+    const snapshot = await readSnapshot(snapshotFile);
 
     expect(snapshot.columns.get("master.divisions")).toEqual([
       "id",
@@ -68,9 +80,7 @@ describe("the loader", () => {
   });
 
   it("covers the ported tables and leaves the excluded ones alone", async () => {
-    const snapshot = await import("../src/import/snapshot.js").then((m) =>
-      m.readSnapshot(snapshotFile)
-    );
+    const snapshot = await readSnapshot(snapshotFile);
     const { statements } = loadStatements(snapshot);
 
     for (const { table } of excludedTables) {
@@ -96,12 +106,20 @@ describe("the migration chain in two phases", () => {
 });
 
 describe("the import pipeline", () => {
-  let client: PGlite;
+  // One database for this block: the re-run test needs the state the first run
+  // left behind, which is exactly what it is about.
+  let database: TestDatabase;
+  let client: SqlClient;
   let report: Awaited<ReturnType<typeof importSnapshot>>;
 
   beforeAll(async () => {
-    client = new PGlite();
-    report = await importSnapshot(pgliteClient(client), snapshotFile, migrationsFolder);
+    database = await createDatabase();
+    client = database.client;
+    report = await importSnapshot(client, snapshotFile, migrationsFolder);
+  });
+
+  afterAll(async () => {
+    await database?.close();
   });
 
   it("reports zero errors and zero warnings on good data", () => {
@@ -160,7 +178,7 @@ describe("the import pipeline", () => {
   it("is a no-op when re-run against the same database", async () => {
     // the pipeline resets its target first, so a second run lands in the same
     // place rather than colliding with what the first one left behind
-    const second = await importSnapshot(pgliteClient(client), snapshotFile, migrationsFolder);
+    const second = await importSnapshot(client, snapshotFile, migrationsFolder);
 
     expect(second.errors).toEqual([]);
     expect(second.warnings).toEqual([]);
@@ -171,106 +189,111 @@ describe("the import pipeline", () => {
   });
 
   it("reports deliberately broken data as an error rather than crashing", async () => {
-    const broken = await importSnapshot(
-      pgliteClient(new PGlite()),
-      path.join(testDir, "fixtures", "broken-snapshot.sql"),
-      migrationsFolder
-    );
-    const codes = broken.errors.map((finding) => finding.code).sort();
-    // the shape problem names the cause; the row count and the business keys
-    // record its consequences
-    expect(codes).toEqual(["checksum", "row-count", "row-shape"]);
-    expect(summarise(broken)).toContain("row-shape");
+    await withDatabase(async (client) => {
+      const broken = await importSnapshot(
+        client,
+        path.join(testDir, "fixtures", "broken-snapshot.sql"),
+        migrationsFolder
+      );
+      const codes = broken.errors.map((finding) => finding.code).sort();
+      // the shape problem names the cause; the row count and the business keys
+      // record its consequences
+      expect(codes).toEqual(["checksum", "row-count", "row-shape"]);
+      expect(summarise(broken)).toContain("row-shape");
+    });
   });
 });
 
 describe("the verifier", () => {
-  const divisions = "11111111-1111-4111-8111-111111111111";
-
   it("catches rows orphaned behind an unvalidated foreign key", async () => {
-    const client = new PGlite();
-    const clean = await importSnapshot(pgliteClient(client), snapshotFile, migrationsFolder);
-    expect(clean.errors).toEqual([]);
+    await withDatabase(async (client) => {
+      const clean = await importSnapshot(client, snapshotFile, migrationsFolder);
+      expect(clean.errors).toEqual([]);
 
-    // drop the constraint so a parent can go missing, then put it back without
-    // validating the rows that already exist — the state a load that bypassed
-    // enforcement would leave behind
-    await client.exec("alter table master.users drop constraint master_users_division_id_foreign");
-    await client.exec(
-      `update master.users set division_id = '99999999-9999-4999-8999-999999999999'`
-    );
-    await client.exec(
-      `alter table master.users
-         add constraint master_users_division_id_foreign
-         foreign key (division_id) references master.divisions(id) not valid`
-    );
+      // drop the constraint so a parent can go missing, then put it back without
+      // validating the rows that already exist — the state a load that bypassed
+      // enforcement would leave behind
+      await client.exec(
+        "alter table master.users drop constraint master_users_division_id_foreign"
+      );
+      await client.exec(
+        `update master.users set division_id = '99999999-9999-4999-8999-999999999999'`
+      );
+      await client.exec(
+        `alter table master.users
+           add constraint master_users_division_id_foreign
+           foreign key (division_id) references master.divisions(id) not valid`
+      );
 
-    const report = await verify(await readSnapshot(snapshotFile), pgliteClient(client));
-    const finding = report.errors.find((f) => f.code === "fk-integrity");
-    expect(finding?.message).toContain("1 row(s)");
-    expect(finding?.message).toContain("master.users");
+      const report = await verify(await readSnapshot(snapshotFile), client);
+      const finding = report.errors.find((f) => f.code === "fk-integrity");
+      expect(finding?.message).toContain("1 row(s)");
+      expect(finding?.message).toContain("master.users");
+    });
   });
 
   it("catches a business key that no longer matches the snapshot", async () => {
-    const client = new PGlite();
-    await importSnapshot(pgliteClient(client), snapshotFile, migrationsFolder);
+    await withDatabase(async (client) => {
+      await importSnapshot(client, snapshotFile, migrationsFolder);
+      await client.exec(`update master.divisions set code = 'WRONG'`);
 
-    await client.exec(`update master.divisions set code = 'WRONG'`);
-    void divisions;
-
-    const report = await verify(await readSnapshot(snapshotFile), pgliteClient(client));
-    expect(report.errors.map((f) => f.code)).toContain("checksum");
+      const report = await verify(await readSnapshot(snapshotFile), client);
+      expect(report.errors.map((f) => f.code)).toContain("checksum");
+    });
   });
 
   it("warns about a snapshot table the manifest does not know", async () => {
-    const report = await importSnapshot(
-      pgliteClient(new PGlite()),
-      path.join(testDir, "fixtures", "unknown-snapshot.sql"),
-      migrationsFolder
-    );
+    await withDatabase(async (client) => {
+      const report = await importSnapshot(
+        client,
+        path.join(testDir, "fixtures", "unknown-snapshot.sql"),
+        migrationsFolder
+      );
 
-    const finding = report.warnings.find((f) => f.code === "unknown-table");
-    expect(finding?.message).toContain("legacy.something_new");
+      const finding = report.warnings.find((f) => f.code === "unknown-table");
+      expect(finding?.message).toContain("legacy.something_new");
+    });
   });
 });
 
 describe("the insert order", () => {
   it("respects every foreign key and covers every legacy table", async () => {
-    const client = new PGlite();
-    await importSnapshot(pgliteClient(client), snapshotFile, migrationsFolder);
+    await withDatabase(async (client) => {
+      await importSnapshot(client, snapshotFile, migrationsFolder);
 
-    const edges = await client.query<{ child: string; parent: string }>(
-      `select cn.nspname || '.' || cc.relname as child,
-              pn.nspname || '.' || pc.relname as parent
-         from pg_constraint con
-         join pg_class cc on cc.oid = con.conrelid
-         join pg_namespace cn on cn.oid = cc.relnamespace
-         join pg_class pc on pc.oid = con.confrelid
-         join pg_namespace pn on pn.oid = pc.relnamespace
-        where con.contype = 'f'`
-    );
+      const edges = await client.query<{ child: string; parent: string }>(
+        `select cn.nspname || '.' || cc.relname as child,
+                pn.nspname || '.' || pc.relname as parent
+           from pg_constraint con
+           join pg_class cc on cc.oid = con.conrelid
+           join pg_namespace cn on cn.oid = cc.relnamespace
+           join pg_class pc on pc.oid = con.confrelid
+           join pg_namespace pn on pn.oid = pc.relnamespace
+          where con.contype = 'f'`
+      );
 
-    const position = new Map(schemaOrder.map((table, index) => [table, index]));
+      const position = new Map(schemaOrder.map((table, index) => [table, index]));
 
-    // the legacy schemas only: Better Auth's tables live in public and are not
-    // part of what the pipeline carries
-    const legacy = /^(master|warehouse|trucking|expense)\./;
-    const legacyEdges = edges.rows.filter(
-      (edge) => legacy.test(edge.child) && legacy.test(edge.parent)
-    );
+      // the legacy schemas only: Better Auth's tables live in public and are not
+      // part of what the pipeline carries
+      const legacy = /^(master|warehouse|trucking|expense)\./;
+      const legacyEdges = edges.filter(
+        (edge) => legacy.test(edge.child) && legacy.test(edge.parent)
+      );
 
-    // every table the schema connects is in the order
-    const connected = new Set(legacyEdges.flatMap((edge) => [edge.child, edge.parent]));
-    const missing = [...connected].filter((table) => !position.has(table));
-    expect(missing).toEqual([]);
+      // every table the schema connects is in the order
+      const connected = new Set(legacyEdges.flatMap((edge) => [edge.child, edge.parent]));
+      const missing = [...connected].filter((table) => !position.has(table));
+      expect(missing).toEqual([]);
 
-    // and no parent is inserted after a child that references it
-    const violated = legacyEdges.filter(
-      (edge) =>
-        position.has(edge.child) &&
-        position.has(edge.parent) &&
-        (position.get(edge.child) as number) < (position.get(edge.parent) as number)
-    );
-    expect(violated).toEqual([]);
+      // and no parent is inserted after a child that references it
+      const violated = legacyEdges.filter(
+        (edge) =>
+          position.has(edge.child) &&
+          position.has(edge.parent) &&
+          (position.get(edge.child) as number) < (position.get(edge.parent) as number)
+      );
+      expect(violated).toEqual([]);
+    });
   });
 });

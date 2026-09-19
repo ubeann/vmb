@@ -82,6 +82,22 @@ Automated checks prove the data arrived and survived the chain. These are the ma
 
 These are deliberately not automated: they compare against the legacy _application_, which is the one reference the database cannot supply.
 
+## Testing
+
+The database suite runs on embedded Postgres by default, so it needs no service and no secrets:
+
+```sh
+pnpm test
+```
+
+To run the same fixtures and assertions against a real server — which is what the `Real Postgres` CI job does — point the harness at one:
+
+```sh
+TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm --filter @vmb/db test
+```
+
+Each test creates and drops a database of its own, so the suite stays parallel-safe and leaves nothing behind. Running both is the point: embedded Postgres is a re-implementation, and the one thing it cannot prove is that Postgres agrees with it — while the migrations actually run against Neon.
+
 ## Known limits
 
 - **`COPY` format only.** Only `pg_dump --data-only` output is understood; `--inserts` is not. `COPY FROM stdin` is unavailable on every target the pipeline runs against, so the loader emits `INSERT` statements.

@@ -1,16 +1,23 @@
-import type { PGlite } from "@electric-sql/pglite";
-import { beforeAll, describe, expect, it } from "vitest";
-import { count, migratedDatabase } from "./harness.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { SqlClient } from "../src/import/client.js";
+import { count, createDatabase, type TestDatabase } from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";
 
 describe("the migration chain", () => {
   // One migrated database per file: replaying the chain is the expensive part,
   // and every assertion below is read-only.
-  let client: PGlite;
+  let database: TestDatabase;
+  let client: SqlClient;
 
   beforeAll(async () => {
-    client = await migratedDatabase();
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database?.close();
   });
 
   it("applies cleanly to an empty database", async () => {
@@ -29,7 +36,7 @@ describe("the migration chain", () => {
           and nspname not in ('information_schema', 'drizzle')
         order by nspname`
     );
-    expect(schemas.rows.map((r) => r.nspname)).toEqual([
+    expect(schemas.map((r) => r.nspname)).toEqual([
       "expense",
       "master",
       "public",
