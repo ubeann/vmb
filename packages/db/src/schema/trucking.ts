@@ -93,7 +93,7 @@ export const approvals = trucking.table(
     index("approvable_index").using(
       "btree",
       table.approvableType.asc().nullsLast().op("text_ops"),
-      table.approvableId.asc().nullsLast().op("text_ops")
+      table.approvableId.asc().nullsLast().op("uuid_ops")
     ),
     foreignKey({
       columns: [table.approverId],
@@ -639,7 +639,7 @@ export const invoiceComments = trucking.table(
   (table) => [
     index("trucking_invoice_comments_invoice_id_created_at_index").using(
       "btree",
-      table.invoiceId.asc().nullsLast().op("timestamp_ops"),
+      table.invoiceId.asc().nullsLast().op("uuid_ops"),
       table.createdAt.asc().nullsLast().op("timestamp_ops")
     ),
     index("trucking_invoice_comments_user_id_index").using(

@@ -106,7 +106,7 @@ export const approvals = expense.table(
     index("approvable_index").using(
       "btree",
       table.approvableType.asc().nullsLast().op("text_ops"),
-      table.approvableId.asc().nullsLast().op("text_ops")
+      table.approvableId.asc().nullsLast().op("uuid_ops")
     ),
     foreignKey({
       columns: [table.approverId],

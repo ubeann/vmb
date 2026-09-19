@@ -1109,7 +1109,7 @@
               "expression": "approvable_id",
               "asc": true,
               "nulls": "last",
-              "opclass": "text_ops",
+              "opclass": "uuid_ops",
               "isExpression": false
             }
           ],
@@ -2063,7 +2063,7 @@
               "expression": "approvable_id",
               "asc": true,
               "nulls": "last",
-              "opclass": "text_ops",
+              "opclass": "uuid_ops",
               "isExpression": false
             }
           ],
@@ -3542,7 +3542,7 @@
               "expression": "approvable_id",
               "asc": true,
               "nulls": "last",
-              "opclass": "text_ops",
+              "opclass": "uuid_ops",
               "isExpression": false
             }
           ],
@@ -3838,7 +3838,7 @@
               "expression": "invoice_id",
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamp_ops",
+              "opclass": "uuid_ops",
               "isExpression": false
             },
             {
