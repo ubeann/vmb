@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
-const migrationsFolder = path.resolve(testDir, "../drizzle");
+export const migrationsFolder = path.resolve(testDir, "../drizzle");
 
 /**
  * A fresh in-memory Postgres with the whole migration chain applied.

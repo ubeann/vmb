@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:import": "tsx src/import/cli.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -26,6 +27,7 @@
     "@vmb/config": "workspace:*",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.10.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.7.0",
     "vitest": "^5.0.1"
   }
