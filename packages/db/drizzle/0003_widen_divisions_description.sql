@@ -1,0 +1,1 @@
+ALTER TABLE "master"."divisions" ALTER COLUMN "description" SET DATA TYPE text;

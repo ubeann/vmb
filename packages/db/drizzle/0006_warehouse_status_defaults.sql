@@ -1,0 +1,2 @@
+ALTER TABLE "warehouse"."procurement_requests" ALTER COLUMN "status" SET DEFAULT 'pending_approval';--> statement-breakpoint
+ALTER TABLE "warehouse"."stock_requisitions" ALTER COLUMN "status" SET DEFAULT 'pending_approval';

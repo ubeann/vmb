@@ -1,0 +1,2 @@
+CREATE INDEX "warehouse_procurement_requests_status_created_at_index" ON "warehouse"."procurement_requests" USING btree ("status" text_ops,"created_at" timestamp_ops);--> statement-breakpoint
+CREATE INDEX "warehouse_stock_requisitions_status_created_at_index" ON "warehouse"."stock_requisitions" USING btree ("status" text_ops,"created_at" timestamp_ops);

@@ -87,12 +87,14 @@ describe("the loader", () => {
 describe("the migration chain in two phases", () => {
   it("splits at the baseline", async () => {
     const chain = await readChain(migrationsFolder);
+    const baseline = byPhase(chain, "baseline").map((m) => m.tag);
+    const after = byPhase(chain, "after").map((m) => m.tag);
 
-    expect(byPhase(chain, "baseline").map((m) => m.tag)).toEqual([
-      "0000_better_auth_schema",
-      "0001_legacy_baseline"
-    ]);
-    expect(byPhase(chain, "after").map((m) => m.tag)).toEqual(["0002_legacy_identity_corrections"]);
+    // the split point is the contract, not how many migrations exist: baseline
+    // is exactly the two that create the shape, and everything else follows it
+    expect(baseline).toEqual(["0000_better_auth_schema", "0001_legacy_baseline"]);
+    expect(after[0]).toBe("0002_legacy_identity_corrections");
+    expect(baseline.length + after.length).toBe(chain.length);
   });
 });
 
@@ -155,12 +157,13 @@ describe("the import pipeline", () => {
     expect(roles).toBe(0);
   });
 
-  it("journals the chain as it runs, so a later migrate applies only the rest", async () => {
+  it("journals every migration exactly once as it runs", async () => {
+    const chain = await readChain(migrationsFolder);
     const applied = await count(
       client,
       "select count(*)::int as value from drizzle.__drizzle_migrations"
     );
-    expect(applied).toBe(3);
+    expect(applied).toBe(chain.length);
   });
 
   it("runs the later migrations over the loaded rows", async () => {

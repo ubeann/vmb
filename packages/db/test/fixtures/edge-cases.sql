@@ -1,8 +1,8 @@
 -- Data the legacy schema permits but the domain does not:
 --
 --   * a user with no Division, because division scoping is assumed by the UI
---   * a procurement request carrying the schema's own default status, which the
---     application's enum cannot hydrate
+--   * a procurement request that takes the schema's default status rather than
+--     naming one (the default is a valid value since #106 corrected it)
 --   * an approval whose approvable_id matches no row — the morph target has no
 --     foreign key to enforce it
 --   * a soft-deleted order, and one cancelled without a cancelled_by user

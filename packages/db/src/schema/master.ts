@@ -1,4 +1,6 @@
 import {
+  index,
+  text,
   timestamp,
   unique,
   boolean,
@@ -17,8 +19,8 @@ export const divisions = master.table(
   {
     id: uuid().primaryKey().notNull().defaultRandom(),
     name: varchar({ length: 255 }).notNull(),
-    code: varchar({ length: 255 }),
-    description: varchar({ length: 255 }),
+    code: varchar({ length: 255 }).notNull(),
+    description: text(),
     colorHex: varchar("color_hex", { length: 255 }).default("#000000").notNull(),
     iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-rocket-launch").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -57,6 +59,10 @@ export const users = master.table(
     })
       .onUpdate("cascade")
       .onDelete("set null"),
+    index("master_users_division_id_index").using(
+      "btree",
+      table.divisionId.asc().nullsLast().op("uuid_ops")
+    ),
     unique("master_users_email_unique").on(table.email),
     check(
       "users_status_check",

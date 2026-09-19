@@ -1,0 +1,1 @@
+CREATE INDEX "master_users_division_id_index" ON "master"."users" USING btree ("division_id" uuid_ops);

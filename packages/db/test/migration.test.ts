@@ -153,3 +153,119 @@ describe("the migration chain", () => {
     expect(sequence).toBe(0);
   });
 });
+
+describe("the master and warehouse hygiene migrations", () => {
+  // #106: each deviation below is one migration, and the ledger names it.
+  let database: TestDatabase;
+  let client: SqlClient;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("widens divisions.description to text and requires code", async () => {
+    const column = await client.query<{ data_type: string; is_nullable: string }>(
+      `select data_type, is_nullable from information_schema.columns
+        where table_schema = 'master' and table_name = 'divisions'
+          and column_name in ('description', 'code')
+        order by column_name`
+    );
+    expect(column).toEqual([
+      { data_type: "character varying", is_nullable: "NO" },
+      { data_type: "text", is_nullable: "YES" }
+    ]);
+  });
+
+  it("indexes the division on a user", async () => {
+    const indexes = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'master' and indexname = 'master_users_division_id_index'`
+    );
+    expect(indexes).toBe(1);
+  });
+
+  it("defaults both warehouse workflows to a status their vocabulary has", async () => {
+    const defaults = await client.query<{ column_default: string | null }>(
+      `select column_default from information_schema.columns
+        where table_schema = 'warehouse'
+          and table_name in ('procurement_requests', 'stock_requisitions')
+          and column_name = 'status'
+        order by table_name`
+    );
+    expect(defaults.map((row) => row.column_default)).toEqual([
+      "'pending_approval'::character varying",
+      "'pending_approval'::character varying"
+    ]);
+  });
+
+  it("constrains each status and approval type to its vocabulary", async () => {
+    const checks = await client.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where contype = 'c'
+          and conname in (
+            'warehouse_procurement_requests_status_check',
+            'warehouse_stock_requisitions_status_check',
+            'warehouse_approvals_type_check'
+          )
+        order by conname`
+    );
+    expect(checks.map((row) => row.conname)).toEqual([
+      "warehouse_approvals_type_check",
+      "warehouse_procurement_requests_status_check",
+      "warehouse_stock_requisitions_status_check"
+    ]);
+
+    // the vocabulary bites: a status the workflow never had is rejected
+    await expect(
+      client.exec(
+        `insert into warehouse.procurement_requests
+           (request_number, requester_id, item_id, status, unit_price,
+            requested_quantity, total_amount, justification)
+         values ('PR-CHECK', 'b1111111-1111-4111-8111-111111111111',
+                 'b1111111-1111-4111-8111-111111111111', 'pending', 1, 1, 1, 'x')`
+      )
+    ).rejects.toThrow(/status_check/);
+  });
+
+  it("requires a division code", async () => {
+    await expect(
+      client.exec("insert into master.divisions (name) values ('No Code')")
+    ).rejects.toThrow(/code/);
+  });
+
+  it("makes an approval unique per target and level, and a quotation per request", async () => {
+    const uniques = await client.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where contype = 'u'
+          and conname in (
+            'warehouse_approvals_approvable_type_approvable_id_type_unique',
+            'warehouse_procurement_requests_quotation_id_unique'
+          )
+        order by conname`
+    );
+    expect(uniques.map((row) => row.conname)).toEqual([
+      "warehouse_approvals_approvable_type_approvable_id_type_unique",
+      "warehouse_procurement_requests_quotation_id_unique"
+    ]);
+  });
+
+  it("indexes both workflow tables by status and age", async () => {
+    const indexes = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'warehouse'
+          and indexname in (
+            'warehouse_procurement_requests_status_created_at_index',
+            'warehouse_stock_requisitions_status_created_at_index'
+          )`
+    );
+    expect(indexes).toBe(2);
+  });
+});

@@ -9,8 +9,10 @@ import {
   uuid,
   numeric,
   varchar,
-  integer
+  integer,
+  check
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { divisions, users } from "./master.js";
 
 export const warehouse = pgSchema("warehouse");
@@ -40,7 +42,16 @@ export const approvals = warehouse.table(
       name: "warehouse_approvals_approver_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("set null")
+      .onDelete("set null"),
+    check(
+      "warehouse_approvals_type_check",
+      sql`${table.type} in ('division', 'finance', 'director')`
+    ),
+    unique("warehouse_approvals_approvable_type_approvable_id_type_unique").on(
+      table.approvableType,
+      table.approvableId,
+      table.type
+    )
   ]
 );
 
@@ -122,7 +133,7 @@ export const procurementRequests = warehouse.table(
     requestNumber: varchar("request_number", { length: 255 }).notNull(),
     requesterId: uuid("requester_id").notNull(),
     itemId: uuid("item_id").notNull(),
-    status: varchar({ length: 255 }).default("pending").notNull(),
+    status: varchar({ length: 255 }).default("pending_approval").notNull(),
     unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
     requestedQuantity: integer("requested_quantity").notNull(),
     totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
@@ -154,7 +165,17 @@ export const procurementRequests = warehouse.table(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    unique("warehouse_procurement_requests_request_number_unique").on(table.requestNumber)
+    unique("warehouse_procurement_requests_request_number_unique").on(table.requestNumber),
+    check(
+      "warehouse_procurement_requests_status_check",
+      sql`${table.status} in ('pending_approval', 'division_approved', 'finance_approved', 'quotation_submitted', 'budget_transferred', 'fulfillment_evidence_received', 'director_approved', 'rejected', 'completed')`
+    ),
+    unique("warehouse_procurement_requests_quotation_id_unique").on(table.quotationId),
+    index("warehouse_procurement_requests_status_created_at_index").using(
+      "btree",
+      table.status.asc().nullsLast().op("text_ops"),
+      table.createdAt.asc().nullsLast().op("timestamp_ops")
+    )
   ]
 );
 
@@ -165,7 +186,7 @@ export const stockRequisitions = warehouse.table(
     requisitionNumber: varchar("requisition_number", { length: 255 }).notNull(),
     requesterId: uuid("requester_id").notNull(),
     itemId: uuid("item_id").notNull(),
-    status: varchar({ length: 255 }).default("pending").notNull(),
+    status: varchar({ length: 255 }).default("pending_approval").notNull(),
     requestedQuantity: integer("requested_quantity").notNull(),
     stockOnHand: integer("stock_on_hand"),
     purpose: text().notNull(),
@@ -188,6 +209,15 @@ export const stockRequisitions = warehouse.table(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    unique("warehouse_stock_requisitions_requisition_number_unique").on(table.requisitionNumber)
+    unique("warehouse_stock_requisitions_requisition_number_unique").on(table.requisitionNumber),
+    index("warehouse_stock_requisitions_status_created_at_index").using(
+      "btree",
+      table.status.asc().nullsLast().op("text_ops"),
+      table.createdAt.asc().nullsLast().op("timestamp_ops")
+    ),
+    check(
+      "warehouse_stock_requisitions_status_check",
+      sql`${table.status} in ('pending_approval', 'division_approved', 'rejected', 'completed')`
+    )
   ]
 );
