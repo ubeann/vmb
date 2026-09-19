@@ -31,9 +31,9 @@ export const clients = trucking.table(
     phone: varchar({ length: 255 }),
     address: text(),
     logoPath: varchar("logo_path", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_clients_name_index").using(
@@ -52,8 +52,8 @@ export const clientTruckCompanies = trucking.table(
     clientId: uuid("client_id").notNull(),
     name: varchar({ length: 255 }).notNull(),
     editableDtp: boolean("editable_dtp").default(false).notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_client_truck_companies_client_id_index").using(
@@ -82,8 +82,8 @@ export const approvals = trucking.table(
     type: varchar({ length: 255 }).notNull(),
     approved: boolean().default(false).notNull(),
     comment: text(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("approvable_index").using(
@@ -120,9 +120,9 @@ export const dailyTruckingActuals = trucking.table(
     loloFee: numeric("lolo_fee", { precision: 15, scale: 2 }),
     routeReference: varchar("route_reference", { length: 255 }).notNull(),
     changedRoutes: json("changed_routes"),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_daily_trucking_actuals_daily_trucking_plan_id_index").using(
@@ -200,9 +200,9 @@ export const orders = trucking.table(
     partyCount: integer("party_count").notNull(),
     status: varchar({ length: 255 }).notNull(),
     evidencePath: varchar("evidence_path", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 }),
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 }),
     direction: varchar({ length: 255 }).default("import").notNull(),
     tripCount: integer("trip_count").default(0).notNull(),
     additionalFiles: json("additional_files"),
@@ -210,12 +210,15 @@ export const orders = trucking.table(
     referenceCode: varchar("reference_code", { length: 255 }),
     clientTruckCompanyId: uuid("client_truck_company_id"),
     referenceId: uuid("reference_id"),
-    cancelledAt: timestamp("cancelled_at", { precision: 0 }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true, precision: 3 }),
     cancelledBy: uuid("cancelled_by"),
     cancelReason: text("cancel_reason"),
     customInvoiceCodes: json("custom_invoice_codes"),
-    submittedForPaymentAt: timestamp("submitted_for_payment_at", { precision: 0 }),
-    paymentReceivedAt: timestamp("payment_received_at", { precision: 0 }),
+    submittedForPaymentAt: timestamp("submitted_for_payment_at", {
+      withTimezone: true,
+      precision: 3
+    }),
+    paymentReceivedAt: timestamp("payment_received_at", { withTimezone: true, precision: 3 }),
     paymentDocuments: json("payment_documents"),
     paymentNotes: text("payment_notes")
   },
@@ -285,8 +288,8 @@ export const invoiceShipments = trucking.table(
     portCharge20Hc: numeric("port_charge_20hc", { precision: 12, scale: 2 }).default("0").notNull(),
     portCharge40Hc: numeric("port_charge_40hc", { precision: 12, scale: 2 }).default("0").notNull(),
     contactName: varchar("contact_name", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -307,8 +310,8 @@ export const invoiceVendor = trucking.table(
     quantity: integer().default(0).notNull(),
     unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).default("0").notNull(),
     description: varchar({ length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -327,8 +330,8 @@ export const locations = trucking.table(
     id: uuid().primaryKey().notNull().defaultRandom(),
     code: varchar({ length: 255 }).notNull(),
     name: varchar({ length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [unique("trucking_locations_code_unique").on(table.code)]
 );
@@ -341,8 +344,8 @@ export const trips = trucking.table(
     code: varchar({ length: 255 }).notNull(),
     totalUnits: integer("total_units").notNull(),
     routes: json().notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
     routeReferenceId: uuid("route_reference_id")
   },
   (table) => [
@@ -374,9 +377,9 @@ export const trucks = trucking.table(
     brand: varchar({ length: 255 }).notNull(),
     productionYear: integer("production_year").notNull(),
     lastMaintenance: date("last_maintenance").notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [unique("trucking_trucks_license_plate_unique").on(table.licensePlate)]
 );
@@ -397,9 +400,9 @@ export const invoices = trucking.table(
     invoicePortChargePath: varchar("invoice_port_charge_path", { length: 255 }),
     invoiceHandlingPath: varchar("invoice_handling_path", { length: 255 }),
     eFakturPath: varchar("e_faktur_path", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 }),
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 }),
     additionalFiles: json("additional_files"),
     notes: text(),
     amountTotal: numeric("amount_total", { precision: 15, scale: 2 }),
@@ -424,8 +427,8 @@ export const routes = trucking.table(
     fee: numeric({ precision: 15, scale: 2 }).notNull(),
     allowance: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
     isLolo: boolean("is_lolo").default(false).notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_routes_size_index").using("btree", table.size.asc().nullsLast().op("int4_ops"))
@@ -449,9 +452,9 @@ export const dailyTruckingPlans = trucking.table(
     isLolo: boolean("is_lolo").default(false).notNull(),
     loloFee: numeric("lolo_fee", { precision: 15, scale: 2 }),
     routeReference: varchar("route_reference", { length: 255 }).notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_daily_trucking_plans_order_id_index").using(
@@ -519,9 +522,9 @@ export const drivers = trucking.table(
     phone: varchar({ length: 20 }).notNull(),
     address: text().notNull(),
     profilePhotoPath: varchar("profile_photo_path", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_drivers_name_index").using(
@@ -542,8 +545,8 @@ export const routeLocations = trucking.table(
     locationId: uuid("location_id").notNull(),
     position: integer().notNull(),
     loadType: varchar("load_type", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
     isVisible: boolean("is_visible").default(true).notNull(),
     label: varchar({ length: 255 })
   },
@@ -587,8 +590,8 @@ export const clientRoute = trucking.table(
   {
     clientId: uuid("client_id").notNull(),
     routeId: uuid("route_id").notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_client_route_route_id_index").using(
@@ -620,8 +623,8 @@ export const invoiceComments = trucking.table(
     userId: uuid("user_id"),
     invoiceStatus: varchar("invoice_status", { length: 50 }).notNull(),
     comment: text(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     index("trucking_invoice_comments_invoice_id_created_at_index").using(

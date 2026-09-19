@@ -63,10 +63,13 @@ The report is the product. It carries per-table row counts, a checksum per table
 | `fk-integrity`  | error   | a row names a parent that does not exist                           |
 | `row-shape`     | error   | a snapshot row has the wrong number of values for its column list  |
 | `business-key`  | error   | a configured business key names a column the snapshot lacks        |
+| `instant`       | error   | a timestamp is not the instant its wall-clock named                |
 | `unknown-table` | warning | the snapshot holds a table the manifest neither ports nor excludes |
 | `pipeline`      | error   | the run failed before verification (a statement was rejected, say) |
 
 The checksum is computed over the business keys listed in `src/import/verify.ts` — from the snapshot's rows and from the database's, by the same code, so it compares data rather than two spellings of one query. Row order is not part of what it proves.
+
+The instant check exists because the snapshot holds Jakarta wall-clock while the database holds absolute instants after `0022`: comparing the two as text would report a seven-hour drift on every row, so both sides are reduced to epoch milliseconds before they are compared.
 
 The foreign-key check counts **rows**, not constraints: the constraints are enforced on the way in, so an orphan only appears if a load bypassed enforcement or a later migration moved children without their parents. `unknown-table` is schema drift — a new legacy table nobody has classified — and is a warning rather than an error because it is a question, not a fault.
 

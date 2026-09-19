@@ -668,3 +668,62 @@ describe("the expense hygiene migrations", () => {
     ).rejects.toThrow(/category_check/);
   });
 });
+
+describe("the timestamptz conversion", () => {
+  // #114: every timestamp becomes an absolute instant, converted through the
+  // zone its wall-clock was written in.
+  let database: TestDatabase;
+  let client: SqlClient;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("leaves no wall-clock timestamp anywhere", async () => {
+    const columns = await client.query<{
+      table_schema: string;
+      data_type: string;
+      datetime_precision: number;
+    }>(
+      `select table_schema, data_type, datetime_precision
+         from information_schema.columns
+        where table_schema in ('master', 'warehouse', 'trucking', 'expense', 'public')
+          and data_type like 'timestamp%'
+        group by 1, 2, 3
+        order by 1, 2, 3`
+    );
+
+    // one combination per schema, and it is the same one in all five —
+    // including Better Auth's tables
+    expect(columns).toHaveLength(5);
+    for (const column of columns) {
+      expect(column.data_type).toBe("timestamp with time zone");
+      expect(column.datetime_precision).toBe(3);
+    }
+    expect(new Set(columns.map((column) => column.table_schema))).toEqual(
+      new Set(["master", "warehouse", "trucking", "expense", "public"])
+    );
+  });
+
+  it("stores an instant, so the same moment reads the same in any zone", async () => {
+    await client.exec(
+      `insert into master.divisions (id, name, code, created_at)
+       values ('c1111111-1111-4111-8111-111111111111', 'Zone', 'ZON',
+               timestamp '2026-01-02 08:00:00' AT TIME ZONE 'Asia/Jakarta')`
+    );
+
+    const rendered = await scalar<string>(
+      client,
+      `select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS')
+         from master.divisions where code = 'ZON'`
+    );
+    // 08:00 in Jakarta is 01:00 UTC
+    expect(rendered).toBe("2026-01-02 01:00:00");
+  });
+});

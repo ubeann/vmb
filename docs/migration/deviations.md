@@ -76,6 +76,10 @@ The inventory also found defects in the legacy **application**: the missing `pay
 
 Changes in meaning or model. Deferred to migrations over loaded data.
 
+**Database-wide**
+
+- Timestamps become `timestamptz(3)` (`0022`). Every legacy column was a wall-clock in Asia/Jakarta and is converted with `AT TIME ZONE 'Asia/Jakarta'` in the `USING` clause, never through the session's zone; Better Auth's tables hold UTC wall-clock and use `'UTC'`. The assumption is the confirmed one — all production data is WIB — so a row written in another zone would be silently misinterpreted, and nothing in the data can reveal that. The pipeline's verifier now compares timestamps as **instants** (`instant`), so a parity check does not report a seven-hour drift.
+
 **Trucking**
 
 - Replace `invoice_shipments.order_number` string with a real order FK; add an explicit invoice→order/trip relation.
