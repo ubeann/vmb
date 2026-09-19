@@ -44,6 +44,10 @@ _Avoid_: Stop, place, point
 A container path with size, fee and driver allowance, assembled from locations.
 _Avoid_: Track, path, lane
 
+**Client Route**:
+The link declaring which routes a Client may use; a client with no links is unrestricted.
+_Avoid_: Pivot, client-route assignment
+
 **Route Location**:
 The ordered join of a location into a route, carrying load type and invoice visibility.
 _Avoid_: Stop, waypoint

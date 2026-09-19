@@ -17,7 +17,7 @@ export const expense = pgSchema("expense");
 export const budgets = expense.table(
   "budgets",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     divisionId: uuid("division_id").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     amount: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
@@ -38,7 +38,7 @@ export const budgets = expense.table(
 export const requestNicheDetails = expense.table(
   "request_niche_details",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     requestId: uuid("request_id").notNull(),
     amount: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
     notes: text(),
@@ -62,7 +62,7 @@ export const requestNicheDetails = expense.table(
 export const requests = expense.table(
   "requests",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     userId: uuid("user_id"),
     divisionId: uuid("division_id").notNull(),
     type: varchar({ length: 255 }).notNull(),
@@ -92,7 +92,7 @@ export const requests = expense.table(
 export const approvals = expense.table(
   "approvals",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     approvableType: varchar("approvable_type", { length: 255 }).notNull(),
     approvableId: uuid("approvable_id").notNull(),
     approverId: uuid("approver_id"),
@@ -121,7 +121,7 @@ export const approvals = expense.table(
 export const requestEmergencyDetails = expense.table(
   "request_emergency_details",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     requestId: uuid("request_id").notNull(),
     category: varchar({ length: 255 }).notNull(),
     amount: numeric({ precision: 15, scale: 2 }).default("0").notNull(),

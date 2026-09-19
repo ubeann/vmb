@@ -18,7 +18,7 @@ export const warehouse = pgSchema("warehouse");
 export const approvals = warehouse.table(
   "approvals",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     approvableType: varchar("approvable_type", { length: 255 }).notNull(),
     approvableId: uuid("approvable_id").notNull(),
     approverId: uuid("approver_id"),
@@ -47,7 +47,7 @@ export const approvals = warehouse.table(
 export const stockAlerts = warehouse.table(
   "stock_alerts",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     itemId: uuid("item_id").notNull(),
     lastStock: integer("last_stock").notNull(),
     lastRequisitionId: uuid("last_requisition_id").notNull(),
@@ -73,7 +73,7 @@ export const stockAlerts = warehouse.table(
 );
 
 export const procurementQuotations = warehouse.table("procurement_quotations", {
-  id: uuid().primaryKey().notNull(),
+  id: uuid().primaryKey().notNull().defaultRandom(),
   quotedPrice: numeric("quoted_price", { precision: 10, scale: 2 }).notNull(),
   vendorName: varchar("vendor_name", { length: 255 }).notNull(),
   vendorWebsite: varchar("vendor_website", { length: 255 }).notNull(),
@@ -92,7 +92,7 @@ export const procurementQuotations = warehouse.table("procurement_quotations", {
 export const items = warehouse.table(
   "items",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     divisionId: uuid("division_id").notNull(),
     name: varchar({ length: 255 }).notNull(),
     code: varchar({ length: 255 }),
@@ -118,7 +118,7 @@ export const items = warehouse.table(
 export const procurementRequests = warehouse.table(
   "procurement_requests",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     requestNumber: varchar("request_number", { length: 255 }).notNull(),
     requesterId: uuid("requester_id").notNull(),
     itemId: uuid("item_id").notNull(),
@@ -161,7 +161,7 @@ export const procurementRequests = warehouse.table(
 export const stockRequisitions = warehouse.table(
   "stock_requisitions",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     requisitionNumber: varchar("requisition_number", { length: 255 }).notNull(),
     requesterId: uuid("requester_id").notNull(),
     itemId: uuid("item_id").notNull(),

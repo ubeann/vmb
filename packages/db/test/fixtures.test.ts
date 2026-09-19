@@ -16,6 +16,26 @@ describe.each(fixtures)("fixture: $name", ({ file, purpose }) => {
   });
 });
 
+describe("database-minted identity", () => {
+  it("assigns a uuid when the insert omits one, and keeps an explicit value", async () => {
+    const client = await migratedDatabase();
+
+    const minted = await scalar<string>(
+      client,
+      "insert into master.divisions (name) values ('Minted Division') returning id"
+    );
+    expect(minted).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+
+    const explicit = await scalar<string>(
+      client,
+      `insert into master.divisions (id, name)
+        values ('b1111111-1111-4111-8111-111111111111', 'Explicit Division')
+        returning id`
+    );
+    expect(explicit).toBe("b1111111-1111-4111-8111-111111111111");
+  });
+});
+
 describe("the edge-cases fixture", () => {
   let client: PGlite;
 

@@ -93,4 +93,56 @@ describe("the migration chain", () => {
     );
     expect(licensePlateIndexes).toBe(2);
   });
+
+  it("mints identity in the database for new rows", async () => {
+    // every ported uuid primary key except the client-route link's carries a
+    // default — asserted on the primary-key column, not just a column named id
+    const withDefault = await count(
+      client,
+      `select count(*)::int as value
+         from pg_constraint p
+         join pg_class t on t.oid = p.conrelid
+         join pg_namespace n on n.oid = t.relnamespace
+         join information_schema.columns c
+           on c.table_schema = n.nspname
+          and c.table_name = t.relname
+          and c.column_name = 'id'
+        where p.contype = 'p'
+          and n.nspname in (${LEGACY_SCHEMAS})
+          and pg_get_constraintdef(p.oid) like '%PRIMARY KEY (id)%'
+          and c.column_default like 'gen_random_uuid%'`
+    );
+    expect(withDefault).toBe(29);
+
+    // the client-route link keeps its natural key and no surrogate
+    const surrogate = await count(
+      client,
+      `select count(*)::int as value from information_schema.columns
+        where table_schema = 'trucking'
+          and table_name = 'client_route'
+          and column_name = 'id'`
+    );
+    expect(surrogate).toBe(0);
+
+    const naturalKey = await count(
+      client,
+      `select count(*)::int as value from pg_constraint
+        where conrelid = 'trucking.client_route'::regclass
+          and contype = 'p'
+          and pg_get_constraintdef(oid) like '%(client_id, route_id)%'`
+    );
+    expect(naturalKey).toBe(1);
+
+    // and its sequence went with the surrogate
+    const sequence = await count(
+      client,
+      `select count(*)::int as value
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where c.relkind = 'S'
+          and n.nspname = 'trucking'
+          and c.relname = 'client_route_id_seq'`
+    );
+    expect(sequence).toBe(0);
+  });
 });
