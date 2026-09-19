@@ -5,8 +5,9 @@ VMB is being rebuilt from an existing Laravel + Filament app. That app is the so
 ## Where it lives
 
 - **Canonical: `github.com/ubeann/vmb-warehouse`** — use this, not a local path. A local clone's path is machine-specific and will break for other developers, other agents, and CI.
-- Default/active development branch: `development` (also `origin/HEAD`).
-- `production` branch reflects what's actually deployed — treat it as the parity baseline when verifying a module before cutover (see ARCHITECTURE.md §10).
+- Default/active development branch: `development` (also `origin/HEAD`). **This is also the branch the server deploys from** — it is the code parity baseline.
+- `production` branch is **unused and stale**: it sits at the 2024-08-19 `Initialize Project using Laravel 11.x` commit, ~172 commits behind `development`. Do not use it as a parity baseline.
+- The deployed database (`vmb_prod`) is migrated in place — `deployment/deploy.sh` runs `artisan migrate --force`. Git cannot prove the live DB's shape, so verify cutover parity against a live `pg_dump --schema-only`, not a branch. See `docs/research/legacy-schema-inventory.md` §05 for the production↔development drift analysis.
 
 ## Structure worth knowing
 
