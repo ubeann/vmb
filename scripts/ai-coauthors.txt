@@ -1,0 +1,15 @@
+# AI co-author addresses accepted by scripts/check-commit-msg.sh.
+#
+# One address per line, no inline comments. The hook validates the address only,
+# never the name. To adopt a model, follow the resolution order in
+# docs/agents/git-workflow.md, then add its address below.
+#
+#   1. a service account on the GitHub org    <ID+username@users.noreply.github.com>
+#   2. the model's own GitHub bot account     <ID+username@users.noreply.github.com>
+#   3. the vendor's documented address        e.g. noreply@anthropic.com
+#   4. this repository's own agent address    noreply@vmblogistics.id
+
+223556219+Copilot@users.noreply.github.com
+noreply@anthropic.com
+noreply@openai.com
+noreply@vmblogistics.id
