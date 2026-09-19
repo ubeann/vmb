@@ -62,6 +62,7 @@ The report is the product. It carries per-table row counts, a checksum per table
 | `checksum`      | error   | a table's business keys differ from the snapshot's                 |
 | `fk-integrity`  | error   | a row names a parent that does not exist                           |
 | `row-shape`     | error   | a snapshot row has the wrong number of values for its column list  |
+| `business-key`  | error   | a configured business key names a column the snapshot lacks        |
 | `unknown-table` | warning | the snapshot holds a table the manifest neither ports nor excludes |
 | `pipeline`      | error   | the run failed before verification (a statement was rejected, say) |
 

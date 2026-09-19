@@ -1,0 +1,1 @@
+ALTER TABLE "master"."divisions" ALTER COLUMN "code" SET NOT NULL;

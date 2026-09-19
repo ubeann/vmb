@@ -28,7 +28,7 @@ describe("database-minted identity", () => {
     await withMigratedDatabase(async (client) => {
       const minted = await scalar<string>(
         client,
-        "insert into master.divisions (name) values ('Minted Division') returning id"
+        "insert into master.divisions (name, code) values ('Minted Division', 'MINT') returning id"
       );
       expect(minted).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -36,8 +36,8 @@ describe("database-minted identity", () => {
 
       const explicit = await scalar<string>(
         client,
-        `insert into master.divisions (id, name)
-          values ('b1111111-1111-4111-8111-111111111111', 'Explicit Division')
+        `insert into master.divisions (id, name, code)
+          values ('b1111111-1111-4111-8111-111111111111', 'Explicit Division', 'EXPL')
           returning id`
       );
       expect(explicit).toBe("b1111111-1111-4111-8111-111111111111");
@@ -68,12 +68,14 @@ describe("the edge-cases fixture", () => {
     expect(divisionless).toBe(1);
   });
 
-  it("keeps the schema default status the enum cannot hydrate", async () => {
+  it("takes the corrected status default when none is given", async () => {
+    // the schema used to default this to 'pending', which is not a value of the
+    // workflow's vocabulary; #106 corrected the default rather than the row
     const status = await scalar<string>(
       client,
       "select status from warehouse.procurement_requests where request_number = 'PR-EDGE-001'"
     );
-    expect(status).toBe("pending");
+    expect(status).toBe("pending_approval");
   });
 
   it("keeps an approval whose target does not exist", async () => {

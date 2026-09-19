@@ -1,0 +1,2 @@
+ALTER TABLE "warehouse"."approvals" ADD CONSTRAINT "warehouse_approvals_approvable_type_approvable_id_type_unique" UNIQUE("approvable_type","approvable_id","type");--> statement-breakpoint
+ALTER TABLE "warehouse"."procurement_requests" ADD CONSTRAINT "warehouse_procurement_requests_quotation_id_unique" UNIQUE("quotation_id");
