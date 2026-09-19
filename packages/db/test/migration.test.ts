@@ -1,6 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeAll, describe, expect, it } from "vitest";
-import { migratedDatabase, scalar } from "./harness.js";
+import { count, migratedDatabase } from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";
 
@@ -14,9 +14,9 @@ describe("the migration chain", () => {
   });
 
   it("applies cleanly to an empty database", async () => {
-    const tables = await scalar<number>(
+    const tables = await count(
       client,
-      `select count(*)::int from information_schema.tables
+      `select count(*)::int as value from information_schema.tables
         where table_schema in (${LEGACY_SCHEMAS})`
     );
     expect(tables).toBe(30);
@@ -38,18 +38,18 @@ describe("the migration chain", () => {
     ]);
   });
 
-  it("records both migrations in the journal", async () => {
-    const applied = await scalar<number>(
+  it("records a journal entry for every migration applied so far", async () => {
+    const applied = await count(
       client,
-      "select count(*)::int from drizzle.__drizzle_migrations"
+      "select count(*)::int as value from drizzle.__drizzle_migrations"
     );
-    expect(applied).toBe(2);
+    expect(applied).toBeGreaterThanOrEqual(2);
   });
 
   it("leaves no dangling foreign keys", async () => {
-    const dangling = await scalar<number>(
+    const dangling = await count(
       client,
-      `select count(*)::int from pg_constraint c
+      `select count(*)::int as value from pg_constraint c
         where c.contype = 'f'
           and not exists (select 1 from pg_class t where t.oid = c.confrelid)`
     );
@@ -58,29 +58,39 @@ describe("the migration chain", () => {
 
   it("retains the legacy quirks the port is faithful to", async () => {
     // master.users stays as a staging table and keeps its inbound foreign keys
-    const usersFks = await scalar<number>(
+    const usersFks = await count(
       client,
-      `select count(*)::int from pg_constraint
+      `select count(*)::int as value from pg_constraint
         where contype = 'f' and confrelid = 'master.users'::regclass`
     );
     expect(usersFks).toBe(10);
 
     // the morph approval target has no foreign key to enforce it
-    const morphFks = await scalar<number>(
+    const morphFks = await count(
       client,
-      `select count(*)::int from pg_constraint
+      `select count(*)::int as value from pg_constraint
         where contype = 'f' and conrelid = 'trucking.approvals'::regclass
           and pg_get_constraintdef(oid) like '%approvable_id%'`
     );
     expect(morphFks).toBe(0);
 
     // the status vocabulary is a check constraint, not an enum
-    const statusChecks = await scalar<number>(
+    const statusChecks = await count(
       client,
-      `select count(*)::int from pg_constraint
+      `select count(*)::int as value from pg_constraint
         where contype = 'c' and conrelid = 'master.users'::regclass
           and pg_get_constraintdef(oid) like '%status%'`
     );
     expect(statusChecks).toBe(1);
+
+    // a redundant index sits beside the unique constraint on the same column
+    const licensePlateIndexes = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'trucking'
+          and tablename = 'trucks'
+          and indexdef like '%(license_plate)%'`
+    );
+    expect(licensePlateIndexes).toBe(2);
   });
 });

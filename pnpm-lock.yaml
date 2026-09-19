@@ -327,6 +327,9 @@ importers:
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
+      '@types/node':
+        specifier: ^26.6.1
+        version: 26.6.1
       '@vmb/config':
         specifier: workspace:*
         version: link:../config

@@ -2,7 +2,8 @@
   "extends": "@vmb/config/tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": ".",
+    "types": ["node"]
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

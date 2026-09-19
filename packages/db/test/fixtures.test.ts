@@ -1,7 +1,12 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeAll, describe, expect, it } from "vitest";
 import { fixtures } from "./fixtures/index.js";
-import { loadFixture, migratedDatabase, scalar } from "./harness.js";
+import { count, loadFixture, migratedDatabase, scalar } from "./harness.js";
+
+const edgeCases = fixtures.find((fixture) => fixture.name === "edge-cases");
+if (!edgeCases) {
+  throw new Error("the edge-cases fixture is not registered");
+}
 
 describe.each(fixtures)("fixture: $name", ({ file, purpose }) => {
   it(`loads over the migrated baseline — ${purpose}`, async () => {
@@ -16,13 +21,13 @@ describe("the edge-cases fixture", () => {
 
   beforeAll(async () => {
     client = await migratedDatabase();
-    await loadFixture(client, "edge-cases.sql");
+    await loadFixture(client, edgeCases.file);
   });
 
   it("keeps a user with no division", async () => {
-    const divisionless = await scalar<number>(
+    const divisionless = await count(
       client,
-      "select count(*)::int from master.users where division_id is null"
+      "select count(*)::int as value from master.users where division_id is null"
     );
     expect(divisionless).toBe(1);
   });
@@ -36,9 +41,9 @@ describe("the edge-cases fixture", () => {
   });
 
   it("keeps an approval whose target does not exist", async () => {
-    const orphans = await scalar<number>(
+    const orphans = await count(
       client,
-      `select count(*)::int from trucking.approvals a
+      `select count(*)::int as value from trucking.approvals a
         where a.approvable_type = 'App\\Models\\Trucking\\Order'
           and not exists (select 1 from trucking.orders o where o.id = a.approvable_id)`
     );
@@ -46,26 +51,26 @@ describe("the edge-cases fixture", () => {
   });
 
   it("keeps a cancelled order without a cancelled_by user", async () => {
-    const cancelled = await scalar<number>(
+    const cancelled = await count(
       client,
-      `select count(*)::int from trucking.orders
+      `select count(*)::int as value from trucking.orders
         where cancel_reason is not null and cancelled_by is null`
     );
     expect(cancelled).toBe(1);
   });
 
   it("keeps a soft-deleted order", async () => {
-    const deleted = await scalar<number>(
+    const deleted = await count(
       client,
-      "select count(*)::int from trucking.orders where deleted_at is not null"
+      "select count(*)::int as value from trucking.orders where deleted_at is not null"
     );
     expect(deleted).toBe(1);
   });
 
   it("keeps a cross-schema reference from a warehouse item to a master division", async () => {
-    const items = await scalar<number>(
+    const items = await count(
       client,
-      `select count(*)::int from warehouse.items i
+      `select count(*)::int as value from warehouse.items i
         join master.divisions d on d.id = i.division_id
         where i.code = 'IT-EDGE'`
     );
