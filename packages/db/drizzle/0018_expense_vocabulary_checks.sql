@@ -1,0 +1,3 @@
+ALTER TABLE "expense"."request_emergency_details" ADD CONSTRAINT "expense_request_emergency_details_category_check" CHECK ("expense"."request_emergency_details"."category" in ('1', '2', '3', '4', '5'));--> statement-breakpoint
+ALTER TABLE "expense"."requests" ADD CONSTRAINT "expense_requests_type_check" CHECK ("expense"."requests"."type" in ('NICHE', 'EMERGENCY'));--> statement-breakpoint
+ALTER TABLE "expense"."requests" ADD CONSTRAINT "expense_requests_status_check" CHECK ("expense"."requests"."status" in ('PENDING', 'WAITING_FOR_SUPPORTING_DOCUMENTS', 'SUBMITTING_SUPPORTING_DOCUMENTS', 'COMPLETED', 'REJECTED'));

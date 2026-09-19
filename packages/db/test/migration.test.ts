@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SqlClient } from "../src/import/client.js";
-import { count, createDatabase, scalar, type TestDatabase } from "./harness.js";
+import { count, createDatabase, rejects, scalar, type TestDatabase } from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";
 
@@ -477,5 +477,194 @@ describe("the trucking hygiene migrations", () => {
     );
     // 'draft' was not a value of the vocabulary; the create path uses this one
     expect(status).toBe("receive_document");
+  });
+});
+
+describe("the expense hygiene migrations", () => {
+  // #108: one migration per deviation, each named by its ledger row.
+  let database: TestDatabase;
+  let client: SqlClient;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+    await client.exec(
+      `insert into master.divisions (id, name, code)
+       values ('e1111111-1111-4111-8111-111111111111', 'Expense Hygiene', 'EXH')`
+    );
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("makes a budget one per division and a detail one per request", async () => {
+    const uniques = await client.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where contype = 'u' and conname in (
+          'expense_budgets_division_id_unique',
+          'expense_request_emergency_details_request_id_unique',
+          'expense_request_niche_details_request_id_unique'
+        )
+        order by conname`
+    );
+    expect(uniques.map((row) => row.conname)).toEqual([
+      "expense_budgets_division_id_unique",
+      "expense_request_emergency_details_request_id_unique",
+      "expense_request_niche_details_request_id_unique"
+    ]);
+
+    // one budget per division, because a second is refused
+    await client.exec(
+      `insert into expense.budgets (division_id)
+       values ('e1111111-1111-4111-8111-111111111111')`
+    );
+    await expect(
+      client.exec(
+        `insert into expense.budgets (division_id)
+         values ('e1111111-1111-4111-8111-111111111111')`
+      )
+    ).rejects.toThrow(/expense_budgets_division_id_unique/);
+  });
+
+  it("refuses a second detail for the same request", async () => {
+    await client.exec(
+      `insert into expense.requests (id, division_id, type)
+       values ('e2222222-2222-4222-8222-222222222222',
+               'e1111111-1111-4111-8111-111111111111', 'NICHE')`
+    );
+    await client.exec(
+      `insert into expense.request_niche_details (request_id, amount, notes)
+       values ('e2222222-2222-4222-8222-222222222222', 1, 'First')`
+    );
+    await rejects(
+      client,
+      `insert into expense.request_niche_details (request_id, amount, notes)
+       values ('e2222222-2222-4222-8222-222222222222', 2, 'Second')`,
+      /expense_request_niche_details_request_id_unique/
+    );
+
+    // the justification the niche form requires is required by the schema too
+    await rejects(
+      client,
+      `insert into expense.request_niche_details (request_id, amount)
+       values ('e2222222-2222-4222-8222-222222222222', 3)`,
+      /notes/
+    );
+  });
+
+  it("indexes the foreign keys nothing was behind", async () => {
+    const indexes = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'expense' and indexname in (
+          'expense_approvals_approver_id_index',
+          'expense_requests_division_id_status_created_at_index',
+          'expense_requests_user_id_index'
+        )`
+    );
+    expect(indexes).toBe(3);
+  });
+
+  it("makes an approval one per target and level, without shadowing it", async () => {
+    const uniques = await count(
+      client,
+      `select count(*)::int as value from pg_constraint
+        where conname = 'expense_approvals_approvable_type_approvable_id_type_unique'`
+    );
+    expect(uniques).toBe(1);
+
+    // the plain index on the first two columns was a prefix of the unique, so
+    // it went in the same change rather than becoming a redundancy
+    const shadowed = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'expense' and indexname = 'approvable_index'`
+    );
+    expect(shadowed).toBe(0);
+
+    const approval = `insert into expense.approvals (approvable_type, approvable_id, type)
+      values ('App\\Models\\Expense\\Request', 'e4444444-4444-4444-8444-444444444444', 'finance')`;
+    await client.exec(approval);
+    await rejects(client, approval, /approvable_type_approvable_id_type/);
+    // a different level is a different approval, not a duplicate
+    await client.exec(approval.replace("'finance'", "'division'"));
+  });
+
+  it("refuses a budget with a negative amount", async () => {
+    await client.exec(
+      `insert into master.divisions (id, name, code)
+       values ('e5555555-5555-4555-8555-555555555555', 'Negative Amount', 'NEG')`
+    );
+    await expect(
+      client.exec(
+        `insert into expense.budgets (division_id, amount)
+         values ('e5555555-5555-4555-8555-555555555555', -1)`
+      )
+    ).rejects.toThrow(/expense_budgets_amount_check/);
+  });
+
+  it("defaults a request to the status its vocabulary names", async () => {
+    const status = await scalar<string>(
+      client,
+      `insert into expense.requests (division_id, type)
+       values ('e1111111-1111-4111-8111-111111111111', 'NICHE')
+       returning status`
+    );
+    // the schema defaulted to lowercase 'pending', which is no case of the
+    // vocabulary and cannot hydrate it
+    expect(status).toBe("PENDING");
+  });
+
+  it("constrains both request vocabularies and the emergency category", async () => {
+    const vocabularies: Record<string, string[]> = {
+      expense_requests_status_check: [
+        "PENDING",
+        "WAITING_FOR_SUPPORTING_DOCUMENTS",
+        "SUBMITTING_SUPPORTING_DOCUMENTS",
+        "COMPLETED",
+        "REJECTED"
+      ],
+      expense_requests_type_check: ["NICHE", "EMERGENCY"],
+      expense_request_emergency_details_category_check: ["1", "2", "3", "4", "5"]
+    };
+
+    for (const [name, values] of Object.entries(vocabularies)) {
+      const definition = await scalar<string>(
+        client,
+        `select pg_get_constraintdef(oid) from pg_constraint where conname = '${name}'`
+      );
+      for (const value of values) {
+        expect(definition).toContain(`'${value}'`);
+      }
+    }
+
+    // each vocabulary bites
+    await expect(
+      client.exec(
+        `insert into expense.requests (division_id, type, status)
+         values ('e1111111-1111-4111-8111-111111111111', 'NICHE', 'pending')`
+      )
+    ).rejects.toThrow(/expense_requests_status_check/);
+
+    await expect(
+      client.exec(
+        `insert into expense.requests (division_id, type)
+         values ('e1111111-1111-4111-8111-111111111111', 'SOMETHING_ELSE')`
+      )
+    ).rejects.toThrow(/expense_requests_type_check/);
+
+    await client.exec(
+      `insert into expense.requests (id, division_id, type)
+       values ('e3333333-3333-4333-8333-333333333333',
+               'e1111111-1111-4111-8111-111111111111', 'EMERGENCY')`
+    );
+    await expect(
+      client.exec(
+        `insert into expense.request_emergency_details (request_id, category, budget_usage)
+         values ('e3333333-3333-4333-8333-333333333333', '9', 'x')`
+      )
+    ).rejects.toThrow(/category_check/);
   });
 });

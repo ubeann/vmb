@@ -3,13 +3,16 @@ import {
   text,
   timestamp,
   boolean,
+  unique,
   foreignKey,
   pgSchema,
   uuid,
   numeric,
   json,
+  check,
   varchar
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { divisions, users } from "./master.js";
 
 export const expense = pgSchema("expense");
@@ -31,7 +34,9 @@ export const budgets = expense.table(
       name: "expense_budgets_division_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("cascade")
+      .onDelete("cascade"),
+    unique("expense_budgets_division_id_unique").on(table.divisionId),
+    check("expense_budgets_amount_check", sql`${table.amount} >= 0`)
   ]
 );
 
@@ -41,7 +46,7 @@ export const requestNicheDetails = expense.table(
     id: uuid().primaryKey().notNull().defaultRandom(),
     requestId: uuid("request_id").notNull(),
     amount: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
-    notes: text(),
+    notes: text().notNull(),
     supportingDocuments: json("supporting_documents"),
     invoicePaths: json("invoice_paths"),
     bankTransferProof: varchar("bank_transfer_proof", { length: 255 }),
@@ -55,7 +60,8 @@ export const requestNicheDetails = expense.table(
       name: "expense_request_niche_details_request_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("cascade")
+      .onDelete("cascade"),
+    unique("expense_request_niche_details_request_id_unique").on(table.requestId)
   ]
 );
 
@@ -66,7 +72,7 @@ export const requests = expense.table(
     userId: uuid("user_id"),
     divisionId: uuid("division_id").notNull(),
     type: varchar({ length: 255 }).notNull(),
-    status: varchar({ length: 255 }).default("pending").notNull(),
+    status: varchar({ length: 255 }).default("PENDING").notNull(),
     createdAt: timestamp("created_at", { precision: 0 }),
     updatedAt: timestamp("updated_at", { precision: 0 }),
     deletedAt: timestamp("deleted_at", { precision: 0 })
@@ -85,7 +91,22 @@ export const requests = expense.table(
       name: "expense_requests_user_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("set null")
+      .onDelete("set null"),
+    index("expense_requests_division_id_status_created_at_index").using(
+      "btree",
+      table.divisionId.asc().nullsLast().op("uuid_ops"),
+      table.status.asc().nullsLast().op("text_ops"),
+      table.createdAt.asc().nullsLast().op("timestamp_ops")
+    ),
+    index("expense_requests_user_id_index").using(
+      "btree",
+      table.userId.asc().nullsLast().op("uuid_ops")
+    ),
+    check("expense_requests_type_check", sql`${table.type} in ('NICHE', 'EMERGENCY')`),
+    check(
+      "expense_requests_status_check",
+      sql`${table.status} in ('PENDING', 'WAITING_FOR_SUPPORTING_DOCUMENTS', 'SUBMITTING_SUPPORTING_DOCUMENTS', 'COMPLETED', 'REJECTED')`
+    )
   ]
 );
 
@@ -103,18 +124,22 @@ export const approvals = expense.table(
     updatedAt: timestamp("updated_at", { precision: 0 })
   },
   (table) => [
-    index("approvable_index").using(
-      "btree",
-      table.approvableType.asc().nullsLast().op("text_ops"),
-      table.approvableId.asc().nullsLast().op("uuid_ops")
-    ),
     foreignKey({
       columns: [table.approverId],
       foreignColumns: [users.id],
       name: "expense_approvals_approver_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("set null")
+      .onDelete("set null"),
+    index("expense_approvals_approver_id_index").using(
+      "btree",
+      table.approverId.asc().nullsLast().op("uuid_ops")
+    ),
+    unique("expense_approvals_approvable_type_approvable_id_type_unique").on(
+      table.approvableType,
+      table.approvableId,
+      table.type
+    )
   ]
 );
 
@@ -140,6 +165,11 @@ export const requestEmergencyDetails = expense.table(
       name: "expense_request_emergency_details_request_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("cascade")
+      .onDelete("cascade"),
+    unique("expense_request_emergency_details_request_id_unique").on(table.requestId),
+    check(
+      "expense_request_emergency_details_category_check",
+      sql`${table.category} in ('1', '2', '3', '4', '5')`
+    )
   ]
 );

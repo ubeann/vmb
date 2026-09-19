@@ -1,0 +1,1 @@
+ALTER TABLE "expense"."requests" ALTER COLUMN "status" SET DEFAULT 'PENDING';

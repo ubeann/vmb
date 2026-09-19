@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { expect } from "vitest";
 import { pgClient, pgliteClient, type SqlClient } from "../src/import/client.js";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
@@ -144,6 +145,11 @@ export async function count(client: SqlClient, sql: string): Promise<number> {
     throw new Error(`expected a numeric value aliased "value" from: ${sql}`);
   }
   return value;
+}
+
+/** Assert that a statement is refused by the database, for a reason. */
+export async function rejects(client: SqlClient, sql: string, pattern: RegExp): Promise<void> {
+  await expect(client.exec(sql)).rejects.toThrow(pattern);
 }
 
 /** A single value from a query that must return exactly one row and column. */
