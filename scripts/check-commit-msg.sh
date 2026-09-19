@@ -38,14 +38,43 @@ if ! printf '%s\n' "$subject" |
   exit 1
 fi
 
-# The trailer is optional (a human commit has none), but if present it must
-# match the documented form.
+# The trailer is optional (a human commit has none), but every trailer present
+# must be well formed and name an address registered in scripts/ai-coauthors.txt
+# (see docs/agents/git-workflow.md for the resolution order).
+coauthor_list=$(dirname "$0")/ai-coauthors.txt
 if grep -q '^Co-Authored-By: ' "$msg_file"; then
-  if ! grep -Eq '^Co-Authored-By: .+ <noreply@anthropic\.com>$' "$msg_file"; then
+  if [ ! -f "$coauthor_list" ]; then
     {
-      echo "Co-Authored-By trailer must read:"
-      echo "  Co-Authored-By: <Model Name> <noreply@anthropic.com>"
+      echo "co-author registry not found: $coauthor_list"
+      echo "  bypass deliberately with --no-verify"
+    } >&2
+    exit 1
+  fi
+
+  well_formed=$(sed -n 's/^Co-Authored-By: [^<>]*<\([^<>]*@[^<>]*\)>$/\1/p' "$msg_file")
+  trailer_count=$(grep -c '^Co-Authored-By: ' "$msg_file" || true)
+  address_count=0
+  if [ -n "$well_formed" ]; then
+    address_count=$(printf '%s\n' "$well_formed" | wc -l | tr -d '[:space:]')
+  fi
+
+  if [ "$trailer_count" -ne "$address_count" ]; then
+    {
+      echo "every Co-Authored-By trailer must read:"
+      echo "  Co-Authored-By: <Model Name> <address@domain>"
       grep -i '^Co-Authored-By:' "$msg_file" >&2
+      echo "  bypass deliberately with --no-verify"
+    } >&2
+    exit 1
+  fi
+
+  unregistered=$(printf '%s\n' "$well_formed" | grep -vFx -f "$coauthor_list" || true)
+  if [ -n "$unregistered" ]; then
+    {
+      echo "unregistered Co-Authored-By address(es):"
+      printf '%s\n' "$unregistered" | sed 's/^/  /'
+      echo "  register the address in $coauthor_list"
+      echo "  see docs/agents/git-workflow.md for the resolution order"
       echo "  bypass deliberately with --no-verify"
     } >&2
     exit 1
