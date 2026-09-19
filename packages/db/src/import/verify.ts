@@ -68,12 +68,14 @@ export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Rep
       });
     }
 
+    // a table the snapshot never mentions has nothing to compare, and a table
+    // it carries without a configured key has no key to compare
     const keys = businessKeys[table];
     const columns = snapshot.columns.get(table);
-    // only a snapshot that carries the table can be missing a column from it;
-    // a table the snapshot never mentions has nothing to compare
-    const absent = columns ? keys?.filter((key) => !columns.includes(key)) : undefined;
-    if (absent?.length) {
+    if (!keys || !columns) continue;
+
+    const absent = keys.filter((key) => !columns.includes(key));
+    if (absent.length) {
       // a configured key the snapshot does not carry is a bug in the manifest,
       // not a crash: report it and check the rest
       errors.push({
@@ -81,8 +83,8 @@ export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Rep
         code: "business-key",
         message: `${table}: the snapshot has no column ${absent.join(", ")} for the configured business key`
       });
-    } else if (keys) {
-      const comparison = await compareBusinessKeys(snapshot, client, table, keys);
+    } else {
+      const comparison = await compareBusinessKeys(snapshot, client, table, keys, columns);
       checksums[table] = comparison.checksum;
       if (!comparison.matches) {
         errors.push({
@@ -120,10 +122,9 @@ async function compareBusinessKeys(
   snapshot: Snapshot,
   client: SqlClient,
   table: string,
-  keys: string[]
+  keys: string[],
+  columns: string[]
 ): Promise<KeyComparison> {
-  const columns = snapshot.columns.get(table) as string[];
-
   const fromSnapshot = checksumRows(
     (snapshot.rows.get(table) ?? []).map((row) => pickKeys(columns, row, keys))
   );

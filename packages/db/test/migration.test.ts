@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SqlClient } from "../src/import/client.js";
-import { count, createDatabase, type TestDatabase } from "./harness.js";
+import { count, createDatabase, scalar, type TestDatabase } from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";
 
@@ -205,24 +205,41 @@ describe("the master and warehouse hygiene migrations", () => {
     ]);
   });
 
-  it("constrains each status and approval type to its vocabulary", async () => {
-    const checks = await client.query<{ conname: string }>(
-      `select conname from pg_constraint
-        where contype = 'c'
-          and conname in (
-            'warehouse_procurement_requests_status_check',
-            'warehouse_stock_requisitions_status_check',
-            'warehouse_approvals_type_check'
-          )
-        order by conname`
-    );
-    expect(checks.map((row) => row.conname)).toEqual([
-      "warehouse_approvals_type_check",
-      "warehouse_procurement_requests_status_check",
-      "warehouse_stock_requisitions_status_check"
-    ]);
+  it("constrains each status and approval type to its whole vocabulary", async () => {
+    // the values come from the legacy PHP enums; a truncated CHECK would pass a
+    // test that only asserted the constraint exists
+    const vocabularies: Record<string, string[]> = {
+      warehouse_procurement_requests_status_check: [
+        "pending_approval",
+        "division_approved",
+        "finance_approved",
+        "quotation_submitted",
+        "budget_transferred",
+        "fulfillment_evidence_received",
+        "director_approved",
+        "rejected",
+        "completed"
+      ],
+      warehouse_stock_requisitions_status_check: [
+        "pending_approval",
+        "division_approved",
+        "rejected",
+        "completed"
+      ],
+      warehouse_approvals_type_check: ["division", "finance", "director"]
+    };
 
-    // the vocabulary bites: a status the workflow never had is rejected
+    for (const [name, values] of Object.entries(vocabularies)) {
+      const definition = await scalar<string>(
+        client,
+        `select pg_get_constraintdef(oid) from pg_constraint where conname = '${name}'`
+      );
+      for (const value of values) {
+        expect(definition).toContain(`'${value}'`);
+      }
+    }
+
+    // and the vocabulary bites: a status the workflow never had is rejected
     await expect(
       client.exec(
         `insert into warehouse.procurement_requests
@@ -241,19 +258,54 @@ describe("the master and warehouse hygiene migrations", () => {
   });
 
   it("makes an approval unique per target and level, and a quotation per request", async () => {
-    const uniques = await client.query<{ conname: string }>(
-      `select conname from pg_constraint
-        where contype = 'u'
-          and conname in (
-            'warehouse_approvals_approvable_type_approvable_id_type_unique',
-            'warehouse_procurement_requests_quotation_id_unique'
-          )
-        order by conname`
+    const approval = `insert into warehouse.approvals (approvable_type, approvable_id, type)
+      values ('App\\Models\\Warehouse\\ProcurementRequest', 'd1111111-1111-4111-8111-111111111111', 'division')`;
+
+    await client.exec(approval);
+    await expect(client.exec(approval)).rejects.toThrow(/approvable_type_approvable_id_type/);
+    // a different level is a different approval
+    await client.exec(approval.replace("'division'", "'finance'"));
+
+    // a request and its quotation, with the rows they depend on
+    await client.exec(
+      `insert into master.divisions (id, name, code)
+       values ('d2222222-2222-4222-8222-222222222222', 'Hygiene', 'HYG')`
     );
-    expect(uniques.map((row) => row.conname)).toEqual([
-      "warehouse_approvals_approvable_type_approvable_id_type_unique",
-      "warehouse_procurement_requests_quotation_id_unique"
-    ]);
+    await client.exec(
+      `insert into master.users (id, name, email, password, division_id)
+       values ('d3333333-3333-4333-8333-333333333333', 'Hygiene User',
+               'hygiene@example.test', 'x', 'd2222222-2222-4222-8222-222222222222')`
+    );
+    await client.exec(
+      `insert into warehouse.items (id, division_id, name)
+       values ('d4444444-4444-4444-8444-444444444444',
+               'd2222222-2222-4222-8222-222222222222', 'Hygiene Item')`
+    );
+    await client.exec(
+      `insert into warehouse.procurement_quotations
+         (id, quoted_price, vendor_name, vendor_website, payment_account)
+       values ('d5555555-5555-4555-8555-555555555555', 1, 'Vendor',
+               'https://vendor.test', 'ACC')`
+    );
+
+    const request = (
+      number: string,
+      quotation: string
+    ) => `insert into warehouse.procurement_requests
+      (request_number, requester_id, item_id, unit_price, requested_quantity,
+       total_amount, justification, quotation_id)
+      values ('${number}', 'd3333333-3333-4333-8333-333333333333',
+              'd4444444-4444-4444-8444-444444444444', 1, 1, 1, 'x', ${quotation})`;
+
+    await client.exec(request("PR-ONE", "'d5555555-5555-4555-8555-555555555555'"));
+    await expect(
+      client.exec(request("PR-TWO", "'d5555555-5555-4555-8555-555555555555'"))
+    ).rejects.toThrow(/quotation_id/);
+
+    // a request with no quotation is not the same quotation, and two of those
+    // are fine: null never collides in a unique constraint
+    await client.exec(request("PR-THREE", "null"));
+    await client.exec(request("PR-FOUR", "null"));
   });
 
   it("indexes both workflow tables by status and age", async () => {

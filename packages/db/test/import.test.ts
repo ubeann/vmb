@@ -244,6 +244,21 @@ describe("the verifier", () => {
     });
   });
 
+  it("reports a snapshot that violates a hygiene constraint", async () => {
+    // 0004 requires a Division code; a snapshot that predates the rule has to
+    // come back as a finding naming the statement, not as a crash
+    await withDatabase(async (client) => {
+      const report = await importSnapshot(
+        client,
+        path.join(testDir, "fixtures", "over-constraint-snapshot.sql"),
+        migrationsFolder
+      );
+
+      expect(report.errors[0]?.code).toBe("pipeline");
+      expect(report.errors[0]?.message).toMatch(/code/);
+    });
+  });
+
   it("warns about a snapshot table the manifest does not know", async () => {
     await withDatabase(async (client) => {
       const report = await importSnapshot(

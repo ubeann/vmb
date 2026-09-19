@@ -35,22 +35,33 @@ Places where the legacy model cannot express what operations need. These are inp
 
 ## M. Mechanical register
 
-Schema fixes that do not change meaning: types, constraints, indexes, defaults. Each is one migration and one row here, so a reviewer can go from a difference to the migration that carries it. Applied in the port, over loaded data.
+Schema fixes that do not change meaning: types, constraints, indexes, defaults. Each becomes one migration, and every row names the migration that carries it — or `—` while it waits.
 
-| ID    | Where                        | Deviation                                                                                                | Migration |
-| ----- | ---------------------------- | -------------------------------------------------------------------------------------------------------- | --------- |
-| M-001 | `master.divisions`           | `description` widened to `text` — the UI validated 1000 characters into a `varchar(255)`                 | `0003`    |
-| M-002 | `master.divisions`           | `code` required; it is the business key the admin already enforced                                       | `0004`    |
-| M-003 | `master.users`               | index on `division_id` — a foreign key does not bring one                                                | `0005`    |
-| M-004 | `warehouse` (both workflows) | `status` defaults `'pending'` → `'pending_approval'`; `'pending'` was not a value of either vocabulary   | `0006`    |
-| M-005 | `warehouse`                  | CHECK constraints: procurement status (9 values), requisition status (4), approval type (3)              | `0007`    |
-| M-006 | `warehouse`                  | UNIQUE `approvals(approvable_type, approvable_id, type)` and UNIQUE `procurement_requests(quotation_id)` | `0008`    |
-| M-007 | `warehouse` (both workflows) | index on `(status, created_at)` for the list and filter queries                                          | `0009`    |
+| ID    | Where                        | Deviation                                                                                                                                                 | Migration |
+| ----- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| M-001 | `master.divisions`           | `description` widened to `text` — the UI validated 1000 characters into a `varchar(255)`                                                                  | `0003`    |
+| M-002 | `master.divisions`           | `code` required; it is the business key the admin already enforced                                                                                        | `0004`    |
+| M-003 | `master.users`               | index on `division_id` — a foreign key does not bring one                                                                                                 | `0005`    |
+| M-004 | `warehouse` (both workflows) | `status` defaults `'pending'` → `'pending_approval'`; `'pending'` was not a value of either vocabulary                                                    | `0006`    |
+| M-005 | `warehouse`                  | CHECK constraints: procurement status (9 values), requisition status (4), approval type (3)                                                               | `0007`    |
+| M-006 | `warehouse`                  | UNIQUE `approvals(approvable_type, approvable_id, type)` and UNIQUE `procurement_requests(quotation_id)`                                                  | `0008`    |
+| M-007 | `warehouse` (both workflows) | index on `(status, created_at)` for the list and filter queries                                                                                           | `0009`    |
+| M-008 | `trucking.orders`            | `client_id` is NOT NULL with `ON DELETE SET NULL`, which cannot happen; restrict it or make the column nullable (#107)                                    | —         |
+| M-009 | `trucking`                   | missing uniques: `route_locations(route_id, position)`, plan and actual `(trip_id, plan_code)`, `invoice_shipments(invoice_id)`, `locations(code)` (#107) | —         |
+| M-010 | `trucking`                   | duplicate btree indexes (#107)                                                                                                                            | —         |
+| M-011 | `trucking`                   | money types: `routes` numeric against plans and actuals integer, and a cast that truncates cents (#107)                                                   | —         |
+| M-012 | `trucking.invoices`          | `status` defaults to `'draft'`, which is not an `InvoiceStatus` value (#107)                                                                              | —         |
+| M-013 | `expense`                    | missing uniques (`budgets.division_id`, each `*_details.request_id`) and unindexed foreign keys (#108)                                                    | —         |
+| M-014 | `expense.requests`           | `status` defaults to lowercase `'pending'`, which cannot hydrate the uppercase vocabulary (#108)                                                          | —         |
+| M-015 | `expense`                    | CHECK constraints for `type`, `status` and the emergency `category` (#108)                                                                                | —         |
+
+### Not schema, so nothing migrates
+
+The inventory also found defects in the legacy **application**: the missing `payment_proof_url` / `receipt_proof_url` accessors, a `StockRequisitionStatus` class that does not exist, phantom `$fillable` entries (`bill_id`, trip fee columns), an erroneous `down()` in a Laravel migration, and a Filament filter carrying a third status vocabulary. None of these are database shape, and the new code does not inherit them, so there is no migration to write.
 
 ### Deferred, with the reason
 
 - **`master.users.remember_token`** — dropped once Better Auth's session semantics replace it, which is #7's work rather than a schema fix.
-- **Laravel-code findings from the inventory** — the missing `payment_proof_url` / `receipt_proof_url` accessors and the `StockRequisitionStatus` class typo were defects in the legacy application, not the database. There is nothing to migrate; the new code does not inherit them.
 
 ### A risk worth knowing about M-002 and M-006
 
