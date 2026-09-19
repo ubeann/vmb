@@ -113,6 +113,41 @@
       "when": 1789842718993,
       "tag": "0015_drop_covered_approvals_index",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789843660121,
+      "tag": "0016_expense_uniqueness_and_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789843667089,
+      "tag": "0017_expense_status_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789843675876,
+      "tag": "0018_expense_vocabulary_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789843751481,
+      "tag": "0019_expense_approvals_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789843759363,
+      "tag": "0020_expense_budget_amount_check",
+      "breakpoints": true
     }
   ]
 }

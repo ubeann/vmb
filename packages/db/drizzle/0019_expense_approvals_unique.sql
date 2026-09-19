@@ -1,0 +1,2 @@
+DROP INDEX "expense"."approvable_index";--> statement-breakpoint
+ALTER TABLE "expense"."approvals" ADD CONSTRAINT "expense_approvals_approvable_type_approvable_id_type_unique" UNIQUE("approvable_type","approvable_id","type");

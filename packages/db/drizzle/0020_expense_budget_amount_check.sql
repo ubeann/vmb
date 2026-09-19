@@ -1,0 +1,1 @@
+ALTER TABLE "expense"."budgets" ADD CONSTRAINT "expense_budgets_amount_check" CHECK ("expense"."budgets"."amount" >= 0);
