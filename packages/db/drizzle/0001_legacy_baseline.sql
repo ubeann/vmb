@@ -42,7 +42,7 @@ SET row_security = off;
 --
 
 CREATE SCHEMA expense;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -51,7 +51,7 @@ CREATE SCHEMA expense;
 --
 
 CREATE SCHEMA master;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -60,7 +60,7 @@ CREATE SCHEMA master;
 --
 
 CREATE SCHEMA trucking;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -69,11 +69,13 @@ CREATE SCHEMA trucking;
 --
 
 CREATE SCHEMA warehouse;
-
+--> statement-breakpoint
 
 SET default_tablespace = '';
+--> statement-breakpoint
 
 SET default_table_access_method = heap;
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -92,7 +94,7 @@ CREATE TABLE expense.approvals (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -101,7 +103,7 @@ CREATE TABLE expense.approvals (
 --
 
 COMMENT ON COLUMN expense.approvals.id IS 'Unique item identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -110,7 +112,7 @@ COMMENT ON COLUMN expense.approvals.id IS 'Unique item identifier';
 --
 
 COMMENT ON COLUMN expense.approvals.approvable_type IS 'Morphed model type';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -119,7 +121,7 @@ COMMENT ON COLUMN expense.approvals.approvable_type IS 'Morphed model type';
 --
 
 COMMENT ON COLUMN expense.approvals.approvable_id IS 'Morphed model UUID';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -128,7 +130,7 @@ COMMENT ON COLUMN expense.approvals.approvable_id IS 'Morphed model UUID';
 --
 
 COMMENT ON COLUMN expense.approvals.approver_id IS 'Foreign key to the approver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -137,7 +139,7 @@ COMMENT ON COLUMN expense.approvals.approver_id IS 'Foreign key to the approver'
 --
 
 COMMENT ON COLUMN expense.approvals.type IS 'Approval type (e.g., division, finance, director)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -146,7 +148,7 @@ COMMENT ON COLUMN expense.approvals.type IS 'Approval type (e.g., division, fina
 --
 
 COMMENT ON COLUMN expense.approvals.approved IS 'Approval status (approved or rejected)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -155,7 +157,7 @@ COMMENT ON COLUMN expense.approvals.approved IS 'Approval status (approved or re
 --
 
 COMMENT ON COLUMN expense.approvals.comment IS 'Comment for the approval';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -171,7 +173,7 @@ CREATE TABLE expense.budgets (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -180,7 +182,7 @@ CREATE TABLE expense.budgets (
 --
 
 COMMENT ON COLUMN expense.budgets.id IS 'UUID primary key column for the budget table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -189,7 +191,7 @@ COMMENT ON COLUMN expense.budgets.id IS 'UUID primary key column for the budget 
 --
 
 COMMENT ON COLUMN expense.budgets.division_id IS 'Foreign key to the division that the budget belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -198,7 +200,7 @@ COMMENT ON COLUMN expense.budgets.division_id IS 'Foreign key to the division th
 --
 
 COMMENT ON COLUMN expense.budgets.is_active IS 'Is the budget active?';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -207,7 +209,7 @@ COMMENT ON COLUMN expense.budgets.is_active IS 'Is the budget active?';
 --
 
 COMMENT ON COLUMN expense.budgets.amount IS 'The amount of the budget';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -228,7 +230,7 @@ CREATE TABLE expense.request_emergency_details (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -237,7 +239,7 @@ CREATE TABLE expense.request_emergency_details (
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.id IS 'UUID primary key column for the request emergency details table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -246,7 +248,7 @@ COMMENT ON COLUMN expense.request_emergency_details.id IS 'UUID primary key colu
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.request_id IS 'Foreign key to the request that this detail belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -255,7 +257,7 @@ COMMENT ON COLUMN expense.request_emergency_details.request_id IS 'Foreign key t
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.category IS 'Emergency category level';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -264,7 +266,7 @@ COMMENT ON COLUMN expense.request_emergency_details.category IS 'Emergency categ
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.amount IS 'The amount of the emergency budget request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -273,7 +275,7 @@ COMMENT ON COLUMN expense.request_emergency_details.amount IS 'The amount of the
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.budget_usage IS 'Details on how the budget is used';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -282,7 +284,7 @@ COMMENT ON COLUMN expense.request_emergency_details.budget_usage IS 'Details on 
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.notes IS 'Notes or description for the niche budget request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -291,7 +293,7 @@ COMMENT ON COLUMN expense.request_emergency_details.notes IS 'Notes or descripti
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.supporting_documents IS 'Array of supporting document file paths';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -300,7 +302,7 @@ COMMENT ON COLUMN expense.request_emergency_details.supporting_documents IS 'Arr
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.invoice_paths IS 'Array of invoice file paths';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -309,7 +311,7 @@ COMMENT ON COLUMN expense.request_emergency_details.invoice_paths IS 'Array of i
 --
 
 COMMENT ON COLUMN expense.request_emergency_details.bank_transfer_proof IS 'Path to the transfer receipt file';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -328,7 +330,7 @@ CREATE TABLE expense.request_niche_details (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -337,7 +339,7 @@ CREATE TABLE expense.request_niche_details (
 --
 
 COMMENT ON COLUMN expense.request_niche_details.id IS 'UUID primary key column for the request niche details table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -346,7 +348,7 @@ COMMENT ON COLUMN expense.request_niche_details.id IS 'UUID primary key column f
 --
 
 COMMENT ON COLUMN expense.request_niche_details.request_id IS 'Foreign key to the request that this detail belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -355,7 +357,7 @@ COMMENT ON COLUMN expense.request_niche_details.request_id IS 'Foreign key to th
 --
 
 COMMENT ON COLUMN expense.request_niche_details.amount IS 'The amount of the niche budget request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -364,7 +366,7 @@ COMMENT ON COLUMN expense.request_niche_details.amount IS 'The amount of the nic
 --
 
 COMMENT ON COLUMN expense.request_niche_details.notes IS 'Notes or description for the niche budget request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -373,7 +375,7 @@ COMMENT ON COLUMN expense.request_niche_details.notes IS 'Notes or description f
 --
 
 COMMENT ON COLUMN expense.request_niche_details.supporting_documents IS 'Array of supporting document file paths';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -382,7 +384,7 @@ COMMENT ON COLUMN expense.request_niche_details.supporting_documents IS 'Array o
 --
 
 COMMENT ON COLUMN expense.request_niche_details.invoice_paths IS 'Array of invoice file paths';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -391,7 +393,7 @@ COMMENT ON COLUMN expense.request_niche_details.invoice_paths IS 'Array of invoi
 --
 
 COMMENT ON COLUMN expense.request_niche_details.bank_transfer_proof IS 'Path to the transfer receipt file';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -409,7 +411,7 @@ CREATE TABLE expense.requests (
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -418,7 +420,7 @@ CREATE TABLE expense.requests (
 --
 
 COMMENT ON COLUMN expense.requests.id IS 'UUID primary key column for the request table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -427,7 +429,7 @@ COMMENT ON COLUMN expense.requests.id IS 'UUID primary key column for the reques
 --
 
 COMMENT ON COLUMN expense.requests.user_id IS 'Foreign key to the user who created the request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -436,7 +438,7 @@ COMMENT ON COLUMN expense.requests.user_id IS 'Foreign key to the user who creat
 --
 
 COMMENT ON COLUMN expense.requests.division_id IS 'Foreign key to the division that the request belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -445,7 +447,7 @@ COMMENT ON COLUMN expense.requests.division_id IS 'Foreign key to the division t
 --
 
 COMMENT ON COLUMN expense.requests.type IS 'Type of the expense request, e.g., travel, supplies, etc.';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -454,7 +456,7 @@ COMMENT ON COLUMN expense.requests.type IS 'Type of the expense request, e.g., t
 --
 
 COMMENT ON COLUMN expense.requests.status IS 'Status of the request, e.g., pending, approved, rejected';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -474,7 +476,7 @@ CREATE TABLE master.divisions (
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -483,7 +485,7 @@ CREATE TABLE master.divisions (
 --
 
 COMMENT ON COLUMN master.divisions.id IS 'Unique division identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -492,7 +494,7 @@ COMMENT ON COLUMN master.divisions.id IS 'Unique division identifier';
 --
 
 COMMENT ON COLUMN master.divisions.name IS 'Division name (e.g., Sales, Marketing)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -501,7 +503,7 @@ COMMENT ON COLUMN master.divisions.name IS 'Division name (e.g., Sales, Marketin
 --
 
 COMMENT ON COLUMN master.divisions.code IS 'Division code (e.g., SALES, MKTG)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -510,7 +512,7 @@ COMMENT ON COLUMN master.divisions.code IS 'Division code (e.g., SALES, MKTG)';
 --
 
 COMMENT ON COLUMN master.divisions.description IS 'Division description (optional)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -519,7 +521,7 @@ COMMENT ON COLUMN master.divisions.description IS 'Division description (optiona
 --
 
 COMMENT ON COLUMN master.divisions.color_hex IS 'Division color (HEX)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -528,7 +530,7 @@ COMMENT ON COLUMN master.divisions.color_hex IS 'Division color (HEX)';
 --
 
 COMMENT ON COLUMN master.divisions.icon_name IS 'Division icon name';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -537,7 +539,7 @@ COMMENT ON COLUMN master.divisions.icon_name IS 'Division icon name';
 --
 
 COMMENT ON COLUMN master.divisions.is_active IS 'Division status (active or inactive)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -561,7 +563,7 @@ CREATE TABLE master.users (
     deleted_at timestamp(0) without time zone,
     CONSTRAINT users_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('inactive'::character varying)::text, ('suspended'::character varying)::text])))
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -570,7 +572,7 @@ CREATE TABLE master.users (
 --
 
 COMMENT ON COLUMN master.users.id IS 'Unique user identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -579,7 +581,7 @@ COMMENT ON COLUMN master.users.id IS 'Unique user identifier';
 --
 
 COMMENT ON COLUMN master.users.name IS 'User full name';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -588,7 +590,7 @@ COMMENT ON COLUMN master.users.name IS 'User full name';
 --
 
 COMMENT ON COLUMN master.users.status IS 'User status';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -597,7 +599,7 @@ COMMENT ON COLUMN master.users.status IS 'User status';
 --
 
 COMMENT ON COLUMN master.users.division_id IS 'Foreign key to the division that the user belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -606,7 +608,7 @@ COMMENT ON COLUMN master.users.division_id IS 'Foreign key to the division that 
 --
 
 COMMENT ON COLUMN master.users.phone IS 'User phone number';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -615,7 +617,7 @@ COMMENT ON COLUMN master.users.phone IS 'User phone number';
 --
 
 COMMENT ON COLUMN master.users.email IS 'User email address';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -624,7 +626,7 @@ COMMENT ON COLUMN master.users.email IS 'User email address';
 --
 
 COMMENT ON COLUMN master.users.email_verified_at IS 'Email verification timestamp';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -633,7 +635,7 @@ COMMENT ON COLUMN master.users.email_verified_at IS 'Email verification timestam
 --
 
 COMMENT ON COLUMN master.users.profile_photo_path IS 'User profile photo path';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -642,7 +644,7 @@ COMMENT ON COLUMN master.users.profile_photo_path IS 'User profile photo path';
 --
 
 COMMENT ON COLUMN master.users.password IS 'User password';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -661,7 +663,7 @@ CREATE TABLE trucking.approvals (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -670,7 +672,7 @@ CREATE TABLE trucking.approvals (
 --
 
 COMMENT ON COLUMN trucking.approvals.id IS 'Unique item identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -679,7 +681,7 @@ COMMENT ON COLUMN trucking.approvals.id IS 'Unique item identifier';
 --
 
 COMMENT ON COLUMN trucking.approvals.approvable_type IS 'Morphed model type';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -688,7 +690,7 @@ COMMENT ON COLUMN trucking.approvals.approvable_type IS 'Morphed model type';
 --
 
 COMMENT ON COLUMN trucking.approvals.approvable_id IS 'Morphed model UUID';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -697,7 +699,7 @@ COMMENT ON COLUMN trucking.approvals.approvable_id IS 'Morphed model UUID';
 --
 
 COMMENT ON COLUMN trucking.approvals.approver_id IS 'Foreign key to the approver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -706,7 +708,7 @@ COMMENT ON COLUMN trucking.approvals.approver_id IS 'Foreign key to the approver
 --
 
 COMMENT ON COLUMN trucking.approvals.type IS 'Approval type (e.g., division, finance, director)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -715,7 +717,7 @@ COMMENT ON COLUMN trucking.approvals.type IS 'Approval type (e.g., division, fin
 --
 
 COMMENT ON COLUMN trucking.approvals.approved IS 'Approval status (approved or rejected)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -724,7 +726,7 @@ COMMENT ON COLUMN trucking.approvals.approved IS 'Approval status (approved or r
 --
 
 COMMENT ON COLUMN trucking.approvals.comment IS 'Comment for the approval';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -739,7 +741,7 @@ CREATE TABLE trucking.client_route (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -748,7 +750,7 @@ CREATE TABLE trucking.client_route (
 --
 
 COMMENT ON COLUMN trucking.client_route.client_id IS 'The client ID in the relationship';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -757,7 +759,7 @@ COMMENT ON COLUMN trucking.client_route.client_id IS 'The client ID in the relat
 --
 
 COMMENT ON COLUMN trucking.client_route.route_id IS 'The route ID in the relationship';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -771,7 +773,7 @@ CREATE SEQUENCE trucking.client_route_id_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -780,7 +782,7 @@ CREATE SEQUENCE trucking.client_route_id_seq
 --
 
 ALTER SEQUENCE trucking.client_route_id_seq OWNED BY trucking.client_route.id;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -796,7 +798,7 @@ CREATE TABLE trucking.client_truck_companies (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -805,7 +807,7 @@ CREATE TABLE trucking.client_truck_companies (
 --
 
 COMMENT ON COLUMN trucking.client_truck_companies.id IS 'UUID primary key column for the client truck companies table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -814,7 +816,7 @@ COMMENT ON COLUMN trucking.client_truck_companies.id IS 'UUID primary key column
 --
 
 COMMENT ON COLUMN trucking.client_truck_companies.client_id IS 'The client that owns this truck company';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -823,7 +825,7 @@ COMMENT ON COLUMN trucking.client_truck_companies.client_id IS 'The client that 
 --
 
 COMMENT ON COLUMN trucking.client_truck_companies.name IS 'The truck company name';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -832,7 +834,7 @@ COMMENT ON COLUMN trucking.client_truck_companies.name IS 'The truck company nam
 --
 
 COMMENT ON COLUMN trucking.client_truck_companies.editable_dtp IS 'Indicates whether this truck company can edit DTP';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -853,7 +855,7 @@ CREATE TABLE trucking.clients (
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -862,7 +864,7 @@ CREATE TABLE trucking.clients (
 --
 
 COMMENT ON COLUMN trucking.clients.id IS 'UUID primary key column for the clients table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -871,7 +873,7 @@ COMMENT ON COLUMN trucking.clients.id IS 'UUID primary key column for the client
 --
 
 COMMENT ON COLUMN trucking.clients.name IS 'The name of the client';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -880,7 +882,7 @@ COMMENT ON COLUMN trucking.clients.name IS 'The name of the client';
 --
 
 COMMENT ON COLUMN trucking.clients.code IS 'The code of the client';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -889,7 +891,7 @@ COMMENT ON COLUMN trucking.clients.code IS 'The code of the client';
 --
 
 COMMENT ON COLUMN trucking.clients.pic IS 'The name of the person in charge (PIC) of the client';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -898,7 +900,7 @@ COMMENT ON COLUMN trucking.clients.pic IS 'The name of the person in charge (PIC
 --
 
 COMMENT ON COLUMN trucking.clients.email IS 'The email address of the client';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -907,7 +909,7 @@ COMMENT ON COLUMN trucking.clients.email IS 'The email address of the client';
 --
 
 COMMENT ON COLUMN trucking.clients.phone IS 'The phone number of the client';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -916,7 +918,7 @@ COMMENT ON COLUMN trucking.clients.phone IS 'The phone number of the client';
 --
 
 COMMENT ON COLUMN trucking.clients.address IS 'The address of the client';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -925,7 +927,7 @@ COMMENT ON COLUMN trucking.clients.address IS 'The address of the client';
 --
 
 COMMENT ON COLUMN trucking.clients.logo_path IS 'The path to the client''s logo';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -954,7 +956,7 @@ CREATE TABLE trucking.daily_trucking_actuals (
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -963,7 +965,7 @@ CREATE TABLE trucking.daily_trucking_actuals (
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.id IS 'UUID primary key column for the daily trucking plan table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -972,7 +974,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.id IS 'UUID primary key column
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.daily_trucking_plan_id IS 'Foreign key to the daily trucking plan that made the daily trucking actual';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -981,7 +983,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.daily_trucking_plan_id IS 'For
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.order_id IS 'Foreign key to the order that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -990,7 +992,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.order_id IS 'Foreign key to th
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.truck_id IS 'Foreign key to the truck that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -999,7 +1001,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.truck_id IS 'Foreign key to th
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.user_id IS 'Foreign key to the submitter of the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1008,7 +1010,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.user_id IS 'Foreign key to the
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.driver_id IS 'Foreign key to the driver that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1017,7 +1019,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.driver_id IS 'Foreign key to t
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.trip_id IS 'Foreign key to the trip that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1026,7 +1028,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.trip_id IS 'Foreign key to the
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.plan_code IS 'Unique code identifying the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1035,7 +1037,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.plan_code IS 'Unique code iden
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.composite_code IS 'Composite code combining order, trip, and trucking plan information';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1044,7 +1046,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.composite_code IS 'Composite c
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.size IS 'The size of the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1053,7 +1055,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.size IS 'The size of the order
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.fee IS 'The fee of the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1062,7 +1064,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.fee IS 'The fee of the order';
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.allowance IS 'The allowance of the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1071,7 +1073,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.allowance IS 'The allowance of
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.is_lolo IS 'Is the route a LoLo route?';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1080,7 +1082,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.is_lolo IS 'Is the route a LoL
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.lolo_fee IS 'The LoLo fee of the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1089,7 +1091,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.lolo_fee IS 'The LoLo fee of t
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.route_reference IS 'Route reference ID or code from routes table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1098,7 +1100,7 @@ COMMENT ON COLUMN trucking.daily_trucking_actuals.route_reference IS 'Route refe
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_actuals.changed_routes IS 'The changed route snapshot of the daily trucking actuals';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1125,7 +1127,7 @@ CREATE TABLE trucking.daily_trucking_plans (
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1134,7 +1136,7 @@ CREATE TABLE trucking.daily_trucking_plans (
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.id IS 'UUID primary key column for the daily trucking plan table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1143,7 +1145,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.id IS 'UUID primary key column f
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.order_id IS 'Foreign key to the order that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1152,7 +1154,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.order_id IS 'Foreign key to the 
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.truck_id IS 'Foreign key to the truck that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1161,7 +1163,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.truck_id IS 'Foreign key to the 
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.user_id IS 'Foreign key to the submitter of the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1170,7 +1172,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.user_id IS 'Foreign key to the s
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.driver_id IS 'Foreign key to the driver that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1179,7 +1181,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.driver_id IS 'Foreign key to the
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.trip_id IS 'Foreign key to the trip that made the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1188,7 +1190,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.trip_id IS 'Foreign key to the t
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.plan_code IS 'Unique code identifying the daily trucking plan';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1197,7 +1199,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.plan_code IS 'Unique code identi
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.composite_code IS 'Composite code combining order, trip, and trucking plan information';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1206,7 +1208,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.composite_code IS 'Composite cod
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.size IS 'The size of the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1215,7 +1217,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.size IS 'The size of the order';
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.fee IS 'The fee of the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1224,7 +1226,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.fee IS 'The fee of the order';
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.allowance IS 'The allowance of the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1233,7 +1235,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.allowance IS 'The allowance of t
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.is_lolo IS 'Is the route a LoLo route?';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1242,7 +1244,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.is_lolo IS 'Is the route a LoLo 
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.lolo_fee IS 'The LoLo fee of the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1251,7 +1253,7 @@ COMMENT ON COLUMN trucking.daily_trucking_plans.lolo_fee IS 'The LoLo fee of the
 --
 
 COMMENT ON COLUMN trucking.daily_trucking_plans.route_reference IS 'Route reference ID or code from routes table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1272,7 +1274,7 @@ CREATE TABLE trucking.drivers (
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1281,7 +1283,7 @@ CREATE TABLE trucking.drivers (
 --
 
 COMMENT ON COLUMN trucking.drivers.id IS 'UUID primary key column for the drivers table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1290,7 +1292,7 @@ COMMENT ON COLUMN trucking.drivers.id IS 'UUID primary key column for the driver
 --
 
 COMMENT ON COLUMN trucking.drivers.name IS 'The name of the driver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1299,7 +1301,7 @@ COMMENT ON COLUMN trucking.drivers.name IS 'The name of the driver';
 --
 
 COMMENT ON COLUMN trucking.drivers.date_of_birth IS 'The date of birth of the driver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1308,7 +1310,7 @@ COMMENT ON COLUMN trucking.drivers.date_of_birth IS 'The date of birth of the dr
 --
 
 COMMENT ON COLUMN trucking.drivers.identification_number IS 'The identification number of the driver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1317,7 +1319,7 @@ COMMENT ON COLUMN trucking.drivers.identification_number IS 'The identification 
 --
 
 COMMENT ON COLUMN trucking.drivers.license_number IS 'The license number of the driver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1326,7 +1328,7 @@ COMMENT ON COLUMN trucking.drivers.license_number IS 'The license number of the 
 --
 
 COMMENT ON COLUMN trucking.drivers.phone IS 'The phone number of the driver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1335,7 +1337,7 @@ COMMENT ON COLUMN trucking.drivers.phone IS 'The phone number of the driver';
 --
 
 COMMENT ON COLUMN trucking.drivers.address IS 'The address of the driver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1344,7 +1346,7 @@ COMMENT ON COLUMN trucking.drivers.address IS 'The address of the driver';
 --
 
 COMMENT ON COLUMN trucking.drivers.profile_photo_path IS 'The path to the driver''s profile photo';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1361,7 +1363,7 @@ CREATE TABLE trucking.invoice_comments (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1370,7 +1372,7 @@ CREATE TABLE trucking.invoice_comments (
 --
 
 COMMENT ON COLUMN trucking.invoice_comments.id IS 'Unique item identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1379,7 +1381,7 @@ COMMENT ON COLUMN trucking.invoice_comments.id IS 'Unique item identifier';
 --
 
 COMMENT ON COLUMN trucking.invoice_comments.invoice_id IS 'Foreign key to the invoice that this detail belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1388,7 +1390,7 @@ COMMENT ON COLUMN trucking.invoice_comments.invoice_id IS 'Foreign key to the in
 --
 
 COMMENT ON COLUMN trucking.invoice_comments.user_id IS 'Foreign key to the user who made the comment';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1416,7 +1418,7 @@ CREATE TABLE trucking.invoice_shipments (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1425,7 +1427,7 @@ CREATE TABLE trucking.invoice_shipments (
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.id IS 'Unique item identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1434,7 +1436,7 @@ COMMENT ON COLUMN trucking.invoice_shipments.id IS 'Unique item identifier';
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.invoice_id IS 'Foreign key to the invoice that this detail belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1443,7 +1445,7 @@ COMMENT ON COLUMN trucking.invoice_shipments.invoice_id IS 'Foreign key to the i
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.bill_number IS 'Bill of lading or billing number';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1452,7 +1454,7 @@ COMMENT ON COLUMN trucking.invoice_shipments.bill_number IS 'Bill of lading or b
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.order_number IS 'Additional order reference number';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1461,7 +1463,7 @@ COMMENT ON COLUMN trucking.invoice_shipments.order_number IS 'Additional order r
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.handling_pricing IS 'Handling charge amount';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1470,7 +1472,7 @@ COMMENT ON COLUMN trucking.invoice_shipments.handling_pricing IS 'Handling charg
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.port_charge_20hc IS 'Port charge for 20HC container';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1479,7 +1481,7 @@ COMMENT ON COLUMN trucking.invoice_shipments.port_charge_20hc IS 'Port charge fo
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.port_charge_40hc IS 'Port charge for 40HC container';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1488,7 +1490,7 @@ COMMENT ON COLUMN trucking.invoice_shipments.port_charge_40hc IS 'Port charge fo
 --
 
 COMMENT ON COLUMN trucking.invoice_shipments.contact_name IS 'Name of contact person';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1505,7 +1507,7 @@ CREATE TABLE trucking.invoice_vendor (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1514,7 +1516,7 @@ CREATE TABLE trucking.invoice_vendor (
 --
 
 COMMENT ON COLUMN trucking.invoice_vendor.id IS 'Unique item identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1523,7 +1525,7 @@ COMMENT ON COLUMN trucking.invoice_vendor.id IS 'Unique item identifier';
 --
 
 COMMENT ON COLUMN trucking.invoice_vendor.invoice_id IS 'Foreign key to the invoice that this detail belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1532,7 +1534,7 @@ COMMENT ON COLUMN trucking.invoice_vendor.invoice_id IS 'Foreign key to the invo
 --
 
 COMMENT ON COLUMN trucking.invoice_vendor.quantity IS 'Quantity of items or services';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1541,7 +1543,7 @@ COMMENT ON COLUMN trucking.invoice_vendor.quantity IS 'Quantity of items or serv
 --
 
 COMMENT ON COLUMN trucking.invoice_vendor.unit_price IS 'Unit price of the item or service';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1550,7 +1552,7 @@ COMMENT ON COLUMN trucking.invoice_vendor.unit_price IS 'Unit price of the item 
 --
 
 COMMENT ON COLUMN trucking.invoice_vendor.description IS 'Description of the item or service';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1580,7 +1582,7 @@ CREATE TABLE trucking.invoices (
     amount_total numeric(15,2),
     amount_billed numeric(15,2)
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1589,7 +1591,7 @@ CREATE TABLE trucking.invoices (
 --
 
 COMMENT ON COLUMN trucking.invoices.id IS 'UUID primary key column for the invoices table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1598,7 +1600,7 @@ COMMENT ON COLUMN trucking.invoices.id IS 'UUID primary key column for the invoi
 --
 
 COMMENT ON COLUMN trucking.invoices.client_id IS 'Foreign key to the client that the invoice belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1607,7 +1609,7 @@ COMMENT ON COLUMN trucking.invoices.client_id IS 'Foreign key to the client that
 --
 
 COMMENT ON COLUMN trucking.invoices.status IS 'Status of the invoice (draft, sent, paid, etc.)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1616,7 +1618,7 @@ COMMENT ON COLUMN trucking.invoices.status IS 'Status of the invoice (draft, sen
 --
 
 COMMENT ON COLUMN trucking.invoices.countdown IS 'Countdown for the invoice, used for tracking purposes';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1625,7 +1627,7 @@ COMMENT ON COLUMN trucking.invoices.countdown IS 'Countdown for the invoice, use
 --
 
 COMMENT ON COLUMN trucking.invoices.time_table_path IS 'Path to the time table document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1634,7 +1636,7 @@ COMMENT ON COLUMN trucking.invoices.time_table_path IS 'Path to the time table d
 --
 
 COMMENT ON COLUMN trucking.invoices.list_container_full_path IS 'Path to the list container full document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1643,7 +1645,7 @@ COMMENT ON COLUMN trucking.invoices.list_container_full_path IS 'Path to the lis
 --
 
 COMMENT ON COLUMN trucking.invoices.kwitansi_port_charge_path IS 'Path to the kwitansi port charge document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1652,7 +1654,7 @@ COMMENT ON COLUMN trucking.invoices.kwitansi_port_charge_path IS 'Path to the kw
 --
 
 COMMENT ON COLUMN trucking.invoices.peb_path IS 'Path to the PEB (Pemberitahuan Ekspor Barang) document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1661,7 +1663,7 @@ COMMENT ON COLUMN trucking.invoices.peb_path IS 'Path to the PEB (Pemberitahuan 
 --
 
 COMMENT ON COLUMN trucking.invoices.npe_path IS 'Path to the NPE (Nota Pelayanan Ekspor) document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1670,7 +1672,7 @@ COMMENT ON COLUMN trucking.invoices.npe_path IS 'Path to the NPE (Nota Pelayanan
 --
 
 COMMENT ON COLUMN trucking.invoices.booking_shipping_line_path IS 'Path to the booking shipping line document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1679,7 +1681,7 @@ COMMENT ON COLUMN trucking.invoices.booking_shipping_line_path IS 'Path to the b
 --
 
 COMMENT ON COLUMN trucking.invoices.invoice_port_charge_path IS 'Path to the invoice port charge document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1688,7 +1690,7 @@ COMMENT ON COLUMN trucking.invoices.invoice_port_charge_path IS 'Path to the inv
 --
 
 COMMENT ON COLUMN trucking.invoices.invoice_handling_path IS 'Path to the invoice handling document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1697,7 +1699,7 @@ COMMENT ON COLUMN trucking.invoices.invoice_handling_path IS 'Path to the invoic
 --
 
 COMMENT ON COLUMN trucking.invoices.e_faktur_path IS 'Path to the E-FAKTUR document associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1706,7 +1708,7 @@ COMMENT ON COLUMN trucking.invoices.e_faktur_path IS 'Path to the E-FAKTUR docum
 --
 
 COMMENT ON COLUMN trucking.invoices.additional_files IS 'Stores an array of additional file paths associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1715,7 +1717,7 @@ COMMENT ON COLUMN trucking.invoices.additional_files IS 'Stores an array of addi
 --
 
 COMMENT ON COLUMN trucking.invoices.notes IS 'Additional notes or comments related to the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1724,7 +1726,7 @@ COMMENT ON COLUMN trucking.invoices.notes IS 'Additional notes or comments relat
 --
 
 COMMENT ON COLUMN trucking.invoices.amount_total IS 'Total amount of the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1733,7 +1735,7 @@ COMMENT ON COLUMN trucking.invoices.amount_total IS 'Total amount of the invoice
 --
 
 COMMENT ON COLUMN trucking.invoices.amount_billed IS 'Billed amount of the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1748,7 +1750,7 @@ CREATE TABLE trucking.locations (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1757,7 +1759,7 @@ CREATE TABLE trucking.locations (
 --
 
 COMMENT ON COLUMN trucking.locations.id IS 'UUID primary key column for the location table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1766,7 +1768,7 @@ COMMENT ON COLUMN trucking.locations.id IS 'UUID primary key column for the loca
 --
 
 COMMENT ON COLUMN trucking.locations.code IS 'The code of the location';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1775,7 +1777,7 @@ COMMENT ON COLUMN trucking.locations.code IS 'The code of the location';
 --
 
 COMMENT ON COLUMN trucking.locations.name IS 'The name of the location';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1810,7 +1812,7 @@ CREATE TABLE trucking.orders (
     payment_documents json,
     payment_notes text
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1819,7 +1821,7 @@ CREATE TABLE trucking.orders (
 --
 
 COMMENT ON COLUMN trucking.orders.id IS 'UUID primary key column for the orders table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1828,7 +1830,7 @@ COMMENT ON COLUMN trucking.orders.id IS 'UUID primary key column for the orders 
 --
 
 COMMENT ON COLUMN trucking.orders.client_id IS 'Foreign key to the client that made the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1837,7 +1839,7 @@ COMMENT ON COLUMN trucking.orders.client_id IS 'Foreign key to the client that m
 --
 
 COMMENT ON COLUMN trucking.orders.code IS 'The code of the orders';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1846,7 +1848,7 @@ COMMENT ON COLUMN trucking.orders.code IS 'The code of the orders';
 --
 
 COMMENT ON COLUMN trucking.orders.type IS 'The type of the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1855,7 +1857,7 @@ COMMENT ON COLUMN trucking.orders.type IS 'The type of the order';
 --
 
 COMMENT ON COLUMN trucking.orders.party_count IS 'The number of parties in the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1864,7 +1866,7 @@ COMMENT ON COLUMN trucking.orders.party_count IS 'The number of parties in the o
 --
 
 COMMENT ON COLUMN trucking.orders.status IS 'The status of the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1873,7 +1875,7 @@ COMMENT ON COLUMN trucking.orders.status IS 'The status of the order';
 --
 
 COMMENT ON COLUMN trucking.orders.evidence_path IS 'The path to the evidence of the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1882,7 +1884,7 @@ COMMENT ON COLUMN trucking.orders.evidence_path IS 'The path to the evidence of 
 --
 
 COMMENT ON COLUMN trucking.orders.direction IS 'Specifies whether the order is for import or export';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1891,7 +1893,7 @@ COMMENT ON COLUMN trucking.orders.direction IS 'Specifies whether the order is f
 --
 
 COMMENT ON COLUMN trucking.orders.trip_count IS 'The number of trips for the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1900,7 +1902,7 @@ COMMENT ON COLUMN trucking.orders.trip_count IS 'The number of trips for the ord
 --
 
 COMMENT ON COLUMN trucking.orders.additional_files IS 'Stores an array of additional file paths associated with the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1909,7 +1911,7 @@ COMMENT ON COLUMN trucking.orders.additional_files IS 'Stores an array of additi
 --
 
 COMMENT ON COLUMN trucking.orders.additional_allowances IS 'Stores an array of additional allowances and details for the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1918,7 +1920,7 @@ COMMENT ON COLUMN trucking.orders.additional_allowances IS 'Stores an array of a
 --
 
 COMMENT ON COLUMN trucking.orders.reference_code IS 'Reference identifier for the invoice';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1927,7 +1929,7 @@ COMMENT ON COLUMN trucking.orders.reference_code IS 'Reference identifier for th
 --
 
 COMMENT ON COLUMN trucking.orders.client_truck_company_id IS 'Optional selected truck company for this order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1936,7 +1938,7 @@ COMMENT ON COLUMN trucking.orders.client_truck_company_id IS 'Optional selected 
 --
 
 COMMENT ON COLUMN trucking.orders.reference_id IS 'Reference identifier for the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1945,7 +1947,7 @@ COMMENT ON COLUMN trucking.orders.reference_id IS 'Reference identifier for the 
 --
 
 COMMENT ON COLUMN trucking.orders.cancelled_at IS 'Timestamp when the order was cancelled';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1954,7 +1956,7 @@ COMMENT ON COLUMN trucking.orders.cancelled_at IS 'Timestamp when the order was 
 --
 
 COMMENT ON COLUMN trucking.orders.cancelled_by IS 'Foreign key to the user who cancelled the order';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1963,7 +1965,7 @@ COMMENT ON COLUMN trucking.orders.cancelled_by IS 'Foreign key to the user who c
 --
 
 COMMENT ON COLUMN trucking.orders.cancel_reason IS 'Reason why the order was cancelled';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1972,7 +1974,7 @@ COMMENT ON COLUMN trucking.orders.cancel_reason IS 'Reason why the order was can
 --
 
 COMMENT ON COLUMN trucking.orders.custom_invoice_codes IS 'Custom invoice code suffixes for each type: {normal, changed, lolo}';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1981,7 +1983,7 @@ COMMENT ON COLUMN trucking.orders.custom_invoice_codes IS 'Custom invoice code s
 --
 
 COMMENT ON COLUMN trucking.orders.submitted_for_payment_at IS 'Timestamp when the order was submitted for payment';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1990,7 +1992,7 @@ COMMENT ON COLUMN trucking.orders.submitted_for_payment_at IS 'Timestamp when th
 --
 
 COMMENT ON COLUMN trucking.orders.payment_received_at IS 'Timestamp when the payment was received and confirmed';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -1999,7 +2001,7 @@ COMMENT ON COLUMN trucking.orders.payment_received_at IS 'Timestamp when the pay
 --
 
 COMMENT ON COLUMN trucking.orders.payment_documents IS 'JSON field storing payment supporting documents with upload metadata';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2008,7 +2010,7 @@ COMMENT ON COLUMN trucking.orders.payment_documents IS 'JSON field storing payme
 --
 
 COMMENT ON COLUMN trucking.orders.payment_notes IS 'Payment reference number, bank details, or additional payment notes';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2028,7 +2030,7 @@ CREATE TABLE trucking.route_locations (
     label character varying(255),
     CONSTRAINT route_locations_load_type_check CHECK (((load_type)::text = ANY (ARRAY[('E'::character varying)::text, ('F'::character varying)::text])))
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2037,7 +2039,7 @@ CREATE TABLE trucking.route_locations (
 --
 
 COMMENT ON COLUMN trucking.route_locations.id IS 'UUID primary key column for the route location table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2046,7 +2048,7 @@ COMMENT ON COLUMN trucking.route_locations.id IS 'UUID primary key column for th
 --
 
 COMMENT ON COLUMN trucking.route_locations.route_id IS 'Foreign key to the route that made the route location';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2055,7 +2057,7 @@ COMMENT ON COLUMN trucking.route_locations.route_id IS 'Foreign key to the route
 --
 
 COMMENT ON COLUMN trucking.route_locations.location_id IS 'Foreign key to the location that made the route location';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2064,7 +2066,7 @@ COMMENT ON COLUMN trucking.route_locations.location_id IS 'Foreign key to the lo
 --
 
 COMMENT ON COLUMN trucking.route_locations."position" IS 'The position of the location in the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2073,7 +2075,7 @@ COMMENT ON COLUMN trucking.route_locations."position" IS 'The position of the lo
 --
 
 COMMENT ON COLUMN trucking.route_locations.load_type IS 'The load type of the location in the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2082,7 +2084,7 @@ COMMENT ON COLUMN trucking.route_locations.load_type IS 'The load type of the lo
 --
 
 COMMENT ON COLUMN trucking.route_locations.is_visible IS 'Whether this location should be visible on invoices';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2091,7 +2093,7 @@ COMMENT ON COLUMN trucking.route_locations.is_visible IS 'Whether this location 
 --
 
 COMMENT ON COLUMN trucking.route_locations.label IS 'Label for this location on invoices';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2108,7 +2110,7 @@ CREATE TABLE trucking.routes (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2117,7 +2119,7 @@ CREATE TABLE trucking.routes (
 --
 
 COMMENT ON COLUMN trucking.routes.id IS 'UUID primary key column for the route table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2126,7 +2128,7 @@ COMMENT ON COLUMN trucking.routes.id IS 'UUID primary key column for the route t
 --
 
 COMMENT ON COLUMN trucking.routes.size IS 'The size of the container';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2135,7 +2137,7 @@ COMMENT ON COLUMN trucking.routes.size IS 'The size of the container';
 --
 
 COMMENT ON COLUMN trucking.routes.fee IS 'The fee of the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2144,7 +2146,7 @@ COMMENT ON COLUMN trucking.routes.fee IS 'The fee of the route';
 --
 
 COMMENT ON COLUMN trucking.routes.allowance IS 'The allowance of the route';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2153,7 +2155,7 @@ COMMENT ON COLUMN trucking.routes.allowance IS 'The allowance of the route';
 --
 
 COMMENT ON COLUMN trucking.routes.is_lolo IS 'Is the route a LoLo route?';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2171,7 +2173,7 @@ CREATE TABLE trucking.trips (
     updated_at timestamp(0) without time zone,
     route_reference_id uuid
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2180,7 +2182,7 @@ CREATE TABLE trucking.trips (
 --
 
 COMMENT ON COLUMN trucking.trips.id IS 'UUID primary key column for the trips table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2189,7 +2191,7 @@ COMMENT ON COLUMN trucking.trips.id IS 'UUID primary key column for the trips ta
 --
 
 COMMENT ON COLUMN trucking.trips.order_id IS 'Foreign key to the order that made the trip';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2198,7 +2200,7 @@ COMMENT ON COLUMN trucking.trips.order_id IS 'Foreign key to the order that made
 --
 
 COMMENT ON COLUMN trucking.trips.code IS 'The code of the trip';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2207,7 +2209,7 @@ COMMENT ON COLUMN trucking.trips.code IS 'The code of the trip';
 --
 
 COMMENT ON COLUMN trucking.trips.total_units IS 'The total units of the trip';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2216,7 +2218,7 @@ COMMENT ON COLUMN trucking.trips.total_units IS 'The total units of the trip';
 --
 
 COMMENT ON COLUMN trucking.trips.routes IS 'The route snapshot of the trips';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2225,7 +2227,7 @@ COMMENT ON COLUMN trucking.trips.routes IS 'The route snapshot of the trips';
 --
 
 COMMENT ON COLUMN trucking.trips.route_reference_id IS 'UUID of the route associated with the trip';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2243,7 +2245,7 @@ CREATE TABLE trucking.trucks (
     updated_at timestamp(0) without time zone,
     deleted_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2252,7 +2254,7 @@ CREATE TABLE trucking.trucks (
 --
 
 COMMENT ON COLUMN trucking.trucks.id IS 'UUID primary key column for the trucks table';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2261,7 +2263,7 @@ COMMENT ON COLUMN trucking.trucks.id IS 'UUID primary key column for the trucks 
 --
 
 COMMENT ON COLUMN trucking.trucks.license_plate IS 'The license plate of the truck';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2270,7 +2272,7 @@ COMMENT ON COLUMN trucking.trucks.license_plate IS 'The license plate of the tru
 --
 
 COMMENT ON COLUMN trucking.trucks.brand IS 'The brand of the truck';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2279,7 +2281,7 @@ COMMENT ON COLUMN trucking.trucks.brand IS 'The brand of the truck';
 --
 
 COMMENT ON COLUMN trucking.trucks.production_year IS 'The production year of the truck';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2288,7 +2290,7 @@ COMMENT ON COLUMN trucking.trucks.production_year IS 'The production year of the
 --
 
 COMMENT ON COLUMN trucking.trucks.last_maintenance IS 'The date of the last maintenance of the truck';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2307,7 +2309,7 @@ CREATE TABLE warehouse.approvals (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2316,7 +2318,7 @@ CREATE TABLE warehouse.approvals (
 --
 
 COMMENT ON COLUMN warehouse.approvals.id IS 'Unique item identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2325,7 +2327,7 @@ COMMENT ON COLUMN warehouse.approvals.id IS 'Unique item identifier';
 --
 
 COMMENT ON COLUMN warehouse.approvals.approvable_type IS 'Morphed model type';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2334,7 +2336,7 @@ COMMENT ON COLUMN warehouse.approvals.approvable_type IS 'Morphed model type';
 --
 
 COMMENT ON COLUMN warehouse.approvals.approvable_id IS 'Morphed model UUID';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2343,7 +2345,7 @@ COMMENT ON COLUMN warehouse.approvals.approvable_id IS 'Morphed model UUID';
 --
 
 COMMENT ON COLUMN warehouse.approvals.approver_id IS 'Foreign key to the approver';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2352,7 +2354,7 @@ COMMENT ON COLUMN warehouse.approvals.approver_id IS 'Foreign key to the approve
 --
 
 COMMENT ON COLUMN warehouse.approvals.type IS 'Approval type (e.g., division, finance, director)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2361,7 +2363,7 @@ COMMENT ON COLUMN warehouse.approvals.type IS 'Approval type (e.g., division, fi
 --
 
 COMMENT ON COLUMN warehouse.approvals.approved IS 'Approval status (approved or rejected)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2370,7 +2372,7 @@ COMMENT ON COLUMN warehouse.approvals.approved IS 'Approval status (approved or 
 --
 
 COMMENT ON COLUMN warehouse.approvals.comment IS 'Comment for the approval';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2390,7 +2392,7 @@ CREATE TABLE warehouse.items (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2399,7 +2401,7 @@ CREATE TABLE warehouse.items (
 --
 
 COMMENT ON COLUMN warehouse.items.id IS 'Unique item identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2408,7 +2410,7 @@ COMMENT ON COLUMN warehouse.items.id IS 'Unique item identifier';
 --
 
 COMMENT ON COLUMN warehouse.items.division_id IS 'Foreign key to the division that the item belongs to';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2417,7 +2419,7 @@ COMMENT ON COLUMN warehouse.items.division_id IS 'Foreign key to the division th
 --
 
 COMMENT ON COLUMN warehouse.items.name IS 'Item name';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2426,7 +2428,7 @@ COMMENT ON COLUMN warehouse.items.name IS 'Item name';
 --
 
 COMMENT ON COLUMN warehouse.items.code IS 'Item code';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2435,7 +2437,7 @@ COMMENT ON COLUMN warehouse.items.code IS 'Item code';
 --
 
 COMMENT ON COLUMN warehouse.items.description IS 'Item description';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2444,7 +2446,7 @@ COMMENT ON COLUMN warehouse.items.description IS 'Item description';
 --
 
 COMMENT ON COLUMN warehouse.items.icon_name IS 'Item icon name';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2453,7 +2455,7 @@ COMMENT ON COLUMN warehouse.items.icon_name IS 'Item icon name';
 --
 
 COMMENT ON COLUMN warehouse.items.current_stock IS 'Current stock level';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2462,7 +2464,7 @@ COMMENT ON COLUMN warehouse.items.current_stock IS 'Current stock level';
 --
 
 COMMENT ON COLUMN warehouse.items.reorder_level IS 'Reorder level (minimum stock level)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2486,7 +2488,7 @@ CREATE TABLE warehouse.procurement_quotations (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2495,7 +2497,7 @@ CREATE TABLE warehouse.procurement_quotations (
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.id IS 'Unique procurement quotation identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2504,7 +2506,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.id IS 'Unique procurement quo
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.quoted_price IS 'Quoted price (price of the item)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2513,7 +2515,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.quoted_price IS 'Quoted price
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.vendor_name IS 'Vendor name';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2522,7 +2524,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.vendor_name IS 'Vendor name';
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.vendor_website IS 'Vendor website (e.g., URL of vendor website or Maps URL)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2531,7 +2533,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.vendor_website IS 'Vendor web
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.invoice_url IS 'Invoice URL (e.g., URL of invoice file)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2540,7 +2542,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.invoice_url IS 'Invoice URL (
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.invoice_file_path IS 'Invoice file path (e.g., PDF file of invoice)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2549,7 +2551,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.invoice_file_path IS 'Invoice
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.payment_account IS 'Payment account (e.g., bank account number)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2558,7 +2560,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.payment_account IS 'Payment a
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.payment_proof_path IS 'Payment proof path (e.g., image of payment receipt)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2567,7 +2569,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.payment_proof_path IS 'Paymen
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.payment_date IS 'Payment date (date of payment)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2576,7 +2578,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.payment_date IS 'Payment date
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.receipt_proof_path IS 'Receipt proof path (e.g., image of receipt)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2585,7 +2587,7 @@ COMMENT ON COLUMN warehouse.procurement_quotations.receipt_proof_path IS 'Receip
 --
 
 COMMENT ON COLUMN warehouse.procurement_quotations.receipt_date IS 'Receipt date (date of purchase)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2608,7 +2610,7 @@ CREATE TABLE warehouse.procurement_requests (
     updated_at timestamp(0) without time zone,
     completed_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2617,7 +2619,7 @@ CREATE TABLE warehouse.procurement_requests (
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.id IS 'Unique procurement request identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2626,7 +2628,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.id IS 'Unique procurement reque
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.request_number IS 'Request number (e.g., REQ/2024/0001)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2635,7 +2637,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.request_number IS 'Request numb
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.requester_id IS 'Foreign key to the requester of the procurement request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2644,7 +2646,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.requester_id IS 'Foreign key to
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.item_id IS 'Foreign key to the item that is requested';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2653,7 +2655,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.item_id IS 'Foreign key to the 
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.status IS 'Request status (e.g., pending, approved, rejected)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2662,7 +2664,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.status IS 'Request status (e.g.
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.unit_price IS 'Unit price (price of the item)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2671,7 +2673,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.unit_price IS 'Unit price (pric
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.requested_quantity IS 'Requested quantity (number of items)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2680,7 +2682,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.requested_quantity IS 'Requeste
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.total_amount IS 'Total amount (total price of the items)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2689,7 +2691,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.total_amount IS 'Total amount (
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.justification IS 'Justification for the procurement request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2698,7 +2700,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.justification IS 'Justification
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.quotation_id IS 'Foreign key to the quotation for the procurement request';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2707,7 +2709,7 @@ COMMENT ON COLUMN warehouse.procurement_requests.quotation_id IS 'Foreign key to
 --
 
 COMMENT ON COLUMN warehouse.procurement_requests.completed_at IS 'Timestamp of when the request was completed';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2723,7 +2725,7 @@ CREATE TABLE warehouse.stock_alerts (
     created_at timestamp(0) without time zone,
     updated_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2732,7 +2734,7 @@ CREATE TABLE warehouse.stock_alerts (
 --
 
 COMMENT ON COLUMN warehouse.stock_alerts.id IS 'Unique stock alert identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2741,7 +2743,7 @@ COMMENT ON COLUMN warehouse.stock_alerts.id IS 'Unique stock alert identifier';
 --
 
 COMMENT ON COLUMN warehouse.stock_alerts.item_id IS 'Foreign key to the item that has a stock alert';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2750,7 +2752,7 @@ COMMENT ON COLUMN warehouse.stock_alerts.item_id IS 'Foreign key to the item tha
 --
 
 COMMENT ON COLUMN warehouse.stock_alerts.last_stock IS 'Last stock level before the alert';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2759,7 +2761,7 @@ COMMENT ON COLUMN warehouse.stock_alerts.last_stock IS 'Last stock level before 
 --
 
 COMMENT ON COLUMN warehouse.stock_alerts.last_requisition_id IS 'Foreign key to the last stock requisition that was made';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2780,7 +2782,7 @@ CREATE TABLE warehouse.stock_requisitions (
     updated_at timestamp(0) without time zone,
     completed_at timestamp(0) without time zone
 );
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2789,7 +2791,7 @@ CREATE TABLE warehouse.stock_requisitions (
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.id IS 'Unique stock requisition identifier';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2798,7 +2800,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.id IS 'Unique stock requisition i
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.requisition_number IS 'Requisition number (e.g., REQ/2024/0001)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2807,7 +2809,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.requisition_number IS 'Requisitio
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.requester_id IS 'Foreign key to the requester of the stock requisition';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2816,7 +2818,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.requester_id IS 'Foreign key to t
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.item_id IS 'Foreign key to the item that is requested';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2825,7 +2827,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.item_id IS 'Foreign key to the it
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.status IS 'Requisition status (e.g., pending, approved, rejected)';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2834,7 +2836,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.status IS 'Requisition status (e.
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.requested_quantity IS 'Quantity requested';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2843,7 +2845,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.requested_quantity IS 'Quantity r
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.stock_on_hand IS 'Current stock on hand';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2852,7 +2854,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.stock_on_hand IS 'Current stock o
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.purpose IS 'Reason for requisition';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2861,7 +2863,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.purpose IS 'Reason for requisitio
 --
 
 COMMENT ON COLUMN warehouse.stock_requisitions.completed_at IS 'Timestamp of when the requisition was completed';
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2870,7 +2872,7 @@ COMMENT ON COLUMN warehouse.stock_requisitions.completed_at IS 'Timestamp of whe
 --
 
 ALTER TABLE ONLY trucking.client_route ALTER COLUMN id SET DEFAULT nextval('trucking.client_route_id_seq'::regclass);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2880,7 +2882,7 @@ ALTER TABLE ONLY trucking.client_route ALTER COLUMN id SET DEFAULT nextval('truc
 
 ALTER TABLE ONLY expense.approvals
     ADD CONSTRAINT approvals_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2890,7 +2892,7 @@ ALTER TABLE ONLY expense.approvals
 
 ALTER TABLE ONLY expense.budgets
     ADD CONSTRAINT budgets_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2900,7 +2902,7 @@ ALTER TABLE ONLY expense.budgets
 
 ALTER TABLE ONLY expense.request_emergency_details
     ADD CONSTRAINT request_emergency_details_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2910,7 +2912,7 @@ ALTER TABLE ONLY expense.request_emergency_details
 
 ALTER TABLE ONLY expense.request_niche_details
     ADD CONSTRAINT request_niche_details_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2920,7 +2922,7 @@ ALTER TABLE ONLY expense.request_niche_details
 
 ALTER TABLE ONLY expense.requests
     ADD CONSTRAINT requests_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2930,7 +2932,7 @@ ALTER TABLE ONLY expense.requests
 
 ALTER TABLE ONLY master.divisions
     ADD CONSTRAINT divisions_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2940,7 +2942,7 @@ ALTER TABLE ONLY master.divisions
 
 ALTER TABLE ONLY master.divisions
     ADD CONSTRAINT master_divisions_code_unique UNIQUE (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2950,7 +2952,7 @@ ALTER TABLE ONLY master.divisions
 
 ALTER TABLE ONLY master.divisions
     ADD CONSTRAINT master_divisions_name_unique UNIQUE (name);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2960,7 +2962,7 @@ ALTER TABLE ONLY master.divisions
 
 ALTER TABLE ONLY master.users
     ADD CONSTRAINT master_users_email_unique UNIQUE (email);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2970,7 +2972,7 @@ ALTER TABLE ONLY master.users
 
 ALTER TABLE ONLY master.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2980,7 +2982,7 @@ ALTER TABLE ONLY master.users
 
 ALTER TABLE ONLY trucking.approvals
     ADD CONSTRAINT approvals_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -2990,7 +2992,7 @@ ALTER TABLE ONLY trucking.approvals
 
 ALTER TABLE ONLY trucking.client_route
     ADD CONSTRAINT client_route_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3000,7 +3002,7 @@ ALTER TABLE ONLY trucking.client_route
 
 ALTER TABLE ONLY trucking.client_truck_companies
     ADD CONSTRAINT client_truck_companies_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3010,7 +3012,7 @@ ALTER TABLE ONLY trucking.client_truck_companies
 
 ALTER TABLE ONLY trucking.clients
     ADD CONSTRAINT clients_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3020,7 +3022,7 @@ ALTER TABLE ONLY trucking.clients
 
 ALTER TABLE ONLY trucking.daily_trucking_actuals
     ADD CONSTRAINT daily_trucking_actuals_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3030,7 +3032,7 @@ ALTER TABLE ONLY trucking.daily_trucking_actuals
 
 ALTER TABLE ONLY trucking.daily_trucking_plans
     ADD CONSTRAINT daily_trucking_plans_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3040,7 +3042,7 @@ ALTER TABLE ONLY trucking.daily_trucking_plans
 
 ALTER TABLE ONLY trucking.drivers
     ADD CONSTRAINT drivers_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3050,7 +3052,7 @@ ALTER TABLE ONLY trucking.drivers
 
 ALTER TABLE ONLY trucking.invoice_comments
     ADD CONSTRAINT invoice_comments_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3060,7 +3062,7 @@ ALTER TABLE ONLY trucking.invoice_comments
 
 ALTER TABLE ONLY trucking.invoice_shipments
     ADD CONSTRAINT invoice_shipments_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3070,7 +3072,7 @@ ALTER TABLE ONLY trucking.invoice_shipments
 
 ALTER TABLE ONLY trucking.invoice_vendor
     ADD CONSTRAINT invoice_vendor_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3080,7 +3082,7 @@ ALTER TABLE ONLY trucking.invoice_vendor
 
 ALTER TABLE ONLY trucking.invoices
     ADD CONSTRAINT invoices_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3090,7 +3092,7 @@ ALTER TABLE ONLY trucking.invoices
 
 ALTER TABLE ONLY trucking.locations
     ADD CONSTRAINT locations_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3100,7 +3102,7 @@ ALTER TABLE ONLY trucking.locations
 
 ALTER TABLE ONLY trucking.orders
     ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3110,7 +3112,7 @@ ALTER TABLE ONLY trucking.orders
 
 ALTER TABLE ONLY trucking.route_locations
     ADD CONSTRAINT route_locations_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3120,7 +3122,7 @@ ALTER TABLE ONLY trucking.route_locations
 
 ALTER TABLE ONLY trucking.routes
     ADD CONSTRAINT routes_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3130,7 +3132,7 @@ ALTER TABLE ONLY trucking.routes
 
 ALTER TABLE ONLY trucking.trips
     ADD CONSTRAINT trips_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3140,7 +3142,7 @@ ALTER TABLE ONLY trucking.trips
 
 ALTER TABLE ONLY trucking.client_route
     ADD CONSTRAINT trucking_client_route_client_id_route_id_unique UNIQUE (client_id, route_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3150,7 +3152,7 @@ ALTER TABLE ONLY trucking.client_route
 
 ALTER TABLE ONLY trucking.clients
     ADD CONSTRAINT trucking_clients_code_unique UNIQUE (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3160,7 +3162,7 @@ ALTER TABLE ONLY trucking.clients
 
 ALTER TABLE ONLY trucking.clients
     ADD CONSTRAINT trucking_clients_email_unique UNIQUE (email);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3170,7 +3172,7 @@ ALTER TABLE ONLY trucking.clients
 
 ALTER TABLE ONLY trucking.drivers
     ADD CONSTRAINT trucking_drivers_identification_number_unique UNIQUE (identification_number);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3180,7 +3182,7 @@ ALTER TABLE ONLY trucking.drivers
 
 ALTER TABLE ONLY trucking.drivers
     ADD CONSTRAINT trucking_drivers_license_number_unique UNIQUE (license_number);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3190,7 +3192,7 @@ ALTER TABLE ONLY trucking.drivers
 
 ALTER TABLE ONLY trucking.drivers
     ADD CONSTRAINT trucking_drivers_phone_unique UNIQUE (phone);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3200,7 +3202,7 @@ ALTER TABLE ONLY trucking.drivers
 
 ALTER TABLE ONLY trucking.orders
     ADD CONSTRAINT trucking_orders_code_unique UNIQUE (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3210,7 +3212,7 @@ ALTER TABLE ONLY trucking.orders
 
 ALTER TABLE ONLY trucking.trucks
     ADD CONSTRAINT trucking_trucks_license_plate_unique UNIQUE (license_plate);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3220,7 +3222,7 @@ ALTER TABLE ONLY trucking.trucks
 
 ALTER TABLE ONLY trucking.trucks
     ADD CONSTRAINT trucks_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3230,7 +3232,7 @@ ALTER TABLE ONLY trucking.trucks
 
 ALTER TABLE ONLY warehouse.approvals
     ADD CONSTRAINT approvals_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3240,7 +3242,7 @@ ALTER TABLE ONLY warehouse.approvals
 
 ALTER TABLE ONLY warehouse.items
     ADD CONSTRAINT items_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3250,7 +3252,7 @@ ALTER TABLE ONLY warehouse.items
 
 ALTER TABLE ONLY warehouse.procurement_quotations
     ADD CONSTRAINT procurement_quotations_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3260,7 +3262,7 @@ ALTER TABLE ONLY warehouse.procurement_quotations
 
 ALTER TABLE ONLY warehouse.procurement_requests
     ADD CONSTRAINT procurement_requests_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3270,7 +3272,7 @@ ALTER TABLE ONLY warehouse.procurement_requests
 
 ALTER TABLE ONLY warehouse.stock_alerts
     ADD CONSTRAINT stock_alerts_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3280,7 +3282,7 @@ ALTER TABLE ONLY warehouse.stock_alerts
 
 ALTER TABLE ONLY warehouse.stock_requisitions
     ADD CONSTRAINT stock_requisitions_pkey PRIMARY KEY (id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3290,7 +3292,7 @@ ALTER TABLE ONLY warehouse.stock_requisitions
 
 ALTER TABLE ONLY warehouse.items
     ADD CONSTRAINT warehouse_items_code_unique UNIQUE (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3300,7 +3302,7 @@ ALTER TABLE ONLY warehouse.items
 
 ALTER TABLE ONLY warehouse.procurement_requests
     ADD CONSTRAINT warehouse_procurement_requests_request_number_unique UNIQUE (request_number);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3310,7 +3312,7 @@ ALTER TABLE ONLY warehouse.procurement_requests
 
 ALTER TABLE ONLY warehouse.stock_requisitions
     ADD CONSTRAINT warehouse_stock_requisitions_requisition_number_unique UNIQUE (requisition_number);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3319,7 +3321,7 @@ ALTER TABLE ONLY warehouse.stock_requisitions
 --
 
 CREATE INDEX approvable_index ON expense.approvals USING btree (approvable_type, approvable_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3328,7 +3330,7 @@ CREATE INDEX approvable_index ON expense.approvals USING btree (approvable_type,
 --
 
 CREATE INDEX approvable_index ON trucking.approvals USING btree (approvable_type, approvable_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3337,7 +3339,7 @@ CREATE INDEX approvable_index ON trucking.approvals USING btree (approvable_type
 --
 
 CREATE INDEX trucking_client_route_client_id_index ON trucking.client_route USING btree (client_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3346,7 +3348,7 @@ CREATE INDEX trucking_client_route_client_id_index ON trucking.client_route USIN
 --
 
 CREATE INDEX trucking_client_route_route_id_index ON trucking.client_route USING btree (route_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3355,7 +3357,7 @@ CREATE INDEX trucking_client_route_route_id_index ON trucking.client_route USING
 --
 
 CREATE INDEX trucking_client_truck_companies_client_id_index ON trucking.client_truck_companies USING btree (client_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3364,7 +3366,7 @@ CREATE INDEX trucking_client_truck_companies_client_id_index ON trucking.client_
 --
 
 CREATE INDEX trucking_client_truck_companies_name_index ON trucking.client_truck_companies USING btree (name);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3373,7 +3375,7 @@ CREATE INDEX trucking_client_truck_companies_name_index ON trucking.client_truck
 --
 
 CREATE INDEX trucking_clients_code_index ON trucking.clients USING btree (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3382,7 +3384,7 @@ CREATE INDEX trucking_clients_code_index ON trucking.clients USING btree (code);
 --
 
 CREATE INDEX trucking_clients_name_index ON trucking.clients USING btree (name);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3391,7 +3393,7 @@ CREATE INDEX trucking_clients_name_index ON trucking.clients USING btree (name);
 --
 
 CREATE INDEX trucking_daily_trucking_actuals_daily_trucking_plan_id_index ON trucking.daily_trucking_actuals USING btree (daily_trucking_plan_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3400,7 +3402,7 @@ CREATE INDEX trucking_daily_trucking_actuals_daily_trucking_plan_id_index ON tru
 --
 
 CREATE INDEX trucking_daily_trucking_actuals_order_id_index ON trucking.daily_trucking_actuals USING btree (order_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3409,7 +3411,7 @@ CREATE INDEX trucking_daily_trucking_actuals_order_id_index ON trucking.daily_tr
 --
 
 CREATE INDEX trucking_daily_trucking_actuals_truck_id_index ON trucking.daily_trucking_actuals USING btree (truck_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3418,7 +3420,7 @@ CREATE INDEX trucking_daily_trucking_actuals_truck_id_index ON trucking.daily_tr
 --
 
 CREATE INDEX trucking_daily_trucking_actuals_user_id_index ON trucking.daily_trucking_actuals USING btree (user_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3427,7 +3429,7 @@ CREATE INDEX trucking_daily_trucking_actuals_user_id_index ON trucking.daily_tru
 --
 
 CREATE INDEX trucking_daily_trucking_plans_order_id_index ON trucking.daily_trucking_plans USING btree (order_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3436,7 +3438,7 @@ CREATE INDEX trucking_daily_trucking_plans_order_id_index ON trucking.daily_truc
 --
 
 CREATE INDEX trucking_daily_trucking_plans_truck_id_index ON trucking.daily_trucking_plans USING btree (truck_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3445,7 +3447,7 @@ CREATE INDEX trucking_daily_trucking_plans_truck_id_index ON trucking.daily_truc
 --
 
 CREATE INDEX trucking_daily_trucking_plans_user_id_index ON trucking.daily_trucking_plans USING btree (user_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3454,7 +3456,7 @@ CREATE INDEX trucking_daily_trucking_plans_user_id_index ON trucking.daily_truck
 --
 
 CREATE INDEX trucking_drivers_name_index ON trucking.drivers USING btree (name);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3463,7 +3465,7 @@ CREATE INDEX trucking_drivers_name_index ON trucking.drivers USING btree (name);
 --
 
 CREATE INDEX trucking_invoice_comments_invoice_id_created_at_index ON trucking.invoice_comments USING btree (invoice_id, created_at);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3472,7 +3474,7 @@ CREATE INDEX trucking_invoice_comments_invoice_id_created_at_index ON trucking.i
 --
 
 CREATE INDEX trucking_invoice_comments_user_id_index ON trucking.invoice_comments USING btree (user_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3481,7 +3483,7 @@ CREATE INDEX trucking_invoice_comments_user_id_index ON trucking.invoice_comment
 --
 
 CREATE INDEX trucking_locations_code_index ON trucking.locations USING btree (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3490,7 +3492,7 @@ CREATE INDEX trucking_locations_code_index ON trucking.locations USING btree (co
 --
 
 CREATE INDEX trucking_orders_client_id_index ON trucking.orders USING btree (client_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3499,7 +3501,7 @@ CREATE INDEX trucking_orders_client_id_index ON trucking.orders USING btree (cli
 --
 
 CREATE INDEX trucking_orders_client_truck_company_id_index ON trucking.orders USING btree (client_truck_company_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3508,7 +3510,7 @@ CREATE INDEX trucking_orders_client_truck_company_id_index ON trucking.orders US
 --
 
 CREATE INDEX trucking_orders_code_index ON trucking.orders USING btree (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3517,7 +3519,7 @@ CREATE INDEX trucking_orders_code_index ON trucking.orders USING btree (code);
 --
 
 CREATE INDEX trucking_orders_status_index ON trucking.orders USING btree (status);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3526,7 +3528,7 @@ CREATE INDEX trucking_orders_status_index ON trucking.orders USING btree (status
 --
 
 CREATE INDEX trucking_route_locations_load_type_index ON trucking.route_locations USING btree (load_type);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3535,7 +3537,7 @@ CREATE INDEX trucking_route_locations_load_type_index ON trucking.route_location
 --
 
 CREATE INDEX trucking_route_locations_location_id_index ON trucking.route_locations USING btree (location_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3544,7 +3546,7 @@ CREATE INDEX trucking_route_locations_location_id_index ON trucking.route_locati
 --
 
 CREATE INDEX trucking_route_locations_position_index ON trucking.route_locations USING btree ("position");
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3553,7 +3555,7 @@ CREATE INDEX trucking_route_locations_position_index ON trucking.route_locations
 --
 
 CREATE INDEX trucking_route_locations_route_id_index ON trucking.route_locations USING btree (route_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3562,7 +3564,7 @@ CREATE INDEX trucking_route_locations_route_id_index ON trucking.route_locations
 --
 
 CREATE INDEX trucking_routes_size_index ON trucking.routes USING btree (size);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3571,7 +3573,7 @@ CREATE INDEX trucking_routes_size_index ON trucking.routes USING btree (size);
 --
 
 CREATE INDEX trucking_trips_code_index ON trucking.trips USING btree (code);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3580,7 +3582,7 @@ CREATE INDEX trucking_trips_code_index ON trucking.trips USING btree (code);
 --
 
 CREATE INDEX trucking_trips_order_id_index ON trucking.trips USING btree (order_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3589,7 +3591,7 @@ CREATE INDEX trucking_trips_order_id_index ON trucking.trips USING btree (order_
 --
 
 CREATE INDEX trucking_trucks_license_plate_index ON trucking.trucks USING btree (license_plate);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3598,7 +3600,7 @@ CREATE INDEX trucking_trucks_license_plate_index ON trucking.trucks USING btree 
 --
 
 CREATE INDEX approvable_index ON warehouse.approvals USING btree (approvable_type, approvable_id);
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3608,7 +3610,7 @@ CREATE INDEX approvable_index ON warehouse.approvals USING btree (approvable_typ
 
 ALTER TABLE ONLY expense.approvals
     ADD CONSTRAINT expense_approvals_approver_id_foreign FOREIGN KEY (approver_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3618,7 +3620,7 @@ ALTER TABLE ONLY expense.approvals
 
 ALTER TABLE ONLY expense.budgets
     ADD CONSTRAINT expense_budgets_division_id_foreign FOREIGN KEY (division_id) REFERENCES master.divisions(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3628,7 +3630,7 @@ ALTER TABLE ONLY expense.budgets
 
 ALTER TABLE ONLY expense.request_emergency_details
     ADD CONSTRAINT expense_request_emergency_details_request_id_foreign FOREIGN KEY (request_id) REFERENCES expense.requests(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3638,7 +3640,7 @@ ALTER TABLE ONLY expense.request_emergency_details
 
 ALTER TABLE ONLY expense.request_niche_details
     ADD CONSTRAINT expense_request_niche_details_request_id_foreign FOREIGN KEY (request_id) REFERENCES expense.requests(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3648,7 +3650,7 @@ ALTER TABLE ONLY expense.request_niche_details
 
 ALTER TABLE ONLY expense.requests
     ADD CONSTRAINT expense_requests_division_id_foreign FOREIGN KEY (division_id) REFERENCES master.divisions(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3658,7 +3660,7 @@ ALTER TABLE ONLY expense.requests
 
 ALTER TABLE ONLY expense.requests
     ADD CONSTRAINT expense_requests_user_id_foreign FOREIGN KEY (user_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3668,7 +3670,7 @@ ALTER TABLE ONLY expense.requests
 
 ALTER TABLE ONLY master.users
     ADD CONSTRAINT master_users_division_id_foreign FOREIGN KEY (division_id) REFERENCES master.divisions(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3678,7 +3680,7 @@ ALTER TABLE ONLY master.users
 
 ALTER TABLE ONLY trucking.approvals
     ADD CONSTRAINT trucking_approvals_approver_id_foreign FOREIGN KEY (approver_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3688,7 +3690,7 @@ ALTER TABLE ONLY trucking.approvals
 
 ALTER TABLE ONLY trucking.client_route
     ADD CONSTRAINT trucking_client_route_client_id_foreign FOREIGN KEY (client_id) REFERENCES trucking.clients(id) ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3698,7 +3700,7 @@ ALTER TABLE ONLY trucking.client_route
 
 ALTER TABLE ONLY trucking.client_route
     ADD CONSTRAINT trucking_client_route_route_id_foreign FOREIGN KEY (route_id) REFERENCES trucking.routes(id) ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3708,7 +3710,7 @@ ALTER TABLE ONLY trucking.client_route
 
 ALTER TABLE ONLY trucking.client_truck_companies
     ADD CONSTRAINT trucking_client_truck_companies_client_id_foreign FOREIGN KEY (client_id) REFERENCES trucking.clients(id) ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3718,7 +3720,7 @@ ALTER TABLE ONLY trucking.client_truck_companies
 
 ALTER TABLE ONLY trucking.daily_trucking_actuals
     ADD CONSTRAINT trucking_daily_trucking_actuals_daily_trucking_plan_id_foreign FOREIGN KEY (daily_trucking_plan_id) REFERENCES trucking.daily_trucking_plans(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3728,7 +3730,7 @@ ALTER TABLE ONLY trucking.daily_trucking_actuals
 
 ALTER TABLE ONLY trucking.daily_trucking_actuals
     ADD CONSTRAINT trucking_daily_trucking_actuals_driver_id_foreign FOREIGN KEY (driver_id) REFERENCES trucking.drivers(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3738,7 +3740,7 @@ ALTER TABLE ONLY trucking.daily_trucking_actuals
 
 ALTER TABLE ONLY trucking.daily_trucking_actuals
     ADD CONSTRAINT trucking_daily_trucking_actuals_order_id_foreign FOREIGN KEY (order_id) REFERENCES trucking.orders(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3748,7 +3750,7 @@ ALTER TABLE ONLY trucking.daily_trucking_actuals
 
 ALTER TABLE ONLY trucking.daily_trucking_actuals
     ADD CONSTRAINT trucking_daily_trucking_actuals_trip_id_foreign FOREIGN KEY (trip_id) REFERENCES trucking.trips(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3758,7 +3760,7 @@ ALTER TABLE ONLY trucking.daily_trucking_actuals
 
 ALTER TABLE ONLY trucking.daily_trucking_actuals
     ADD CONSTRAINT trucking_daily_trucking_actuals_truck_id_foreign FOREIGN KEY (truck_id) REFERENCES trucking.trucks(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3768,7 +3770,7 @@ ALTER TABLE ONLY trucking.daily_trucking_actuals
 
 ALTER TABLE ONLY trucking.daily_trucking_actuals
     ADD CONSTRAINT trucking_daily_trucking_actuals_user_id_foreign FOREIGN KEY (user_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3778,7 +3780,7 @@ ALTER TABLE ONLY trucking.daily_trucking_actuals
 
 ALTER TABLE ONLY trucking.daily_trucking_plans
     ADD CONSTRAINT trucking_daily_trucking_plans_driver_id_foreign FOREIGN KEY (driver_id) REFERENCES trucking.drivers(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3788,7 +3790,7 @@ ALTER TABLE ONLY trucking.daily_trucking_plans
 
 ALTER TABLE ONLY trucking.daily_trucking_plans
     ADD CONSTRAINT trucking_daily_trucking_plans_order_id_foreign FOREIGN KEY (order_id) REFERENCES trucking.orders(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3798,7 +3800,7 @@ ALTER TABLE ONLY trucking.daily_trucking_plans
 
 ALTER TABLE ONLY trucking.daily_trucking_plans
     ADD CONSTRAINT trucking_daily_trucking_plans_trip_id_foreign FOREIGN KEY (trip_id) REFERENCES trucking.trips(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3808,7 +3810,7 @@ ALTER TABLE ONLY trucking.daily_trucking_plans
 
 ALTER TABLE ONLY trucking.daily_trucking_plans
     ADD CONSTRAINT trucking_daily_trucking_plans_truck_id_foreign FOREIGN KEY (truck_id) REFERENCES trucking.trucks(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3818,7 +3820,7 @@ ALTER TABLE ONLY trucking.daily_trucking_plans
 
 ALTER TABLE ONLY trucking.daily_trucking_plans
     ADD CONSTRAINT trucking_daily_trucking_plans_user_id_foreign FOREIGN KEY (user_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3828,7 +3830,7 @@ ALTER TABLE ONLY trucking.daily_trucking_plans
 
 ALTER TABLE ONLY trucking.invoice_comments
     ADD CONSTRAINT trucking_invoice_comments_invoice_id_foreign FOREIGN KEY (invoice_id) REFERENCES trucking.invoices(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3838,7 +3840,7 @@ ALTER TABLE ONLY trucking.invoice_comments
 
 ALTER TABLE ONLY trucking.invoice_comments
     ADD CONSTRAINT trucking_invoice_comments_user_id_foreign FOREIGN KEY (user_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3848,7 +3850,7 @@ ALTER TABLE ONLY trucking.invoice_comments
 
 ALTER TABLE ONLY trucking.invoice_shipments
     ADD CONSTRAINT trucking_invoice_shipments_invoice_id_foreign FOREIGN KEY (invoice_id) REFERENCES trucking.invoices(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3858,7 +3860,7 @@ ALTER TABLE ONLY trucking.invoice_shipments
 
 ALTER TABLE ONLY trucking.invoice_vendor
     ADD CONSTRAINT trucking_invoice_vendor_invoice_id_foreign FOREIGN KEY (invoice_id) REFERENCES trucking.invoices(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3868,7 +3870,7 @@ ALTER TABLE ONLY trucking.invoice_vendor
 
 ALTER TABLE ONLY trucking.invoices
     ADD CONSTRAINT trucking_invoices_client_id_foreign FOREIGN KEY (client_id) REFERENCES trucking.clients(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3878,7 +3880,7 @@ ALTER TABLE ONLY trucking.invoices
 
 ALTER TABLE ONLY trucking.orders
     ADD CONSTRAINT trucking_orders_cancelled_by_foreign FOREIGN KEY (cancelled_by) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3888,7 +3890,7 @@ ALTER TABLE ONLY trucking.orders
 
 ALTER TABLE ONLY trucking.orders
     ADD CONSTRAINT trucking_orders_client_id_foreign FOREIGN KEY (client_id) REFERENCES trucking.clients(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3898,7 +3900,7 @@ ALTER TABLE ONLY trucking.orders
 
 ALTER TABLE ONLY trucking.orders
     ADD CONSTRAINT trucking_orders_client_truck_company_id_foreign FOREIGN KEY (client_truck_company_id) REFERENCES trucking.client_truck_companies(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3908,7 +3910,7 @@ ALTER TABLE ONLY trucking.orders
 
 ALTER TABLE ONLY trucking.orders
     ADD CONSTRAINT trucking_orders_reference_id_foreign FOREIGN KEY (reference_id) REFERENCES trucking.orders(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3918,7 +3920,7 @@ ALTER TABLE ONLY trucking.orders
 
 ALTER TABLE ONLY trucking.route_locations
     ADD CONSTRAINT trucking_route_locations_location_id_foreign FOREIGN KEY (location_id) REFERENCES trucking.locations(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3928,7 +3930,7 @@ ALTER TABLE ONLY trucking.route_locations
 
 ALTER TABLE ONLY trucking.route_locations
     ADD CONSTRAINT trucking_route_locations_route_id_foreign FOREIGN KEY (route_id) REFERENCES trucking.routes(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3938,7 +3940,7 @@ ALTER TABLE ONLY trucking.route_locations
 
 ALTER TABLE ONLY trucking.trips
     ADD CONSTRAINT trucking_trips_order_id_foreign FOREIGN KEY (order_id) REFERENCES trucking.orders(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3948,7 +3950,7 @@ ALTER TABLE ONLY trucking.trips
 
 ALTER TABLE ONLY trucking.trips
     ADD CONSTRAINT trucking_trips_route_reference_id_foreign FOREIGN KEY (route_reference_id) REFERENCES trucking.routes(id) ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3958,7 +3960,7 @@ ALTER TABLE ONLY trucking.trips
 
 ALTER TABLE ONLY warehouse.approvals
     ADD CONSTRAINT warehouse_approvals_approver_id_foreign FOREIGN KEY (approver_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3968,7 +3970,7 @@ ALTER TABLE ONLY warehouse.approvals
 
 ALTER TABLE ONLY warehouse.items
     ADD CONSTRAINT warehouse_items_division_id_foreign FOREIGN KEY (division_id) REFERENCES master.divisions(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3978,7 +3980,7 @@ ALTER TABLE ONLY warehouse.items
 
 ALTER TABLE ONLY warehouse.procurement_requests
     ADD CONSTRAINT warehouse_procurement_requests_item_id_foreign FOREIGN KEY (item_id) REFERENCES warehouse.items(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3988,7 +3990,7 @@ ALTER TABLE ONLY warehouse.procurement_requests
 
 ALTER TABLE ONLY warehouse.procurement_requests
     ADD CONSTRAINT warehouse_procurement_requests_quotation_id_foreign FOREIGN KEY (quotation_id) REFERENCES warehouse.procurement_quotations(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -3998,7 +4000,7 @@ ALTER TABLE ONLY warehouse.procurement_requests
 
 ALTER TABLE ONLY warehouse.procurement_requests
     ADD CONSTRAINT warehouse_procurement_requests_requester_id_foreign FOREIGN KEY (requester_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -4008,7 +4010,7 @@ ALTER TABLE ONLY warehouse.procurement_requests
 
 ALTER TABLE ONLY warehouse.stock_alerts
     ADD CONSTRAINT warehouse_stock_alerts_item_id_foreign FOREIGN KEY (item_id) REFERENCES warehouse.items(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -4018,7 +4020,7 @@ ALTER TABLE ONLY warehouse.stock_alerts
 
 ALTER TABLE ONLY warehouse.stock_alerts
     ADD CONSTRAINT warehouse_stock_alerts_last_requisition_id_foreign FOREIGN KEY (last_requisition_id) REFERENCES warehouse.stock_requisitions(id) ON UPDATE CASCADE ON DELETE SET NULL;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -4028,7 +4030,7 @@ ALTER TABLE ONLY warehouse.stock_alerts
 
 ALTER TABLE ONLY warehouse.stock_requisitions
     ADD CONSTRAINT warehouse_stock_requisitions_item_id_foreign FOREIGN KEY (item_id) REFERENCES warehouse.items(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 --> statement-breakpoint
@@ -4038,10 +4040,9 @@ ALTER TABLE ONLY warehouse.stock_requisitions
 
 ALTER TABLE ONLY warehouse.stock_requisitions
     ADD CONSTRAINT warehouse_stock_requisitions_requester_id_foreign FOREIGN KEY (requester_id) REFERENCES master.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
-
+--> statement-breakpoint
 
 --
 -- PostgreSQL database dump complete
 --
-
 --> statement-breakpoint
