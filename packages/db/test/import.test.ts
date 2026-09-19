@@ -118,6 +118,14 @@ describe("the import pipeline", () => {
     expect(report.warnings).toEqual([]);
   });
 
+  it("checksums the natural key each table actually has", async () => {
+    // four keys named columns their tables do not have, which only a snapshot
+    // carrying those rows would have caught
+    expect(report.errors.filter((f) => f.code === "business-key")).toEqual([]);
+    expect(report.checksums["trucking.drivers"]).toBeDefined();
+    expect(report.checksums["warehouse.stock_requisitions"]).toBeDefined();
+  });
+
   it("loads the snapshot's rows", async () => {
     expect(await count(client, "select count(*)::int as value from master.divisions")).toBe(1);
     expect(await count(client, "select count(*)::int as value from trucking.orders")).toBe(1);

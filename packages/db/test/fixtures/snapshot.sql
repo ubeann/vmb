@@ -36,3 +36,11 @@ COPY master.roles (id, name, guard_name, level, is_system, created_at, updated_a
 COPY spatie.role_has_permissions (permission_uuid, role_uuid) FROM stdin;
 77777777-7777-4777-8777-777777777777	66666666-6666-4666-8666-666666666666
 \.
+
+COPY trucking.drivers (id, name, date_of_birth, identification_number, license_number, phone, address, profile_photo_path, created_at, updated_at, deleted_at) FROM stdin;
+88888888-8888-4888-8888-888888888888	Fixture Driver	1990-01-15	KTP-001	SIM-001	+62 812 1111	Driver address	\N	2026-01-02 08:00:00	2026-01-02 08:00:00	\N
+\.
+
+COPY warehouse.stock_requisitions (id, requisition_number, requester_id, item_id, status, requested_quantity, stock_on_hand, purpose, created_at, updated_at, completed_at) FROM stdin;
+77777777-7777-4777-8777-777777777771	SR-001	22222222-2222-4222-8222-222222222222	55555555-5555-4555-8555-555555555555	pending_approval	2	10	Fixture requisition	2026-01-02 08:00:00	2026-01-02 08:00:00	\N
+\.

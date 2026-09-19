@@ -36,16 +36,17 @@ export const businessKeys: Record<string, string[]> = {
   "master.divisions": ["code"],
   "master.users": ["email"],
   "trucking.clients": ["code"],
-  "trucking.drivers": ["code"],
+  "trucking.drivers": ["license_number"],
   "trucking.trucks": ["license_plate"],
   "trucking.locations": ["code"],
   "trucking.orders": ["code"],
-  "trucking.invoices": ["code"],
+  // no natural key on these two, so the checksum falls back to identity
+  "trucking.invoices": ["id"],
+  "expense.requests": ["id"],
   "warehouse.items": ["code"],
   "warehouse.procurement_requests": ["request_number"],
-  "warehouse.stock_requisitions": ["request_number"],
-  "expense.budgets": ["division_id"],
-  "expense.requests": ["request_number"]
+  "warehouse.stock_requisitions": ["requisition_number"],
+  "expense.budgets": ["division_id"]
 };
 
 export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Report> {
@@ -67,8 +68,21 @@ export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Rep
       });
     }
 
-    const comparison = await compareBusinessKeys(snapshot, client, table);
-    if (comparison) {
+    const keys = businessKeys[table];
+    const columns = snapshot.columns.get(table);
+    // only a snapshot that carries the table can be missing a column from it;
+    // a table the snapshot never mentions has nothing to compare
+    const absent = columns ? keys?.filter((key) => !columns.includes(key)) : undefined;
+    if (absent?.length) {
+      // a configured key the snapshot does not carry is a bug in the manifest,
+      // not a crash: report it and check the rest
+      errors.push({
+        level: "error",
+        code: "business-key",
+        message: `${table}: the snapshot has no column ${absent.join(", ")} for the configured business key`
+      });
+    } else if (keys) {
+      const comparison = await compareBusinessKeys(snapshot, client, table, keys);
       checksums[table] = comparison.checksum;
       if (!comparison.matches) {
         errors.push({
@@ -105,13 +119,10 @@ export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Rep
 async function compareBusinessKeys(
   snapshot: Snapshot,
   client: SqlClient,
-  table: string
-): Promise<KeyComparison | null> {
-  const keys = businessKeys[table];
-  if (!keys) return null;
-
-  const columns = snapshot.columns.get(table);
-  if (!columns) return null;
+  table: string,
+  keys: string[]
+): Promise<KeyComparison> {
+  const columns = snapshot.columns.get(table) as string[];
 
   const fromSnapshot = checksumRows(
     (snapshot.rows.get(table) ?? []).map((row) => pickKeys(columns, row, keys))
