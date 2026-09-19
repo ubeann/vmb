@@ -90,7 +90,7 @@ vmb/
 │       └── package.json
 ├── packages/
 │   ├── db/                 # Drizzle schema + Neon client
-│   │   ├── schema.ts
+│   │   ├── schema/          # one module per Postgres schema, plus auth
 │   │   └── client.ts
 │   ├── types/               # Shared Zod schemas + inferred TS types (web + api)
 │   └── config/               # Shared eslint/tsconfig/prettier
