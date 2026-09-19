@@ -15,7 +15,7 @@ export const master = pgSchema("master");
 export const divisions = master.table(
   "divisions",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     name: varchar({ length: 255 }).notNull(),
     code: varchar({ length: 255 }),
     description: varchar({ length: 255 }),
@@ -35,7 +35,7 @@ export const divisions = master.table(
 export const users = master.table(
   "users",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     name: varchar({ length: 255 }).notNull(),
     status: varchar({ length: 255 }).default("active").notNull(),
     divisionId: uuid("division_id"),

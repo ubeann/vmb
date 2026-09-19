@@ -93,4 +93,43 @@ describe("the migration chain", () => {
     );
     expect(licensePlateIndexes).toBe(2);
   });
+
+  it("mints identity in the database for new rows", async () => {
+    // every ported uuid primary key except the pivot's carries a default
+    const withDefault = await count(
+      client,
+      `select count(*)::int as value from information_schema.columns
+        where table_schema in (${LEGACY_SCHEMAS})
+          and column_name = 'id'
+          and column_default like 'gen_random_uuid%'`
+    );
+    expect(withDefault).toBe(29);
+
+    // the pivot keeps its natural key and no surrogate
+    const surrogate = await count(
+      client,
+      `select count(*)::int as value from information_schema.columns
+        where table_schema = 'trucking'
+          and table_name = 'client_route'
+          and column_name = 'id'`
+    );
+    expect(surrogate).toBe(0);
+
+    const naturalKey = await count(
+      client,
+      `select count(*)::int as value from pg_constraint
+        where conrelid = 'trucking.client_route'::regclass
+          and contype = 'p'
+          and pg_get_constraintdef(oid) like '%(client_id, route_id)%'`
+    );
+    expect(naturalKey).toBe(1);
+
+    // and its sequence went with the surrogate
+    const sequence = await count(
+      client,
+      `select count(*)::int as value from pg_class
+        where relkind = 'S' and relname = 'client_route_id_seq'`
+    );
+    expect(sequence).toBe(0);
+  });
 });

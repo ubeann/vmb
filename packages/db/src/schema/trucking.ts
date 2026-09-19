@@ -13,7 +13,7 @@ import {
   check,
   integer,
   date,
-  bigserial
+  primaryKey
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./master.js";
@@ -23,7 +23,7 @@ export const trucking = pgSchema("trucking");
 export const clients = trucking.table(
   "clients",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     name: varchar({ length: 255 }).notNull(),
     code: varchar({ length: 255 }).notNull(),
     pic: varchar({ length: 255 }),
@@ -52,7 +52,7 @@ export const clients = trucking.table(
 export const clientTruckCompanies = trucking.table(
   "client_truck_companies",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     clientId: uuid("client_id").notNull(),
     name: varchar({ length: 255 }).notNull(),
     editableDtp: boolean("editable_dtp").default(false).notNull(),
@@ -79,7 +79,7 @@ export const clientTruckCompanies = trucking.table(
 export const approvals = trucking.table(
   "approvals",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     approvableType: varchar("approvable_type", { length: 255 }).notNull(),
     approvableId: uuid("approvable_id").notNull(),
     approverId: uuid("approver_id"),
@@ -108,7 +108,7 @@ export const approvals = trucking.table(
 export const dailyTruckingActuals = trucking.table(
   "daily_trucking_actuals",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     dailyTruckingPlanId: uuid("daily_trucking_plan_id").notNull(),
     orderId: uuid("order_id").notNull(),
     truckId: uuid("truck_id"),
@@ -193,7 +193,7 @@ export const dailyTruckingActuals = trucking.table(
 export const orders = trucking.table(
   "orders",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     clientId: uuid("client_id").notNull(),
     code: integer().notNull(),
     type: varchar({ length: 255 }).notNull(),
@@ -268,7 +268,7 @@ export const orders = trucking.table(
 export const invoiceShipments = trucking.table(
   "invoice_shipments",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     invoiceId: uuid("invoice_id").notNull(),
     vesselName: varchar("vessel_name", { length: 255 }),
     voyage: varchar({ length: 255 }),
@@ -303,7 +303,7 @@ export const invoiceShipments = trucking.table(
 export const invoiceVendor = trucking.table(
   "invoice_vendor",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     invoiceId: uuid("invoice_id").notNull(),
     quantity: integer().default(0).notNull(),
     unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).default("0").notNull(),
@@ -325,7 +325,7 @@ export const invoiceVendor = trucking.table(
 export const locations = trucking.table(
   "locations",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     code: varchar({ length: 255 }).notNull(),
     name: varchar({ length: 255 }),
     createdAt: timestamp("created_at", { precision: 0 }),
@@ -342,7 +342,7 @@ export const locations = trucking.table(
 export const trips = trucking.table(
   "trips",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     orderId: uuid("order_id").notNull(),
     code: varchar({ length: 255 }).notNull(),
     totalUnits: integer("total_units").notNull(),
@@ -375,7 +375,7 @@ export const trips = trucking.table(
 export const trucks = trucking.table(
   "trucks",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     licensePlate: varchar("license_plate", { length: 255 }).notNull(),
     brand: varchar({ length: 255 }).notNull(),
     productionYear: integer("production_year").notNull(),
@@ -396,7 +396,7 @@ export const trucks = trucking.table(
 export const invoices = trucking.table(
   "invoices",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     clientId: uuid("client_id").notNull(),
     status: varchar({ length: 255 }).default("draft").notNull(),
     countdown: integer().default(0).notNull(),
@@ -431,7 +431,7 @@ export const invoices = trucking.table(
 export const routes = trucking.table(
   "routes",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     size: integer().notNull(),
     fee: numeric({ precision: 15, scale: 2 }).notNull(),
     allowance: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
@@ -447,7 +447,7 @@ export const routes = trucking.table(
 export const dailyTruckingPlans = trucking.table(
   "daily_trucking_plans",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     orderId: uuid("order_id").notNull(),
     truckId: uuid("truck_id"),
     userId: uuid("user_id"),
@@ -519,7 +519,7 @@ export const dailyTruckingPlans = trucking.table(
 export const drivers = trucking.table(
   "drivers",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     name: varchar({ length: 255 }).notNull(),
     dateOfBirth: date("date_of_birth").notNull(),
     identificationNumber: varchar("identification_number", { length: 255 }).notNull(),
@@ -545,7 +545,7 @@ export const drivers = trucking.table(
 export const routeLocations = trucking.table(
   "route_locations",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     routeId: uuid("route_id").notNull(),
     locationId: uuid("location_id").notNull(),
     position: integer().notNull(),
@@ -596,7 +596,6 @@ export const routeLocations = trucking.table(
 export const clientRoute = trucking.table(
   "client_route",
   {
-    id: bigserial({ mode: "bigint" }).primaryKey().notNull(),
     clientId: uuid("client_id").notNull(),
     routeId: uuid("route_id").notNull(),
     createdAt: timestamp("created_at", { precision: 0 }),
@@ -621,14 +620,17 @@ export const clientRoute = trucking.table(
       foreignColumns: [routes.id],
       name: "trucking_client_route_route_id_foreign"
     }).onDelete("cascade"),
-    unique("trucking_client_route_client_id_route_id_unique").on(table.clientId, table.routeId)
+    primaryKey({
+      columns: [table.clientId, table.routeId],
+      name: "client_route_pkey"
+    })
   ]
 );
 
 export const invoiceComments = trucking.table(
   "invoice_comments",
   {
-    id: uuid().primaryKey().notNull(),
+    id: uuid().primaryKey().notNull().defaultRandom(),
     invoiceId: uuid("invoice_id").notNull(),
     userId: uuid("user_id"),
     invoiceStatus: varchar("invoice_status", { length: 50 }).notNull(),

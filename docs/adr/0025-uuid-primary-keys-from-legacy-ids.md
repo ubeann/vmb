@@ -1,5 +1,7 @@
 # ADR-0025: UUID primary keys, deterministically derived from legacy ids
 
+**Superseded by [ADR-0026](0026-legacy-uuid-keys-preserved.md)** — the legacy tables' primary keys are already UUIDs; see ADR-0026 for the corrected decision and the smaller change it leaves.
+
 **Context:** Legacy tables use bigint identity primary keys (except `master.users`, already `uuid`). The new system uses UUIDs. Repeatability (#18) requires that re-importing a legacy snapshot does not mint new identities: a refresh must be idempotent, and the identities a development import produces should agree with the ones a cutover import produces.
 
 **Options considered:**
