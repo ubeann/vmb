@@ -31,4 +31,4 @@ Postgres schemas (`master`, `warehouse`, `trucking`, `expense`) are **kept**, so
 
 - Drizzle Kit's snapshot for the baseline is captured by `drizzle-kit pull` against a scratch database with `0001` applied. Hand-dropped SQL files are invisible to `drizzle-kit generate`, and `generate --custom` journals an entry while snapshotting the _previous_ schema, so the next `generate` re-emits every `CREATE TABLE`. The baseline must therefore be established through `pull`, not by dropping a file into the migrations directory (`docs/research/drizzle-baseline-and-better-auth.md`).
 - Every intentional difference from legacy is registered in `docs/migration/deviations.md`; mechanical deviations are applied in the port, semantic ones as migrations over loaded data.
-- The UUID conversion rides immediately behind the baseline — see ADR-0025.
+- Legacy UUIDs are preserved as they are; the only identity change is the client-route link — see ADR-0026.
