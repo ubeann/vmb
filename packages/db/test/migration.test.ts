@@ -1,12 +1,19 @@
-import { describe, expect, it } from "vitest";
+import type { PGlite } from "@electric-sql/pglite";
+import { beforeAll, describe, expect, it } from "vitest";
 import { migratedDatabase, scalar } from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";
 
 describe("the migration chain", () => {
-  it("applies cleanly to an empty database", async () => {
-    const client = await migratedDatabase();
+  // One migrated database per file: replaying the chain is the expensive part,
+  // and every assertion below is read-only.
+  let client: PGlite;
 
+  beforeAll(async () => {
+    client = await migratedDatabase();
+  });
+
+  it("applies cleanly to an empty database", async () => {
     const tables = await scalar<number>(
       client,
       `select count(*)::int from information_schema.tables
@@ -16,8 +23,6 @@ describe("the migration chain", () => {
   });
 
   it("keeps the four legacy schemas and no others", async () => {
-    const client = await migratedDatabase();
-
     const schemas = await client.query<{ nspname: string }>(
       `select nspname from pg_namespace
         where nspname not like 'pg\\_%'
@@ -34,8 +39,6 @@ describe("the migration chain", () => {
   });
 
   it("records both migrations in the journal", async () => {
-    const client = await migratedDatabase();
-
     const applied = await scalar<number>(
       client,
       "select count(*)::int from drizzle.__drizzle_migrations"
@@ -44,8 +47,6 @@ describe("the migration chain", () => {
   });
 
   it("leaves no dangling foreign keys", async () => {
-    const client = await migratedDatabase();
-
     const dangling = await scalar<number>(
       client,
       `select count(*)::int from pg_constraint c
@@ -56,8 +57,6 @@ describe("the migration chain", () => {
   });
 
   it("retains the legacy quirks the port is faithful to", async () => {
-    const client = await migratedDatabase();
-
     // master.users stays as a staging table and keeps its inbound foreign keys
     const usersFks = await scalar<number>(
       client,
