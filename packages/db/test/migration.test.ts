@@ -95,17 +95,26 @@ describe("the migration chain", () => {
   });
 
   it("mints identity in the database for new rows", async () => {
-    // every ported uuid primary key except the pivot's carries a default
+    // every ported uuid primary key except the client-route link's carries a
+    // default — asserted on the primary-key column, not just a column named id
     const withDefault = await count(
       client,
-      `select count(*)::int as value from information_schema.columns
-        where table_schema in (${LEGACY_SCHEMAS})
-          and column_name = 'id'
-          and column_default like 'gen_random_uuid%'`
+      `select count(*)::int as value
+         from pg_constraint p
+         join pg_class t on t.oid = p.conrelid
+         join pg_namespace n on n.oid = t.relnamespace
+         join information_schema.columns c
+           on c.table_schema = n.nspname
+          and c.table_name = t.relname
+          and c.column_name = 'id'
+        where p.contype = 'p'
+          and n.nspname in (${LEGACY_SCHEMAS})
+          and pg_get_constraintdef(p.oid) like '%PRIMARY KEY (id)%'
+          and c.column_default like 'gen_random_uuid%'`
     );
     expect(withDefault).toBe(29);
 
-    // the pivot keeps its natural key and no surrogate
+    // the client-route link keeps its natural key and no surrogate
     const surrogate = await count(
       client,
       `select count(*)::int as value from information_schema.columns
@@ -127,8 +136,12 @@ describe("the migration chain", () => {
     // and its sequence went with the surrogate
     const sequence = await count(
       client,
-      `select count(*)::int as value from pg_class
-        where relkind = 'S' and relname = 'client_route_id_seq'`
+      `select count(*)::int as value
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where c.relkind = 'S'
+          and n.nspname = 'trucking'
+          and c.relname = 'client_route_id_seq'`
     );
     expect(sequence).toBe(0);
   });
