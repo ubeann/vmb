@@ -12,7 +12,9 @@
 export const baselineMigrationTag = "0001_legacy_baseline";
 
 /** Legacy tables the pipeline copies. Parents precede children. */
-export { schemaOrder as portedTables } from "./schema-order.js";
+import { schemaOrder } from "./schema-order.js";
+
+export const portedTables: string[] = schemaOrder;
 
 /** Legacy tables kept out of the pipeline, with the reason. */
 export const excludedTables: { table: string; reason: string }[] = [
@@ -35,11 +37,21 @@ export const excludedTables: { table: string; reason: string }[] = [
   { table: "spatie.role_has_permissions", reason: "replaced by the RBAC layer (#8); data retained" }
 ];
 
-/** The tables retained in the raw snapshot for the later transforms. */
-export const retainedForTransforms = [
-  "master.roles",
-  "master.permissions",
-  "spatie.model_has_roles",
-  "spatie.model_has_permissions",
-  "spatie.role_has_permissions"
-];
+/**
+ * Tables whose rows may name another row in the same table.
+ *
+ * The foreign key is immediate, so a row cannot reference one that is not
+ * inserted yet; the loader orders these rows by their references before
+ * inserting them.
+ */
+export const selfReferences: Record<string, string> = {
+  "trucking.orders": "reference_id"
+};
+
+export function isPorted(table: string): boolean {
+  return portedTables.includes(table);
+}
+
+export function isExcluded(table: string): boolean {
+  return excludedTables.some((excluded) => excluded.table === table);
+}

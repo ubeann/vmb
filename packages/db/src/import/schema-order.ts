@@ -1,5 +1,7 @@
-// Generated from 0001's foreign-key graph: parents before children.
-// The loader inserts in this order so every row's references already exist.
+// The order rows must be inserted in: parents before children, derived from
+// the foreign-key graph in `0001_legacy_baseline`. A test asserts it still
+// covers every ported table and respects every edge, so a migration that adds
+// or reshapes a key fails loudly rather than loading in a broken order.
 export const schemaOrder = [
   "master.divisions",
   "master.users",

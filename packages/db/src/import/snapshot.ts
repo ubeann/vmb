@@ -6,10 +6,14 @@ import { readFile } from "node:fs/promises";
  *
  * `COPY … FROM stdin` is the format the deployed database produces and the only
  * one the loader needs to understand; anything else in the file is ignored.
+ * Null is a real `null`, not a marker string, so a value that looks like the
+ * marker cannot be mistaken for one.
  */
+export type SnapshotRow = (string | null)[];
+
 export type Snapshot = {
   columns: Map<string, string[]>;
-  rows: Map<string, string[][]>;
+  rows: Map<string, SnapshotRow[]>;
 };
 
 const COPY_HEADER = /^COPY\s+([\w.]+)\s*\(([^)]*)\)\s+FROM stdin;$/;
@@ -20,7 +24,7 @@ export async function readSnapshot(file: string): Promise<Snapshot> {
 
 export function parseSnapshot(text: string): Snapshot {
   const columns = new Map<string, string[]>();
-  const rows = new Map<string, string[][]>();
+  const rows = new Map<string, SnapshotRow[]>();
   const lines = text.split("\n");
 
   for (let i = 0; i < lines.length; i++) {
@@ -33,11 +37,11 @@ export function parseSnapshot(text: string): Snapshot {
       (header[2] as string).split(",").map((name) => name.trim())
     );
 
-    const tableRows: string[][] = [];
+    const tableRows: SnapshotRow[] = [];
     for (i++; i < lines.length; i++) {
       const line = lines[i] as string;
       if (line === "\\.") break;
-      tableRows.push(decodeCopyRow(line));
+      tableRows.push(line.split("\t").map(decodeCopyValue));
     }
     rows.set(table, tableRows);
   }
@@ -45,13 +49,14 @@ export function parseSnapshot(text: string): Snapshot {
   return { columns, rows };
 }
 
-/** Undo pg_dump's COPY escaping: tab-delimited, `\N` for null. */
-function decodeCopyRow(line: string): string[] {
-  return line.split("\t").map(decodeCopyValue);
-}
-
-function decodeCopyValue(value: string): string {
-  if (value === "\\N") return "\\N";
+/**
+ * Undo pg_dump's COPY escaping: tab-delimited, `\N` for null, and a backslash
+ * escaping `b`, `f`, `n`, `r`, `t`, `v`, or itself. An escaped backslash is an
+ * ordinary character, so a literal `\N` decodes to the two characters and only
+ * the unescaped marker becomes null.
+ */
+function decodeCopyValue(value: string): string | null {
+  if (value === "\\N") return null;
   let out = "";
   for (let i = 0; i < value.length; i++) {
     const char = value[i] as string;

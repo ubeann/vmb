@@ -1,23 +1,24 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { SqlClient } from "./client.js";
 import { loadStatements } from "./load.js";
-import { portedTables } from "./manifest.js";
 import { byPhase, readChain, type Migration } from "./phases.js";
 import { readSnapshot } from "./snapshot.js";
-import { failedReport, isClean, verify, type Report } from "./verify.js";
+import { failedReport, verify, type Report } from "./verify.js";
 
 /**
- * Load a legacy snapshot into an empty database and replay the chain over it.
+ * Load a legacy snapshot and replay the chain over it.
  *
  * The baseline runs first, the rows go in next, and every later migration runs
- * over those rows — the order ADR-0024 describes. The migration journal is
- * written as each migration completes, so a database this pipeline produces is
- * indistinguishable from one the migrator built.
+ * over those rows — the order ADR-0024 describes. Each phase is one transaction
+ * and each migration is journaled as it completes, so a database this pipeline
+ * produces is indistinguishable from one the migrator built and a later
+ * `drizzle-kit migrate` applies only what is missing.
  *
- * Wipe-and-reload: the database is expected to be empty, and re-running the
- * whole pipeline against a fresh database is the refresh path.
+ * The target is wiped first, so running the pipeline twice against the same
+ * database lands in the same place. That makes the pipeline the owner of the
+ * database it is pointed at — see `docs/migration/import-pipeline.md`.
  */
 export async function importSnapshot(
-  client: PGlite,
+  client: SqlClient,
   snapshotFile: string,
   migrationsFolder: string
 ): Promise<Report> {
@@ -26,10 +27,18 @@ export async function importSnapshot(
   const { statements, problems } = loadStatements(snapshot);
 
   try {
+    await reset(client);
     await apply(client, byPhase(migrations, "baseline"));
 
     if (statements.length > 0) {
-      await client.exec(statements.join("\n"));
+      await client.exec("begin");
+      try {
+        await client.exec(statements.join("\n"));
+        await client.exec("commit");
+      } catch (error) {
+        await client.exec("rollback");
+        throw error;
+      }
     }
 
     await apply(client, byPhase(migrations, "after"));
@@ -37,22 +46,50 @@ export async function importSnapshot(
     return failedReport(error instanceof Error ? error.message : String(error));
   }
 
-  const report = await verify(snapshot, verifierFor(client, snapshot));
+  const report = await verify(snapshot, client);
   report.errors.push(...problems);
   return report;
 }
 
+/**
+ * Return the target to an empty database.
+ *
+ * The four legacy schemas, the journal, and the auth tables migration 0000
+ * creates — and nothing else. Anything the pipeline did not create is left
+ * alone, so pointing it at a database with other data will not delete it.
+ */
+export async function reset(client: SqlClient): Promise<void> {
+  for (const schema of ["master", "warehouse", "trucking", "expense", "drizzle"]) {
+    await client.exec(`drop schema if exists ${schema} cascade`);
+  }
+  await client.exec(
+    `drop table if exists public."user", public."session", public."account", public."verification" cascade`
+  );
+}
+
 /** Run a phase in order, journaling each migration as its statements complete. */
-async function apply(client: PGlite, phase: Migration[]): Promise<void> {
-  for (const migration of phase) {
-    for (const statement of migration.statements) {
-      await client.exec(statement);
+async function apply(client: SqlClient, phase: Migration[]): Promise<void> {
+  if (phase.length === 0) return;
+
+  await client.exec("begin");
+  try {
+    for (const migration of phase) {
+      // the baseline's dump preamble clears search_path, so restore it before
+      // each migration rather than inheriting whatever the last one left
+      await client.exec("set search_path = public");
+      for (const statement of migration.statements) {
+        await client.exec(statement);
+      }
+      await recordMigration(client, migration);
     }
-    await recordMigration(client, migration);
+    await client.exec("commit");
+  } catch (error) {
+    await client.exec("rollback");
+    throw error;
   }
 }
 
-async function recordMigration(client: PGlite, migration: Migration): Promise<void> {
+async function recordMigration(client: SqlClient, migration: Migration): Promise<void> {
   await client.exec("create schema if not exists drizzle");
   await client.exec(
     `create table if not exists drizzle.__drizzle_migrations (
@@ -68,47 +105,6 @@ async function recordMigration(client: PGlite, migration: Migration): Promise<vo
   );
 }
 
-function verifierFor(client: PGlite, snapshot: SnapshotShape) {
-  return {
-    sourceRows: (table: string) => snapshot.rows.get(table)?.length ?? 0,
-    targetRows: async (table: string) => {
-      const result = await client.query<{ value: number }>(
-        `select count(*)::int as value from ${quoted(table)}`
-      );
-      return result.rows[0]?.value ?? 0;
-    },
-    checksum: async (table: string) => {
-      const result = await client.query<{ value: string | null }>(
-        `select md5(string_agg(t::text, '|' order by t::text)) as value
-           from ${quoted(table)} t`
-      );
-      return result.rows[0]?.value ?? null;
-    },
-    danglingForeignKeys: async () => {
-      const result = await client.query<{ value: number }>(
-        `select count(*)::int as value from pg_constraint c
-          where c.contype = 'f'
-            and not exists (select 1 from pg_class t where t.oid = c.confrelid)`
-      );
-      return result.rows[0]?.value ?? 0;
-    }
-  };
-}
-
-type SnapshotShape = Awaited<ReturnType<typeof readSnapshot>>;
-
-function quoted(table: string): string {
-  return table
-    .split(".")
-    .map((part) => `"${part.replace(/"/g, '""')}"`)
-    .join(".");
-}
-
-/** The tables the pipeline is expected to have carried, for reporting. */
-export function carriedTables(): string[] {
-  return [...portedTables];
-}
-
 export function summarise(report: Report): string {
   const lines = [
     `rows: ${Object.values(report.rowCounts).reduce((a, b) => a + b, 0)} across ${Object.keys(report.rowCounts).length} tables`,
@@ -120,8 +116,4 @@ export function summarise(report: Report): string {
     lines.push(`  [${finding.level}] ${finding.code}: ${finding.message}`);
   }
   return lines.join("\n");
-}
-
-export function clean(report: Report): boolean {
-  return isClean(report);
 }
