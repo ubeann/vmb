@@ -7,28 +7,19 @@ import { importSnapshot, summarise } from "../src/import/run.js";
 import { schemaOrder } from "../src/import/schema-order.js";
 import { parseSnapshot, readSnapshot } from "../src/import/snapshot.js";
 import { verify } from "../src/import/verify.js";
-import { count, createDatabase, migrationsFolder, scalar, type TestDatabase } from "./harness.js";
+import {
+  count,
+  createDatabase,
+  migrationsFolder,
+  scalar,
+  withDatabase,
+  type TestDatabase
+} from "./harness.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const snapshotFile = path.join(testDir, "fixtures", "snapshot.sql");
-
-/**
- * Run a test against a database of its own, and give it back afterwards.
- *
- * The suite runs its files in parallel and every test wants pristine schema
- * names, so each one gets a fresh database — free with embedded Postgres, and a
- * create/drop pair with a real one.
- */
-async function withDatabase<T>(fn: (client: SqlClient) => Promise<T>): Promise<T> {
-  const database = await createDatabase();
-  try {
-    return await fn(database.client);
-  } finally {
-    await database?.close();
-  }
-}
 
 describe("the snapshot parser", () => {
   it("reads a COPY block's columns and rows", async () => {

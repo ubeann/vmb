@@ -1,5 +1,8 @@
 import { PGlite } from "@electric-sql/pglite";
+import { drizzle as drizzleEmbedded } from "drizzle-orm/pglite";
+import { migrate as migrateEmbedded } from "drizzle-orm/pglite/migrator";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pgClient, pgliteClient, type SqlClient } from "../src/import/client.js";
@@ -29,52 +32,96 @@ export async function createDatabase(): Promise<TestDatabase> {
   return url ? createPostgres(url) : createEmbedded();
 }
 
+/**
+ * Run one test against a database of its own, and give it back afterwards.
+ *
+ * A shared database would have tests fighting over the same schema names, and
+ * the suite runs its files in parallel, so isolation here is per call.
+ */
+export async function withDatabase<T>(fn: (client: SqlClient) => Promise<T>): Promise<T> {
+  const database = await createDatabase();
+  try {
+    return await fn(database.client);
+  } finally {
+    await database.close();
+  }
+}
+
+/** The same, with the migration chain already applied. */
+export async function withMigratedDatabase<T>(fn: (client: SqlClient) => Promise<T>): Promise<T> {
+  const database = await createDatabase();
+  try {
+    await database.migrate();
+    return await fn(database.client);
+  } finally {
+    await database.close();
+  }
+}
+
 function createEmbedded(): TestDatabase {
   const pglite = new PGlite();
   return {
     client: pgliteClient(pglite),
     migrate: async () => {
-      const { drizzle } = await import("drizzle-orm/pglite");
-      const { migrate } = await import("drizzle-orm/pglite/migrator");
-      await migrate(drizzle(pglite), { migrationsFolder });
+      await migrateEmbedded(drizzleEmbedded(pglite), { migrationsFolder });
     },
     close: () => pglite.close()
   };
 }
 
 /**
- * A database of its own, created and dropped around the test that asked for it.
+ * A database of its own, created and dropped around the caller.
  *
- * A shared database would have every test fighting over the same schema names,
- * and the suite runs its files in parallel; a fresh database per test is the
- * cheapest isolation that keeps the tests identical to the embedded run.
+ * `pg` and drizzle's node-postgres adapter are imported here rather than at the
+ * top of the file: the embedded run has no use for either, and pulling them in
+ * would put a second Postgres client on a path that never speaks to one.
  */
 async function createPostgres(url: string): Promise<TestDatabase> {
   const { Client } = await import("pg");
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+  const { migrate } = await import("drizzle-orm/node-postgres/migrator");
 
   const admin = new Client({ connectionString: url });
   await admin.connect();
 
   const name = `vmb_test_${randomUUID().replace(/-/g, "")}`;
-  await admin.query(`create database "${name}"`);
 
-  const client = new Client({ connectionString: databaseUrl(url, name) });
-  await client.connect();
+  try {
+    await admin.query(`create database "${name}"`);
 
-  return {
-    client: pgClient(client),
-    migrate: async () => {
-      const { drizzle } = await import("drizzle-orm/node-postgres");
-      const { migrate } = await import("drizzle-orm/node-postgres/migrator");
-      await migrate(drizzle(client), { migrationsFolder });
-    },
-    close: async () => {
-      await client.end();
-      await admin.query(`drop database if exists "${name}" with (force)`);
-      await admin.end();
-    }
-  };
+    const client = new Client({ connectionString: databaseUrl(url, name) });
+    await client.connect();
+
+    return {
+      client: pgClient(client),
+      migrate: async () => {
+        await migrate(drizzle(client), { migrationsFolder });
+      },
+      close: async () => {
+        try {
+          await client.end();
+        } finally {
+          await drop(admin, name);
+        }
+      }
+    };
+  } catch (error) {
+    // a setup that failed must leave neither a database nor an open connection
+    await drop(admin, name).catch(() => undefined);
+    await admin.end().catch(() => undefined);
+    throw error;
+  }
 }
+
+async function drop(admin: PgClient, name: string): Promise<void> {
+  await admin.query(`drop database if exists "${name}" with (force)`);
+  await admin.end();
+}
+
+type PgClient = {
+  query(sql: string): Promise<unknown>;
+  end(): Promise<void>;
+};
 
 /** The same connection string, pointed at another database on the same server. */
 function databaseUrl(url: string, database: string): string {
@@ -85,7 +132,6 @@ function databaseUrl(url: string, database: string): string {
 
 /** Apply one synthetic fixture over an already-migrated database. */
 export async function loadFixture(client: SqlClient, file: string): Promise<void> {
-  const { readFile } = await import("node:fs/promises");
   const sql = await readFile(path.join(testDir, "fixtures", file), "utf8");
   await client.exec(sql);
 }

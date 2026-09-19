@@ -1,6 +1,6 @@
 # Import pipeline
 
-Puts real legacy records into a Neon branch so development and parity checks run against actual data, and so cutover is a replay rather than a second, untested ETL (ADR-0024). The code lives in `packages/db/src/import`; the harness in `packages/db/test/import.test.ts` runs the same pipeline against embedded Postgres.
+Puts real legacy records into a Neon branch so development and parity checks run against actual data, and so cutover is a replay rather than a second, untested ETL (ADR-0024). The code lives in `packages/db/src/import`; the harness in `packages/db/test` runs the same pipeline and the same assertions against embedded Postgres by default, or against a real one when `TEST_DATABASE_URL` is set.
 
 ## The order that matters
 
@@ -96,7 +96,7 @@ To run the same fixtures and assertions against a real server — which is what 
 TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm --filter @vmb/db test
 ```
 
-Each test creates and drops a database of its own, so the suite stays parallel-safe and leaves nothing behind. Running both is the point: embedded Postgres is a re-implementation, and the one thing it cannot prove is that Postgres agrees with it — while the migrations actually run against Neon.
+A database is created and dropped around each test — or around a block that deliberately shares state, such as the re-run test — so the suite stays parallel-safe and leaves nothing behind. Running both is the point: embedded Postgres is a re-implementation, and the one thing it cannot prove is that Postgres agrees with it, while the migrations actually run against Neon.
 
 ## Known limits
 

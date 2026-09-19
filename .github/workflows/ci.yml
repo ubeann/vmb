@@ -258,12 +258,11 @@ jobs:
       - name: Shellcheck scripts
         run: find scripts -name '*.sh' -print0 | xargs -0 -r shellcheck
 
-  # The database suite runs on embedded Postgres by default: free, fast, and no
-  # service to wait on. But embedded Postgres is a re-implementation, and the one
-  # thing it cannot prove is that Postgres agrees with it — while the thing the
-  # migrations actually run against is Neon. So this job replays the same
-  # fixtures and the same assertions against a real server (issue #109); a
-  # divergence shows up as a red check rather than as a surprise on the branch.
+  # The same database suite, against a real server instead of embedded Postgres
+  # (issue #109): embedded Postgres is a re-implementation, so this is the check
+  # that catches the two disagreeing. That job is the default and needs no
+  # service; the reasoning, and how to run this locally, live in
+  # `docs/migration/import-pipeline.md` rather than being repeated here.
   #
   # No secrets: the service container is the whole environment. That keeps it
   # runnable for Dependabot, whose runs receive no secrets (ADR-0020), so a bump
@@ -271,8 +270,8 @@ jobs:
   #
   # The image tracks Node's embedded version and Neon's, which is where these
   # migrations run in practice; a mismatch here would be a difference that
-  # matters. `TEST_DATABASE_URL` is read by the harness, which creates and drops
-  # a database per test so files stay parallel-safe.
+  # matters. The harness reads `TEST_DATABASE_URL` and gives each test a database
+  # of its own, so files stay parallel-safe.
   postgres:
     name: Real Postgres
     runs-on: ubuntu-latest
