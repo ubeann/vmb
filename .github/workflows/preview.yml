@@ -189,12 +189,31 @@ jobs:
       # same PR), the action returns the existing branch instead of failing.
       # The name comes from the shared module (via the Resolve step), not a
       # second inline definition (issue #78).
+      #
+      # `database` and `parent_branch` are pinned rather than left to the
+      # action's defaults (`neondb` and the project's default branch), so the
+      # preview's contract with production is explicit (issue #118):
+      #
+      #   - `database: vmb` is the database production runs on. `db_url` feeds
+      #     both the migration step and the preview Worker's DATABASE_URL, so
+      #     the default pointed both at `neondb`, a database production never
+      #     migrates.
+      #   - `parent_branch: production` makes the fork point a decision. The
+      #     project default is production today, but left implicit a
+      #     project-default change would silently repoint every preview.
+      #
+      # `branch_type` stays `default` (copy-on-write, rows included): the
+      # parent's `drizzle.__drizzle_migrations` journal travels with the
+      # schema, so `db:migrate` applies only what's new. `schema-only` would
+      # arrive with an empty journal and replay from `0000`.
       - name: Create Neon branch
         id: neon
         uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch_name: ${{ steps.ids.outputs.neon_branch }}
+          database: vmb
+          parent_branch: production
           api_key: ${{ secrets.NEON_API_KEY }}
 
       - name: Run database migrations against the PR's Neon branch
