@@ -148,6 +148,13 @@
       "when": 1789843759363,
       "tag": "0020_expense_budget_amount_check",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789844548598,
+      "tag": "0021_niche_notes_required",
+      "breakpoints": true
     }
   ]
 }

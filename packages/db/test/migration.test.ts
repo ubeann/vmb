@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SqlClient } from "../src/import/client.js";
-import { count, createDatabase, scalar, type TestDatabase } from "./harness.js";
+import { count, createDatabase, rejects, scalar, type TestDatabase } from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";
 
@@ -535,15 +535,23 @@ describe("the expense hygiene migrations", () => {
                'e1111111-1111-4111-8111-111111111111', 'NICHE')`
     );
     await client.exec(
-      `insert into expense.request_niche_details (request_id, amount)
-       values ('e2222222-2222-4222-8222-222222222222', 1)`
+      `insert into expense.request_niche_details (request_id, amount, notes)
+       values ('e2222222-2222-4222-8222-222222222222', 1, 'First')`
     );
-    await expect(
-      client.exec(
-        `insert into expense.request_niche_details (request_id, amount)
-         values ('e2222222-2222-4222-8222-222222222222', 2)`
-      )
-    ).rejects.toThrow(/expense_request_niche_details_request_id_unique/);
+    await rejects(
+      client,
+      `insert into expense.request_niche_details (request_id, amount, notes)
+       values ('e2222222-2222-4222-8222-222222222222', 2, 'Second')`,
+      /expense_request_niche_details_request_id_unique/
+    );
+
+    // the justification the niche form requires is required by the schema too
+    await rejects(
+      client,
+      `insert into expense.request_niche_details (request_id, amount)
+       values ('e2222222-2222-4222-8222-222222222222', 3)`,
+      /notes/
+    );
   });
 
   it("indexes the foreign keys nothing was behind", async () => {
@@ -577,11 +585,11 @@ describe("the expense hygiene migrations", () => {
     expect(shadowed).toBe(0);
 
     const approval = `insert into expense.approvals (approvable_type, approvable_id, type)
-      values ('App\\Models\\Expense\\Request', 'e4444444-4444-4444-8444-444444444444', 'FINANCE')`;
+      values ('App\\Models\\Expense\\Request', 'e4444444-4444-4444-8444-444444444444', 'finance')`;
     await client.exec(approval);
-    await expect(client.exec(approval)).rejects.toThrow(/approvable_type_approvable_id_type/);
+    await rejects(client, approval, /approvable_type_approvable_id_type/);
     // a different level is a different approval, not a duplicate
-    await client.exec(approval.replace("'FINANCE'", "'DIVISION'"));
+    await client.exec(approval.replace("'finance'", "'division'"));
   });
 
   it("refuses a budget with a negative amount", async () => {

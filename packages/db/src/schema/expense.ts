@@ -46,7 +46,7 @@ export const requestNicheDetails = expense.table(
     id: uuid().primaryKey().notNull().defaultRandom(),
     requestId: uuid("request_id").notNull(),
     amount: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
-    notes: text(),
+    notes: text().notNull(),
     supportingDocuments: json("supporting_documents"),
     invoicePaths: json("invoice_paths"),
     bankTransferProof: varchar("bank_transfer_proof", { length: 255 }),

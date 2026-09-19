@@ -44,3 +44,20 @@ COPY trucking.drivers (id, name, date_of_birth, identification_number, license_n
 COPY warehouse.stock_requisitions (id, requisition_number, requester_id, item_id, status, requested_quantity, stock_on_hand, purpose, created_at, updated_at, completed_at) FROM stdin;
 77777777-7777-4777-8777-777777777771	SR-001	22222222-2222-4222-8222-222222222222	55555555-5555-4555-8555-555555555555	pending_approval	2	10	Fixture requisition	2026-01-02 08:00:00	2026-01-02 08:00:00	\N
 \.
+
+COPY expense.budgets (id, division_id, is_active, amount, created_at, updated_at) FROM stdin;
+aaaa1111-1111-4111-8111-111111111111	11111111-1111-4111-8111-111111111111	t	5000000.00	2026-01-02 08:00:00	2026-01-02 08:00:00
+\.
+
+COPY expense.requests (id, user_id, division_id, type, status, created_at, updated_at, deleted_at) FROM stdin;
+aaaa2222-2222-4222-8222-222222222222	22222222-2222-4222-8222-222222222222	11111111-1111-4111-8111-111111111111	NICHE	PENDING	2026-01-02 08:00:00	2026-01-02 08:00:00	\N
+\.
+
+COPY expense.request_niche_details (id, request_id, amount, notes, created_at, updated_at) FROM stdin;
+aaaa3333-3333-4333-8333-333333333333	aaaa2222-2222-4222-8222-222222222222	1500000.00	Fixture justification	2026-01-02 08:00:00	2026-01-02 08:00:00
+\.
+
+-- a morph type keeps its backslashes: COPY escapes them, so \\ is one
+COPY expense.approvals (id, approvable_type, approvable_id, approver_id, type, approved, created_at, updated_at) FROM stdin;
+aaaa4444-4444-4444-8444-444444444444	App\\Models\\Expense\\Request	aaaa2222-2222-4222-8222-222222222222	22222222-2222-4222-8222-222222222222	finance	t	2026-01-02 08:00:00	2026-01-02 08:00:00
+\.

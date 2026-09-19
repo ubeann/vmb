@@ -148,6 +148,20 @@ describe("the import pipeline", () => {
     expect(nulls).toBe(1);
   });
 
+  it("carries the snapshot's expense rows through the chain", async () => {
+    // these migrations validate existing rows, so the fixture has to hold
+    // expense rows for the criterion to mean anything
+    expect(await count(client, "select count(*)::int as value from expense.budgets")).toBe(1);
+    expect(await count(client, "select count(*)::int as value from expense.requests")).toBe(1);
+    expect(
+      await count(client, "select count(*)::int as value from expense.request_niche_details")
+    ).toBe(1);
+
+    // COPY escapes a backslash, so the morph type arrives with one each
+    const morph = await scalar<string>(client, "select approvable_type from expense.approvals");
+    expect(morph).toBe("App\\Models\\Expense\\Request");
+  });
+
   it("leaves the excluded tables out of the loaded database", async () => {
     const roles = await count(
       client,
@@ -256,6 +270,21 @@ describe("the verifier", () => {
 
       expect(report.errors[0]?.code).toBe("pipeline");
       expect(report.errors[0]?.message).toMatch(/code/);
+    });
+  });
+
+  it("reports a snapshot whose rows predate a corrected default", async () => {
+    // 0017 fixed the default to 'PENDING'; 0018 refuses the old lowercase value
+    // on rows that already carry it, which the ledger names as a risk
+    await withDatabase(async (client) => {
+      const report = await importSnapshot(
+        client,
+        path.join(testDir, "fixtures", "legacy-default-snapshot.sql"),
+        migrationsFolder
+      );
+
+      expect(report.errors[0]?.code).toBe("pipeline");
+      expect(report.errors[0]?.message).toMatch(/status_check/);
     });
   });
 

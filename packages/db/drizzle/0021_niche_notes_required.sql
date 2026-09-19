@@ -1,0 +1,1 @@
+ALTER TABLE "expense"."request_niche_details" ALTER COLUMN "notes" SET NOT NULL;
