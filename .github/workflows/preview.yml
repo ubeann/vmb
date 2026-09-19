@@ -176,9 +176,17 @@ jobs:
           alias=$(preview_alias "$PR_NUMBER" "$HEAD_REF")
           neon_branch=$(preview_neon_branch "$PR_NUMBER")
 
+          # Safety net for a run that dies before cleanup.yml sees the PR close
+          # (issue #118): the branch expires 30 days after creation, longer than
+          # any plausible PR lifetime. `expires_at` is honoured only when the
+          # branch is created — a re-push to an older PR reuses the existing
+          # branch and keeps its original deadline.
+          neon_expires_at=$(date -u -d '+30 days' +%Y-%m-%dT%H:%M:%SZ)
+
           {
             echo "alias=$alias"
             echo "neon_branch=$neon_branch"
+            echo "neon_expires_at=$neon_expires_at"
             echo "api_url=https://${alias}-vmb-api.${subdomain}.workers.dev"
             echo "web_url=https://${alias}.vmb-web.pages.dev"
           } >> "$GITHUB_OUTPUT"
@@ -189,12 +197,36 @@ jobs:
       # same PR), the action returns the existing branch instead of failing.
       # The name comes from the shared module (via the Resolve step), not a
       # second inline definition (issue #78).
+      #
+      # `database` and `parent_branch` are pinned rather than left to the
+      # action's defaults (`neondb` and the project's default branch), so the
+      # preview's contract with production is explicit (issue #118):
+      #
+      #   - `database: vmb` is the database production runs on. `db_url` feeds
+      #     both the migration step and the preview Worker's DATABASE_URL, so
+      #     the default pointed both at `neondb`, a database production never
+      #     migrates.
+      #   - `parent_branch: production` makes the fork point a decision. The
+      #     project default is production today, but left implicit a
+      #     project-default change would silently repoint every preview.
+      #
+      # `branch_type` stays `default` (copy-on-write, rows included): the
+      # parent's `drizzle.__drizzle_migrations` journal travels with the
+      # schema, so `db:migrate` applies only what's new. `schema-only` would
+      # arrive with an empty journal and replay from `0000`.
+      #
+      # `expires_at` (30 days, computed in the Resolve step) is the cleanup
+      # safety net a leaked branch needs if a run dies before cleanup.yml sees
+      # the PR close: it deletes itself rather than surviving unreaped.
       - name: Create Neon branch
         id: neon
         uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch_name: ${{ steps.ids.outputs.neon_branch }}
+          database: vmb
+          parent_branch: production
+          expires_at: ${{ steps.ids.outputs.neon_expires_at }}
           api_key: ${{ secrets.NEON_API_KEY }}
 
       - name: Run database migrations against the PR's Neon branch
