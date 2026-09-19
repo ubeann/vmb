@@ -1,0 +1,1 @@
+ALTER TABLE "trucking"."invoices" ALTER COLUMN "status" SET DEFAULT 'receive_document';

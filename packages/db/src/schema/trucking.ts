@@ -36,10 +36,6 @@ export const clients = trucking.table(
     deletedAt: timestamp("deleted_at", { precision: 0 })
   },
   (table) => [
-    index("trucking_clients_code_index").using(
-      "btree",
-      table.code.asc().nullsLast().op("text_ops")
-    ),
     index("trucking_clients_name_index").using(
       "btree",
       table.name.asc().nullsLast().op("text_ops")
@@ -118,7 +114,7 @@ export const dailyTruckingActuals = trucking.table(
     planCode: varchar("plan_code", { length: 255 }).notNull(),
     compositeCode: varchar("composite_code", { length: 255 }).notNull(),
     size: integer().notNull(),
-    fee: integer().notNull(),
+    fee: numeric({ precision: 15, scale: 2 }).notNull(),
     allowance: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
     isLolo: boolean("is_lolo").default(false).notNull(),
     loloFee: numeric("lolo_fee", { precision: 15, scale: 2 }),
@@ -186,7 +182,11 @@ export const dailyTruckingActuals = trucking.table(
       name: "trucking_daily_trucking_actuals_user_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("set null")
+      .onDelete("set null"),
+    unique("trucking_daily_trucking_actuals_trip_id_plan_code_unique").on(
+      table.tripId,
+      table.planCode
+    )
   ]
 );
 
@@ -228,7 +228,6 @@ export const orders = trucking.table(
       "btree",
       table.clientTruckCompanyId.asc().nullsLast().op("uuid_ops")
     ),
-    index("trucking_orders_code_index").using("btree", table.code.asc().nullsLast().op("int4_ops")),
     index("trucking_orders_status_index").using(
       "btree",
       table.status.asc().nullsLast().op("text_ops")
@@ -246,7 +245,7 @@ export const orders = trucking.table(
       name: "trucking_orders_client_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("set null"),
+      .onDelete("restrict"),
     foreignKey({
       columns: [table.clientTruckCompanyId],
       foreignColumns: [clientTruckCompanies.id],
@@ -331,12 +330,7 @@ export const locations = trucking.table(
     createdAt: timestamp("created_at", { precision: 0 }),
     updatedAt: timestamp("updated_at", { precision: 0 })
   },
-  (table) => [
-    index("trucking_locations_code_index").using(
-      "btree",
-      table.code.asc().nullsLast().op("text_ops")
-    )
-  ]
+  (table) => [unique("trucking_locations_code_unique").on(table.code)]
 );
 
 export const trips = trucking.table(
@@ -384,13 +378,7 @@ export const trucks = trucking.table(
     updatedAt: timestamp("updated_at", { precision: 0 }),
     deletedAt: timestamp("deleted_at", { precision: 0 })
   },
-  (table) => [
-    index("trucking_trucks_license_plate_index").using(
-      "btree",
-      table.licensePlate.asc().nullsLast().op("text_ops")
-    ),
-    unique("trucking_trucks_license_plate_unique").on(table.licensePlate)
-  ]
+  (table) => [unique("trucking_trucks_license_plate_unique").on(table.licensePlate)]
 );
 
 export const invoices = trucking.table(
@@ -398,7 +386,7 @@ export const invoices = trucking.table(
   {
     id: uuid().primaryKey().notNull().defaultRandom(),
     clientId: uuid("client_id").notNull(),
-    status: varchar({ length: 255 }).default("draft").notNull(),
+    status: varchar({ length: 255 }).default("receive_document").notNull(),
     countdown: integer().default(0).notNull(),
     timeTablePath: varchar("time_table_path", { length: 255 }),
     listContainerFullPath: varchar("list_container_full_path", { length: 255 }),
@@ -456,7 +444,7 @@ export const dailyTruckingPlans = trucking.table(
     planCode: varchar("plan_code", { length: 255 }).notNull(),
     compositeCode: varchar("composite_code", { length: 255 }).notNull(),
     size: integer().notNull(),
-    fee: integer().notNull(),
+    fee: numeric({ precision: 15, scale: 2 }).notNull(),
     allowance: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
     isLolo: boolean("is_lolo").default(false).notNull(),
     loloFee: numeric("lolo_fee", { precision: 15, scale: 2 }),
@@ -512,7 +500,11 @@ export const dailyTruckingPlans = trucking.table(
       name: "trucking_daily_trucking_plans_user_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("set null")
+      .onDelete("set null"),
+    unique("trucking_daily_trucking_plans_trip_id_plan_code_unique").on(
+      table.tripId,
+      table.planCode
+    )
   ]
 );
 
@@ -568,10 +560,6 @@ export const routeLocations = trucking.table(
       "btree",
       table.position.asc().nullsLast().op("int4_ops")
     ),
-    index("trucking_route_locations_route_id_index").using(
-      "btree",
-      table.routeId.asc().nullsLast().op("uuid_ops")
-    ),
     foreignKey({
       columns: [table.locationId],
       foreignColumns: [locations.id],
@@ -589,7 +577,8 @@ export const routeLocations = trucking.table(
     check(
       "route_locations_load_type_check",
       sql`(load_type)::text = ANY (ARRAY[('E'::character varying)::text, ('F'::character varying)::text])`
-    )
+    ),
+    unique("trucking_route_locations_route_id_position_unique").on(table.routeId, table.position)
   ]
 );
 
@@ -602,10 +591,6 @@ export const clientRoute = trucking.table(
     updatedAt: timestamp("updated_at", { precision: 0 })
   },
   (table) => [
-    index("trucking_client_route_client_id_index").using(
-      "btree",
-      table.clientId.asc().nullsLast().op("uuid_ops")
-    ),
     index("trucking_client_route_route_id_index").using(
       "btree",
       table.routeId.asc().nullsLast().op("uuid_ops")

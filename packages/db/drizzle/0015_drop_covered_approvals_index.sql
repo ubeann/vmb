@@ -1,0 +1,1 @@
+DROP INDEX "warehouse"."approvable_index";
