@@ -61,7 +61,11 @@ export const clientTruckCompanies = trucking.table(
       foreignColumns: [clients.id],
       name: "trucking_client_truck_companies_client_id_foreign"
     }).onDelete("cascade"),
-    unique("trucking_client_truck_companies_client_id_name_unique").on(table.clientId, table.name)
+    unique("trucking_client_truck_companies_client_id_name_unique").on(table.clientId, table.name),
+    index("trucking_client_truck_companies_name_index").using(
+      "btree",
+      table.name.asc().nullsLast().op("text_ops")
+    )
   ]
 );
 

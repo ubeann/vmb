@@ -1,5 +1,5 @@
 {
-  "id": "965a3f88-35e6-4c69-9770-30e8b547fac8",
+  "id": "d1b99dde-8471-402d-8d06-43016aeff702",
   "prevId": "58818197-ee51-4115-80a9-7f043b376744",
   "version": "7",
   "dialect": "postgresql",
@@ -826,7 +826,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "timestamp_ops"
             }
           ],
           "isUnique": false,
@@ -1407,7 +1407,24 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "trucking_client_truck_companies_name_index": {
+          "name": "trucking_client_truck_companies_name_index",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "trucking_client_truck_companies_client_id_foreign": {
           "name": "trucking_client_truck_companies_client_id_foreign",
@@ -2302,7 +2319,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "timestamp_ops"
             }
           ],
           "isUnique": false,
@@ -3978,7 +3995,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "timestamp_ops"
             }
           ],
           "isUnique": false,
@@ -4225,7 +4242,7 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last",
-              "opclass": "timestamptz_ops"
+              "opclass": "timestamp_ops"
             }
           ],
           "isUnique": false,

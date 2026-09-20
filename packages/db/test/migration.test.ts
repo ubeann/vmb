@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SqlClient } from "../src/import/client.js";
 import { count, createDatabase, rejects, scalar, type TestDatabase } from "./harness.js";
@@ -797,18 +798,29 @@ describe("the trucking access-path indexes", () => {
     expect(covered).toBe(0);
   });
 
-  it("drops the single-column indexes its composites replace", async () => {
+  it("drops the single-column indexes its composites lead with, and keeps the one they do not", async () => {
     const replaced = await count(
       client,
       `select count(*)::int as value from pg_indexes
         where schemaname = 'trucking' and indexname in (
           'trucking_client_truck_companies_client_id_index',
-          'trucking_client_truck_companies_name_index',
           'trucking_orders_status_index',
           'trucking_trips_order_id_index'
         )`
     );
     expect(replaced).toBe(0);
+
+    // `name` stays: nothing queries it alone today, but `unique(client_id, name)`
+    // leads with `client_id`, so it is the only path a name lookup could take —
+    // dropping it as "replaced" would have been a claim the composite cannot
+    // honour
+    const kept = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'trucking'
+          and indexname = 'trucking_client_truck_companies_name_index'`
+    );
+    expect(kept).toBe(1);
   });
 
   it("leaves out the index the legacy data cannot use", async () => {
@@ -870,5 +882,37 @@ describe("the trucking access-path indexes", () => {
                'fa111111-1111-4111-8111-111111111111', 'Same Company')`,
       /trucking_client_truck_companies_client_id_name_unique/
     );
+  });
+});
+
+describe("the index operator classes after the instant conversion", () => {
+  // #126 follow-up: `0022` converted every timestamp, and Postgres rebuilt the
+  // indexes over them under the instant class by itself — but the declarations
+  // still said `timestamp_ops`, which accepts only wall-clock. Nothing fails
+  // until one of those indexes is re-created, and then the chain stops.
+  it("never names the wall-clock operator class, which cannot exist on an instant", async () => {
+    // Read from the source, not from the database, and deliberately: Postgres
+    // refuses `timestamp_ops` on a `timestamptz` column outright, so a database
+    // can never hold this mistake — it lives only in the declaration, and it
+    // stays silent until something re-creates the index. A catalogue check
+    // would be vacuous by construction; this one is not.
+    const schemaDirectory = new URL("../src/schema/", import.meta.url);
+    const files = readdirSync(schemaDirectory).filter((name) => name.endsWith(".ts"));
+    expect(files.length).toBeGreaterThan(0);
+
+    const offenders: string[] = [];
+    let instantDeclarations = 0;
+    for (const name of files) {
+      const source = readFileSync(new URL(name, schemaDirectory), "utf8");
+      if (source.includes('op("timestamp_ops")')) {
+        offenders.push(name);
+      }
+      instantDeclarations += source.split('op("timestamptz_ops")').length - 1;
+    }
+
+    // the premise: the class must still be the one these declarations use,
+    // or a rename would make the assertion above pass by matching nothing
+    expect(instantDeclarations).toBeGreaterThanOrEqual(4);
+    expect(offenders).toEqual([]);
   });
 });

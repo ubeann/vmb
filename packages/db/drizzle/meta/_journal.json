@@ -166,8 +166,15 @@
     {
       "idx": 23,
       "version": "7",
-      "when": 1789888560269,
+      "when": 1789889423444,
       "tag": "0023_index_recommended_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789889445154,
+      "tag": "0024_index_instant_opclass",
       "breakpoints": true
     }
   ]
