@@ -6,12 +6,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
+import { migrationsFolder } from "../src/migrations-path.js";
 import { pgClient, pgliteClient, type SqlClient } from "../src/sql-client.js";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** The real Drizzle Kit migration chain — never a fixture of it. */
-export const migrationsFolder = path.resolve(testDir, "../../../migrations");
+export { migrationsFolder };
 
 /**
  * A database the tests can use, and the two things they need from a backend:

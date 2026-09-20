@@ -12,8 +12,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["TEST_DATABASE_URL"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/migrations/**"]
+      "env": ["TEST_DATABASE_URL"]
     },
     "lint": {},
     "typecheck": {
