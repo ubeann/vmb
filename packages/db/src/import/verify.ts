@@ -1,5 +1,5 @@
 import { checksumRows, pickKeys } from "./checksum.js";
-import type { SqlClient } from "./client.js";
+import type { SqlClient } from "../sql-client.js";
 import { isExcluded, isPorted, portedTables } from "./manifest.js";
 import type { Snapshot } from "./snapshot.js";
 

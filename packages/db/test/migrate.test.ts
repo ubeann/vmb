@@ -2,7 +2,7 @@ import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { SqlClient } from "../src/import/client.js";
+import type { SqlClient } from "../src/sql-client.js";
 import { applyMigrations } from "../src/migration/apply.js";
 import { createDatabase, migrationsFolder } from "./harness.js";
 
@@ -22,10 +22,10 @@ async function chain(folder = migrationsFolder): Promise<Journal> {
 }
 
 /**
- * The objects the chain creates — tables, columns, indexes and constraints,
- * each named with its schema — as one ordered fingerprint. Two databases that
- * differ by a table in the wrong schema, a column type or a constraint say so
- * here; aggregate counts cannot.
+ * The objects the chain creates — tables, columns, sequences, indexes and
+ * constraints, each named with its schema — as one ordered fingerprint. Two
+ * databases that differ by a table in the wrong schema, a missing sequence, a
+ * column type or a constraint say so here; aggregate counts cannot.
  */
 async function shape(client: SqlClient): Promise<string[]> {
   // `pg_get_constraintdef` qualifies a table name only when its schema is off
@@ -42,6 +42,11 @@ async function shape(client: SqlClient): Promise<string[]> {
          || ' default=' || coalesce(column_default, '-')
        from information_schema.columns
        where table_schema not in ('pg_catalog', 'information_schema')
+     union all
+     select 'sequence ' || n.nspname || '.' || c.relname
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where c.relkind = 'S' and n.nspname not in ('pg_catalog', 'information_schema')
      union all
      select 'index ' || schemaname || '.' || indexname || ' = ' || indexdef
        from pg_indexes

@@ -1,10 +1,12 @@
 import type { PGlite } from "@electric-sql/pglite";
 
 /**
- * The pipeline's view of a database.
+ * A database the migration and import paths both speak to.
  *
- * Small on purpose: it is all the pipeline needs, and it lets the same code run
- * against embedded Postgres in tests and against a Neon branch in the field.
+ * Small on purpose: it is all the migrator and the pipeline need, and it lets
+ * the same code run against embedded Postgres in tests and against a Neon
+ * branch in the field. It lives beside neither, so `migration` and `import` can
+ * each depend on it without depending on each other.
  */
 export type SqlClient = {
   /** Run one or more statements, discarding any rows. */

@@ -1,5 +1,5 @@
 export * from "./checksum.js";
-export * from "./client.js";
+export * from "../sql-client.js";
 export * from "./load.js";
 export * from "./manifest.js";
 export * from "./phases.js";

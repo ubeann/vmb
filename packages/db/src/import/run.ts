@@ -1,4 +1,4 @@
-import type { SqlClient } from "./client.js";
+import type { SqlClient } from "../sql-client.js";
 import { loadStatements } from "./load.js";
 import { journalDdl, journalInsertSql } from "../migration/journal.js";
 import { byPhase, readChain, type Migration } from "./phases.js";
@@ -81,18 +81,14 @@ async function apply(client: SqlClient, phase: Migration[]): Promise<void> {
       for (const statement of migration.statements) {
         await client.exec(statement);
       }
-      await recordMigration(client, migration);
+      await client.exec(journalDdl);
+      await client.exec(journalInsertSql(migration));
     }
     await client.exec("commit");
   } catch (error) {
     await client.exec("rollback");
     throw error;
   }
-}
-
-async function recordMigration(client: SqlClient, migration: Migration): Promise<void> {
-  await client.exec(journalDdl);
-  await client.exec(journalInsertSql(migration));
 }
 
 export function summarise(report: Report): string {

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { SqlClient } from "../src/import/client.js";
+import type { SqlClient } from "../src/sql-client.js";
 import { loadStatements } from "../src/import/load.js";
 import { excludedTables, portedTables } from "../src/import/manifest.js";
 import { byPhase, readChain } from "../src/import/phases.js";

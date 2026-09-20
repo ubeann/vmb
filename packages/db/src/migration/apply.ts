@@ -1,4 +1,4 @@
-import type { SqlClient } from "../import/client.js";
+import type { SqlClient } from "../sql-client.js";
 import { readMigrations, type Migration } from "./chain.js";
 import { journalDdl, journalInsertSql } from "./journal.js";
 
@@ -15,12 +15,15 @@ export type AppliedMigration = {
  *
  * Each migration's statements, the transaction that wraps them and its journal
  * row travel as a single `exec`, so a chain of hundreds of statements costs one
- * round trip per file instead of one per statement. The journal rows are the
- * ones Drizzle's own migrator writes — `hash` is sha256 of the file and
- * `created_at` is the journal's `when` — so a database this built is one
- * `drizzle-kit migrate` agrees is current. Each migration is its own
- * transaction, so a chain that dies part-way resumes from the file after the
- * last journaled one.
+ * round trip per file instead of one per statement. Journal rows are the ones
+ * Drizzle's own migrator writes — `hash` is sha256 of the file and `created_at`
+ * is the journal's `when` — so a successful run leaves a database
+ * `drizzle-kit migrate` agrees is current.
+ *
+ * Each migration is its own transaction, where Drizzle wraps the whole chain in
+ * one: the end state of a run that completes is identical, but a run that dies
+ * part-way keeps the files it had already journaled and resumes from the next
+ * one instead of rolling every one of them back.
  *
  * `onMigration` observes each decision as it is made, not after the whole
  * chain: a caller that reports progress can name the migration that failed.
@@ -39,23 +42,24 @@ export async function applyMigrations(
   const appliedThrough = last ? Number(last.created_at) : Number.NEGATIVE_INFINITY;
 
   const results: AppliedMigration[] = [];
+  const record = (migration: AppliedMigration): void => {
+    results.push(migration);
+    onMigration?.(migration);
+  };
+
   for (const migration of migrations) {
     if (appliedThrough >= migration.folderMillis) {
-      const result = { tag: migration.tag, applied: false, milliseconds: 0 };
-      results.push(result);
-      onMigration?.(result);
+      record({ tag: migration.tag, applied: false, milliseconds: 0 });
       continue;
     }
 
     const started = performance.now();
     await client.exec(migrationScript(migration));
-    const result = {
+    record({
       tag: migration.tag,
       applied: true,
       milliseconds: Math.round(performance.now() - started)
-    };
-    results.push(result);
-    onMigration?.(result);
+    });
   }
   return results;
 }

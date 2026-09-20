@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { pgClient } from "../import/client.js";
+import { pgClient } from "../sql-client.js";
 import { applyMigrations } from "./apply.js";
 
 /**
