@@ -711,19 +711,29 @@ describe("the timestamptz conversion", () => {
     );
   });
 
-  it("stores an instant, so the same moment reads the same in any zone", async () => {
+  it("keeps the instant when the session's zone changes", async () => {
     await client.exec(
       `insert into master.divisions (id, name, code, created_at)
        values ('c1111111-1111-4111-8111-111111111111', 'Zone', 'ZON',
                timestamp '2026-01-02 08:00:00' AT TIME ZONE 'Asia/Jakarta')`
     );
 
-    const rendered = await scalar<string>(
-      client,
-      `select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS')
-         from master.divisions where code = 'ZON'`
-    );
-    // 08:00 in Jakarta is 01:00 UTC
-    expect(rendered).toBe("2026-01-02 01:00:00");
+    const epochUnder = async (zone: string): Promise<number> => {
+      await client.exec(`set time zone '${zone}'`);
+      // double precision, not bigint: node-postgres hands a bigint back as a
+      // string while PGlite hands back a number, and the suite runs on both
+      return scalar<number>(
+        client,
+        `select extract(epoch from created_at)::double precision as value
+           from master.divisions where code = 'ZON'`
+      );
+    };
+
+    // the same moment regardless of how the session would render it
+    const expected = Date.parse("2026-01-02T08:00:00+07:00") / 1000;
+    expect(await epochUnder("UTC")).toBe(expected);
+    expect(await epochUnder("Asia/Jakarta")).toBe(expected);
+
+    await client.exec("set time zone 'UTC'");
   });
 });

@@ -78,7 +78,7 @@ Changes in meaning or model. Deferred to migrations over loaded data.
 
 **Database-wide**
 
-- Timestamps become `timestamptz(3)` (`0022`). Every legacy column was a wall-clock in Asia/Jakarta and is converted with `AT TIME ZONE 'Asia/Jakarta'` in the `USING` clause, never through the session's zone; Better Auth's tables hold UTC wall-clock and use `'UTC'`. The assumption is the confirmed one — all production data is WIB — so a row written in another zone would be silently misinterpreted, and nothing in the data can reveal that. The pipeline's verifier now compares timestamps as **instants** (`instant`), so a parity check does not report a seven-hour drift.
+- Timestamps become `timestamptz(3)` (`0022`). Every legacy column was a wall-clock in Asia/Jakarta and is converted with `AT TIME ZONE 'Asia/Jakarta'` in the `USING` clause, never through the session's zone; Better Auth's tables were written by the application through the driver, which serialises a `Date` as UTC and lands it in a session that is also UTC — so they use `'UTC'`. That reasoning is sound but untested against a real row: a row written from a non-UTC process would be seven hours out, and nothing in the data could reveal it. On the legacy side the assumption is the confirmed one — all production data is WIB — and a row written in another zone would be silently misinterpreted, with nothing in the data to reveal it. The pipeline reports the instants it could not reconcile, but only for the columns a snapshot carries. The pipeline's verifier now compares timestamps as **instants** (`instant`), so a parity check does not report a seven-hour drift.
 
 **Trucking**
 

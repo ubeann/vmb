@@ -94,12 +94,12 @@ export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Rep
       }
     }
 
-    const drifted = await compareInstant(snapshot, client, table, columns);
-    if (drifted > 0) {
+    const mismatches = await compareInstants(snapshot, client, table, columns);
+    if (mismatches > 0) {
       errors.push({
         level: "error",
         code: "instant",
-        message: `${table}: ${drifted} created_at value(s) are not the instant their wall-clock named`
+        message: `${table}: ${mismatches} timestamp value(s) are not the instant their wall-clock named`
       });
     }
   }
@@ -147,44 +147,70 @@ async function compareBusinessKeys(
 }
 
 /**
- * Compare a timestamp as an *instant*, not as text.
+ * Compare timestamps as *instants*, not as text.
  *
- * The snapshot holds the wall-clock the legacy application wrote in Asia/Jakarta;
- * the database holds an absolute instant after the conversion. Comparing the two
- * as strings would report a seven-hour drift on every row, so each side is
- * reduced to epoch milliseconds first.
+ * The snapshot holds the wall-clocks the legacy application wrote in
+ * Asia/Jakarta; the database holds absolute instants after `0022`. Comparing the
+ * two as strings would report a seven-hour drift on every row, so each side is
+ * reduced to epoch milliseconds first. Every timestamp column the snapshot
+ * carries is compared, not just the one this started with.
  */
-async function compareInstant(
+async function compareInstants(
   snapshot: Snapshot,
   client: SqlClient,
   table: string,
   columns: string[]
 ): Promise<number> {
-  const column = "created_at";
   const rows = snapshot.rows.get(table);
-  if (!columns.includes(column) || !rows?.length) return 0;
+  if (!rows?.length) return 0;
 
-  const index = columns.indexOf(column);
-  const expected = rows
-    .map((row) => row[index])
-    .filter((value): value is string => value !== null)
-    .map(jakartaInstant)
-    .sort((a, b) => a - b);
+  const shared = (await timestampColumns(client, table)).filter((column) =>
+    columns.includes(column)
+  );
 
-  const stored = (
-    await client.query<{ ms: string | null }>(
-      `select (extract(epoch from ${quoted(table)}."${column}") * 1000)::bigint as ms
-         from ${quoted(table)}
-        order by 1`
+  let mismatches = 0;
+  for (const column of shared) {
+    const index = columns.indexOf(column);
+    const expected = rows
+      .map((row) => row[index])
+      .filter((value): value is string => value !== null)
+      .map(jakartaInstant)
+      .sort((a, b) => a - b);
+
+    const stored = (
+      await client.query<{ ms: string | null }>(
+        `select (extract(epoch from ${quoted(table)}."${column}") * 1000)::bigint as ms
+           from ${quoted(table)}
+          where "${column}" is not null
+          order by 1`
+      )
     )
-  )
-    .map((row) => (row.ms === null ? Number.NaN : Number(row.ms)))
-    .filter((ms) => !Number.isNaN(ms));
+      .map((row) => (row.ms === null ? Number.NaN : Number(row.ms)))
+      .filter((ms) => !Number.isNaN(ms));
 
-  if (expected.length !== stored.length) {
-    return Math.abs(expected.length - stored.length);
+    // a different count is a row-count difference, which is already reported
+    if (expected.length !== stored.length) continue;
+
+    mismatches += expected.reduce(
+      (count, ms, position) => count + (ms === stored[position] ? 0 : 1),
+      0
+    );
   }
-  return expected.reduce((count, ms, position) => count + (ms === stored[position] ? 0 : 1), 0);
+
+  return mismatches;
+}
+
+/** The timestamp columns of a table, as the database sees them. */
+async function timestampColumns(client: SqlClient, table: string): Promise<string[]> {
+  const [schema, name] = table.split(".");
+  const rows = await client.query<{ column_name: string }>(
+    `select column_name from information_schema.columns
+      where table_schema = '${schema as string}'
+        and table_name = '${name as string}'
+        and data_type = 'timestamp with time zone'
+      order by column_name`
+  );
+  return rows.map((row) => row.column_name);
 }
 
 /**
