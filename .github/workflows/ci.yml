@@ -293,7 +293,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Node and pnpm only: the suite runs vitest directly against the service
+      # container, so it reads none of the fnox secrets, uploads nothing with
+      # wrangler, and has no use for the lint/format pins (issue #130).
       - uses: ./.github/actions/setup
+        with:
+          install-args: node pnpm
 
       - name: Run the database suite against Postgres
         env:
@@ -312,7 +317,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Node, pnpm, fnox and wrangler: the build runs under `fnox exec`, and
+      # both deploy scripts reach wrangler. The remaining pins — age, the lint
+      # pair, lefthook — are not invoked on this path (issue #130).
       - uses: ./.github/actions/setup
+        with:
+          install-args: node pnpm fnox wrangler
 
       # Reads from the remote cache that build-and-test just populated:
       # PUBLIC_API_URL is unset here, so this is the production hash — the
