@@ -24,9 +24,9 @@ export const divisions = master.table(
     colorHex: varchar("color_hex", { length: 255 }).default("#000000").notNull(),
     iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-rocket-launch").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     unique("master_divisions_name_unique").on(table.name),
@@ -43,13 +43,13 @@ export const users = master.table(
     divisionId: uuid("division_id"),
     phone: varchar({ length: 20 }),
     email: varchar({ length: 255 }).notNull(),
-    emailVerifiedAt: timestamp("email_verified_at", { precision: 0 }),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true, precision: 3 }),
     profilePhotoPath: varchar("profile_photo_path", { length: 255 }),
     password: varchar({ length: 255 }).notNull(),
     rememberToken: varchar("remember_token", { length: 100 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({

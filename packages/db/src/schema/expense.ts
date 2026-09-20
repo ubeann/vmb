@@ -24,8 +24,8 @@ export const budgets = expense.table(
     divisionId: uuid("division_id").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     amount: numeric({ precision: 15, scale: 2 }).default("0").notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -50,8 +50,8 @@ export const requestNicheDetails = expense.table(
     supportingDocuments: json("supporting_documents"),
     invoicePaths: json("invoice_paths"),
     bankTransferProof: varchar("bank_transfer_proof", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -73,9 +73,9 @@ export const requests = expense.table(
     divisionId: uuid("division_id").notNull(),
     type: varchar({ length: 255 }).notNull(),
     status: varchar({ length: 255 }).default("PENDING").notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    deletedAt: timestamp("deleted_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -120,8 +120,8 @@ export const approvals = expense.table(
     type: varchar({ length: 255 }).notNull(),
     approved: boolean().default(false).notNull(),
     comment: text(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -155,8 +155,8 @@ export const requestEmergencyDetails = expense.table(
     supportingDocuments: json("supporting_documents"),
     invoicePaths: json("invoice_paths"),
     bankTransferProof: varchar("bank_transfer_proof", { length: 255 }),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({

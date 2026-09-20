@@ -668,3 +668,72 @@ describe("the expense hygiene migrations", () => {
     ).rejects.toThrow(/category_check/);
   });
 });
+
+describe("the timestamptz conversion", () => {
+  // #114: every timestamp becomes an absolute instant, converted through the
+  // zone its wall-clock was written in.
+  let database: TestDatabase;
+  let client: SqlClient;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("leaves no wall-clock timestamp anywhere", async () => {
+    const columns = await client.query<{
+      table_schema: string;
+      data_type: string;
+      datetime_precision: number;
+    }>(
+      `select table_schema, data_type, datetime_precision
+         from information_schema.columns
+        where table_schema in ('master', 'warehouse', 'trucking', 'expense', 'public')
+          and data_type like 'timestamp%'
+        group by 1, 2, 3
+        order by 1, 2, 3`
+    );
+
+    // one combination per schema, and it is the same one in all five —
+    // including Better Auth's tables
+    expect(columns).toHaveLength(5);
+    for (const column of columns) {
+      expect(column.data_type).toBe("timestamp with time zone");
+      expect(column.datetime_precision).toBe(3);
+    }
+    expect(new Set(columns.map((column) => column.table_schema))).toEqual(
+      new Set(["master", "warehouse", "trucking", "expense", "public"])
+    );
+  });
+
+  it("keeps the instant when the session's zone changes", async () => {
+    await client.exec(
+      `insert into master.divisions (id, name, code, created_at)
+       values ('c1111111-1111-4111-8111-111111111111', 'Zone', 'ZON',
+               timestamp '2026-01-02 08:00:00' AT TIME ZONE 'Asia/Jakarta')`
+    );
+
+    const epochUnder = async (zone: string): Promise<number> => {
+      await client.exec(`set time zone '${zone}'`);
+      // double precision, not bigint: node-postgres hands a bigint back as a
+      // string while PGlite hands back a number, and the suite runs on both
+      return scalar<number>(
+        client,
+        `select extract(epoch from created_at)::double precision as value
+           from master.divisions where code = 'ZON'`
+      );
+    };
+
+    // the same moment regardless of how the session would render it
+    const expected = Date.parse("2026-01-02T08:00:00+07:00") / 1000;
+    expect(await epochUnder("UTC")).toBe(expected);
+    expect(await epochUnder("Asia/Jakarta")).toBe(expected);
+
+    await client.exec("set time zone 'UTC'");
+  });
+});

@@ -27,8 +27,8 @@ export const approvals = warehouse.table(
     type: varchar({ length: 255 }).notNull(),
     approved: boolean().default(false).notNull(),
     comment: text(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -57,8 +57,8 @@ export const stockAlerts = warehouse.table(
     itemId: uuid("item_id").notNull(),
     lastStock: integer("last_stock").notNull(),
     lastRequisitionId: uuid("last_requisition_id").notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -88,11 +88,11 @@ export const procurementQuotations = warehouse.table("procurement_quotations", {
   invoiceFilePath: varchar("invoice_file_path", { length: 255 }),
   paymentAccount: varchar("payment_account", { length: 255 }).notNull(),
   paymentProofPath: varchar("payment_proof_path", { length: 255 }),
-  paymentDate: timestamp("payment_date", { precision: 0 }),
+  paymentDate: timestamp("payment_date", { withTimezone: true, precision: 3 }),
   receiptProofPath: varchar("receipt_proof_path", { length: 255 }),
-  receiptDate: timestamp("receipt_date", { precision: 0 }),
-  createdAt: timestamp("created_at", { precision: 0 }),
-  updatedAt: timestamp("updated_at", { precision: 0 })
+  receiptDate: timestamp("receipt_date", { withTimezone: true, precision: 3 }),
+  createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
 });
 
 export const items = warehouse.table(
@@ -106,8 +106,8 @@ export const items = warehouse.table(
     iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-cube").notNull(),
     currentStock: integer("current_stock").default(0).notNull(),
     reorderLevel: integer("reorder_level").default(0).notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -134,9 +134,9 @@ export const procurementRequests = warehouse.table(
     totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
     justification: text().notNull(),
     quotationId: uuid("quotation_id"),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    completedAt: timestamp("completed_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    completedAt: timestamp("completed_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({
@@ -185,9 +185,9 @@ export const stockRequisitions = warehouse.table(
     requestedQuantity: integer("requested_quantity").notNull(),
     stockOnHand: integer("stock_on_hand"),
     purpose: text().notNull(),
-    createdAt: timestamp("created_at", { precision: 0 }),
-    updatedAt: timestamp("updated_at", { precision: 0 }),
-    completedAt: timestamp("completed_at", { precision: 0 })
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
+    completedAt: timestamp("completed_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
     foreignKey({

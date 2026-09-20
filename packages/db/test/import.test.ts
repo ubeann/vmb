@@ -148,6 +148,17 @@ describe("the import pipeline", () => {
     expect(nulls).toBe(1);
   });
 
+  it("keeps a snapshot's wall-clock as the instant it named", async () => {
+    // the fixture's division was created at 08:00 Jakarta, which is 01:00 UTC.
+    // A conversion that leaned on the session's zone would land seven hours out
+    const rendered = await scalar<string>(
+      client,
+      `select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS')
+         from master.divisions where code = 'OPS'`
+    );
+    expect(rendered).toBe("2026-01-02 01:00:00");
+  });
+
   it("carries the snapshot's expense rows through the chain", async () => {
     // these migrations validate existing rows, so the fixture has to hold
     // expense rows for the criterion to mean anything
@@ -270,6 +281,17 @@ describe("the verifier", () => {
 
       expect(report.errors[0]?.code).toBe("pipeline");
       expect(report.errors[0]?.message).toMatch(/code/);
+    });
+  });
+
+  it("catches a timestamp that is no longer the instant it named", async () => {
+    await withDatabase(async (client) => {
+      await importSnapshot(client, snapshotFile, migrationsFolder);
+      await client.exec("update master.divisions set created_at = created_at + interval '7 hours'");
+
+      const report = await verify(await readSnapshot(snapshotFile), client);
+      const finding = report.errors.find((f) => f.code === "instant");
+      expect(finding?.message).toContain("master.divisions");
     });
   });
 
