@@ -136,14 +136,15 @@ jobs:
       - uses: actions/checkout@v7
 
       # Toolchain, pnpm store cache, and a frozen-lockfile install: the same
-      # composite action `ci.yml` bootstraps with (issue #79). Node, pnpm, fnox
-      # and wrangler are the whole list this job uses — migrations and the web
-      # build under pnpm, the preview secrets under `fnox get`, the API and
-      # Pages uploads under wrangler; nothing here touches age, actionlint,
-      # shellcheck or lefthook (issue #130).
+      # composite action `ci.yml` bootstraps with (issue #79). Node, pnpm and
+      # fnox are the whole list this job uses — migrations and the web build
+      # under pnpm, the preview secrets under `fnox get`, the uploads under
+      # wrangler, which pnpm resolves to the pinned devDependency ahead of any
+      # PATH pin (ADR-0021). Nothing here touches age, actionlint, shellcheck
+      # or lefthook (issue #130).
       - uses: ./.github/actions/setup
         with:
-          install-args: node pnpm fnox wrangler
+          install-args: node pnpm fnox
 
       # The alias, the Pages prefix, and the Neon branch name all come from
       # `scripts/preview-identifiers.sh` (issue #78), so create and destroy

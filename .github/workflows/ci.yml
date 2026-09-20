@@ -294,8 +294,8 @@ jobs:
       - uses: actions/checkout@v7
 
       # Node and pnpm only: the suite runs vitest directly against the service
-      # container, so it reads none of the fnox secrets, uploads nothing with
-      # wrangler, and has no use for the lint/format pins (issue #130).
+      # container, so it reads none of the fnox secrets and has no use for
+      # wrangler, actionlint, shellcheck or lefthook (issue #130).
       - uses: ./.github/actions/setup
         with:
           install-args: node pnpm
@@ -317,12 +317,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Node, pnpm, fnox and wrangler: the build runs under `fnox exec`, and
-      # both deploy scripts reach wrangler. The remaining pins — age, the lint
-      # pair, lefthook — are not invoked on this path (issue #130).
+      # Node, pnpm and fnox: the build runs under `fnox exec`. The deploy
+      # scripts reach wrangler through pnpm, which resolves the pinned
+      # devDependency ahead of any PATH pin (ADR-0021), so the mise pin earns
+      # nothing here; age, actionlint, shellcheck and lefthook are unused too
+      # (issue #130).
       - uses: ./.github/actions/setup
         with:
-          install-args: node pnpm fnox wrangler
+          install-args: node pnpm fnox
 
       # Reads from the remote cache that build-and-test just populated:
       # PUBLIC_API_URL is unset here, so this is the production hash — the
