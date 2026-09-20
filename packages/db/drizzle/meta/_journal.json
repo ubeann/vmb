@@ -162,6 +162,13 @@
       "when": 1789845107807,
       "tag": "0022_timestamptz_conversion",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789888560269,
+      "tag": "0023_index_recommended_columns",
+      "breakpoints": true
     }
   ]
 }

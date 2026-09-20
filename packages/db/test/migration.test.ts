@@ -737,3 +737,138 @@ describe("the timestamptz conversion", () => {
     await client.exec("set time zone 'UTC'");
   });
 });
+
+describe("the trucking access-path indexes", () => {
+  // #126 (M-017): the foreign keys and list filters nothing was behind, minus
+  // the ones a unique constraint already covers and the one the data rules out.
+  let database: TestDatabase;
+  let client: SqlClient;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("indexes every foreign key and filter the application reads through", async () => {
+    const indexes = await client.query<{ indexname: string }>(
+      `select indexname from pg_indexes
+        where schemaname = 'trucking' and indexname in (
+          'trucking_approvals_approver_id_index',
+          'trucking_approvals_type_created_at_index',
+          'trucking_daily_trucking_actuals_driver_id_index',
+          'trucking_daily_trucking_plans_driver_id_index',
+          'trucking_invoice_vendor_invoice_id_index',
+          'trucking_invoices_client_id_status_index',
+          'trucking_orders_cancelled_by_index',
+          'trucking_orders_reference_id_index',
+          'trucking_orders_status_created_at_index',
+          'trucking_trips_route_reference_id_index'
+        )
+        order by indexname`
+    );
+    expect(indexes.map((row) => row.indexname)).toEqual([
+      "trucking_approvals_approver_id_index",
+      "trucking_approvals_type_created_at_index",
+      "trucking_daily_trucking_actuals_driver_id_index",
+      "trucking_daily_trucking_plans_driver_id_index",
+      "trucking_invoice_vendor_invoice_id_index",
+      "trucking_invoices_client_id_status_index",
+      "trucking_orders_cancelled_by_index",
+      "trucking_orders_reference_id_index",
+      "trucking_orders_status_created_at_index",
+      "trucking_trips_route_reference_id_index"
+    ]);
+
+    // the plan and actual `trip_id` are deliberately absent: the unique pair
+    // added for #107 leads with them, so a bare index would be dead weight
+    const covered = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'trucking' and indexname in (
+          'trucking_daily_trucking_actuals_trip_id_index',
+          'trucking_daily_trucking_plans_trip_id_index'
+        )`
+    );
+    expect(covered).toBe(0);
+  });
+
+  it("drops the single-column indexes its composites replace", async () => {
+    const replaced = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where schemaname = 'trucking' and indexname in (
+          'trucking_client_truck_companies_client_id_index',
+          'trucking_client_truck_companies_name_index',
+          'trucking_orders_status_index',
+          'trucking_trips_order_id_index'
+        )`
+    );
+    expect(replaced).toBe(0);
+  });
+
+  it("leaves out the index the legacy data cannot use", async () => {
+    // `routes.is_lolo` has a filter behind it, but the legacy table splits
+    // 25 true to 49 false — a selectivity no planner reads through an index,
+    // so the index would be cost on every write and never a saving on a read
+    const lolo = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where indexname = 'trucking_routes_is_lolo_index'`
+    );
+    expect(lolo).toBe(0);
+  });
+
+  it("makes a trip code unique per order and a company unique per client", async () => {
+    await client.exec(
+      `insert into trucking.clients (id, name, code)
+       values ('fa111111-1111-4111-8111-111111111111', 'Index Client', 'IX-1')`
+    );
+    await client.exec(
+      `insert into trucking.orders (id, client_id, code, type, party_count, status)
+       values ('fa222222-2222-4222-8222-222222222222',
+               'fa111111-1111-4111-8111-111111111111', 9101, 'export', 1, 'draft')`
+    );
+    await client.exec(
+      `insert into trucking.trips (id, order_id, code, total_units, routes)
+       values ('fa333333-3333-4333-8333-333333333333',
+               'fa222222-2222-4222-8222-222222222222', 'T-1', 1, '[]'::json)`
+    );
+    await rejects(
+      client,
+      `insert into trucking.trips (id, order_id, code, total_units, routes)
+       values ('fa444444-4444-4444-8444-444444444444',
+               'fa222222-2222-4222-8222-222222222222', 'T-1', 1, '[]'::json)`,
+      /trucking_trips_order_id_code_unique/
+    );
+
+    // the same code under another order is still allowed
+    await client.exec(
+      `insert into trucking.orders (id, client_id, code, type, party_count, status)
+       values ('fa777777-7777-4777-8777-777777777777',
+               'fa111111-1111-4111-8111-111111111111', 9102, 'export', 1, 'draft')`
+    );
+    await client.exec(
+      `insert into trucking.trips (id, order_id, code, total_units, routes)
+       values ('fa888888-8888-4888-8888-888888888888',
+               'fa777777-7777-4777-8777-777777777777', 'T-1', 1, '[]'::json)`
+    );
+
+    await client.exec(
+      `insert into trucking.client_truck_companies (id, client_id, name)
+       values ('fa555555-5555-4555-8555-555555555555',
+               'fa111111-1111-4111-8111-111111111111', 'Same Company')`
+    );
+    await rejects(
+      client,
+      `insert into trucking.client_truck_companies (id, client_id, name)
+       values ('fa666666-6666-4666-8666-666666666666',
+               'fa111111-1111-4111-8111-111111111111', 'Same Company')`,
+      /trucking_client_truck_companies_client_id_name_unique/
+    );
+  });
+});
