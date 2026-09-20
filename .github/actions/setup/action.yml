@@ -18,6 +18,12 @@ inputs:
       cache, which cannot be resolved without pnpm on PATH.
     required: false
     default: "true"
+  install-package:
+    description: >-
+      Install only this package and its dependencies instead of the whole
+      workspace. Empty installs every package.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -46,4 +52,11 @@ runs:
 
     - if: inputs.install-dependencies == 'true'
       shell: bash
-      run: pnpm install --frozen-lockfile
+      env:
+        INSTALL_PACKAGE: ${{ inputs.install-package }}
+      run: |
+        if [ -n "$INSTALL_PACKAGE" ]; then
+          pnpm install --frozen-lockfile --filter "$INSTALL_PACKAGE..."
+        else
+          pnpm install --frozen-lockfile
+        fi

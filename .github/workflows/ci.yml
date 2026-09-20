@@ -167,20 +167,10 @@ jobs:
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       # apps/web's component tests render .svelte files in a real browser
-      # (vitest-browser-svelte + @vitest/browser-playwright). Cache the
-      # downloaded browser binaries; OS deps still need installing every
-      # run since GitHub-hosted runners are ephemeral.
-      - uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @vmb/web exec playwright install --with-deps chromium
-
-      - if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @vmb/web exec playwright install-deps chromium
+      # (vitest-browser-svelte + @vitest/browser-playwright). CI drives the
+      # runner image's preinstalled Chrome (`channel: "chrome"` in the web
+      # vite config), so neither the pinned Chromium download nor its OS
+      # dependencies are installed here.
 
       # Dependabot-triggered runs receive no Actions secrets — GitHub keeps a
       # separate Dependabot secrets store, and this repo's is empty — so the
@@ -293,7 +283,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Node and pnpm only: the suite runs vitest directly against the service
+      # container, so it reads none of the fnox secrets and has no use for
+      # wrangler, actionlint, shellcheck or lefthook (issue #130). The install
+      # is filtered to this package: the job runs one suite, so hardlinking the
+      # rest of the workspace is work it never uses.
       - uses: ./.github/actions/setup
+        with:
+          install-args: node pnpm
+          install-package: "@vmb/db"
 
       - name: Run the database suite against Postgres
         env:
