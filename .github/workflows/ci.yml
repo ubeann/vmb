@@ -157,8 +157,8 @@ jobs:
       # The format gate is its own step so a formatting failure reads as a
       # formatting failure rather than a cancelled typecheck (issue #59). It
       # needs no fnox secrets, so it needs no `fnox exec` wrapper and no
-      # Dependabot split, and it runs before the Playwright install below to
-      # fail fast. Always repo-wide, never scoped to the diff (ADR-0023).
+      # Dependabot split, and it runs before the rest of the suite to fail
+      # fast. Always repo-wide, never scoped to the diff (ADR-0023).
       - name: Format
         run: pnpm turbo format:check
         env:
@@ -167,20 +167,12 @@ jobs:
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       # apps/web's component tests render .svelte files in a real browser
-      # (vitest-browser-svelte + @vitest/browser-playwright). Cache the
-      # downloaded browser binaries; OS deps still need installing every
-      # run since GitHub-hosted runners are ephemeral.
-      - uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @vmb/web exec playwright install --with-deps chromium
-
-      - if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @vmb/web exec playwright install-deps chromium
+      # (vitest-browser-svelte + @vitest/browser-playwright). CI drives the
+      # runner image's preinstalled Chrome (`channel: "chrome"` in the web vite
+      # config), so neither the pinned Chromium download nor its OS
+      # dependencies are installed here: the browser cache restore and the
+      # `install-deps` step this replaces cost 5 s and 18 s in the measured
+      # baseline (ADR-0021 records the drift this accepts).
 
       # Dependabot-triggered runs receive no Actions secrets — GitHub keeps a
       # separate Dependabot secrets store, and this repo's is empty — so the

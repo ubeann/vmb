@@ -2,6 +2,9 @@ import { sveltekit } from "@sveltejs/kit/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+// `std-env`'s rule: CI is on when the variable is set and not "false".
+const onCi = !!process.env.CI && process.env.CI !== "false";
+
 export default defineConfig({
   // SvelteKit reads PUBLIC_-prefixed vars through $env/*, but resolveApiUrl
   // reads import.meta.env.PUBLIC_API_URL directly so it stays a pure,
@@ -34,7 +37,16 @@ export default defineConfig({
           include: ["src/**/*.svelte.test.ts"],
           browser: {
             enabled: true,
-            provider: playwright(),
+            // CI drives the runner image's preinstalled Chrome: the browser
+            // binary and its OS dependencies are already there, so the two
+            // `playwright install` steps it replaces — 5 s of cache restore
+            // and 18 s of OS dependencies in the measured baseline — are gone.
+            // Local runs keep the Chromium the lockfile pins. The trade-off is
+            // deliberate: CI tests the runner's Chrome version, which drifts
+            // with the image (docs/ARCHITECTURE.md §9, ADR-0021).
+            provider: playwright({
+              launchOptions: onCi ? { channel: "chrome" } : {}
+            }),
             headless: true,
             instances: [{ browser: "chromium" }]
           }
