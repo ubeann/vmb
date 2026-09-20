@@ -11,15 +11,21 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["TEST_DATABASE_URL"]
     },
-    "lint": {},
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "!drizzle/**"]
+    },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!drizzle/**"]
     },
     "//#format": {
       "cache": false
     },
-    "//#format:check": {}
+    "//#format:check": {
+      "inputs": ["$TURBO_DEFAULT$", "!packages/db/drizzle/**"]
+    }
   }
 }

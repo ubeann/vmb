@@ -157,7 +157,7 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 
 ## 9. Deployment & CI/CD
 
-- Turborepo orchestrates builds across `apps/web` and `apps/api`, with task caching via Vercel's free remote cache. CI authenticates it with the `TURBO_TOKEN`/`TURBO_TEAM` repo secrets; `build` declares `PUBLIC_API_URL` as an env input so preview and production builds keep distinct cache keys. Used purely for build speed, not hosting.
+- Turborepo orchestrates the workspace's `build`, `test`, `lint` and `typecheck` tasks across `apps/web` and `apps/api`, with task caching via Vercel's free remote cache. Only `apps/web` has a build artifact; `apps/api` is bundled by `wrangler deploy` from source, and `typecheck` is what checks it. CI authenticates the cache with the `TURBO_TOKEN`/`TURBO_TEAM` repo secrets; `build` declares `PUBLIC_API_URL` as an env input so preview and production builds keep distinct cache keys. Used purely for build speed, not hosting.
 - Each app has its own deploy script:
   - `apps/api`: `wrangler deploy`
   - `apps/web`: `wrangler pages deploy` (or framework-specific Cloudflare adapter build)

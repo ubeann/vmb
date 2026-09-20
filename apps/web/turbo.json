@@ -3,7 +3,15 @@
   "extends": ["//"],
   "tasks": {
     "typecheck": {
-      "dependsOn": ["^build", "build"]
+      "dependsOn": ["^build", "build"],
+      "outputs": [
+        ".svelte-kit/ambient.d.ts",
+        ".svelte-kit/env.d.ts",
+        ".svelte-kit/non-ambient.d.ts",
+        ".svelte-kit/tsconfig.json",
+        ".svelte-kit/generated/**",
+        ".svelte-kit/types/**"
+      ]
     },
     "test": {
       "dependsOn": ["^build", "build", "typecheck"]

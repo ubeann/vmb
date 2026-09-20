@@ -11,7 +11,6 @@
   "scripts": {
     "predev": "fnox export -f env -o .dev.vars",
     "dev": "wrangler dev",
-    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
