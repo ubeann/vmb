@@ -14,6 +14,8 @@
 
 Between the two mechanisms, Dependabot watches the ecosystems named in `.github/dependabot.yml` and the alarm watches `.mise.toml`. Two versions sit deliberately outside both, bumped by hand when their meaning moves rather than when upstream releases: `packageManager`, the source of truth for the exact pnpm that runs, and `engines.node`, the floor a consumer of these packages needs.
 
+A third sits outside both and cannot sit inside them: the browser `apps/web`'s component tests run in. CI drives the runner image's preinstalled Chrome (`channel: "chrome"` when `CI` is set), because the image already carries the browser and its OS dependencies — the browser-cache restore and the `install-deps` step this removes cost 5 s and 18 s in the measured baseline run — while local runs keep the Chromium `pnpm-lock.yaml` pins, and the test command is identical in both. Nothing watches the CI browser and nothing can; it moves when GitHub's runner image moves. The component tests assert rendering behaviour, not a browser build, so the drift is accepted rather than tracked (PR #141).
+
 Three `.mise.toml` entries have a counterpart in `package.json`, and the duplication is deliberate once spelled out:
 
 - `pnpm = "12"` vs `"packageManager": "pnpm@12.4.1"`. Different jobs: the mise range guarantees a pnpm 12.x on `PATH` so `pnpm` runs at all, while `packageManager` is the exact version that runs — pnpm's default `pmOnFail: download` makes the declared version authoritative, downloading and running 12.4.1 rather than failing when `PATH` holds a different 12.x.
