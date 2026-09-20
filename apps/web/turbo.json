@@ -3,7 +3,8 @@
   "extends": ["//"],
   "tasks": {
     "typecheck": {
-      "dependsOn": ["^build", "build"]
+      "dependsOn": ["^build", "build"],
+      "outputs": [".svelte-kit/**"]
     },
     "test": {
       "dependsOn": ["^build", "build", "typecheck"]

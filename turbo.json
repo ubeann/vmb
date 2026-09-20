@@ -21,9 +21,6 @@
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!drizzle/**"]
     },
-    "@vmb/web#typecheck": {
-      "outputs": [".svelte-kit/**"]
-    },
     "//#format": {
       "cache": false
     },
