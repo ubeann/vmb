@@ -21,23 +21,39 @@ async function chain(folder = migrationsFolder): Promise<Journal> {
   return JSON.parse(await readFile(path.join(folder, "meta", "_journal.json"), "utf8")) as Journal;
 }
 
-/** The objects the chain creates, as a comparable fingerprint. */
-async function shape(client: SqlClient): Promise<Record<string, number>> {
-  const rows = await client.query<Record<string, number>>(
-    `select
-       (select count(*)::int from information_schema.tables
-         where table_schema not in ('pg_catalog', 'information_schema')) as tables,
-       (select count(*)::int from pg_indexes
-         where schemaname not in ('pg_catalog', 'information_schema')) as indexes,
-       (select count(*)::int from pg_constraint
-         where connamespace in (select oid from pg_namespace
-           where nspname not in ('pg_catalog', 'information_schema'))) as constraints`
+/**
+ * The objects the chain creates — tables, columns, indexes and constraints,
+ * each named with its schema — as one ordered fingerprint. Two databases that
+ * differ by a table in the wrong schema, a column type or a constraint say so
+ * here; aggregate counts cannot.
+ */
+async function shape(client: SqlClient): Promise<string[]> {
+  // `pg_get_constraintdef` qualifies a table name only when its schema is off
+  // the search path, so the fingerprint compares the schema, not how the
+  // session that built it left its path.
+  await client.exec("set search_path = public");
+  const rows = await client.query<{ name: string }>(
+    `select 'table ' || table_schema || '.' || table_name as name
+       from information_schema.tables
+       where table_schema not in ('pg_catalog', 'information_schema')
+     union all
+     select 'column ' || table_schema || '.' || table_name || '.' || column_name
+         || ' ' || data_type || ' nullable=' || is_nullable
+         || ' default=' || coalesce(column_default, '-')
+       from information_schema.columns
+       where table_schema not in ('pg_catalog', 'information_schema')
+     union all
+     select 'index ' || schemaname || '.' || indexname || ' = ' || indexdef
+       from pg_indexes
+       where schemaname not in ('pg_catalog', 'information_schema')
+     union all
+     select 'constraint ' || n.nspname || '.' || c.conname || ' = ' || pg_get_constraintdef(c.oid)
+       from pg_constraint c
+       join pg_namespace n on n.oid = c.connamespace
+       where n.nspname not in ('pg_catalog', 'information_schema')
+     order by 1`
   );
-  const row = rows[0];
-  if (!row) {
-    throw new Error("the fingerprint query returned no row");
-  }
-  return row;
+  return rows.map((row) => row.name);
 }
 
 /** The first `count` migrations only, as an earlier run that stopped part-way saw them. */

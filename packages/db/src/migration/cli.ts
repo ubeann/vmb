@@ -33,11 +33,13 @@ const pg = new Client({ connectionString: url });
 await pg.connect();
 
 try {
-  const results = await applyMigrations(pgClient(pg), migrationsFolder);
-
-  for (const migration of results.filter((migration) => migration.applied)) {
-    console.log(`${migration.tag} applied in ${duration(migration.milliseconds)}`);
-  }
+  const results = await applyMigrations(pgClient(pg), migrationsFolder, (migration) => {
+    console.log(
+      migration.applied
+        ? `${migration.tag} applied in ${duration(migration.milliseconds)}`
+        : `${migration.tag} already applied`
+    );
+  });
 
   const applied = results.filter((migration) => migration.applied).length;
   const total = results.reduce((sum, migration) => sum + migration.milliseconds, 0);

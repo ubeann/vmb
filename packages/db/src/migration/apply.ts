@@ -1,5 +1,6 @@
 import type { SqlClient } from "../import/client.js";
 import { readMigrations, type Migration } from "./chain.js";
+import { journalDdl, journalInsertSql } from "./journal.js";
 
 /** What one migration in the chain did, and how long it took. */
 export type AppliedMigration = {
@@ -10,21 +11,27 @@ export type AppliedMigration = {
 };
 
 /**
- * Replay the chain, in one round trip per migration.
+ * Replay the chain, one round trip per migration.
  *
- * The statements, the journal row, and the transaction that wraps them travel
- * as a single `exec`, so a chain that costs hundreds of statements costs one
+ * Each migration's statements, the transaction that wraps them and its journal
+ * row travel as a single `exec`, so a chain of hundreds of statements costs one
  * round trip per file instead of one per statement. The journal rows are the
  * ones Drizzle's own migrator writes — `hash` is sha256 of the file and
  * `created_at` is the journal's `when` — so a database this built is one
- * `drizzle-kit migrate` agrees is current.
+ * `drizzle-kit migrate` agrees is current. Each migration is its own
+ * transaction, so a chain that dies part-way resumes from the file after the
+ * last journaled one.
+ *
+ * `onMigration` observes each decision as it is made, not after the whole
+ * chain: a caller that reports progress can name the migration that failed.
  */
 export async function applyMigrations(
   client: SqlClient,
-  migrationsFolder: string
+  migrationsFolder: string,
+  onMigration?: (migration: AppliedMigration) => void
 ): Promise<AppliedMigration[]> {
   const migrations = await readMigrations(migrationsFolder);
-  await createJournal(client);
+  await client.exec(journalDdl);
 
   const [last] = await client.query<{ created_at: string | number }>(
     `select "created_at" from "drizzle"."__drizzle_migrations" order by "created_at" desc limit 1`
@@ -34,44 +41,37 @@ export async function applyMigrations(
   const results: AppliedMigration[] = [];
   for (const migration of migrations) {
     if (appliedThrough >= migration.folderMillis) {
-      results.push({ tag: migration.tag, applied: false, milliseconds: 0 });
+      const result = { tag: migration.tag, applied: false, milliseconds: 0 };
+      results.push(result);
+      onMigration?.(result);
       continue;
     }
 
     const started = performance.now();
-    await client.exec(oneRoundTrip(migration));
-    results.push({
+    await client.exec(migrationScript(migration));
+    const result = {
       tag: migration.tag,
       applied: true,
       milliseconds: Math.round(performance.now() - started)
-    });
+    };
+    results.push(result);
+    onMigration?.(result);
   }
   return results;
 }
 
-/** The journal Drizzle creates before it reads it, in one round trip. */
-async function createJournal(client: SqlClient): Promise<void> {
-  await client.exec(
-    `create schema if not exists "drizzle";
-     create table if not exists "drizzle"."__drizzle_migrations" (
-       id serial primary key,
-       hash text not null,
-       created_at bigint
-     );`
-  );
-}
-
 /**
- * One migration as one statement: its transaction, its journal row, and the
- * restore of `search_path` the baseline's dump preamble clears.
+ * One migration as one script: its transaction, its statements and its journal
+ * row, executed without returning to the client in between. `search_path` is
+ * restored first because the baseline's dump preamble clears it, the same
+ * reset the import pipeline performs before each migration.
  */
-function oneRoundTrip(migration: Migration): string {
-  const hash = migration.hash.replace(/'/g, "''");
+function migrationScript(migration: Migration): string {
   return [
     "begin;",
     "set search_path = public;",
     ...migration.statements,
-    `insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values ('${hash}', ${migration.folderMillis});`,
+    journalInsertSql(migration),
     "commit;"
   ].join("\n");
 }
