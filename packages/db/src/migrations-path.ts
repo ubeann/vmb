@@ -12,6 +12,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
  * inside `@vmb/db` invalidated the cache of every package that depends on
  * `@vmb/db` (issue #137). `turbo.json` names the same directory as
  * `$TURBO_ROOT$/migrations/**` for the test task; `drizzle.config.ts` names it
- * for drizzle-kit, which resolves `out` from its own working directory.
+ * for drizzle-kit, whose working directory the pnpm scripts pin to the package
+ * directory — `test/migrations-path.test.ts` fails if the two drift.
  */
 export const migrationsFolder = path.resolve(here, "../../../migrations");
