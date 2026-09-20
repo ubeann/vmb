@@ -34,7 +34,15 @@ export default defineConfig({
           include: ["src/**/*.svelte.test.ts"],
           browser: {
             enabled: true,
-            provider: playwright(),
+            // CI drives the runner image's preinstalled Chrome: the browser
+            // binary and its OS dependencies are already there, so the
+            // `playwright install` steps disappear — 23 s of every run. Local
+            // runs keep the Chromium the lockfile pins. The trade-off is
+            // deliberate: CI tests the runner's Chrome version, which drifts
+            // with the image (docs/ARCHITECTURE.md §9).
+            provider: playwright({
+              launchOptions: process.env.CI ? { channel: "chrome" } : {}
+            }),
             headless: true,
             instances: [{ browser: "chromium" }]
           }
