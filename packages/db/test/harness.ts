@@ -11,7 +11,7 @@ import { pgClient, pgliteClient, type SqlClient } from "../src/sql-client.js";
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** The real Drizzle Kit migration chain — never a fixture of it. */
-export const migrationsFolder = path.resolve(testDir, "../drizzle");
+export const migrationsFolder = path.resolve(testDir, "../../../migrations");
 
 /**
  * A database the tests can use, and the two things they need from a backend:

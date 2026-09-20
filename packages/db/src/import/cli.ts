@@ -19,7 +19,7 @@ import { isClean } from "./verify.js";
  * pointed at.
  */
 const here = path.dirname(fileURLToPath(import.meta.url));
-const migrationsFolder = path.resolve(here, "../../drizzle");
+const migrationsFolder = path.resolve(here, "../../../../migrations");
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
