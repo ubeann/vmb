@@ -1,5 +1,6 @@
-import type { SqlClient } from "./client.js";
+import type { SqlClient } from "../sql-client.js";
 import { loadStatements } from "./load.js";
+import { journalDdl, journalInsertSql } from "../migration/journal.js";
 import { byPhase, readChain, type Migration } from "./phases.js";
 import { readSnapshot } from "./snapshot.js";
 import { failedReport, verify, type Report } from "./verify.js";
@@ -11,7 +12,7 @@ import { failedReport, verify, type Report } from "./verify.js";
  * over those rows — the order ADR-0024 describes. Each phase is one transaction
  * and each migration is journaled as it completes, so a database this pipeline
  * produces is indistinguishable from one the migrator built and a later
- * `drizzle-kit migrate` applies only what is missing.
+ * `db:migrate` applies only what is missing.
  *
  * The target is wiped first, so running the pipeline twice against the same
  * database lands in the same place. That makes the pipeline the owner of the
@@ -80,29 +81,14 @@ async function apply(client: SqlClient, phase: Migration[]): Promise<void> {
       for (const statement of migration.statements) {
         await client.exec(statement);
       }
-      await recordMigration(client, migration);
+      await client.exec(journalDdl);
+      await client.exec(journalInsertSql(migration));
     }
     await client.exec("commit");
   } catch (error) {
     await client.exec("rollback");
     throw error;
   }
-}
-
-async function recordMigration(client: SqlClient, migration: Migration): Promise<void> {
-  await client.exec("create schema if not exists drizzle");
-  await client.exec(
-    `create table if not exists drizzle.__drizzle_migrations (
-       id serial primary key,
-       hash text not null,
-       created_at bigint
-     )`
-  );
-  const hash = migration.hash.replace(/'/g, "''");
-  await client.exec(
-    `insert into drizzle.__drizzle_migrations ("hash", "created_at")
-     values ('${hash}', ${migration.folderMillis})`
-  );
 }
 
 export function summarise(report: Report): string {

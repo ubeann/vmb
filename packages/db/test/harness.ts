@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
-import { pgClient, pgliteClient, type SqlClient } from "../src/import/client.js";
+import { pgClient, pgliteClient, type SqlClient } from "../src/sql-client.js";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,8 +23,15 @@ export const migrationsFolder = path.resolve(testDir, "../drizzle");
  */
 export type TestDatabase = {
   client: SqlClient;
-  /** Replay the whole chain with drizzle's migrator, as a deployment would. */
-  migrate(): Promise<void>;
+  /**
+   * Replay the chain with drizzle's own migrator — the independent oracle the
+   * migration module is checked against, not what a deployment runs
+   * (`packages/db/src/migration/apply.ts` is).
+   *
+   * Pass a folder to replay a truncated chain — the state an earlier run left
+   * behind when it stopped part-way.
+   */
+  migrate(folder?: string): Promise<void>;
   close(): Promise<void>;
 };
 
@@ -63,8 +70,8 @@ function createEmbedded(): TestDatabase {
   const pglite = new PGlite();
   return {
     client: pgliteClient(pglite),
-    migrate: async () => {
-      await migrateEmbedded(drizzleEmbedded(pglite), { migrationsFolder });
+    migrate: async (folder = migrationsFolder) => {
+      await migrateEmbedded(drizzleEmbedded(pglite), { migrationsFolder: folder });
     },
     close: () => pglite.close()
   };
@@ -95,8 +102,8 @@ async function createPostgres(url: string): Promise<TestDatabase> {
 
     return {
       client: pgClient(client),
-      migrate: async () => {
-        await migrate(drizzle(client), { migrationsFolder });
+      migrate: async (folder = migrationsFolder) => {
+        await migrate(drizzle(client), { migrationsFolder: folder });
       },
       close: async () => {
         try {

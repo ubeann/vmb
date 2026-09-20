@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { SqlClient } from "../src/import/client.js";
+import type { SqlClient } from "../src/sql-client.js";
 import { count, createDatabase, rejects, scalar, type TestDatabase } from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";

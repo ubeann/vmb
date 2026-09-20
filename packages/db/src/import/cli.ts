@@ -2,7 +2,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { pgClient, pgliteClient, type SqlClient } from "./client.js";
+import { pgClient, pgliteClient, type SqlClient } from "../sql-client.js";
 import { importSnapshot, summarise } from "./run.js";
 import { isClean } from "./verify.js";
 

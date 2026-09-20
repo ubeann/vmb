@@ -11,7 +11,7 @@
 **Decision:** The third.
 
 - `0001` is the legacy schema verbatim, minus the excluded tables below. (`0000` — Better Auth's `user`/`session`/`account`/`verification` — already exists from #21. The chain was not reset to make the baseline `0000`, because that would invalidate the dev and preview Neon branches it is already applied to.)
-- Cutover for the business domains is: fresh Neon database ← cleaned schema + filtered data snapshot → `drizzle-kit migrate`, replaying the same chain development used.
+- Cutover for the business domains is: fresh Neon database ← cleaned schema + filtered data snapshot → `db:migrate`, replaying the same chain development used.
 - **Identity and RBAC are the exception.** Their legacy tables are excluded, so their data is carried by a transform ETL from the raw snapshot into the Better Auth tables (#7) and the new RBAC design (#8). Those paths are _not_ replay-based. This is why the pipeline is hybrid, by necessity.
 
 Excluded from the baseline (rationale and history in `docs/migration/deviations.md`):
@@ -32,3 +32,4 @@ Postgres schemas (`master`, `warehouse`, `trucking`, `expense`) are **kept**, so
 - Drizzle Kit's snapshot for the baseline is captured by `drizzle-kit pull` against a scratch database with `0001` applied. Hand-dropped SQL files are invisible to `drizzle-kit generate`, and `generate --custom` journals an entry while snapshotting the _previous_ schema, so the next `generate` re-emits every `CREATE TABLE`. The baseline must therefore be established through `pull`, not by dropping a file into the migrations directory (`docs/research/drizzle-baseline-and-better-auth.md`).
 - Every intentional difference from legacy is registered in `docs/migration/deviations.md`; mechanical deviations are applied in the port, semantic ones as migrations over loaded data.
 - Legacy UUIDs are preserved as they are; the only identity change is the client-route link — see ADR-0026.
+- Replay is `pnpm --filter @vmb/db db:migrate` (`packages/db/src/migration/apply.ts`), not `drizzle-kit migrate`: the same journal rows (`hash` is sha256 of the file, `created_at` is the journal's `when`), but each pending migration runs as one transaction and one round trip, because the chain's 975 statements against a remote Neon branch cost minutes when awaited one at a time and seconds when batched. The drizzle-orm migrators stay the oracle the module is tested against (#129).

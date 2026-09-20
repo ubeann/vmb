@@ -1,22 +1,11 @@
-import { readFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import path from "node:path";
 import { baselineMigrationTag } from "./manifest.js";
+import { readMigrations, type Migration as ChainMigration } from "../migration/chain.js";
 
 export type Phase = "baseline" | "after";
 
-export type Migration = {
-  tag: string;
+export type Migration = ChainMigration & {
   /** `baseline` creates the legacy shape; `after` runs over the loaded rows. */
   phase: Phase;
-  /** Statements, split exactly as the migrator splits them. */
-  statements: string[];
-  hash: string;
-  folderMillis: number;
-};
-
-type Journal = {
-  entries: { idx: number; tag: string; when: number }[];
 };
 
 /**
@@ -27,30 +16,16 @@ type Journal = {
  * journal the migrator reads keeps the two in step: nothing is hand-listed.
  */
 export async function readChain(migrationsFolder: string): Promise<Migration[]> {
-  const journal = JSON.parse(
-    await readFile(path.join(migrationsFolder, "meta", "_journal.json"), "utf8")
-  ) as Journal;
-
-  const baselineIndex = journal.entries.findIndex((entry) => entry.tag === baselineMigrationTag);
+  const migrations = await readMigrations(migrationsFolder);
+  const baselineIndex = migrations.findIndex((migration) => migration.tag === baselineMigrationTag);
   if (baselineIndex === -1) {
     throw new Error(`the journal has no ${baselineMigrationTag} entry`);
   }
 
-  const migrations: Migration[] = [];
-  for (const entry of journal.entries) {
-    const sql = await readFile(path.join(migrationsFolder, `${entry.tag}.sql`), "utf8");
-    migrations.push({
-      tag: entry.tag,
-      phase: entry.idx <= baselineIndex ? "baseline" : "after",
-      statements: sql
-        .split("--> statement-breakpoint")
-        .map((statement) => statement.trim())
-        .filter(Boolean),
-      hash: createHash("sha256").update(sql).digest("hex"),
-      folderMillis: entry.when
-    });
-  }
-  return migrations;
+  return migrations.map((migration, index) => ({
+    ...migration,
+    phase: index <= baselineIndex ? "baseline" : "after"
+  }));
 }
 
 export function byPhase(migrations: Migration[], phase: Phase): Migration[] {

@@ -8,7 +8,9 @@ Puts real legacy records into a Neon branch so development and parity checks run
 baseline (0000–0001)  →  load the snapshot  →  everything after the baseline
 ```
 
-The baseline must exist before rows arrive, and every later migration must run **over the loaded rows** — otherwise a conversion like the `timestamptz` change (#114) would never see the data. The pipeline splits the chain at `0001_legacy_baseline` and journals each migration as it completes, so a database it produces is indistinguishable from one the migrator built and a later `drizzle-kit migrate` applies only what is missing.
+The baseline must exist before rows arrive, and every later migration must run **over the loaded rows** — otherwise a conversion like the `timestamptz` change (#114) would never see the data. The pipeline splits the chain at `0001_legacy_baseline` and journals each migration as it completes, so a database it produces is indistinguishable from one the migrator built and a later `db:migrate` applies only what is missing.
+
+`db:migrate` is `packages/db/src/migration/apply.ts`, not `drizzle-kit migrate`: it writes the same journal rows (`hash` is sha256 of the file, `created_at` is the journal's `when`) but replays each pending migration as one round trip — its statements, its transaction and its journal insert in a single `exec`. Replaying the chain's 975 statements one at a time against a remote database is minutes of latency; per file it is seconds. The drizzle-orm migrators the tests use stay the independent oracle it is checked against (`packages/db/test/migrate.test.ts`).
 
 Rows are inserted parents-first, in the order in `src/import/schema-order.ts`, derived from the baseline's foreign-key graph and checked by a test against the live schema. `trucking.orders.reference_id` is the one self-reference: its key is immediate, so rows _within_ that table are ordered by their references before insertion, and a cycle is reported rather than silently mis-loaded.
 
