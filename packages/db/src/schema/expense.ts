@@ -96,7 +96,7 @@ export const requests = expense.table(
       "btree",
       table.divisionId.asc().nullsLast().op("uuid_ops"),
       table.status.asc().nullsLast().op("text_ops"),
-      table.createdAt.asc().nullsLast().op("timestamp_ops")
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
     ),
     index("expense_requests_user_id_index").using(
       "btree",

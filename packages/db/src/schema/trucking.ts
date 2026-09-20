@@ -56,19 +56,16 @@ export const clientTruckCompanies = trucking.table(
     updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
-    index("trucking_client_truck_companies_client_id_index").using(
-      "btree",
-      table.clientId.asc().nullsLast().op("uuid_ops")
-    ),
-    index("trucking_client_truck_companies_name_index").using(
-      "btree",
-      table.name.asc().nullsLast().op("text_ops")
-    ),
     foreignKey({
       columns: [table.clientId],
       foreignColumns: [clients.id],
       name: "trucking_client_truck_companies_client_id_foreign"
-    }).onDelete("cascade")
+    }).onDelete("cascade"),
+    unique("trucking_client_truck_companies_client_id_name_unique").on(table.clientId, table.name),
+    index("trucking_client_truck_companies_name_index").using(
+      "btree",
+      table.name.asc().nullsLast().op("text_ops")
+    )
   ]
 );
 
@@ -97,7 +94,16 @@ export const approvals = trucking.table(
       name: "trucking_approvals_approver_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("set null")
+      .onDelete("set null"),
+    index("trucking_approvals_type_created_at_index").using(
+      "btree",
+      table.type.asc().nullsLast().op("text_ops"),
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    index("trucking_approvals_approver_id_index").using(
+      "btree",
+      table.approverId.asc().nullsLast().op("uuid_ops")
+    )
   ]
 );
 
@@ -186,6 +192,10 @@ export const dailyTruckingActuals = trucking.table(
     unique("trucking_daily_trucking_actuals_trip_id_plan_code_unique").on(
       table.tripId,
       table.planCode
+    ),
+    index("trucking_daily_trucking_actuals_driver_id_index").using(
+      "btree",
+      table.driverId.asc().nullsLast().op("uuid_ops")
     )
   ]
 );
@@ -231,10 +241,6 @@ export const orders = trucking.table(
       "btree",
       table.clientTruckCompanyId.asc().nullsLast().op("uuid_ops")
     ),
-    index("trucking_orders_status_index").using(
-      "btree",
-      table.status.asc().nullsLast().op("text_ops")
-    ),
     foreignKey({
       columns: [table.cancelledBy],
       foreignColumns: [users.id],
@@ -263,7 +269,20 @@ export const orders = trucking.table(
     })
       .onUpdate("cascade")
       .onDelete("set null"),
-    unique("trucking_orders_code_unique").on(table.code)
+    unique("trucking_orders_code_unique").on(table.code),
+    index("trucking_orders_status_created_at_index").using(
+      "btree",
+      table.status.asc().nullsLast().op("text_ops"),
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    index("trucking_orders_reference_id_index").using(
+      "btree",
+      table.referenceId.asc().nullsLast().op("uuid_ops")
+    ),
+    index("trucking_orders_cancelled_by_index").using(
+      "btree",
+      table.cancelledBy.asc().nullsLast().op("uuid_ops")
+    )
   ]
 );
 
@@ -320,7 +339,11 @@ export const invoiceVendor = trucking.table(
       name: "trucking_invoice_vendor_invoice_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("cascade")
+      .onDelete("cascade"),
+    index("trucking_invoice_vendor_invoice_id_index").using(
+      "btree",
+      table.invoiceId.asc().nullsLast().op("uuid_ops")
+    )
   ]
 );
 
@@ -350,10 +373,6 @@ export const trips = trucking.table(
   },
   (table) => [
     index("trucking_trips_code_index").using("btree", table.code.asc().nullsLast().op("text_ops")),
-    index("trucking_trips_order_id_index").using(
-      "btree",
-      table.orderId.asc().nullsLast().op("uuid_ops")
-    ),
     foreignKey({
       columns: [table.orderId],
       foreignColumns: [orders.id],
@@ -365,7 +384,12 @@ export const trips = trucking.table(
       columns: [table.routeReferenceId],
       foreignColumns: [routes.id],
       name: "trucking_trips_route_reference_id_foreign"
-    }).onDelete("set null")
+    }).onDelete("set null"),
+    unique("trucking_trips_order_id_code_unique").on(table.orderId, table.code),
+    index("trucking_trips_route_reference_id_index").using(
+      "btree",
+      table.routeReferenceId.asc().nullsLast().op("uuid_ops")
+    )
   ]
 );
 
@@ -415,7 +439,12 @@ export const invoices = trucking.table(
       name: "trucking_invoices_client_id_foreign"
     })
       .onUpdate("cascade")
-      .onDelete("cascade")
+      .onDelete("cascade"),
+    index("trucking_invoices_client_id_status_index").using(
+      "btree",
+      table.clientId.asc().nullsLast().op("uuid_ops"),
+      table.status.asc().nullsLast().op("text_ops")
+    )
   ]
 );
 
@@ -507,6 +536,10 @@ export const dailyTruckingPlans = trucking.table(
     unique("trucking_daily_trucking_plans_trip_id_plan_code_unique").on(
       table.tripId,
       table.planCode
+    ),
+    index("trucking_daily_trucking_plans_driver_id_index").using(
+      "btree",
+      table.driverId.asc().nullsLast().op("uuid_ops")
     )
   ]
 );
@@ -630,7 +663,7 @@ export const invoiceComments = trucking.table(
     index("trucking_invoice_comments_invoice_id_created_at_index").using(
       "btree",
       table.invoiceId.asc().nullsLast().op("uuid_ops"),
-      table.createdAt.asc().nullsLast().op("timestamp_ops")
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
     ),
     index("trucking_invoice_comments_user_id_index").using(
       "btree",

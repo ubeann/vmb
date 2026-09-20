@@ -162,6 +162,20 @@
       "when": 1789845107807,
       "tag": "0022_timestamptz_conversion",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789889423444,
+      "tag": "0023_trucking_access_paths",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789889445154,
+      "tag": "0024_index_instant_opclass",
+      "breakpoints": true
     }
   ]
 }

@@ -169,7 +169,7 @@ export const procurementRequests = warehouse.table(
     index("warehouse_procurement_requests_status_created_at_index").using(
       "btree",
       table.status.asc().nullsLast().op("text_ops"),
-      table.createdAt.asc().nullsLast().op("timestamp_ops")
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
     )
   ]
 );
@@ -208,7 +208,7 @@ export const stockRequisitions = warehouse.table(
     index("warehouse_stock_requisitions_status_created_at_index").using(
       "btree",
       table.status.asc().nullsLast().op("text_ops"),
-      table.createdAt.asc().nullsLast().op("timestamp_ops")
+      table.createdAt.asc().nullsLast().op("timestamptz_ops")
     ),
     check(
       "warehouse_stock_requisitions_status_check",
