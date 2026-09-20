@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { pgClient } from "../sql-client.js";
+import { migrationsFolder } from "../migrations-path.js";
 import { applyMigrations } from "./apply.js";
 
 /**
@@ -14,9 +13,6 @@ import { applyMigrations } from "./apply.js";
  * replays in one round trip per file, so on a remote database this log is the
  * measurement that says which one is slow.
  */
-const here = path.dirname(fileURLToPath(import.meta.url));
-const migrationsFolder = path.resolve(here, "../../drizzle");
-
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
   return index === -1 ? undefined : process.argv[index + 1];

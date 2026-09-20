@@ -14,18 +14,15 @@
       "dependsOn": ["^build"],
       "env": ["TEST_DATABASE_URL"]
     },
-    "lint": {
-      "inputs": ["$TURBO_DEFAULT$", "!drizzle/**"]
-    },
+    "lint": {},
     "typecheck": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!drizzle/**"]
+      "dependsOn": ["^build"]
     },
     "//#format": {
       "cache": false
     },
     "//#format:check": {
-      "inputs": ["$TURBO_DEFAULT$", "!packages/db/drizzle/**"]
+      "inputs": ["$TURBO_DEFAULT$", "!migrations/**"]
     }
   }
 }

@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 import { PGlite } from "@electric-sql/pglite";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { pgClient, pgliteClient, type SqlClient } from "../sql-client.js";
+import { migrationsFolder } from "../migrations-path.js";
 import { importSnapshot, summarise } from "./run.js";
 import { isClean } from "./verify.js";
 
@@ -18,9 +17,6 @@ import { isClean } from "./verify.js";
  * The target is wiped before the load: the pipeline owns the database it is
  * pointed at.
  */
-const here = path.dirname(fileURLToPath(import.meta.url));
-const migrationsFolder = path.resolve(here, "../../drizzle");
-
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
   return index === -1 ? undefined : process.argv[index + 1];
