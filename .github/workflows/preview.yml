@@ -5,14 +5,13 @@ name: Preview
 # and the full stack get a real dry run before merging, without touching
 # production or a shared staging database.
 #
-# The three identifiers — the Workers alias / Pages branch (`pr<N>-<slug>` or
-# the `pr-<N>` fallback), the Pages deployment prefix (`pr<N>-`), and the Neon
-# branch (`pr-<N>`) — come from `scripts/preview-identifiers.sh`, the one
-# definition this workflow shares with cleanup.yml (issue #78). All three are
-# idempotent per PR:
+# The alias (`pr<N>-<slug>`, or the `pr-<N>` fallback) and the prefix (`pr<N>-`)
+# come from `scripts/preview-identifiers.sh`, the one definition this workflow
+# shares with cleanup.yml (issue #78), and the alias names all three resources,
+# so the whole environment reads the same (ADR-0029):
 #   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
-#   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
-#   - DB:    Neon branch named `pr-<N>`, carrying the `app` database (see the Resolve step)
+#   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias, as far as Cloudflare keeps it)
+#   - DB:    Neon branch `pr<N>-<slug>`, carrying the `app` database (see the Resolve step)
 #
 # Two preview resources aren't self-cleaning: the Neon branch and the Pages
 # deployment(s). The Pages side is pruned here after each successful deploy so
@@ -147,7 +146,7 @@ jobs:
     # carries (ADR-0029) and the branch previews fork from — pinned rather than
     # left to the project default (issue #118). The create step below and the
     # schema-diff step both read them, so changing either name moves creation
-    # and comparison together. (A `pr-<N>` branch reused across pushes keeps the
+    # and comparison together. (A preview branch reused across pushes keeps the
     # parent it was created with; the diff's base is this named branch, not a
     # per-branch `parent_id` lookup.)
     env:
@@ -160,9 +159,10 @@ jobs:
       # composite action `ci.yml` bootstraps with (issue #79).
       - uses: ./.github/actions/setup
 
-      # The alias, the Pages prefix, and the Neon branch name all come from
-      # `scripts/preview-identifiers.sh` (issue #78), so create and destroy
-      # read one definition. The alias is slugged from the pull request title
+      # The alias and the prefix both come from
+      # `scripts/preview-identifiers.sh` (issue #78), so create and destroy read
+      # one definition; the alias is also the Neon branch name (ADR-0029). The
+      # alias is slugged from the pull request title
       # with its Conventional Commit prefix stripped, falls back to the branch
       # name and then `pr-<N>`, and is capped so the whole alias fits inside
       # Cloudflare Pages' 28-character branch-alias limit — a longer one is
@@ -202,7 +202,9 @@ jobs:
           fi
 
           alias=$(preview_alias "$PR_NUMBER" "$PR_TITLE" "$HEAD_REF")
-          neon_branch=$(preview_neon_branch "$PR_NUMBER")
+          # The Neon branch carries the alias, so the console, the comment and
+          # the preview URLs all show one name (ADR-0029).
+          neon_branch=$alias
 
           # Safety net for a run that dies before cleanup.yml sees the PR close
           # (issue #118): the branch expires 30 days after creation, longer than
@@ -221,8 +223,66 @@ jobs:
           echo "Resolved preview alias: $alias"
           echo "Resolved Neon branch: $neon_branch"
 
-      # Idempotent: if a branch named `pr-<N>` already exists (a re-push to the
-      # same PR), the action returns the existing branch instead of failing.
+      # The Neon branch carries the alias (ADR-0029), and the alias moves when a
+      # title is edited. The create-branch action is idempotent only for the name
+      # it is handed, so without the rename step below a retitle would create a
+      # second branch for the same PR. Renaming is enough: a Neon branch name is
+      # a label, and the branch id, its endpoint host and its `app` database are
+      # unchanged, so a live preview's connection string keeps working.
+      - name: Align this PR's Neon branch name
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          # shellcheck source=scripts/neon-preview-branches.sh
+          . scripts/neon-preview-branches.sh
+
+          matches=$(neon_matching_branches "$NEON_PROJECT_ID" "$NEON_API_KEY" "$PR_NUMBER")
+
+          # One branch should match: this PR's own. If the desired name is
+          # already among them there is nothing to do; otherwise the first match
+          # is renamed and any extras — a leftover from a failed rename, a
+          # cancelled race, say — are left for Cleanup, which deletes every
+          # match.
+          rename_id=""
+          rename_from=""
+          extras=0
+          while IFS=$'\t' read -r branch_id name; do
+            [ -n "$branch_id" ] || continue
+
+            if [ "$name" = "$NEON_BRANCH" ]; then
+              echo "Neon branch '$name' already carries this PR's name."
+              exit 0
+            fi
+
+            if [ -z "$rename_id" ]; then
+              rename_id=$branch_id
+              rename_from=$name
+            else
+              extras=$((extras + 1))
+            fi
+          done <<< "$matches"
+
+          if [ -z "$rename_id" ]; then
+            echo "No Neon branch for this PR yet; the create step will make '$NEON_BRANCH'."
+            exit 0
+          fi
+
+          if [ "$extras" -gt 0 ]; then
+            echo "::warning::$extras other branch(es) also match this PR; renaming '$rename_from' and leaving the rest to Cleanup."
+          fi
+
+          echo "Renaming Neon branch '$rename_from' ($rename_id) to '$NEON_BRANCH'."
+          neon_rename_branch "$NEON_PROJECT_ID" "$NEON_API_KEY" "$rename_id" "$NEON_BRANCH"
+
+      # Idempotent: if a branch with this PR's alias already exists (a re-push to
+      # the same PR), the action returns the existing branch instead of failing.
       # The name comes from the shared module (via the Resolve step), not a
       # second inline definition (issue #78).
       #
@@ -589,8 +649,8 @@ jobs:
           . scripts/preview-identifiers.sh
           # shellcheck source=scripts/pages-preview-deployments.sh
           . scripts/pages-preview-deployments.sh
-          prefix=$(preview_pages_prefix "$PR_NUMBER")
-          fallback=$(preview_neon_branch "$PR_NUMBER")
+          prefix=$(preview_prefix "$PR_NUMBER")
+          fallback=$(preview_number_name "$PR_NUMBER")
 
           if ! deployments=$(pages_matching_deployments \
             "$CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_API_TOKEN" "$PROJECT_NAME" "$prefix" "$fallback"); then
