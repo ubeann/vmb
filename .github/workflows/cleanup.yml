@@ -55,7 +55,12 @@ jobs:
     # fail on an empty NEON_API_KEY / CLOUDFLARE_API_TOKEN. Skip on either
     # signal, actor or PR author, rather than fail for a reason unrelated to the
     # change (issue #45).
-    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+    #
+    # Fork PRs are skipped the same way (issue #149, ADR-0030): no repository
+    # secrets reach a fork's run either, and preview.yml's guard means it created
+    # no Neon branch or Pages deployment to delete — nothing leaks by skipping.
+    # preview.yml carries the full reasoning next to the same guard.
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 10
     steps:
       # Needed so the job can source the two shared modules preview.yml also
