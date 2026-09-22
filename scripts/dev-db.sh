@@ -53,7 +53,9 @@ DEV_BRANCH_PREFIX="dev-"
 DEV_DB_EXPIRES_MAX_DAYS=30
 
 usage() {
-  sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'
+  # Everything from line 2 down to the first non-comment line, so the header
+  # below can grow without this range going stale (it did).
+  sed -n '2,/^[^#]/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
 }
 
 log() { printf '  %s\n' "$1"; }
@@ -96,7 +98,8 @@ api() {
 
   if [ "$status" -ge 400 ]; then
     message=$(printf '%s' "$response" | jq -r '.message // empty' 2>/dev/null || true)
-    [ -n "$message" ] || message=$response
+    [ -n "$message" ] || message=$(printf '%s' "$response" |
+      sed -E 's#(postgres(ql)?)://[^@[:space:]]*@#\1://***@#g')
     fail "Neon API $method $path returned $status: $message"
   fi
 
@@ -145,11 +148,15 @@ expiry_days() {
   local days=${DEV_DB_EXPIRES_DAYS:-$DEV_DB_EXPIRES_MAX_DAYS}
 
   case "$days" in
-  '' | *[!0-9]*) fail "DEV_DB_EXPIRES_DAYS must be a whole number of days (0 for no expiry)" ;;
+  *[!0-9]*) fail "DEV_DB_EXPIRES_DAYS must be a whole number of days (0 for no expiry)" ;;
   esac
 
   if [ "$days" -gt "$DEV_DB_EXPIRES_MAX_DAYS" ]; then
-    log "DEV_DB_EXPIRES_DAYS=$days is past Neon's ${DEV_DB_EXPIRES_MAX_DAYS}-day maximum; using ${DEV_DB_EXPIRES_MAX_DAYS}."
+    # Diagnostics go to stderr here: this function's stdout *is* its return
+    # value, and a message captured into `days` is a value of
+    # "  …maximum; using 30\n30", which fails the integer tests downstream and
+    # quietly creates the branch with no expiry at all.
+    printf '  %s\n' "DEV_DB_EXPIRES_DAYS=$days is past Neon's ${DEV_DB_EXPIRES_MAX_DAYS}-day maximum; using ${DEV_DB_EXPIRES_MAX_DAYS}." >&2
     days=$DEV_DB_EXPIRES_MAX_DAYS
   fi
 
@@ -186,7 +193,9 @@ write_local_url() {
   if ! overlay_has_plain_provider; then
     fnox -c fnox.local.toml provider add plain plain >/dev/null
   fi
-  fnox -c fnox.local.toml set DATABASE_URL "$url" --provider plain >/dev/null
+  # Piped, not passed as an argument: `rotate-fnox-age-key.sh` sets the
+  # precedent that a secret never lands in argv, where `ps` can see it.
+  printf '%s' "$url" | fnox -c fnox.local.toml set DATABASE_URL --provider plain >/dev/null
 
   if [ "$(fnox get DATABASE_URL 2>/dev/null || true)" != "$url" ]; then
     fail "wrote DATABASE_URL to fnox.local.toml but fnox does not resolve it"
@@ -237,7 +246,10 @@ connection_url() {
   fi
 
   encoded=$(printf '%s' "$password" | jq -Rr @uri)
-  printf 'postgresql://%s:%s@%s/%s?sslmode=require&channel_binding=require' \
+  # `verify-full` rather than the `require` Neon's console offers: `pg` treats
+  # `require` as `verify-full` today and warns that a future major version will
+  # not, so naming the stronger mode keeps the behaviour and drops the warning.
+  printf 'postgresql://%s:%s@%s/%s?sslmode=verify-full&channel_binding=require' \
     "$owner" "$encoded" "$host" "$DATABASE_NAME"
 }
 
@@ -254,9 +266,9 @@ create_branch() {
       '{name: $name, parent_id: $parent}')
   fi
 
-  # `suspend_timeout_seconds: 0` (the plan default) matches what the working
-  # `neondatabase/create-branch-action` sends for a preview branch; a body
-  # without it is a shape the API has not accepted.
+  # `suspend_timeout_seconds: 0` (the plan default) is what the working
+  # `neondatabase/create-branch-action` sends for a preview branch, so this
+  # matches the one body shape known to be accepted; the field is optional.
   body=$(jq -n --argjson branch "$branch_json" \
     '{branch: $branch, endpoints: [{type: "read_write", suspend_timeout_seconds: 0}]}')
 
@@ -268,7 +280,8 @@ create_branch() {
   ENDPOINT_HOST=$(printf '%s' "$response" | jq -r '.endpoints[0].host')
 
   if [ -z "$BRANCH_ID" ] || [ -z "$ENDPOINT_ID" ] || [ -z "$ENDPOINT_HOST" ]; then
-    fail "branch creation returned no branch/endpoint: $response"
+    fail "branch creation returned no branch/endpoint (response keys: $(
+      printf '%s' "$response" | jq -r 'keys | join(",")' 2>/dev/null || echo unparseable))"
   fi
 
   wait_until_ready "$BRANCH_ID" "$ENDPOINT_ID"
@@ -347,9 +360,10 @@ cmd_status() {
   if [ -z "$BRANCH_ID" ]; then
     log "branch:  $BRANCH_NAME — not found (run: scripts/dev-db.sh up)"
   else
-    local state
-    state=$(api GET "/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" | jq -r '.branch.current_state')
-    log "branch:  $BRANCH_NAME ($BRANCH_ID, $state)"
+    local summary
+    summary=$(api GET "/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" \
+      | jq -r '"\(.branch.current_state), expires \(.branch.expires_at // "never")"')
+    log "branch:  $BRANCH_NAME ($BRANCH_ID, $summary)"
   fi
 
   local url
@@ -365,7 +379,7 @@ cmd_list() {
   api GET "/projects/$NEON_PROJECT_ID/branches?limit=100" \
     | jq -r --arg prefix "$DEV_BRANCH_PREFIX" --arg mine "$BRANCH_NAME" \
       '.branches[] | select(.name | startswith($prefix))
-       | "\(if .name == $mine then "*" else " " end) \(.name)\t\(.current_state)"'
+       | "\(if .name == $mine then "*" else " " end) \(.name)\t\(.current_state)\texpires \(.expires_at // "never")"'
 }
 
 case "${1:-}" in

@@ -226,6 +226,10 @@ jobs:
       # `expires_at` (30 days, computed in the Resolve step) is the cleanup
       # safety net a leaked branch needs if a run dies before cleanup.yml sees
       # the PR close: it deletes itself rather than surviving unreaped.
+      # `ssl: verify-full` rather than the action's `require` default: `pg`
+      # treats `require` as `verify-full` today and warns that a future major
+      # version will not, so naming the stronger mode keeps the behaviour and
+      # keeps the warning out of the migrate and seed logs.
       - name: Create Neon branch
         id: neon
         uses: neondatabase/create-branch-action@v6
@@ -234,6 +238,7 @@ jobs:
           branch_name: ${{ steps.ids.outputs.neon_branch }}
           database: app
           parent_branch: production
+          ssl: verify-full
           expires_at: ${{ steps.ids.outputs.neon_expires_at }}
           api_key: ${{ secrets.NEON_API_KEY }}
 
