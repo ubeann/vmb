@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { PGlite } from "@electric-sql/pglite";
+import { arg } from "../cli.js";
 import { pgClient, pgliteClient, type SqlClient } from "../sql-client.js";
 import { migrationsFolder } from "../migrations-path.js";
 import { importSnapshot, summarise } from "./run.js";
@@ -17,11 +18,6 @@ import { isClean } from "./verify.js";
  * The target is wiped before the load: the pipeline owns the database it is
  * pointed at.
  */
-function arg(name: string): string | undefined {
-  const index = process.argv.indexOf(`--${name}`);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
-
 const snapshotFile = arg("snapshot");
 if (!snapshotFile) {
   console.error("usage: db:import --snapshot <file> [--url <postgres url>] [--database <dir>]");

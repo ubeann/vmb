@@ -1,4 +1,4 @@
-import { ID_GROUPS, at, id, softStamps, stamps } from "../ids.js";
+import { ID_GROUPS, atMinute, fixtureId, softStamps, stamps } from "../ids.js";
 import { table } from "../sql.js";
 
 /**
@@ -18,7 +18,7 @@ import { table } from "../sql.js";
  * two identities is #7's transform; until then the seeder maintains both rows
  * with the same id so a preview click-through resolves at either end.
  */
-export const PREVIEW_USER_ID = id(ID_GROUPS.user, 1);
+export const PREVIEW_USER_ID = fixtureId(ID_GROUPS.user, 1);
 export const PREVIEW_USER_EMAIL = "preview@vmblogistics.id";
 export const PREVIEW_USER_PASSWORD = "preview-password";
 export const PREVIEW_USER_PASSWORD_HASH =
@@ -64,7 +64,7 @@ export const account = table(
   ],
   [
     {
-      id: id(ID_GROUPS.account, 1),
+      id: fixtureId(ID_GROUPS.account, 1),
       account_id: PREVIEW_USER_ID,
       provider_id: "credential",
       user_id: PREVIEW_USER_ID,
@@ -96,7 +96,7 @@ const divisions = table(
   ],
   [
     {
-      id: id(ID_GROUPS.division, 1),
+      id: fixtureId(ID_GROUPS.division, 1),
       name: "Operations",
       code: "OPS",
       description: "Fleet, trips and day-to-day operations",
@@ -106,7 +106,7 @@ const divisions = table(
       ...softStamps(1)
     },
     {
-      id: id(ID_GROUPS.division, 2),
+      id: fixtureId(ID_GROUPS.division, 2),
       name: "Finance",
       code: "FIN",
       description: "Budgets, invoices and payment settlement",
@@ -116,7 +116,7 @@ const divisions = table(
       ...softStamps(2)
     },
     {
-      id: id(ID_GROUPS.division, 3),
+      id: fixtureId(ID_GROUPS.division, 3),
       name: "Human Resources",
       code: "HRD",
       description: "People, payroll and administration",
@@ -126,7 +126,7 @@ const divisions = table(
       ...softStamps(3)
     },
     {
-      id: id(ID_GROUPS.division, 4),
+      id: fixtureId(ID_GROUPS.division, 4),
       name: "Information Technology",
       code: "ITD",
       description: "Systems, devices and internal support",
@@ -136,7 +136,7 @@ const divisions = table(
       ...softStamps(4)
     },
     {
-      id: id(ID_GROUPS.division, 5),
+      id: fixtureId(ID_GROUPS.division, 5),
       name: "Warehouse",
       code: "WHS",
       description: "Stock, procurement and requisitions",
@@ -146,7 +146,7 @@ const divisions = table(
       ...softStamps(5)
     },
     {
-      id: id(ID_GROUPS.division, 6),
+      id: fixtureId(ID_GROUPS.division, 6),
       name: "Trucking",
       code: "TRK",
       description: "Container haulage and route execution",
@@ -156,7 +156,7 @@ const divisions = table(
       ...softStamps(6)
     },
     {
-      id: id(ID_GROUPS.division, 7),
+      id: fixtureId(ID_GROUPS.division, 7),
       name: "Procurement",
       code: "PRC",
       description: "Vendor selection and purchasing",
@@ -166,7 +166,7 @@ const divisions = table(
       ...softStamps(7)
     },
     {
-      id: id(ID_GROUPS.division, 8),
+      id: fixtureId(ID_GROUPS.division, 8),
       name: "Legal",
       code: "LGL",
       description: "Contracts, permits and compliance",
@@ -176,7 +176,7 @@ const divisions = table(
       ...softStamps(8)
     },
     {
-      id: id(ID_GROUPS.division, 9),
+      id: fixtureId(ID_GROUPS.division, 9),
       name: "Health, Safety & Environment",
       code: "HSE",
       description: "Workplace safety and environmental controls",
@@ -186,7 +186,7 @@ const divisions = table(
       ...softStamps(9)
     },
     {
-      id: id(ID_GROUPS.division, 10),
+      id: fixtureId(ID_GROUPS.division, 10),
       name: "Quality Assurance",
       code: "QAS",
       description: "Service quality and audit follow-up",
@@ -196,7 +196,7 @@ const divisions = table(
       ...softStamps(10)
     },
     {
-      id: id(ID_GROUPS.division, 11),
+      id: fixtureId(ID_GROUPS.division, 11),
       name: "Marketing",
       code: "MKT",
       description: "Client relations and market development",
@@ -206,7 +206,7 @@ const divisions = table(
       ...softStamps(11)
     },
     {
-      id: id(ID_GROUPS.division, 12),
+      id: fixtureId(ID_GROUPS.division, 12),
       name: "General Affairs",
       code: "GAD",
       description: "Facilities, vehicles and office support",
@@ -258,19 +258,23 @@ const users = table(
     "updated_at",
     "deleted_at"
   ],
-  people.map((person, position) => ({
-    id: id(ID_GROUPS.user, position + 1),
-    name: person.name,
-    status: "active",
-    division_id: id(ID_GROUPS.division, position + 1),
-    phone: `+62 811-1000-${String(position + 1).padStart(4, "0")}`,
-    email: person.email,
-    email_verified_at: at(position + 1),
-    profile_photo_path: null,
-    password: "!preview-fixture-no-login",
-    remember_token: null,
-    ...softStamps(position + 1)
-  }))
+  people.map((person, position) => {
+    const index = position + 1;
+    return {
+      id: fixtureId(ID_GROUPS.user, index),
+      name: person.name,
+      status: "active",
+      division_id: fixtureId(ID_GROUPS.division, index),
+      phone: `+62 811-1000-${String(index).padStart(4, "0")}`,
+      email: person.email,
+      // one minute after the row's own created_at, never before it
+      email_verified_at: atMinute(index * 10 + 1),
+      profile_photo_path: null,
+      password: "!preview-fixture-no-login",
+      remember_token: null,
+      ...softStamps(index)
+    };
+  })
 );
 
 export const masterTables = [divisions, users];

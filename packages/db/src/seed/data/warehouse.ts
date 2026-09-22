@@ -1,5 +1,6 @@
-import { ID_GROUPS, id, stamps } from "../ids.js";
+import { ID_GROUPS, fixtureId, stamps, type IdGroup } from "../ids.js";
 import { table } from "../sql.js";
+import { approvalTable } from "./approvals.js";
 import { PREVIEW_USER_ID } from "./master.js";
 
 /**
@@ -39,8 +40,8 @@ const items = table(
     "updated_at"
   ],
   itemSeed.map((item, index) => ({
-    id: id(ID_GROUPS.item, index + 1),
-    division_id: id(ID_GROUPS.division, (index % 12) + 1),
+    id: fixtureId(ID_GROUPS.item, index + 1),
+    division_id: fixtureId(ID_GROUPS.division, (index % 12) + 1),
     name: item.name,
     code: item.code,
     description: `${item.name} kept in the central warehouse`,
@@ -72,7 +73,7 @@ const quotations = table(
   Array.from({ length: 6 }, (_, index) => {
     const quotation = index + 1;
     return {
-      id: id(ID_GROUPS.quotation, quotation),
+      id: fixtureId(ID_GROUPS.quotation, quotation),
       quoted_price: 4_500_000 + quotation * 350_000,
       vendor_name: `PT Sumber Teknik ${quotation}`,
       vendor_website: `https://sumberteknik${quotation}.example`,
@@ -128,16 +129,16 @@ const procurementRequests = table(
     // quotations belongs to exactly one request.
     const quoted = index >= 3 && index <= 8;
     return {
-      id: id(ID_GROUPS.procurementRequest, request),
+      id: fixtureId(ID_GROUPS.procurementRequest, request),
       request_number: `PR-2026-${String(request).padStart(4, "0")}`,
-      requester_id: index === 0 ? PREVIEW_USER_ID : id(ID_GROUPS.user, (index % 12) + 1),
-      item_id: id(ID_GROUPS.item, (index % 12) + 1),
+      requester_id: index === 0 ? PREVIEW_USER_ID : fixtureId(ID_GROUPS.user, (index % 12) + 1),
+      item_id: fixtureId(ID_GROUPS.item, (index % 12) + 1),
       status,
       unit_price: unitPrice,
       requested_quantity: quantity,
       total_amount: unitPrice * quantity,
       justification: `Replenish stock for ${itemSeed[index % 12]!.name}`,
-      quotation_id: quoted ? id(ID_GROUPS.quotation, index - 2) : null,
+      quotation_id: quoted ? fixtureId(ID_GROUPS.quotation, index - 2) : null,
       completed_at: status === "completed" ? "2026-01-04T08:00:00.000Z" : null,
       ...stamps(request)
     };
@@ -166,10 +167,10 @@ const stockRequisitions = table(
     const status = requisitionStatuses[index % 4]!;
     const item = itemSeed[index % 12]!;
     return {
-      id: id(ID_GROUPS.stockRequisition, requisition),
+      id: fixtureId(ID_GROUPS.stockRequisition, requisition),
       requisition_number: `SR-2026-${String(requisition).padStart(4, "0")}`,
-      requester_id: index === 0 ? PREVIEW_USER_ID : id(ID_GROUPS.user, (index % 12) + 1),
-      item_id: id(ID_GROUPS.item, (index % 12) + 1),
+      requester_id: index === 0 ? PREVIEW_USER_ID : fixtureId(ID_GROUPS.user, (index % 12) + 1),
+      item_id: fixtureId(ID_GROUPS.item, (index % 12) + 1),
       status,
       requested_quantity: (index % 6) + 2,
       stock_on_hand: item.stock,
@@ -183,15 +184,15 @@ const stockRequisitions = table(
 const stockAlerts = table(
   "warehouse.stock_alerts",
   ["id", "item_id", "last_stock", "last_requisition_id", "created_at", "updated_at"],
-  Array.from({ length: 6 }, (_, index) => {
+  Array.from({ length: 12 }, (_, index) => {
     const alert = index + 1;
     return {
-      id: id(ID_GROUPS.stockAlert, alert),
-      item_id: id(ID_GROUPS.item, alert),
+      id: fixtureId(ID_GROUPS.stockAlert, alert),
+      item_id: fixtureId(ID_GROUPS.item, alert),
       last_stock: itemSeed[alert - 1]!.stock,
       // NOT NULL with a SET NULL delete rule, so it must point at a live
-      // requisition — these six all exist.
-      last_requisition_id: id(ID_GROUPS.stockRequisition, alert),
+      // requisition — all twelve exist.
+      last_requisition_id: fixtureId(ID_GROUPS.stockRequisition, alert),
       ...stamps(alert)
     };
   })
@@ -199,6 +200,20 @@ const stockAlerts = table(
 
 const PROCUREMENT_REQUEST_MODEL = "App\\Models\\Warehouse\\ProcurementRequest";
 const STOCK_REQUISITION_MODEL = "App\\Models\\Warehouse\\StockRequisition";
+
+/** Each polymorphic target names the id group its `approvable_id` is minted from. */
+const APPROVABLE_GROUPS: Record<string, IdGroup> = {
+  [PROCUREMENT_REQUEST_MODEL]: ID_GROUPS.procurementRequest,
+  [STOCK_REQUISITION_MODEL]: ID_GROUPS.stockRequisition
+};
+
+function approvableId(model: string, target: number): string {
+  const group = APPROVABLE_GROUPS[model];
+  if (!group) {
+    throw new Error(`unknown approvable model: ${model}`);
+  }
+  return fixtureId(group, target);
+}
 
 const warehouseApprovalSeed = [
   { model: PROCUREMENT_REQUEST_MODEL, target: 1, type: "division" },
@@ -209,27 +224,13 @@ const warehouseApprovalSeed = [
   { model: STOCK_REQUISITION_MODEL, target: 2, type: "division" }
 ];
 
-const approvals = table(
+const approvals = approvalTable(
   "warehouse.approvals",
-  [
-    "id",
-    "approvable_type",
-    "approvable_id",
-    "approver_id",
-    "type",
-    "approved",
-    "comment",
-    "created_at",
-    "updated_at"
-  ],
   warehouseApprovalSeed.map((approval, index) => ({
-    id: id(ID_GROUPS.warehouseApproval, index + 1),
+    id: fixtureId(ID_GROUPS.warehouseApproval, index + 1),
     approvable_type: approval.model,
-    approvable_id:
-      approval.model === PROCUREMENT_REQUEST_MODEL
-        ? id(ID_GROUPS.procurementRequest, approval.target)
-        : id(ID_GROUPS.stockRequisition, approval.target),
-    approver_id: index % 2 === 0 ? PREVIEW_USER_ID : id(ID_GROUPS.user, 4),
+    approvable_id: approvableId(approval.model, approval.target),
+    approver_id: index % 2 === 0 ? PREVIEW_USER_ID : fixtureId(ID_GROUPS.user, 4),
     type: approval.type,
     approved: true,
     comment: `${approval.type} approval recorded for preview`,

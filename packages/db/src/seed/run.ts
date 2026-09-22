@@ -8,6 +8,25 @@ export type SeedReport = {
   milliseconds: number;
 };
 
+export type ApplicationTable = { schema: string; table: string };
+
+/**
+ * Every table in the schemas the seed owns, read from the catalog rather than
+ * a hand-kept list, so a table a later migration adds cannot be forgotten and
+ * left holding a production row. Exported for the tests, which snapshot the
+ * same set.
+ */
+export async function applicationTables(client: SqlClient): Promise<ApplicationTable[]> {
+  const schemas = WIPE_SCHEMAS.map((schema) => `'${schema}'`).join(", ");
+  return client.query<ApplicationTable>(
+    `select table_schema as schema, table_name as table
+       from information_schema.tables
+      where table_schema in (${schemas})
+        and table_type = 'BASE TABLE'
+      order by table_schema, table_name`
+  );
+}
+
 /**
  * Replace every row in the five application schemas with the deterministic
  * preview fixtures (issue #120).
@@ -25,11 +44,12 @@ export type SeedReport = {
  */
 export async function seed(client: SqlClient): Promise<SeedReport> {
   const started = performance.now();
-  const wipe = await wipeStatement(client);
 
   await client.exec("begin");
   try {
-    await client.exec(wipe);
+    // read inside the transaction, so the wipe list comes from the same
+    // snapshot the truncate runs in rather than a moment before it
+    await client.exec(await wipeStatement(client));
     for (const table of seedTables) {
       await client.exec(insertStatement(table));
     }
@@ -47,14 +67,7 @@ export async function seed(client: SqlClient): Promise<SeedReport> {
 }
 
 async function wipeStatement(client: SqlClient): Promise<string> {
-  const schemas = WIPE_SCHEMAS.map((schema) => `'${schema}'`).join(", ");
-  const found = await client.query<{ schema: string; table: string }>(
-    `select table_schema as schema, table_name as table
-       from information_schema.tables
-      where table_schema in (${schemas})
-        and table_type = 'BASE TABLE'
-      order by table_schema, table_name`
-  );
+  const found = await applicationTables(client);
 
   if (found.length === 0) {
     throw new Error("no tables to wipe — is this database migrated?");

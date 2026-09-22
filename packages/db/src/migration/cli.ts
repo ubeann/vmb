@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { arg, duration } from "../cli.js";
 import { pgClient } from "../sql-client.js";
 import { migrationsFolder } from "../migrations-path.js";
 import { applyMigrations } from "./apply.js";
@@ -13,11 +14,6 @@ import { applyMigrations } from "./apply.js";
  * replays in one round trip per file, so on a remote database this log is the
  * measurement that says which one is slow.
  */
-function arg(name: string): string | undefined {
-  const index = process.argv.indexOf(`--${name}`);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
-
 const url = arg("url") ?? process.env.DATABASE_URL;
 if (!url) {
   console.error("usage: db:migrate [--url <postgres url>]  (DATABASE_URL is the default)");
@@ -45,8 +41,4 @@ try {
   );
 } finally {
   await pg.end();
-}
-
-function duration(milliseconds: number): string {
-  return milliseconds < 1000 ? `${milliseconds}ms` : `${(milliseconds / 1000).toFixed(1)}s`;
 }

@@ -2,10 +2,10 @@
  * Fixed identity and time for the preview fixtures.
  *
  * Every primary key is derived here, never minted by `gen_random_uuid()`, and
- * every timestamp comes from `at()`, never from the clock — that is what makes
- * two seed runs produce identical table contents (issue #120). The two leading
- * characters of an id name its group, so an id spotted in a failure message or
- * a query traces straight back to the dataset.
+ * every timestamp comes from `atMinute()`, never from the clock — that is what
+ * makes two seed runs produce identical table contents (issue #120). The two
+ * leading characters of an id name its group, so an id spotted in a failure
+ * message or a query traces straight back to the dataset.
  */
 export const ID_GROUPS = {
   account: "a1",
@@ -42,20 +42,22 @@ export const ID_GROUPS = {
 
 export type IdGroup = (typeof ID_GROUPS)[keyof typeof ID_GROUPS];
 
-export function id(group: IdGroup, index: number): string {
+/** The `index`-th id of `group` — stable across runs, and unique within a table. */
+export function fixtureId(group: IdGroup, index: number): string {
   return `${group.padEnd(8, "0")}-0000-4000-8000-${String(index).padStart(12, "0")}`;
 }
 
 /** 2026-01-05T01:00:00Z — a fixed epoch the fixtures count minutes from. */
 const EPOCH = Date.UTC(2026, 0, 5, 1, 0, 0);
 
-export function at(minutes: number): string {
+/** A fixed timestamp `minutes` after the fixtures' epoch. */
+export function atMinute(minutes: number): string {
   return new Date(EPOCH + minutes * 60_000).toISOString();
 }
 
 /** `created_at`/`updated_at` for a row, stable across runs and ordered by index. */
 export function stamps(index: number) {
-  const time = at(index * 10);
+  const time = atMinute(index * 10);
   return { created_at: time, updated_at: time };
 }
 

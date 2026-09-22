@@ -1,5 +1,6 @@
-import { ID_GROUPS, id, softStamps, stamps } from "../ids.js";
+import { ID_GROUPS, fixtureId, softStamps, stamps } from "../ids.js";
 import { table } from "../sql.js";
+import { approvalTable } from "./approvals.js";
 import { PREVIEW_USER_ID } from "./master.js";
 
 /**
@@ -15,8 +16,8 @@ const budgets = table(
   Array.from({ length: 12 }, (_, index) => {
     const budget = index + 1;
     return {
-      id: id(ID_GROUPS.budget, budget),
-      division_id: id(ID_GROUPS.division, budget),
+      id: fixtureId(ID_GROUPS.budget, budget),
+      division_id: fixtureId(ID_GROUPS.division, budget),
       is_active: budget !== 11,
       amount: 25_000_000 + budget * 2_500_000,
       ...stamps(budget)
@@ -39,9 +40,9 @@ const requests = table(
     const request = index + 1;
     const type = request % 2 === 1 ? "NICHE" : "EMERGENCY";
     return {
-      id: id(ID_GROUPS.expenseRequest, request),
-      user_id: index === 0 ? PREVIEW_USER_ID : id(ID_GROUPS.user, (index % 12) + 1),
-      division_id: id(ID_GROUPS.division, (index % 12) + 1),
+      id: fixtureId(ID_GROUPS.expenseRequest, request),
+      user_id: index === 0 ? PREVIEW_USER_ID : fixtureId(ID_GROUPS.user, (index % 12) + 1),
+      division_id: fixtureId(ID_GROUPS.division, (index % 12) + 1),
       type,
       status: requestStatuses[index % 5]!,
       // One soft-deleted row, so a preview's default list has something to
@@ -68,8 +69,8 @@ const nicheDetails = table(
     const detail = index + 1;
     const request = index * 2 + 1;
     return {
-      id: id(ID_GROUPS.nicheDetail, detail),
-      request_id: id(ID_GROUPS.expenseRequest, request),
+      id: fixtureId(ID_GROUPS.nicheDetail, detail),
+      request_id: fixtureId(ID_GROUPS.expenseRequest, request),
       amount: 1_750_000 + detail * 125_000,
       notes: `Regular expense ${detail}: office and operational needs`,
       supporting_documents: { json: [`expense/${request}/supporting-${detail}.pdf`] },
@@ -99,8 +100,8 @@ const emergencyDetails = table(
     const detail = index + 1;
     const request = index * 2 + 2;
     return {
-      id: id(ID_GROUPS.emergencyDetail, detail),
-      request_id: id(ID_GROUPS.expenseRequest, request),
+      id: fixtureId(ID_GROUPS.emergencyDetail, detail),
+      request_id: fixtureId(ID_GROUPS.expenseRequest, request),
       category: String((index % 5) + 1),
       amount: 3_500_000 + detail * 250_000,
       budget_usage: `Drawn from the ${index % 2 === 0 ? "division" : "central"} budget`,
@@ -116,26 +117,15 @@ const emergencyDetails = table(
 /** Legacy records only the finance step on expense requests, so every seeded approval is `finance`. */
 const REQUEST_MODEL = "App\\Models\\Expense\\Request";
 
-const approvals = table(
+const approvals = approvalTable(
   "expense.approvals",
-  [
-    "id",
-    "approvable_type",
-    "approvable_id",
-    "approver_id",
-    "type",
-    "approved",
-    "comment",
-    "created_at",
-    "updated_at"
-  ],
   Array.from({ length: 6 }, (_, index) => {
     const approval = index + 1;
     return {
-      id: id(ID_GROUPS.expenseApproval, approval),
+      id: fixtureId(ID_GROUPS.expenseApproval, approval),
       approvable_type: REQUEST_MODEL,
-      approvable_id: id(ID_GROUPS.expenseRequest, approval),
-      approver_id: index % 2 === 0 ? PREVIEW_USER_ID : id(ID_GROUPS.user, 5),
+      approvable_id: fixtureId(ID_GROUPS.expenseRequest, approval),
+      approver_id: index % 2 === 0 ? PREVIEW_USER_ID : fixtureId(ID_GROUPS.user, 5),
       type: "finance",
       approved: approval !== 5,
       comment: approval === 5 ? "Budget line exhausted" : "Finance approved for preview",

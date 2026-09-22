@@ -5,8 +5,7 @@ import {
   PREVIEW_USER_ID,
   PREVIEW_USER_PASSWORD_HASH
 } from "../src/seed/data/master.js";
-import { WIPE_SCHEMAS } from "../src/seed/dataset.js";
-import { seed } from "../src/seed/run.js";
+import { applicationTables, seed } from "../src/seed/run.js";
 import type { SqlClient } from "../src/sql-client.js";
 import { count, migrationsFolder, scalar, withMigratedDatabase } from "./harness.js";
 
@@ -16,14 +15,7 @@ import { count, migrationsFolder, scalar, withMigratedDatabase } from "./harness
  * physical order.
  */
 async function contents(client: SqlClient): Promise<Record<string, string>> {
-  const schemas = WIPE_SCHEMAS.map((schema) => `'${schema}'`).join(", ");
-  const tables = await client.query<{ schema: string; table: string }>(
-    `select table_schema as schema, table_name as table
-       from information_schema.tables
-      where table_schema in (${schemas})
-        and table_type = 'BASE TABLE'
-      order by table_schema, table_name`
-  );
+  const tables = await applicationTables(client);
 
   const snapshot: Record<string, string> = {};
   for (const { schema, table } of tables) {
@@ -204,6 +196,7 @@ describe("seed", () => {
         "warehouse.items",
         "warehouse.procurement_requests",
         "warehouse.stock_requisitions",
+        "warehouse.stock_alerts",
         "expense.requests"
       ];
 

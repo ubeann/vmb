@@ -1,5 +1,6 @@
-import { ID_GROUPS, id, softStamps, stamps } from "../ids.js";
+import { ID_GROUPS, fixtureId, softStamps, stamps } from "../ids.js";
 import { table } from "../sql.js";
+import { approvalTable } from "./approvals.js";
 import { PREVIEW_USER_ID } from "./master.js";
 
 /**
@@ -41,7 +42,7 @@ const clients = table(
     "deleted_at"
   ],
   clientSeed.map((client, position) => ({
-    id: id(ID_GROUPS.client, position + 1),
+    id: fixtureId(ID_GROUPS.client, position + 1),
     name: client.name,
     code: `CL-${String(position + 1).padStart(3, "0")}`,
     pic: client.pic,
@@ -66,8 +67,8 @@ const clientTruckCompanies = table(
   "trucking.client_truck_companies",
   ["id", "client_id", "name", "editable_dtp", "created_at", "updated_at"],
   clientTruckCompanySeed.map((company, position) => ({
-    id: id(ID_GROUPS.clientTruckCompany, position + 1),
-    client_id: id(ID_GROUPS.client, company.client),
+    id: fixtureId(ID_GROUPS.clientTruckCompany, position + 1),
+    client_id: fixtureId(ID_GROUPS.client, company.client),
     name: company.name,
     editable_dtp: company.editableDtp,
     ...stamps(position + 1)
@@ -105,7 +106,7 @@ const drivers = table(
     "deleted_at"
   ],
   driverSeed.map((driver, position) => ({
-    id: id(ID_GROUPS.driver, position + 1),
+    id: fixtureId(ID_GROUPS.driver, position + 1),
     name: driver.name,
     date_of_birth: driver.birth,
     identification_number: `3174010${String(100000 + position + 1).slice(-6)}0${position + 1}`,
@@ -145,7 +146,7 @@ const trucks = table(
     "deleted_at"
   ],
   truckSeed.map((truck, position) => ({
-    id: id(ID_GROUPS.truck, position + 1),
+    id: fixtureId(ID_GROUPS.truck, position + 1),
     license_plate: `B ${String(9001 + position)} VMB`,
     brand: truck.brand,
     production_year: truck.year,
@@ -173,7 +174,7 @@ const locations = table(
   "trucking.locations",
   ["id", "code", "name", "created_at", "updated_at"],
   locationSeed.map((location, position) => ({
-    id: id(ID_GROUPS.location, position + 1),
+    id: fixtureId(ID_GROUPS.location, position + 1),
     code: location.code,
     name: location.name,
     ...stamps(position + 1)
@@ -185,7 +186,7 @@ const locations = table(
  * appear in every list, and every fifth route is a LOLO job. DTPs and DTAs
  * copy the same values, which is what the fee snapshot means.
  */
-function routeShape(route: number) {
+function routeSnapshot(route: number) {
   const isLolo = route % 5 === 0;
   return {
     size: route % 2 === 1 ? 20 : 40,
@@ -201,13 +202,13 @@ const routes = table(
   ["id", "size", "fee", "allowance", "is_lolo", "created_at", "updated_at"],
   Array.from({ length: 12 }, (_, index) => {
     const route = index + 1;
-    const shape = routeShape(route);
+    const snapshot = routeSnapshot(route);
     return {
-      id: id(ID_GROUPS.route, route),
-      size: shape.size,
-      fee: shape.fee,
-      allowance: shape.allowance,
-      is_lolo: shape.is_lolo,
+      id: fixtureId(ID_GROUPS.route, route),
+      size: snapshot.size,
+      fee: snapshot.fee,
+      allowance: snapshot.allowance,
+      is_lolo: snapshot.is_lolo,
       ...stamps(route)
     };
   })
@@ -250,9 +251,9 @@ const routeLocations = table(
     const route = Math.floor(index / 3) + 1;
     const stop = routeStops(route)[index % 3]!;
     return {
-      id: id(ID_GROUPS.routeLocation, index + 1),
-      route_id: id(ID_GROUPS.route, route),
-      location_id: id(ID_GROUPS.location, stop.location),
+      id: fixtureId(ID_GROUPS.routeLocation, index + 1),
+      route_id: fixtureId(ID_GROUPS.route, route),
+      location_id: fixtureId(ID_GROUPS.location, stop.location),
       position: stop.position,
       load_type: stop.position === 1 ? "E" : "F",
       is_visible: true,
@@ -277,8 +278,8 @@ const clientRoute = table(
   "trucking.client_route",
   ["client_id", "route_id", "created_at", "updated_at"],
   clientRouteLinks.map(([client, route], position) => ({
-    client_id: id(ID_GROUPS.client, client),
-    route_id: id(ID_GROUPS.route, route),
+    client_id: fixtureId(ID_GROUPS.client, client),
+    route_id: fixtureId(ID_GROUPS.route, route),
     ...stamps(position + 1)
   }))
 );
@@ -331,8 +332,8 @@ const orders = table(
     const order = index + 1;
     const client = order;
     return {
-      id: id(ID_GROUPS.order, order),
-      client_id: id(ID_GROUPS.client, client),
+      id: fixtureId(ID_GROUPS.order, order),
+      client_id: fixtureId(ID_GROUPS.client, client),
       code: 1000 + order,
       type: "REG",
       party_count: (index % 3) + 1,
@@ -353,8 +354,8 @@ const orders = table(
         order === 3 ? { json: [{ amount: 350_000, description: "Waiting time" }] } : null,
       reference_code: `REF-2026-${String(order).padStart(4, "0")}`,
       client_truck_company_id:
-        order <= 3 ? id(ID_GROUPS.clientTruckCompany, (order - 1) * 2 + 1) : null,
-      reference_id: order === 12 ? id(ID_GROUPS.order, 11) : null,
+        order <= 3 ? fixtureId(ID_GROUPS.clientTruckCompany, (order - 1) * 2 + 1) : null,
+      reference_id: order === 12 ? fixtureId(ID_GROUPS.order, 11) : null,
       cancelled_at: order === 10 ? "2026-01-04T09:30:00.000Z" : null,
       cancelled_by: order === 10 ? PREVIEW_USER_ID : null,
       cancel_reason: order === 10 ? "Client postponed the shipment" : null,
@@ -397,12 +398,12 @@ const trips = table(
   Array.from({ length: 6 }, (_, index) => {
     const trip = index + 1;
     return {
-      id: id(ID_GROUPS.trip, trip),
-      order_id: id(ID_GROUPS.order, trip),
+      id: fixtureId(ID_GROUPS.trip, trip),
+      order_id: fixtureId(ID_GROUPS.order, trip),
       code: tripLetter(trip),
       total_units: (index % 3) + 2,
       routes: { json: routeStopsJson(trip, true) },
-      route_reference_id: id(ID_GROUPS.route, trip),
+      route_reference_id: fixtureId(ID_GROUPS.route, trip),
       ...stamps(trip)
     };
   })
@@ -434,16 +435,16 @@ const dailyTruckingPlans = table(
     const position = (index % 2) + 1;
     const route = trip;
     return {
-      id: id(ID_GROUPS.dailyTruckingPlan, index + 1),
-      order_id: id(ID_GROUPS.order, trip),
-      truck_id: id(ID_GROUPS.truck, ((trip + position - 2) % 12) + 1),
-      user_id: id(ID_GROUPS.user, ((trip + position - 2) % 12) + 1),
-      driver_id: id(ID_GROUPS.driver, ((trip + position - 2) % 12) + 1),
-      trip_id: id(ID_GROUPS.trip, trip),
+      id: fixtureId(ID_GROUPS.dailyTruckingPlan, index + 1),
+      order_id: fixtureId(ID_GROUPS.order, trip),
+      truck_id: fixtureId(ID_GROUPS.truck, ((trip + position - 2) % 12) + 1),
+      user_id: fixtureId(ID_GROUPS.user, ((trip + position - 2) % 12) + 1),
+      driver_id: fixtureId(ID_GROUPS.driver, ((trip + position - 2) % 12) + 1),
+      trip_id: fixtureId(ID_GROUPS.trip, trip),
       plan_code: String(position),
       composite_code: `${1000 + trip}${tripLetter(trip)}${position}`,
-      ...routeShape(route),
-      route_reference: id(ID_GROUPS.route, route),
+      ...routeSnapshot(route),
+      route_reference: fixtureId(ID_GROUPS.route, route),
       ...softStamps(index + 1)
     };
   })
@@ -476,17 +477,17 @@ const dailyTruckingActuals = table(
     const trip = index + 1;
     const route = trip;
     return {
-      id: id(ID_GROUPS.dailyTruckingActual, trip),
-      daily_trucking_plan_id: id(ID_GROUPS.dailyTruckingPlan, index * 2 + 1),
-      order_id: id(ID_GROUPS.order, trip),
-      truck_id: id(ID_GROUPS.truck, trip),
-      user_id: id(ID_GROUPS.user, trip),
-      driver_id: id(ID_GROUPS.driver, trip),
-      trip_id: id(ID_GROUPS.trip, trip),
+      id: fixtureId(ID_GROUPS.dailyTruckingActual, trip),
+      daily_trucking_plan_id: fixtureId(ID_GROUPS.dailyTruckingPlan, index * 2 + 1),
+      order_id: fixtureId(ID_GROUPS.order, trip),
+      truck_id: fixtureId(ID_GROUPS.truck, trip),
+      user_id: fixtureId(ID_GROUPS.user, trip),
+      driver_id: fixtureId(ID_GROUPS.driver, trip),
+      trip_id: fixtureId(ID_GROUPS.trip, trip),
       plan_code: "1",
       composite_code: `${1000 + trip}${tripLetter(trip)}1`,
-      ...routeShape(route),
-      route_reference: id(ID_GROUPS.route, route),
+      ...routeSnapshot(route),
+      route_reference: fixtureId(ID_GROUPS.route, route),
       changed_routes: trip === 3 ? { json: routeStopsJson(9, false) } : null,
       ...softStamps(trip)
     };
@@ -532,8 +533,8 @@ const invoices = table(
     const filled = index % 6 >= 2;
     const settled = index % 6 >= 3;
     return {
-      id: id(ID_GROUPS.invoice, invoice),
-      client_id: id(ID_GROUPS.client, invoice),
+      id: fixtureId(ID_GROUPS.invoice, invoice),
+      client_id: fixtureId(ID_GROUPS.client, invoice),
       status,
       countdown: 12 - index,
       time_table_path: filled ? `invoices/${invoice}/time-table.pdf` : null,
@@ -579,8 +580,8 @@ const invoiceShipments = table(
   Array.from({ length: 6 }, (_, index) => {
     const shipment = index + 1;
     return {
-      id: id(ID_GROUPS.invoiceShipment, shipment),
-      invoice_id: id(ID_GROUPS.invoice, shipment),
+      id: fixtureId(ID_GROUPS.invoiceShipment, shipment),
+      invoice_id: fixtureId(ID_GROUPS.invoice, shipment),
       vessel_name: `MV Nusantara ${shipment}`,
       voyage: `V-2026${String(shipment).padStart(2, "0")}`,
       shipping_agent: `PT Agen Laut ${shipment}`,
@@ -606,8 +607,8 @@ const invoiceVendors = table(
   Array.from({ length: 6 }, (_, index) => {
     const vendor = index + 1;
     return {
-      id: id(ID_GROUPS.invoiceVendor, vendor),
-      invoice_id: id(ID_GROUPS.invoice, vendor),
+      id: fixtureId(ID_GROUPS.invoiceVendor, vendor),
+      invoice_id: fixtureId(ID_GROUPS.invoice, vendor),
       quantity: (index % 3) + 1,
       unit_price: 750_000 + vendor * 25_000,
       description: `Trucking vendor line ${vendor}`,
@@ -624,9 +625,9 @@ const invoiceComments = table(
     const invoice = Math.floor(index / 2) + 1;
     const status = invoiceStatuses[(invoice - 1) % 6]!;
     return {
-      id: id(ID_GROUPS.invoiceComment, comment),
-      invoice_id: id(ID_GROUPS.invoice, invoice),
-      user_id: index % 2 === 0 ? PREVIEW_USER_ID : id(ID_GROUPS.user, 2),
+      id: fixtureId(ID_GROUPS.invoiceComment, comment),
+      invoice_id: fixtureId(ID_GROUPS.invoice, invoice),
+      user_id: index % 2 === 0 ? PREVIEW_USER_ID : fixtureId(ID_GROUPS.user, 2),
       invoice_status: status,
       comment: `Followed up with the client (${status})`,
       ...stamps(comment)
@@ -640,28 +641,17 @@ const invoiceComments = table(
  */
 const ORDER_MODEL = "App\\Models\\Trucking\\Order";
 
-const approvals = table(
+const approvals = approvalTable(
   "trucking.approvals",
-  [
-    "id",
-    "approvable_type",
-    "approvable_id",
-    "approver_id",
-    "type",
-    "approved",
-    "comment",
-    "created_at",
-    "updated_at"
-  ],
   Array.from({ length: 6 }, (_, index) => {
     const approval = index + 1;
     const order = Math.floor(index / 2) + 1;
     const type = index % 2 === 0 ? "dtp" : "dta";
     return {
-      id: id(ID_GROUPS.truckingApproval, approval),
+      id: fixtureId(ID_GROUPS.truckingApproval, approval),
       approvable_type: ORDER_MODEL,
-      approvable_id: id(ID_GROUPS.order, order),
-      approver_id: index % 2 === 0 ? PREVIEW_USER_ID : id(ID_GROUPS.user, 3),
+      approvable_id: fixtureId(ID_GROUPS.order, order),
+      approver_id: index % 2 === 0 ? PREVIEW_USER_ID : fixtureId(ID_GROUPS.user, 3),
       type,
       approved: true,
       comment: `${type.toUpperCase()} approved for preview`,

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { arg, duration } from "../cli.js";
 import { pgClient } from "../sql-client.js";
 import { PREVIEW_USER_EMAIL, PREVIEW_USER_PASSWORD } from "./data/master.js";
 import { seed } from "./run.js";
@@ -18,11 +19,6 @@ import { seed } from "./run.js";
  * The preview login is printed because it is a committed, preview-only
  * credential — the workflow log is a legitimate place to read it from.
  */
-function arg(name: string): string | undefined {
-  const index = process.argv.indexOf(`--${name}`);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
-
 const url = arg("url") ?? process.env.DATABASE_URL;
 if (!url) {
   console.error("usage: db:seed [--url <postgres url>]  (DATABASE_URL is the default)");
@@ -41,8 +37,4 @@ try {
   console.log(`preview login: ${PREVIEW_USER_EMAIL} / ${PREVIEW_USER_PASSWORD}`);
 } finally {
   await pg.end();
-}
-
-function duration(milliseconds: number): string {
-  return milliseconds < 1000 ? `${milliseconds}ms` : `${(milliseconds / 1000).toFixed(1)}s`;
 }
