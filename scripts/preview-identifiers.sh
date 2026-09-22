@@ -2,16 +2,20 @@
 #
 # The one definition of a per-PR preview's identifiers (issue #78).
 #
-# A preview has four names:
-#   - the Workers preview alias / Pages branch alias: `pr<N>-<slug>`, falling
-#     back to `pr-<N>` when nothing slugs at all;
-#   - the Pages deployment prefix: `pr<N>-`, which matches every deployment the
-#     PR ever made, including ones orphaned by a rename;
-#   - the Neon branch name: `pr-<N>`, internal and number-keyed so a rename
-#     cannot orphan it;
-#   - the GitHub deployment environment: `preview/pr-<N>`, number-keyed for the
-#     same reason and named here because referencing an environment auto-creates
-#     it and nothing reaps it (issue #154).
+# A preview has two names, one prefix, and one deployment environment:
+#   - the alias: `pr<N>-<slug>`, falling back to `pr-<N>` when nothing slugs at
+#     all. It is the Workers preview alias, the Neon branch name, and the Pages
+#     branch alias as far as Cloudflare lets it be (it truncates, and appends a
+#     disambiguating suffix on collision, which is why the workflow posts the
+#     URL `wrangler` reports rather than one computed from this);
+#   - the prefix: `pr<N>-`. Every reaper matches the prefix or the fallback name
+#     exactly — the Pages deployment sweep and the Neon branch delete — so a
+#     retitle cannot orphan either, whatever the slug became;
+#   - the GitHub deployment environment: `preview/pr-<N>`, number-keyed rather
+#     than slugged because the environments endpoint deletes by exact name and
+#     nothing matches a prefix there, so a retitle must not move it; named here
+#     because referencing an environment auto-creates it and nothing reaps it
+#     (issue #154).
 #
 # The slug is decoration, and it comes from the pull request *title* — the text
 # a human wrote, and the text that describes the PR in review — with the
@@ -21,10 +25,10 @@
 # An over-long slug is cut on a word boundary, filler words first, so the
 # visible part reads as words — only a single word too long to fit is cut
 # mid-word, having no boundary to cut at.
-# A title is mutable, so retitling moves the alias on the next push; that is
-# safe because nothing that outlives a run is derived from the slug: cleanup
-# matches the `pr<N>-` prefix and deletes the Neon branch by `pr-<N>`, so an
-# old slug leaves no orphan.
+# A title is mutable, so retitling moves the alias on the next push. That is
+# safe on both sides: the Pages sweep matches the prefix and keeps the newest
+# deployment, and `preview.yml` renames the PR's Neon branch to the new alias
+# rather than leaving the old one behind.
 #
 # `preview.yml` mints these when it creates the environment; `cleanup.yml`
 # re-derives them independently when it destroys it. Keeping the scheme here,
@@ -36,8 +40,7 @@
 #
 #   . scripts/preview-identifiers.sh
 #   alias=$(preview_alias "$PR_NUMBER" "$PR_TITLE" "$HEAD_REF")  # pr<N>-<slug> | pr-<N>
-#   prefix=$(preview_pages_prefix "$PR_NUMBER")                  # pr<N>-
-#   branch=$(preview_neon_branch "$PR_NUMBER")                   # pr-<N>
+#   prefix=$(preview_prefix "$PR_NUMBER")                        # pr<N>-
 #   env_name=$(preview_environment_name "$PR_NUMBER")            # preview/pr-<N>
 #
 # `scripts/preview-identifiers.test.sh` pins the cases; CI runs it in the
@@ -52,7 +55,8 @@
 # costs `${#pr_number} + 3`, leaving `25 - ${#pr_number}` for the slug. Pages
 # may also append a disambiguating suffix when the truncated alias is already
 # taken, so `preview.yml` posts the web URL `wrangler` reports; this string is
-# what the Workers `<alias>-vmb-api` URL and the cleanup prefix use verbatim.
+# what the Workers `<alias>-vmb-api` URL, the Neon branch name and the cleanup
+# prefix all use verbatim.
 preview_slug_limit() {
   local limit=$((25 - ${#1}))
 
@@ -180,9 +184,10 @@ preview_branch_slug() {
   preview_fit_words "$(preview_sanitize "$1")" "$2"
 }
 
-# The number-keyed name `pr-<N>`. It is the one string shared by the Neon
-# branch and by the alias/Pages fallback; worker aliases must start with a
-# lowercase letter, which the `pr` prefix guarantees.
+# The number-keyed name `pr-<N>`: the alias's last resort, when neither the
+# title nor the branch name slugs to anything. Every reaper matches it by exact
+# name as well as by prefix; worker aliases must start with a lowercase letter,
+# which the `pr` prefix guarantees.
 preview_number_name() {
   printf 'pr-%s' "$1"
 }
@@ -208,29 +213,38 @@ preview_alias() {
   fi
 }
 
-# The Pages deployment prefix `pr<N>-`. Cleanup matches this prefix rather than
-# the current branch name so a rename (`pr<N>-<old>` -> `pr<N>-<new>`) cannot
-# orphan the old slug's deployments.
-preview_pages_prefix() {
+# The prefix `pr<N>-`. Both reapers match it rather than the current alias so a
+# retitle (`pr<N>-<old>` -> `pr<N>-<new>`) cannot orphan the old slug's Pages
+# deployments or leave the old Neon branch behind.
+preview_prefix() {
   printf 'pr%s-' "$1"
 }
 
-# The Neon branch name `pr-<N>`. Deliberately the same string as the alias and
-# Pages fallback, but named for this caller's purpose so the two cannot drift
-# apart; the delegation to `preview_number_name` is the point, not indirection
-# for its own sake.
-preview_neon_branch() {
-  preview_number_name "$1"
+# True when a name belongs to this PR: the fallback name exactly, or anything
+# under the prefix. This is the rule both reapers apply — the Pages sweep
+# expresses it in jq for its paginated list, and
+# `scripts/neon-preview-branches.sh` calls this — so a naming change cannot make
+# one reaper miss what the other finds.
+preview_name_matches() {
+  local prefix
+  local fallback
+
+  prefix=$(preview_prefix "$1")
+  fallback=$(preview_number_name "$1")
+
+  [ "$2" = "$fallback" ] || [ "${2#"$prefix"}" != "$2" ]
 }
 
 # The GitHub deployment environment `preview/pr-<N>` (issue #154). GitHub
 # auto-creates an environment when a deployment names one and never reaps it, so
-# this is a resource like the Neon branch, not a label: number-keyed so a
-# retitle cannot orphan it, and defined here so `preview.yml` (which registers
-# the deployment) and `cleanup.yml` (which deletes the environment) cannot
-# disagree — a second inline literal on either side would strand an environment
-# forever. The `preview/` prefix is a namespace, not a second key: it groups
-# these per-PR environments away from any hand-made one.
+# this is a resource like the Neon branch, not a label; and unlike the branch —
+# which every reaper finds by prefix or fallback, so a retitle merely renames it
+# — the environments endpoint deletes by exact name, so a retitle must not move
+# it. Number-keyed for that reason, and defined here so `preview.yml` (which
+# registers the deployment) and `cleanup.yml` (which deletes the environment)
+# cannot disagree: a second inline literal on either side would strand an
+# environment forever. The `preview/` prefix is a namespace, not a second key:
+# it groups these per-PR environments away from any hand-made one.
 preview_environment_name() {
   local number_name
   number_name=$(preview_number_name "$1")

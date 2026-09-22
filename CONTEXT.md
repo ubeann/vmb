@@ -133,7 +133,7 @@ _Avoid_: Approver (that's the User), sign-off
 ### Environments
 
 **Environment branch**:
-A Neon branch that is an environment: `production`, a per-PR preview (`pr-<n>`), or a per-developer local branch (`dev-<slug>`). Qualify "branch" — environment branch, or git branch — whenever the bare word would be ambiguous; there is no standing dev branch (ADR-0028).
+A Neon branch that is an environment: `production`, a per-PR preview (`pr<N>-<slug>`, or the `pr-<N>` fallback), or a per-developer local branch (`dev-<slug>`). Qualify "branch" — environment branch, or git branch — whenever the bare word would be ambiguous; there is no standing dev branch (ADR-0028).
 _Avoid_: dev branch (unqualified), DB branch
 
 **Deployment environment**:

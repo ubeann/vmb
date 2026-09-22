@@ -5,15 +5,18 @@ name: Preview
 # and the full stack get a real dry run before merging, without touching
 # production or a shared staging database.
 #
-# The four identifiers — the Workers alias / Pages branch (`pr<N>-<slug>` or
-# the `pr-<N>` fallback), the Pages deployment prefix (`pr<N>-`), the Neon
-# branch (`pr-<N>`), and the GitHub deployment environment (`preview/pr-<N>`) —
+# The alias (`pr<N>-<slug>`, or the `pr-<N>` fallback) and the prefix (`pr<N>-`)
 # come from `scripts/preview-identifiers.sh`, the one definition this workflow
-# shares with cleanup.yml (issue #78). All four are idempotent per PR:
+# shares with cleanup.yml (issue #78), and the alias names all three resources,
+# so the whole environment reads the same (ADR-0029):
 #   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
-#   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
-#   - DB:    Neon branch named `pr-<N>`, carrying the `app` database (see the Resolve step)
-#   - Deploy: GitHub deployment environment `preview/pr-<N>`     (see the Register step)
+#   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias, as far as Cloudflare keeps it)
+#   - DB:    Neon branch `pr<N>-<slug>`, carrying the `app` database (see the Resolve step)
+#
+# A fourth identifier, the GitHub deployment environment `preview/pr-<N>` (see
+# the Register step), is number-keyed rather than slugged, because the
+# environments endpoint deletes by exact name and a retitle must not strand it
+# (issue #154).
 #
 # Three preview resources aren't self-cleaning: the Neon branch, the Pages
 # deployment(s), and the GitHub deployment environment. The Pages side is pruned
@@ -41,11 +44,15 @@ on:
     # holds secrets and creates Cloudflare/Neon resources) is skipped before it
     # starts.
 
-# Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
-# therefore cancels any in-flight preview deploy in this group *before* the
-# cleanup deletes the Neon branch, so a half-finished run can't create the
-# branch after deletion and leak it. Otherwise, a new push cancels this PR's
-# superseded preview run; the branch is reused, not recreated.
+# Shared with cleanup.yml's `pull_request: closed` run, so closing a PR
+# normally cancels any in-flight preview deploy in this group before the
+# cleanup deletes the Neon branch — a half-finished run creating the branch
+# after deletion would leak it. GitHub documents same-group ordering as not
+# guaranteed, so read that as the normal path rather than a promise: the
+# branch's `expires_at`, renewed on every preview run through the API's PATCH
+# (issue #150), is the backstop when a cancelled run does create one after
+# cleanup. Otherwise, a new push cancels this PR's superseded preview run; the
+# branch is reused, not recreated.
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -151,7 +158,7 @@ jobs:
     # carries (ADR-0029) and the branch previews fork from — pinned rather than
     # left to the project default (issue #118). The create step below and the
     # schema-diff step both read them, so changing either name moves creation
-    # and comparison together. (A `pr-<N>` branch reused across pushes keeps the
+    # and comparison together. (A preview branch reused across pushes keeps the
     # parent it was created with; the diff's base is this named branch, not a
     # per-branch `parent_id` lookup.)
     env:
@@ -164,9 +171,10 @@ jobs:
       # composite action `ci.yml` bootstraps with (issue #79).
       - uses: ./.github/actions/setup
 
-      # The alias, the Pages prefix, and the Neon branch name all come from
-      # `scripts/preview-identifiers.sh` (issue #78), so create and destroy
-      # read one definition. The alias is slugged from the pull request title
+      # The alias and the prefix both come from
+      # `scripts/preview-identifiers.sh` (issue #78), so create and destroy read
+      # one definition; the alias is also the Neon branch name (ADR-0029). The
+      # alias is slugged from the pull request title
       # with its Conventional Commit prefix stripped, falls back to the branch
       # name and then `pr-<N>`, and is capped so the whole alias fits inside
       # Cloudflare Pages' 28-character branch-alias limit — a longer one is
@@ -206,13 +214,18 @@ jobs:
           fi
 
           alias=$(preview_alias "$PR_NUMBER" "$PR_TITLE" "$HEAD_REF")
-          neon_branch=$(preview_neon_branch "$PR_NUMBER")
+          # The Neon branch carries the alias, so the console, the comment and
+          # the preview URLs all show one name (ADR-0029).
+          neon_branch=$alias
 
           # Safety net for a run that dies before cleanup.yml sees the PR close
-          # (issue #118): the branch expires 30 days after creation, longer than
-          # any plausible PR lifetime. `expires_at` is honoured only when the
-          # branch is created — a re-push to an older PR reuses the existing
-          # branch and keeps its original deadline.
+          # (issue #118): the branch expires 30 days from now, longer than any
+          # plausible PR lifetime. One definition, read by two steps: the create
+          # step, whose action honours it only when it creates the branch, and
+          # the renewal step below, which PATCHes it onto a branch that already
+          # exists — the API accepts `expires_at` on an existing branch, the
+          # action does not — so a PR open longer than 30 days keeps its safety
+          # net (issue #150).
           neon_expires_at=$(date -u -d '+30 days' +%Y-%m-%dT%H:%M:%SZ)
 
           {
@@ -225,8 +238,66 @@ jobs:
           echo "Resolved preview alias: $alias"
           echo "Resolved Neon branch: $neon_branch"
 
-      # Idempotent: if a branch named `pr-<N>` already exists (a re-push to the
-      # same PR), the action returns the existing branch instead of failing.
+      # The Neon branch carries the alias (ADR-0029), and the alias moves when a
+      # title is edited. The create-branch action is idempotent only for the name
+      # it is handed, so without the rename step below a retitle would create a
+      # second branch for the same PR. Renaming is enough: a Neon branch name is
+      # a label, and the branch id, its endpoint host and its `app` database are
+      # unchanged, so a live preview's connection string keeps working.
+      - name: Align this PR's Neon branch name
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          # shellcheck source=scripts/neon-preview-branches.sh
+          . scripts/neon-preview-branches.sh
+
+          matches=$(neon_matching_branches "$NEON_PROJECT_ID" "$NEON_API_KEY" "$PR_NUMBER")
+
+          # One branch should match: this PR's own. If the desired name is
+          # already among them there is nothing to do; otherwise the first match
+          # is renamed and any extras — a leftover from a failed rename, a
+          # cancelled race, say — are left for Cleanup, which deletes every
+          # match.
+          rename_id=""
+          rename_from=""
+          extras=0
+          while IFS=$'\t' read -r branch_id name; do
+            [ -n "$branch_id" ] || continue
+
+            if [ "$name" = "$NEON_BRANCH" ]; then
+              echo "Neon branch '$name' already carries this PR's name."
+              exit 0
+            fi
+
+            if [ -z "$rename_id" ]; then
+              rename_id=$branch_id
+              rename_from=$name
+            else
+              extras=$((extras + 1))
+            fi
+          done <<< "$matches"
+
+          if [ -z "$rename_id" ]; then
+            echo "No Neon branch for this PR yet; the create step will make '$NEON_BRANCH'."
+            exit 0
+          fi
+
+          if [ "$extras" -gt 0 ]; then
+            echo "::warning::$extras other branch(es) also match this PR; renaming '$rename_from' and leaving the rest to Cleanup."
+          fi
+
+          echo "Renaming Neon branch '$rename_from' ($rename_id) to '$NEON_BRANCH'."
+          neon_rename_branch "$NEON_PROJECT_ID" "$NEON_API_KEY" "$rename_id" "$NEON_BRANCH"
+
+      # Idempotent: if a branch with this PR's alias already exists (a re-push to
+      # the same PR), the action returns the existing branch instead of failing.
       # The name comes from the shared module (via the Resolve step), not a
       # second inline definition (issue #78).
       #
@@ -250,7 +321,9 @@ jobs:
       #
       # `expires_at` (30 days, computed in the Resolve step) is the cleanup
       # safety net a leaked branch needs if a run dies before cleanup.yml sees
-      # the PR close: it deletes itself rather than surviving unreaped.
+      # the PR close: it deletes itself rather than surviving unreaped. The
+      # action applies it only on the path that creates the branch; the renewal
+      # step below re-applies it on every run (issue #150).
       # `ssl: verify-full` rather than the action's `require` default: `pg`
       # treats `require` as `verify-full` today and warns that a future major
       # version will not, so naming the stronger mode keeps the behaviour and
@@ -266,6 +339,64 @@ jobs:
           ssl: verify-full
           expires_at: ${{ steps.ids.outputs.neon_expires_at }}
           api_key: ${{ secrets.NEON_API_KEY }}
+
+      # The action's idempotent path returns an existing branch and applies
+      # nothing, so without this a PR open longer than 30 days would lose its
+      # cleanup safety net while its branch is still live (issue #150). The API
+      # accepts `expires_at` on an existing branch — at most 30 days from now,
+      # the value the Resolve step computed for this run — so every preview run
+      # renews the deadline rather than leaving it at the creation date.
+      #
+      # The target is this PR's own branch, the id the create step just
+      # returned. The step checks the branch's actual name before it PATCHes:
+      # the name must be this PR's `pr<N>-` branch, and the id must resolve to
+      # that same name, so a protected, default or parent branch — `production`
+      # is both the parent and the project default — can never be a target.
+      # Neon would refuse to expire such a branch anyway, but the run should
+      # not rely on the API rejecting a request the workflow should never make.
+      #
+      # A failed renewal fails the run: leak prevention that silently stops
+      # working is the failure this step exists to remove, and the failure
+      # names the branch id.
+      - name: Renew this PR's Neon branch expiry
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
+          NEON_BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+          NEON_EXPIRES_AT: ${{ steps.ids.outputs.neon_expires_at }}
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          # shellcheck source=scripts/neon-preview-branches.sh
+          . scripts/neon-preview-branches.sh
+
+          if ! preview_name_matches "$PR_NUMBER" "$NEON_BRANCH"; then
+            echo "::error::Refusing to set an expiry on '$NEON_BRANCH', which is not PR #$PR_NUMBER's branch."
+            exit 1
+          fi
+
+          # The desired name above is the workflow's own derivation; this reads
+          # the branch the create step actually returned, so a branch id that
+          # points somewhere else stops here instead of being PATCHed.
+          if ! target_branch=$(neon_branch_name "$NEON_PROJECT_ID" "$NEON_API_KEY" "$NEON_BRANCH_ID"); then
+            echo "::error::Could not read the name of Neon branch $NEON_BRANCH_ID; refusing to set an expiry on a branch that cannot be identified."
+            exit 1
+          fi
+
+          if [ "$target_branch" != "$NEON_BRANCH" ]; then
+            echo "::error::Neon branch $NEON_BRANCH_ID is '$target_branch', not '$NEON_BRANCH' — refusing to set an expiry on it."
+            exit 1
+          fi
+
+          if ! neon_set_branch_expiry \
+            "$NEON_PROJECT_ID" "$NEON_API_KEY" "$NEON_BRANCH_ID" "$NEON_EXPIRES_AT"; then
+            echo "::error::Could not renew the expiry of Neon branch $NEON_BRANCH_ID ('$NEON_BRANCH'); the branch would outlive its cleanup safety net."
+            exit 1
+          fi
 
       - name: Run database migrations against the PR's Neon branch
         env:
@@ -679,8 +810,8 @@ jobs:
           . scripts/preview-identifiers.sh
           # shellcheck source=scripts/pages-preview-deployments.sh
           . scripts/pages-preview-deployments.sh
-          prefix=$(preview_pages_prefix "$PR_NUMBER")
-          fallback=$(preview_neon_branch "$PR_NUMBER")
+          prefix=$(preview_prefix "$PR_NUMBER")
+          fallback=$(preview_number_name "$PR_NUMBER")
 
           if ! deployments=$(pages_matching_deployments \
             "$CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_API_TOKEN" "$PROJECT_NAME" "$prefix" "$fallback"); then

@@ -40,9 +40,14 @@ on:
     # it must run on every close to reap whatever an earlier push created, and
     # filtering it would leak again exactly as issue #66 describes.
 
-# Shares preview.yml's concurrency group on purpose: closing a PR cancels any
-# in-flight preview deploy here *before* deleting, so a cancelled run can't
-# create a resource after deletion and leak it.
+# Shares preview.yml's concurrency group on purpose: closing a PR normally
+# cancels any in-flight preview deploy here before deleting, so a cancelled run
+# is unlikely to create a resource after deletion and leak it. GitHub documents
+# same-group ordering as not guaranteed — the queued cleanup can start before
+# the running preview is cancelled — so this is the normal path, not a promise.
+# The Neon branch's `expires_at`, renewed on every preview run through the API's
+# PATCH (issue #150), is the backstop for a branch that slips through the race,
+# and this job's delete is idempotent, so a re-run or a late lookup is harmless.
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -74,11 +79,12 @@ jobs:
     steps:
       # Needed so the job can source the two shared modules preview.yml also
       # uses: `scripts/preview-identifiers.sh`, the one definition of the names
-      # it re-derives (issue #78), and `scripts/pages-preview-deployments.sh`,
-      # the shared Pages list-and-delete (issue #84). Cleanup previously inlined
-      # the `pr-<N>` Neon name and the `pr<N>-` Pages prefix; sourcing the same
-      # definitions preview.yml uses is what keeps create and destroy from
-      # drifting apart.
+      # it re-derives (issue #78); `scripts/pages-preview-deployments.sh`, the
+      # shared Pages list-and-delete (issue #84); and
+      # `scripts/neon-preview-branches.sh`, the shared Neon list, rename and
+      # delete (ADR-0029). Cleanup previously inlined the `pr-<N>` Neon name and
+      # the `pr<N>-` Pages prefix; sourcing the same definitions preview.yml
+      # uses is what keeps create and destroy from drifting apart.
       - uses: actions/checkout@v7
 
       # Lookup and delete in one step. Deletion used to be delegated to
@@ -87,10 +93,11 @@ jobs:
       # carried a Node 20 deprecation warning (issue #33). The lookup was
       # already a direct API call, so the delete is one more of the same.
       #
-      # `search` narrows server-side because list-branches is cursor-paginated;
-      # `limit` is well past any project's branch limit so the match can't fall
-      # onto a second page and silently leak the branch.
-      - name: Find and delete this PR's Neon branch
+      # Every match is deleted, not just the one named for the alias: the
+      # branch's name moves when the PR is retitled, so a failed rename, a
+      # cancelled race or a search that missed can leave a second branch under
+      # the old slug. Matching by prefix is what stops that leaking (ADR-0029).
+      - name: Find and delete this PR's Neon branches
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
@@ -100,22 +107,39 @@ jobs:
 
           # shellcheck source=scripts/preview-identifiers.sh
           . scripts/preview-identifiers.sh
-          BRANCH_NAME=$(preview_neon_branch "$PR_NUMBER")
+          # shellcheck source=scripts/neon-preview-branches.sh
+          . scripts/neon-preview-branches.sh
 
-          branch_id=$(curl -fsS \
-            -H "Authorization: Bearer $NEON_API_KEY" \
-            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches?limit=100&search=$BRANCH_NAME" \
-            | jq -r --arg name "$BRANCH_NAME" '[.branches[] | select(.name == $name) | .id] | first // ""')
+          matches=$(neon_matching_branches "$NEON_PROJECT_ID" "$NEON_API_KEY" "$PR_NUMBER")
 
-          if [ -z "$branch_id" ]; then
-            echo "No Neon branch named '$BRANCH_NAME' — nothing to delete."
+          if [ -z "$matches" ]; then
+            echo "No Neon branch for PR #$PR_NUMBER — nothing to delete."
             exit 0
           fi
 
-          echo "Deleting Neon branch '$BRANCH_NAME' ($branch_id)."
-          curl -fsS -X DELETE \
-            -H "Authorization: Bearer $NEON_API_KEY" \
-            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$branch_id"
+          # Only the id is needed here; the name is the label the lookup matched
+          # on, and the delete reports the id it acted on. One failure must not
+          # strand the rest, so they are counted and the step still ends red:
+          # a branch left behind is a real leak, reaped by nothing else before
+          # its 30-day expiry.
+          deleted=0
+          failed=0
+          while IFS=$'\t' read -r branch_id _; do
+            [ -n "$branch_id" ] || continue
+
+            if neon_delete_branch "$NEON_PROJECT_ID" "$NEON_API_KEY" "$branch_id"; then
+              deleted=$((deleted + 1))
+            else
+              failed=$((failed + 1))
+            fi
+          done <<< "$matches"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed of $((deleted + failed)) Neon branch(es) for PR #$PR_NUMBER could not be deleted."
+            exit 1
+          fi
+
+          echo "Deleted $deleted Neon branch(es) for PR #$PR_NUMBER."
 
       # Cloudflare never reaps a Pages preview deployment on its own: each push
       # to the PR creates another deployment for the branch, and every earlier
@@ -165,8 +189,8 @@ jobs:
           . scripts/preview-identifiers.sh
           # shellcheck source=scripts/pages-preview-deployments.sh
           . scripts/pages-preview-deployments.sh
-          prefix=$(preview_pages_prefix "$PR_NUMBER")
-          fallback=$(preview_neon_branch "$PR_NUMBER")
+          prefix=$(preview_prefix "$PR_NUMBER")
+          fallback=$(preview_number_name "$PR_NUMBER")
 
           if ! deployments=$(pages_matching_deployments \
             "$CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_API_TOKEN" "$PROJECT_NAME" "$prefix" "$fallback"); then
@@ -271,8 +295,9 @@ jobs:
       # GitHub auto-creates an environment when a deployment names one and never
       # deletes it, so without this every pull request would leave one behind
       # (issue #154). `preview.yml` registers the deployment under the name this
-      # step re-derives from the shared module (issue #78) — number-keyed, so a
-      # retitle cannot orphan it.
+      # step re-derives from the shared module (issue #78) — number-keyed rather
+      # than slugged, because this endpoint deletes by exact name and a retitle
+      # would otherwise strand the environment it moved off.
       #
       # The delete needs a token that can administer the repository:
       # `DELETE /repos/{owner}/{repo}/environments/{name}` requires
