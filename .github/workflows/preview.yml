@@ -145,8 +145,10 @@ jobs:
       # with its Conventional Commit prefix stripped, falls back to the branch
       # name and then `pr-<N>`, and is capped so the whole alias fits inside
       # Cloudflare Pages' 28-character branch-alias limit — a longer one is
-      # truncated by Pages, so the URL computed here would not resolve.
-      # `scripts/preview-identifiers.test.sh` pins the cases (issue #155).
+      # truncated by Pages, so a URL computed from it would not resolve.
+      # Cloudflare may still disambiguate a colliding alias with a suffix, so
+      # the web link posted below is the URL wrangler reports, not `web_url`
+      # here. `scripts/preview-identifiers.test.sh` pins the cases (#155).
       #
       # The account's workers.dev subdomain is not known to the workflow —
       # read it from the Cloudflare API rather than a hardcoded repo variable.
@@ -370,6 +372,7 @@ jobs:
         run: pnpm turbo build --filter=@vmb/web
 
       - name: Deploy web preview
+        id: web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -379,12 +382,35 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           # Same identifier as the API alias, so the Pages branch alias and the
-          # Workers preview alias line up. The commit metadata makes the
-          # Cloudflare Pages dashboard readable.
+          # Workers preview alias line up where Cloudflare lets them. The commit
+          # metadata makes the Cloudflare Pages dashboard readable.
+          set -o pipefail
           pnpm --filter @vmb/web exec wrangler pages deploy .svelte-kit/cloudflare \
             --branch "$PREVIEW_ALIAS" \
             --commit-message "$PR_TITLE" \
-            --commit-hash "$HEAD_SHA"
+            --commit-hash "$HEAD_SHA" 2>&1 | tee "$RUNNER_TEMP/pages-deploy.log"
+
+          # Cloudflare owns the Pages branch alias, and it is not a pure
+          # function of the `--branch` passed: it lowercases and truncates to 28
+          # characters, and appends a short suffix when that alias is already
+          # taken (seen on PR #156, where an earlier run's longer alias
+          # truncated onto the same string and the next one became `…-15b2`).
+          # So post the URL wrangler reports, not one computed from the alias —
+          # a stale link a reviewer cannot open is worse than this parse
+          # (issue #155). A URL that is not a Pages URL means the output shape
+          # changed; warn, and fall back to the deployment URL, which is the
+          # atomic one Pages printed and always resolves.
+          alias_url=$(sed -n 's/.*Deployment alias URL: \(https:\/\/[^[:space:]]*\)[[:space:]]*$/\1/p' \
+            "$RUNNER_TEMP/pages-deploy.log" | tail -n 1)
+          case "$alias_url" in
+          https://*.vmb-web.pages.dev) ;;
+          *)
+            echo "::warning::wrangler did not report a Pages alias URL; posting the deployment URL instead."
+            alias_url=$(sed -n 's/.*Take a peek over at \(https:\/\/[^[:space:]]*\)[[:space:]]*$/\1/p' \
+              "$RUNNER_TEMP/pages-deploy.log" | tail -n 1)
+            ;;
+          esac
+          echo "web_url=$alias_url" >> "$GITHUB_OUTPUT"
 
       # A Pages preview deployment is retained indefinitely and each push adds
       # another, so without this an open PR accumulates one deployment per push
@@ -471,7 +497,11 @@ jobs:
         if: always()
         uses: actions/github-script@v9
         env:
-          WEB_PREVIEW_URL: ${{ steps.ids.outputs.web_url }}
+          # The URL Cloudflare actually assigned this deployment (the deploy
+          # step reads it from wrangler's output), falling back to the computed
+          # one when the deploy itself failed — in which case the comment does
+          # not print URLs anyway.
+          WEB_PREVIEW_URL: ${{ steps.web.outputs.web_url || steps.ids.outputs.web_url }}
           API_PREVIEW_URL: ${{ steps.ids.outputs.api_url }}
           NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
           JOB_STATUS: ${{ job.status }}

@@ -39,10 +39,13 @@
 
 # The slug budget for `pr<N>-<slug>`: Cloudflare Pages truncates the branch
 # alias this becomes to 28 characters (`<alias>.vmb-web.pages.dev`), so a longer
-# alias resolves at a *different* address than the one computed here — the
-# truncated one. 28 is stricter than the Workers side (`<alias>-vmb-api` must
-# fit a 63-character DNS label), so it is the binding limit: `pr` + the number +
-# `-` costs `${#pr_number} + 3`, leaving `25 - ${#pr_number}` for the slug.
+# alias resolves at a *different* address than the one the workflow computes.
+# 28 is stricter than the Workers side (`<alias>-vmb-api` must fit a
+# 63-character DNS label), so it is the binding limit: `pr` + the number + `-`
+# costs `${#pr_number} + 3`, leaving `25 - ${#pr_number}` for the slug. Pages
+# may also append a disambiguating suffix when the truncated alias is already
+# taken, so `preview.yml` posts the web URL `wrangler` reports; this string is
+# what the Workers `<alias>-vmb-api` URL and the cleanup prefix use verbatim.
 preview_slug_limit() {
   local limit=$((25 - ${#1}))
 
