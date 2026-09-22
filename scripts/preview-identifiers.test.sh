@@ -151,6 +151,10 @@ check "the parent branch does not match" "miss" "$(matches_rule 148 production)"
 check "a dev branch does not match" "miss" "$(matches_rule 148 dev-76271600-ubeann)"
 check "the fallback itself matches" "match" "$(matches_rule 148 pr-148)"
 
+# ── The deployment environment is number-keyed and does not move ────────────
+
+check "the deployment environment is number-keyed" "preview/pr-148" "$(preview_environment_name 148)"
+
 # ── The sanitizer on its own ────────────────────────────────────────────────
 
 check "the sanitizer lowercases, collapses and trims" \

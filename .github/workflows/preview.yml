@@ -13,13 +13,19 @@ name: Preview
 #   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias, as far as Cloudflare keeps it)
 #   - DB:    Neon branch `pr<N>-<slug>`, carrying the `app` database (see the Resolve step)
 #
-# Two preview resources aren't self-cleaning: the Neon branch and the Pages
-# deployment(s). The Pages side is pruned here after each successful deploy so
-# an open PR keeps only its newest deployment (issue #84); cleanup.yml is the
-# close-time safety net that deletes the Neon branch and any Pages deployment
-# this prune left behind. The Workers preview alias needs nothing — aliases are
-# LRU-pruned past 1000 concurrent ones and the version behind an alias is
-# CF-retained (issue #55). See cleanup.yml for the full three-way distinction.
+# A fourth identifier, the GitHub deployment environment `preview/pr-<N>` (see
+# the Register step), is number-keyed rather than slugged, because the
+# environments endpoint deletes by exact name and a retitle must not strand it
+# (issue #154).
+#
+# Three preview resources aren't self-cleaning: the Neon branch, the Pages
+# deployment(s), and the GitHub deployment environment. The Pages side is pruned
+# here after each successful deploy so an open PR keeps only its newest
+# deployment (issue #84); cleanup.yml is the close-time safety net that deletes
+# the Neon branch, any Pages deployment this prune left behind, and the
+# environment (issues #55, #154). The Workers preview alias needs nothing —
+# aliases are LRU-pruned past 1000 concurrent ones and the version behind an
+# alias is CF-retained (issue #55). See cleanup.yml for the full distinction.
 #
 # Whether a PR gets a preview at all is decided by the `Detect code-relevant
 # changes` job, not a trigger-level `paths` filter. The canonical
@@ -53,6 +59,8 @@ concurrency:
 
 permissions:
   contents: read
+  # Needed to register the web preview as a GitHub deployment (issue #154).
+  deployments: write
   # Needed to post/update the sticky preview-URLs comment.
   pull-requests: write
 
@@ -676,6 +684,92 @@ jobs:
             ;;
           esac
           echo "web_url=$alias_url" >> "$GITHUB_OUTPUT"
+
+      # The URLs live in the sticky comment, but a GitHub deployment also puts a
+      # "View deployment" button in the pull request timeline and an entry on the
+      # repository's Deployments page (issue #154). Registered through the
+      # Deployments API rather than a job-level `environment:` key, for the two
+      # reasons this workflow has already paid for once: the deployment can name
+      # the PR's head commit instead of the synthetic merge commit (issue #46),
+      # and its URL can be the one wrangler reported for this run (issue #155)
+      # instead of a job-level expression, which cannot see a step output.
+      #
+      # Best-effort, like the prune below and unlike the deploys above: the
+      # comment already carries both URLs, so a failed registration costs the
+      # timeline affordance and nothing else. GitHub's default shell runs
+      # `bash -e`, so errexit is cleared explicitly and each call is checked by
+      # hand; the next push or the close-time Cleanup reconciles a miss.
+      #
+      # `required_contexts: []` is load-bearing: without it the create-deployment
+      # API refuses (409) until the ref's commit statuses pass, and a preview
+      # runs before they do. `transient_environment` is left at its default
+      # (false) so GitHub's automatic inactivate-the-previous rule applies to
+      # each push — transient deployments are excluded from it (measured: a
+      # second successful transient deployment leaves the first's success status
+      # untouched) — and the flag's other effect, the "destroyed" state a status
+      # can carry, is moot because cleanup.yml deletes the environment itself.
+      # `production_environment: false` keeps the preview out of the production
+      # rollup (`environment` defaults it to true only for "production").
+      - name: Register the web preview as a GitHub deployment
+        if: steps.web.outputs.web_url != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEB_PREVIEW_URL: ${{ steps.web.outputs.web_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Passed through the environment, never interpolated into the script:
+          # a pull request title is attacker-controlled text.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Best-effort by design: clear the runner's inherited `-e` so an
+          # unexpected failure here cannot fail an otherwise-green deploy.
+          set +e
+          set -uo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          # The shared module's environment name (issue #154), not a second
+          # inline `preview/pr-` literal (issue #78).
+          environment=$(preview_environment_name "$PR_NUMBER")
+          # The API rejects a description longer than 140 characters; a pull
+          # request title has no such limit.
+          description=$(printf 'PR #%s: %s' "$PR_NUMBER" "$PR_TITLE" | cut -c1-140)
+
+          deployment_id=$(jq -n \
+            --arg ref "$HEAD_SHA" \
+            --arg environment "$environment" \
+            --arg description "$description" \
+            '{ref: $ref, environment: $environment, description: $description,
+              required_contexts: [], auto_merge: false,
+              production_environment: false}' \
+            | curl -fsS -X POST \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments" \
+                --data @- \
+            | jq -r '.id // ""') || deployment_id=""
+
+          if [ -z "$deployment_id" ]; then
+            echo "::warning::Could not register the preview as a GitHub deployment; the preview itself is unaffected."
+            exit 0
+          fi
+
+          if ! jq -n \
+            --arg environment_url "$WEB_PREVIEW_URL" \
+            --arg log_url "$RUN_URL" \
+            --arg description "$description" \
+            '{state: "success", environment_url: $environment_url, log_url: $log_url, description: $description}' \
+            | curl -fsS -o /dev/null -X POST \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+                --data @-; then
+            echo "::warning::Deployment $deployment_id was registered but not marked successful; the preview itself is unaffected."
+            exit 0
+          fi
+
+          echo "Registered deployment $deployment_id: $environment -> $WEB_PREVIEW_URL"
 
       # A Pages preview deployment is retained indefinitely and each push adds
       # another, so without this an open PR accumulates one deployment per push

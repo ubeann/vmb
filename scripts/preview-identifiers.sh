@@ -2,7 +2,7 @@
 #
 # The one definition of a per-PR preview's identifiers (issue #78).
 #
-# A preview has two names and one prefix:
+# A preview has two names, one prefix, and one deployment environment:
 #   - the alias: `pr<N>-<slug>`, falling back to `pr-<N>` when nothing slugs at
 #     all. It is the Workers preview alias, the Neon branch name, and the Pages
 #     branch alias as far as Cloudflare lets it be (it truncates, and appends a
@@ -10,7 +10,12 @@
 #     URL `wrangler` reports rather than one computed from this);
 #   - the prefix: `pr<N>-`. Every reaper matches the prefix or the fallback name
 #     exactly — the Pages deployment sweep and the Neon branch delete — so a
-#     retitle cannot orphan either, whatever the slug became.
+#     retitle cannot orphan either, whatever the slug became;
+#   - the GitHub deployment environment: `preview/pr-<N>`, number-keyed rather
+#     than slugged because the environments endpoint deletes by exact name and
+#     nothing matches a prefix there, so a retitle must not move it; named here
+#     because referencing an environment auto-creates it and nothing reaps it
+#     (issue #154).
 #
 # The slug is decoration, and it comes from the pull request *title* — the text
 # a human wrote, and the text that describes the PR in review — with the
@@ -36,6 +41,7 @@
 #   . scripts/preview-identifiers.sh
 #   alias=$(preview_alias "$PR_NUMBER" "$PR_TITLE" "$HEAD_REF")  # pr<N>-<slug> | pr-<N>
 #   prefix=$(preview_prefix "$PR_NUMBER")                        # pr<N>-
+#   env_name=$(preview_environment_name "$PR_NUMBER")            # preview/pr-<N>
 #
 # `scripts/preview-identifiers.test.sh` pins the cases; CI runs it in the
 # `lint-workflows-and-scripts` job. This file is also shellchecked by CI and
@@ -227,4 +233,21 @@ preview_name_matches() {
   fallback=$(preview_number_name "$1")
 
   [ "$2" = "$fallback" ] || [ "${2#"$prefix"}" != "$2" ]
+}
+
+# The GitHub deployment environment `preview/pr-<N>` (issue #154). GitHub
+# auto-creates an environment when a deployment names one and never reaps it, so
+# this is a resource like the Neon branch, not a label; and unlike the branch —
+# which every reaper finds by prefix or fallback, so a retitle merely renames it
+# — the environments endpoint deletes by exact name, so a retitle must not move
+# it. Number-keyed for that reason, and defined here so `preview.yml` (which
+# registers the deployment) and `cleanup.yml` (which deletes the environment)
+# cannot disagree: a second inline literal on either side would strand an
+# environment forever. The `preview/` prefix is a namespace, not a second key:
+# it groups these per-PR environments away from any hand-made one.
+preview_environment_name() {
+  local number_name
+  number_name=$(preview_number_name "$1")
+
+  printf 'preview/%s' "$number_name"
 }
