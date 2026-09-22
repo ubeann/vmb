@@ -12,6 +12,7 @@
 
 - `0001` is the legacy schema verbatim, minus the excluded tables below. (`0000` — Better Auth's `user`/`session`/`account`/`verification` — already exists from #21. The chain was not reset to make the baseline `0000`, because that would invalidate the dev and preview Neon branches it is already applied to.)
 - Cutover for the business domains is: fresh Neon database ← cleaned schema + filtered data snapshot → `db:migrate`, replaying the same chain development used.
+- **No standing dev branch.** The dev branch this ADR assumed is not provisioned, by decision: development data comes from `db:seed`, and the import pipeline's rehearsal runs against a throwaway branch whose verifier report outlives it (ADR-0028).
 - **Identity and RBAC are the exception.** Their legacy tables are excluded, so their data is carried by a transform ETL from the raw snapshot into the Better Auth tables (#7) and the new RBAC design (#8). Those paths are _not_ replay-based. This is why the pipeline is hybrid, by necessity.
 
 Excluded from the baseline (rationale and history in `docs/migration/deviations.md`):
