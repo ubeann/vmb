@@ -15,11 +15,12 @@
 #   scripts/dev-db.sh list           list every per-developer branch
 #
 # Your branch is `dev-<slug>`, where the slug comes from DEV_DB_SLUG, or the
-# local part of your git email, or $USER. It is forked from `production` and
-# expires after DEV_DB_EXPIRES_DAYS (default 90; 0 for no expiry) — a safety net
-# for a branch nobody tears down. Every `up` pushes the expiry out, so it cannot
-# lapse under a developer who is using it; `up` also detects an expired or
-# deleted branch and recreates it.
+# local part of your git email, or $USER. It is forked from `production`, and it
+# expires after DEV_DB_EXPIRES_DAYS — default 30, Neon's maximum; 0 for no
+# expiry, and a larger value is clamped. The TTL is a safety net for a branch
+# nobody tears down: every `up` pushes the expiry out, so it cannot lapse under
+# a developer who is using it, and `up` also detects an expired or deleted
+# branch and recreates it.
 #
 # The connection string never touches the committed fnox store: it is written
 # to the gitignored `fnox.local.toml` overlay, which fnox merges over
@@ -47,6 +48,9 @@ API_BASE="https://console.neon.tech/api/v2"
 DATABASE_NAME="app"
 PARENT_BRANCH="production"
 DEV_BRANCH_PREFIX="dev-"
+# Neon rejects an expiry more than 30 days out, and that is the ceiling the API
+# documents: "Maximum expiration is 30 days from the current time".
+DEV_DB_EXPIRES_MAX_DAYS=30
 
 usage() {
   sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'
@@ -133,13 +137,32 @@ expiry_iso() {
   date -u -v+"${days}"d +%Y-%m-%dT%H:%M:%SZ
 }
 
+# The requested TTL, validated and clamped to the API's ceiling. A larger value
+# is clamped rather than rejected: `up` refreshes the TTL on every run, so the
+# cap never leaves a branch in use without one, and failing the run over an
+# over-long env var helps nobody.
+expiry_days() {
+  local days=${DEV_DB_EXPIRES_DAYS:-$DEV_DB_EXPIRES_MAX_DAYS}
+
+  case "$days" in
+  '' | *[!0-9]*) fail "DEV_DB_EXPIRES_DAYS must be a whole number of days (0 for no expiry)" ;;
+  esac
+
+  if [ "$days" -gt "$DEV_DB_EXPIRES_MAX_DAYS" ]; then
+    log "DEV_DB_EXPIRES_DAYS=$days is past Neon's ${DEV_DB_EXPIRES_MAX_DAYS}-day maximum; using ${DEV_DB_EXPIRES_MAX_DAYS}."
+    days=$DEV_DB_EXPIRES_MAX_DAYS
+  fi
+
+  printf '%s' "$days"
+}
+
 # The TTL is a safety net for a branch nobody uses, not a deadline on one in
 # daily use, so every `up` pushes it out. Zero means no expiry at all, and on a
 # branch that already has one that is an explicit removal (the API takes null).
 refresh_expiry() {
   local branch_id=$1 days expires body
 
-  days=${DEV_DB_EXPIRES_DAYS:-90}
+  days=$(expiry_days)
   if [ "$days" -le 0 ]; then
     api PATCH "/projects/$NEON_PROJECT_ID/branches/$branch_id" \
       '{"branch": {"expires_at": null}}' >/dev/null
@@ -217,7 +240,7 @@ connection_url() {
 create_branch() {
   local name=$1 days expires branch_json body response
 
-  days=${DEV_DB_EXPIRES_DAYS:-90}
+  days=$(expiry_days)
   if [ "$days" -gt 0 ]; then
     expires=$(expiry_iso "$days")
     branch_json=$(jq -n --arg name "$name" --arg parent "$PARENT_ID" --arg expires "$expires" \
