@@ -35,9 +35,14 @@ on:
     # it must run on every close to reap whatever an earlier push created, and
     # filtering it would leak again exactly as issue #66 describes.
 
-# Shares preview.yml's concurrency group on purpose: closing a PR cancels any
-# in-flight preview deploy here *before* deleting, so a cancelled run can't
-# create a resource after deletion and leak it.
+# Shares preview.yml's concurrency group on purpose: closing a PR normally
+# cancels any in-flight preview deploy here before deleting, so a cancelled run
+# is unlikely to create a resource after deletion and leak it. GitHub documents
+# same-group ordering as not guaranteed — the queued cleanup can start before
+# the running preview is cancelled — so this is the normal path, not a promise.
+# The Neon branch's `expires_at`, renewed on every preview run through the API's
+# PATCH (issue #150), is the backstop for a branch that slips through the race,
+# and this job's delete is idempotent, so a re-run or a late lookup is harmless.
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
