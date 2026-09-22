@@ -119,11 +119,31 @@ check "a five-digit PR number fills the budget exactly too" \
   "$monster5"
 check "and its alias is still 28 characters" "28" "$((${#monster5}))"
 
-# ── The other two names are number-keyed and do not move ────────────────────
+# ── The prefix, and the rule both reapers match by ──────────────────────────
 
-check "the Neon branch name is number-keyed" "pr-148" "$(preview_neon_branch 148)"
-check "the Pages prefix is number-keyed" "pr148-" "$(preview_pages_prefix 148)"
-check "the number-keyed name is shared by both" "pr-9" "$(preview_number_name 9)"
+check "the prefix is number-keyed" "pr148-" "$(preview_prefix 148)"
+check "the number-keyed fallback is the pr-<N> shape" "pr-9" "$(preview_number_name 9)"
+
+# The Pages sweep and the Neon branch delete match a name that is the fallback
+# exactly, or starts with the prefix. Every alias must satisfy one of them, or
+# the reapers would leave it behind: the slug source decides which shape comes
+# out, so pin all three sources.
+for spec in "148|a title long enough to be cut on a word boundary|branch" "7||branch" "9|🚀|///"; do
+  IFS='|' read -r pr title ref <<< "$spec"
+  alias=$(preview_alias "$pr" "$title" "$ref")
+  prefix=$(preview_prefix "$pr")
+  fallback=$(preview_number_name "$pr")
+
+  if [ "$alias" = "$fallback" ] || [ "${alias#"$prefix"}" != "$alias" ]; then
+    match="a name the reapers match"
+  else
+    match="a name neither reaper would find"
+  fi
+
+  check "pr $pr's alias is one of the reapers' shapes ($alias)" \
+    "a name the reapers match" \
+    "$match"
+done
 
 # ── The sanitizer on its own ────────────────────────────────────────────────
 
