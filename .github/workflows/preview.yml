@@ -142,6 +142,17 @@ jobs:
     # `changes` job runs the preview rather than silently skipping a code PR.
     if: "!cancelled() && needs.changes.outputs.code_changed != 'false' && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository"
     timeout-minutes: 10
+    # The two names this preview's contract with production is built from,
+    # defined once for the whole job: the database every environment branch
+    # carries (ADR-0029) and the branch previews fork from — pinned rather than
+    # left to the project default (issue #118). The create step below and the
+    # schema-diff step both read them, so changing either name moves creation
+    # and comparison together. (A `pr-<N>` branch reused across pushes keeps the
+    # parent it was created with; the diff's base is this named branch, not a
+    # per-branch `parent_id` lookup.)
+    env:
+      NEON_DB_NAME: app
+      NEON_PARENT_BRANCH: production
     steps:
       - uses: actions/checkout@v7
 
@@ -281,13 +292,13 @@ jobs:
       # action's defaults (`neondb` and the project's default branch), so the
       # preview's contract with production is explicit (issue #118):
       #
-      #   - `database: app` is the database production runs on, under the one
-      #     name every environment branch carries (ADR-0029). `db_url` feeds
-      #     both the migration step and the preview Worker's DATABASE_URL, so
-      #     the default pointed both at `neondb`, a database production never
-      #     migrated and which no longer exists.
-      #   - `parent_branch: production` makes the fork point a decision. The
-      #     project default is production today, but left implicit a
+      #   - `NEON_DB_NAME` (`app`) is the database production runs on, under
+      #     the one name every environment branch carries (ADR-0029). `db_url`
+      #     feeds both the migration step and the preview Worker's
+      #     DATABASE_URL, so the default pointed both at `neondb`, a database
+      #     production never migrated and which no longer exists.
+      #   - `NEON_PARENT_BRANCH` (`production`) makes the fork point a decision.
+      #     The project default is production today, but left implicit a
       #     project-default change would silently repoint every preview.
       #
       # `branch_type` stays `default` (copy-on-write, rows included): the
@@ -308,8 +319,8 @@ jobs:
         with:
           project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch_name: ${{ steps.ids.outputs.neon_branch }}
-          database: app
-          parent_branch: production
+          database: ${{ env.NEON_DB_NAME }}
+          parent_branch: ${{ env.NEON_PARENT_BRANCH }}
           ssl: verify-full
           expires_at: ${{ steps.ids.outputs.neon_expires_at }}
           api_key: ${{ secrets.NEON_API_KEY }}
@@ -318,6 +329,118 @@ jobs:
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}
         run: pnpm --filter @vmb/db db:migrate
+
+      # Reviewers learn what this PR's migrations did to the schema, not just
+      # that they ran (issue #153). Neon's `compare_schema` endpoint diffs the
+      # preview branch — the target, which just received the migrations — against
+      # `NEON_PARENT_BRANCH` (production, the branch previews fork from),
+      # resolved here because the endpoint takes ids while the job configures
+      # names.
+      #
+      # Best-effort, like the Pages prune below: a diff that cannot be computed
+      # must not fail a preview that otherwise deployed. Every handled failure
+      # path exits 0 with `status=unavailable`, which the comment step renders
+      # as "the diff was unavailable" — the same shape as "the deploy did not
+      # finish" — rather than as a red run or an empty section, and
+      # `continue-on-error` keeps that promise even for an unhandled bug.
+      #
+      # The API caps a diff at 20,000 lines; the excerpt written for the
+      # comment step keeps the first 200 lines, and the comment step bounds it
+      # again by characters, so a huge migration cannot approach the comment
+      # API's 65,536-character limit. This step prints the full diff to its log
+      # as it computes the excerpt, so the comment's truncation note can point
+      # there.
+      - name: Compare schema with production
+        id: schema_diff
+        # Belt and braces with the script's own `set +e`: a step that dies
+        # before it can write its outputs must still leave the preview to
+        # deploy (the comment then defaults to "unavailable").
+        continue-on-error: true
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          PREVIEW_BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+        run: |
+          # Best-effort by design: clear the runner's inherited `-e` so an
+          # unexpected failure here cannot fail an otherwise-green deploy.
+          set +e
+          set -uo pipefail
+
+          status="unavailable"
+          lines=0
+          truncated="false"
+          # More than a typical migration, and cheap to raise — the comment
+          # section stays scannable because it lives in `<details>`.
+          max_lines=200
+          excerpt_file="$RUNNER_TEMP/schema-diff.diff"
+          full_file="$RUNNER_TEMP/schema-diff.full.diff"
+          : > "$excerpt_file"
+
+          api="https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID"
+
+          # `search` narrows the server-side page to branches whose names
+          # contain the parent's, so the exact-name match fits one page in
+          # practice. A miss — or a listing failure — leaves the id empty and
+          # the diff reports `unavailable`, never a comparison against the
+          # wrong branch.
+          base_branch_id=""
+          if branches=$(curl -fsS \
+            -H "Authorization: Bearer $NEON_API_KEY" \
+            "$api/branches?limit=100&search=$NEON_PARENT_BRANCH"); then
+            base_branch_id=$(printf '%s' "$branches" \
+              | jq -r --arg name "$NEON_PARENT_BRANCH" '[.branches[] | select(.name == $name) | .id] | first // ""')
+          else
+            echo "::warning::Could not list Neon branches to resolve '$NEON_PARENT_BRANCH'."
+          fi
+
+          if [ -z "$base_branch_id" ]; then
+            echo "::warning::Could not resolve a Neon branch named '$NEON_PARENT_BRANCH'; the schema diff will be reported as unavailable."
+          else
+            # -G + --data-urlencode build the query string; the ids and database
+            # name are not pasted into it by hand.
+            if ! response=$(curl -fsS -G \
+              -H "Authorization: Bearer $NEON_API_KEY" \
+              --data-urlencode "base_branch_id=$base_branch_id" \
+              --data-urlencode "db_name=$NEON_DB_NAME" \
+              "$api/branches/$PREVIEW_BRANCH_ID/compare_schema"); then
+              echo "::warning::compare_schema failed for branch $PREVIEW_BRANCH_ID; the schema diff will be reported as unavailable."
+            elif ! diff=$(printf '%s' "$response" | jq -er '.diff | strings'); then
+              # `strings` yields nothing (and jq exits non-zero) unless `.diff`
+              # is a string, so a malformed response, a missing field or a
+              # non-string one all fail here: the schema is unknown rather than
+              # known-unchanged, and a changed status would be a lie.
+              echo "::warning::Could not read a diff from the compare_schema response; the schema diff will be reported as unavailable."
+            elif [ -z "${diff//[[:space:]]/}" ]; then
+              # No differences at all: the API returns an empty `diff`, and the
+              # comment says so explicitly rather than posting an empty block.
+              status="unchanged"
+            else
+              status="changed"
+              printf '%s\n' "$diff" > "$full_file"
+              lines=$(wc -l < "$full_file" | tr -d ' ')
+              head -n "$max_lines" "$full_file" > "$excerpt_file"
+              if [ "$lines" -gt "$max_lines" ]; then
+                truncated="true"
+              fi
+            fi
+          fi
+
+          # The comment carries a bounded excerpt; the full diff goes to this
+          # step's log, which is what the comment's truncation note links to.
+          if [ "$status" = "changed" ]; then
+            echo "--- full schema diff against '$NEON_PARENT_BRANCH' ---"
+            cat "$full_file"
+            echo "--- end schema diff ---"
+          fi
+
+          {
+            echo "status=$status"
+            echo "lines=$lines"
+            echo "truncated=$truncated"
+            echo "excerpt_file=$excerpt_file"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Schema diff against '$NEON_PARENT_BRANCH': status=$status lines=$lines truncated=$truncated"
 
       # The branch inherits production's rows — `branch_type` stays `default`
       # so the migration journal travels with the schema (see the Create Neon
@@ -582,6 +705,16 @@ jobs:
           API_PREVIEW_URL: ${{ steps.ids.outputs.api_url }}
           NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
           JOB_STATUS: ${{ job.status }}
+          # The job-level names (see the job's `env:`) and the compare step's
+          # outcome. An absent status means that step never ran — the run died
+          # before migrations — so the schema section is omitted rather than
+          # reported as unavailable; the step reports `unavailable` itself.
+          NEON_DB_NAME: ${{ env.NEON_DB_NAME }}
+          NEON_PARENT_BRANCH: ${{ env.NEON_PARENT_BRANCH }}
+          SCHEMA_DIFF_STATUS: ${{ steps.schema_diff.outputs.status }}
+          SCHEMA_DIFF_LINES: ${{ steps.schema_diff.outputs.lines }}
+          SCHEMA_DIFF_TRUNCATED: ${{ steps.schema_diff.outputs.truncated }}
+          SCHEMA_DIFF_EXCERPT_FILE: ${{ steps.schema_diff.outputs.excerpt_file }}
         with:
           script: |
             const marker = "<!-- preview-deployments -->";
@@ -604,9 +737,102 @@ jobs:
             // The shared module's Neon name (via the Resolve step), not a
             // second inline definition (issue #78).
             const neonBranch = process.env.NEON_BRANCH;
+            // The job-level names (see the job's `env:`), so this sentence and
+            // the schema section cannot drift from what the branch was created
+            // with (ADR-0029).
+            const dbName = process.env.NEON_DB_NAME;
+            const parentBranch = process.env.NEON_PARENT_BRANCH;
 
             const deployed = process.env.JOB_STATUS === "success" && webUrl && apiUrl;
-            const body = deployed
+
+            // The schema diff (issue #153) has three outcomes. `changed` reads
+            // the excerpt the compare step wrote to a file — up to 200 lines,
+            // which an environment variable would carry awkwardly and which
+            // never needs shell quoting. `unavailable` is reported by that step
+            // itself; with the URLs deployed the migrations must have run, so
+            // an absent status means the step died before it could report and
+            // "unavailable" is the honest answer. In a failed run an absent
+            // status means the run died before migrations, so the section is
+            // omitted rather than blamed on the diff.
+            let schemaStatus = process.env.SCHEMA_DIFF_STATUS;
+            if (!schemaStatus && deployed) schemaStatus = "unavailable";
+            let schemaTruncated = process.env.SCHEMA_DIFF_TRUNCATED === "true";
+            let schemaExcerpt = "";
+            if (schemaStatus === "changed") {
+              try {
+                schemaExcerpt = require("fs").readFileSync(
+                  process.env.SCHEMA_DIFF_EXCERPT_FILE,
+                  "utf8",
+                );
+              } catch (error) {
+                console.log(`Could not read the schema diff excerpt: ${error}`);
+                schemaStatus = "unavailable";
+              }
+            }
+
+            // Bound the excerpt by code points (not substring — a half-cut
+            // multi-byte identifier would be invalid UTF-8) so the comment
+            // stays clear of the API's 65,536-character body limit even if the
+            // 200-line excerpt is made of very long lines.
+            const maxDiffChars = 20000;
+            let shownLines = 0;
+            if (schemaStatus === "changed") {
+              const codepoints = Array.from(schemaExcerpt.trimEnd());
+              schemaExcerpt =
+                codepoints.length > maxDiffChars
+                  ? codepoints.slice(0, maxDiffChars).join("")
+                  : codepoints.join("");
+              schemaTruncated = schemaTruncated || codepoints.length > maxDiffChars;
+              shownLines = schemaExcerpt.split("\n").length;
+              // A `changed` status with nothing readable left is a broken
+              // excerpt, not a reason to render an empty block.
+              if (schemaExcerpt.trim() === "") schemaStatus = "unavailable";
+            }
+
+            const schemaLines = Number(process.env.SCHEMA_DIFF_LINES || "0");
+            const schemaSection = [];
+            if (schemaStatus === "changed") {
+              const scope = schemaTruncated
+                ? `first ${shownLines} of ${schemaLines} lines`
+                : `${schemaLines} lines`;
+              // A migration is PR-authored text: a backtick run longer than the
+              // opening fence would close it and leak the rest of the diff into
+              // the comment as markdown, so the fence outruns whatever the
+              // excerpt contains.
+              let longestBacktickRun = 3;
+              for (const run of schemaExcerpt.matchAll(/`+/g)) {
+                longestBacktickRun = Math.max(longestBacktickRun, run[0].length);
+              }
+              const fence = "`".repeat(longestBacktickRun + 1);
+              schemaSection.push(
+                "<details>",
+                `<summary>Schema diff against \`${parentBranch}\` (${scope})</summary>`,
+                "",
+                `${fence}diff`,
+                schemaExcerpt,
+                fence,
+              );
+              if (schemaTruncated) {
+                schemaSection.push(
+                  "",
+                  `The diff is truncated — the full diff is in the [workflow run](${runUrl}) log.`,
+                );
+              }
+              schemaSection.push("", "</details>");
+            } else if (schemaStatus === "unchanged") {
+              // "No schema changes" is the useful statement and the exact one:
+              // the comparison is against the parent's current head, which is
+              // not necessarily the fork point a reused branch started from.
+              schemaSection.push(
+                `No schema changes: the preview branch's schema matches \`${parentBranch}\`.`,
+              );
+            } else if (schemaStatus === "unavailable") {
+              schemaSection.push(
+                `The schema diff against \`${parentBranch}\` was unavailable for this run — see the [workflow run](${runUrl}).`,
+              );
+            }
+
+            const lines = deployed
               ? [
                   marker,
                   "## Preview environment",
@@ -619,10 +845,8 @@ jobs:
                   `| API preview | ${apiUrl} |`,
                   `| API health | ${apiUrl}/health |`,
                   "",
-                  `The preview API runs on the application database \`app\` in an isolated Neon branch (\`${neonBranch}\`), which is deleted when this pull request closes.`,
-                  "",
-                  `<sub>This comment updates on every push. [Workflow run](${runUrl})</sub>`,
-                ].join("\n")
+                  `The preview API runs on the application database \`${dbName}\` in an isolated Neon branch (\`${neonBranch}\`), which is deleted when this pull request closes.`,
+                ]
               : [
                   marker,
                   "## Preview environment",
@@ -632,7 +856,19 @@ jobs:
                   `Commit ${commit} on \`${branch}\`. [Workflow run](${runUrl})`,
                   "",
                   "Push a new commit, or re-run the workflow, to try again.",
-                ].join("\n");
+                ];
+
+            // The section renders for both bodies: a diff computed before a
+            // later step failed is still what this PR does to the schema.
+            if (schemaSection.length > 0) {
+              lines.push("", ...schemaSection);
+            }
+
+            if (deployed) {
+              lines.push("", `<sub>This comment updates on every push. [Workflow run](${runUrl})</sub>`);
+            }
+
+            const body = lines.join("\n");
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
