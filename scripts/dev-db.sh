@@ -62,20 +62,41 @@ require() {
   command -v "$1" >/dev/null 2>&1 || fail "$1 is required but not on PATH"
 }
 
+# Calls the API and prints the response body. `curl -f` is deliberately not
+# used: it throws away the response, and Neon's error message is the only thing
+# that explains a 400 — a missing field, a branch limit, an unsupported value.
 api() {
-  local method=$1 path=$2 body=${3:-}
+  local method=$1 path=$2 body=${3:-} response status message
 
   if [ -n "$body" ]; then
-    curl -fsS -X "$method" \
+    response=$(curl -sS -X "$method" \
       -H "Authorization: Bearer $NEON_API_KEY" \
       -H "Content-Type: application/json" \
       -d "$body" \
-      "$API_BASE$path"
+      -w $'\n%{http_code}' \
+      "$API_BASE$path" 2>&1) || fail "Neon API $method $path: curl failed — $response"
   else
-    curl -fsS -X "$method" \
+    response=$(curl -sS -X "$method" \
       -H "Authorization: Bearer $NEON_API_KEY" \
-      "$API_BASE$path"
+      -w $'\n%{http_code}' \
+      "$API_BASE$path" 2>&1) || fail "Neon API $method $path: curl failed — $response"
   fi
+
+  status=${response##*$'\n'}
+  response=${response%$'\n'*}
+
+  case "$status" in
+  [0-9][0-9][0-9]) ;;
+  *) fail "Neon API $method $path: no HTTP status in the response ($response)" ;;
+  esac
+
+  if [ "$status" -ge 400 ]; then
+    message=$(printf '%s' "$response" | jq -r '.message // empty' 2>/dev/null || true)
+    [ -n "$message" ] || message=$response
+    fail "Neon API $method $path returned $status: $message"
+  fi
+
+  printf '%s' "$response"
 }
 
 # The branch's id, or empty when it does not exist. `search` narrows
@@ -194,17 +215,23 @@ connection_url() {
 }
 
 create_branch() {
-  local name=$1 days expires body response
+  local name=$1 days expires branch_json body response
 
   days=${DEV_DB_EXPIRES_DAYS:-90}
   if [ "$days" -gt 0 ]; then
     expires=$(expiry_iso "$days")
-    body=$(jq -n --arg name "$name" --arg parent "$PARENT_ID" --arg expires "$expires" \
-      '{branch: {name: $name, parent_id: $parent, expires_at: $expires}, endpoints: [{type: "read_write"}]}')
+    branch_json=$(jq -n --arg name "$name" --arg parent "$PARENT_ID" --arg expires "$expires" \
+      '{name: $name, parent_id: $parent, expires_at: $expires}')
   else
-    body=$(jq -n --arg name "$name" --arg parent "$PARENT_ID" \
-      '{branch: {name: $name, parent_id: $parent}, endpoints: [{type: "read_write"}]}')
+    branch_json=$(jq -n --arg name "$name" --arg parent "$PARENT_ID" \
+      '{name: $name, parent_id: $parent}')
   fi
+
+  # `suspend_timeout_seconds: 0` (the plan default) matches what the working
+  # `neondatabase/create-branch-action` sends for a preview branch; a body
+  # without it is a shape the API has not accepted.
+  body=$(jq -n --argjson branch "$branch_json" \
+    '{branch: $branch, endpoints: [{type: "read_write", suspend_timeout_seconds: 0}]}')
 
   log "Creating Neon branch '$name' from '$PARENT_BRANCH'…"
   response=$(api POST "/projects/$NEON_PROJECT_ID/branches" "$body")
