@@ -213,3 +213,18 @@ preview_alias() {
 preview_prefix() {
   printf 'pr%s-' "$1"
 }
+
+# True when a name belongs to this PR: the fallback name exactly, or anything
+# under the prefix. This is the rule both reapers apply — the Pages sweep
+# expresses it in jq for its paginated list, and
+# `scripts/neon-preview-branches.sh` calls this — so a naming change cannot make
+# one reaper miss what the other finds.
+preview_name_matches() {
+  local prefix
+  local fallback
+
+  prefix=$(preview_prefix "$1")
+  fallback=$(preview_number_name "$1")
+
+  [ "$2" = "$fallback" ] || [ "${2#"$prefix"}" != "$2" ]
+}

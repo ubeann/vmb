@@ -80,9 +80,9 @@ jobs:
       # already a direct API call, so the delete is one more of the same.
       #
       # Every match is deleted, not just the one named for the alias: the
-      # branch's name moves when the PR is retitled, so a run that died between
-      # the rename and the next create can leave a second branch under the old
-      # slug. Matching by prefix is what stops that leaking (ADR-0029).
+      # branch's name moves when the PR is retitled, so a failed rename, a
+      # cancelled race or a search that missed can leave a second branch under
+      # the old slug. Matching by prefix is what stops that leaking (ADR-0029).
       - name: Find and delete this PR's Neon branches
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
@@ -96,21 +96,36 @@ jobs:
           # shellcheck source=scripts/neon-preview-branches.sh
           . scripts/neon-preview-branches.sh
 
-          prefix=$(preview_prefix "$PR_NUMBER")
-          fallback=$(preview_number_name "$PR_NUMBER")
-          matches=$(neon_matching_branches "$NEON_PROJECT_ID" "$NEON_API_KEY" "$prefix" "$fallback")
+          matches=$(neon_matching_branches "$NEON_PROJECT_ID" "$NEON_API_KEY" "$PR_NUMBER")
 
           if [ -z "$matches" ]; then
             echo "No Neon branch for PR #$PR_NUMBER — nothing to delete."
             exit 0
           fi
 
-          # Only the id is needed here; the name is the label the lookup
-          # matched on, and the delete reports the id it acted on.
+          # Only the id is needed here; the name is the label the lookup matched
+          # on, and the delete reports the id it acted on. One failure must not
+          # strand the rest, so they are counted and the step still ends red:
+          # a branch left behind is a real leak, reaped by nothing else before
+          # its 30-day expiry.
+          deleted=0
+          failed=0
           while IFS=$'\t' read -r branch_id _; do
             [ -n "$branch_id" ] || continue
-            neon_delete_branch "$NEON_PROJECT_ID" "$NEON_API_KEY" "$branch_id"
+
+            if neon_delete_branch "$NEON_PROJECT_ID" "$NEON_API_KEY" "$branch_id"; then
+              deleted=$((deleted + 1))
+            else
+              failed=$((failed + 1))
+            fi
           done <<< "$matches"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed of $((deleted + failed)) Neon branch(es) for PR #$PR_NUMBER could not be deleted."
+            exit 1
+          fi
+
+          echo "Deleted $deleted Neon branch(es) for PR #$PR_NUMBER."
 
       # Cloudflare never reaps a Pages preview deployment on its own: each push
       # to the PR creates another deployment for the branch, and every earlier

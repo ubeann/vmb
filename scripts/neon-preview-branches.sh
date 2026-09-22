@@ -3,13 +3,14 @@
 # Shared Neon preview-branch helpers.
 #
 # A preview's Neon branch carries the same `pr<N>-<slug>` name as its Workers
-# alias (ADR-0029), so both workflows that touch it work from the two strings
-# `scripts/preview-identifiers.sh` defines: the `pr<N>-` prefix and the `pr-<N>`
-# fallback. `preview.yml` renames the branch when a retitle moves the alias, and
+# alias (ADR-0029), so both workflows that touch it work from the names
+# `scripts/preview-identifiers.sh` defines — source that module first: the
+# lookup below calls its `preview_name_matches` rather than restating the rule.
+# `preview.yml` renames the branch when a retitle moves the alias, and
 # `cleanup.yml` deletes every branch the PR owns when it closes. Keeping the
-# lookup, the rename and the delete here means the match predicate cannot drift
-# between them — the same reason `pages-preview-deployments.sh` exists for the
-# Pages side.
+# lookup, the rename and the delete here means the match cannot drift between
+# them — the same reason `pages-preview-deployments.sh` exists for the Pages
+# side.
 #
 # A rename is a label change, not a move: the branch keeps its id, its endpoint
 # host and its `app` database, so a live preview's connection string keeps
@@ -23,7 +24,7 @@
 # Source it, then call the functions:
 #
 #   . scripts/neon-preview-branches.sh
-#   neon_matching_branches "$PROJECT_ID" "$API_KEY" "$prefix" "$fallback"  # id<TAB>name
+#   neon_matching_branches "$PROJECT_ID" "$API_KEY" "$PR_NUMBER"            # id<TAB>name
 #   neon_rename_branch "$PROJECT_ID" "$API_KEY" "$branch_id" "$new_name"
 #   neon_delete_branch "$PROJECT_ID" "$API_KEY" "$branch_id"
 #
@@ -34,43 +35,66 @@
 # cannot collide with a caller's variables.
 NEON_PREVIEW_API_BASE="https://console.neon.tech/api/v2"
 
-# Every branch of the project that is this PR's fallback name or starts with its
-# prefix, as `<id>\t<name>` lines.
+# Every branch of the project that belongs to the PR — the fallback name exactly,
+# or anything under the prefix — as `<id>\t<name>` lines.
 #
-# `search` narrows server-side (it matches a partial name or id) and `limit` is
-# past any plan's branch cap for a project that reaps preview branches at close
-# and expires them after 30 days, so a match cannot hide on a second page. The
-# names are matched here rather than trusted from the search: `search=pr` also
-# matches `production`, and searching by the number alone would match unrelated
-# branches.
+# Paginates on the response cursor: a project can hold thousands of branches, so
+# a match on a later page would otherwise be missed, and a missed branch means a
+# duplicate is created or one leaks past Cleanup. `search` narrows the list
+# server-side (it matches a partial name or id), and the match itself is decided
+# by `preview_name_matches`, so `production` and other `pr`-containing names
+# cannot slip through.
 neon_matching_branches() {
   local project_id=$1
   local api_key=$2
-  local prefix=$3
-  local fallback=$4
-  local response status body
+  local pr_number=$3
+  local cursor=""
+  local url
+  local response status body page_next id name
+  local matches=""
 
-  # `-sS` without `-f`: a non-2xx must stay inspectable so Neon's own message is
-  # printed rather than collapsing to a bare `curl: (22)`.
-  if ! response=$(curl -sS -w '\n%{http_code}' \
-    -H "Authorization: Bearer $api_key" \
-    "$NEON_PREVIEW_API_BASE/projects/$project_id/branches?limit=100&search=pr"); then
-    echo "Could not reach the Neon API to list branches." >&2
-    return 1
+  while :; do
+    url="$NEON_PREVIEW_API_BASE/projects/$project_id/branches?limit=100&search=pr"
+    if [ -n "$cursor" ]; then
+      url="$url&cursor=$cursor"
+    fi
+
+    # `-sS` without `-f`: a non-2xx must stay inspectable so Neon's own message
+    # is printed rather than collapsing to a bare `curl: (22)`.
+    if ! response=$(curl -sS -w '\n%{http_code}' \
+      -H "Authorization: Bearer $api_key" \
+      "$url"); then
+      echo "Could not reach the Neon API to list branches." >&2
+      return 1
+    fi
+
+    status=$(printf '%s' "$response" | tail -n1)
+    body=$(printf '%s' "$response" | sed '$d')
+    case "$status" in
+    2??) ;;
+    *)
+      echo "Listing Neon branches failed (HTTP $status): $body" >&2
+      return 1
+      ;;
+    esac
+
+    while IFS=$'\t' read -r id name; do
+      [ -n "$id" ] || continue
+      if preview_name_matches "$pr_number" "$name"; then
+        matches+="${id}"$'\t'"${name}"$'\n'
+      fi
+    done <<< "$(printf '%s' "$body" | jq -r '.branches[]? | "\(.id)\t\(.name)"')"
+
+    page_next=$(printf '%s' "$body" | jq -r '.pagination.next // empty')
+    if [ -z "$page_next" ]; then
+      break
+    fi
+    cursor=$page_next
+  done
+
+  if [ -n "$matches" ]; then
+    printf '%s' "$matches"
   fi
-
-  status=$(printf '%s' "$response" | tail -n1)
-  body=$(printf '%s' "$response" | sed '$d')
-  case "$status" in
-  2??) ;;
-  *)
-    echo "Listing Neon branches failed (HTTP $status): $body" >&2
-    return 1
-    ;;
-  esac
-
-  printf '%s' "$body" | jq -r --arg prefix "$prefix" --arg fallback "$fallback" \
-    '.branches[]? | select((.name == $fallback) or (.name | startswith($prefix))) | "\(.id)\t\(.name)"'
 }
 
 # Rename one branch. The API takes a PATCH of the name alone.

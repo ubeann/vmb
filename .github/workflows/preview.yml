@@ -5,14 +5,13 @@ name: Preview
 # and the full stack get a real dry run before merging, without touching
 # production or a shared staging database.
 #
-# The three identifiers — the Workers alias / Pages branch (`pr<N>-<slug>` or
-# the `pr-<N>` fallback), the Pages deployment prefix (`pr<N>-`), and the Neon
-# branch (`pr-<N>`) — come from `scripts/preview-identifiers.sh`, the one
-# definition this workflow shares with cleanup.yml (issue #78). All three are
-# idempotent per PR:
+# The alias (`pr<N>-<slug>`, or the `pr-<N>` fallback) and the prefix (`pr<N>-`)
+# come from `scripts/preview-identifiers.sh`, the one definition this workflow
+# shares with cleanup.yml (issue #78), and the alias names all three resources,
+# so the whole environment reads the same (ADR-0029):
 #   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
-#   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
-#   - DB:    Neon branch named `pr-<N>`, carrying the `app` database (see the Resolve step)
+#   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias, as far as Cloudflare keeps it)
+#   - DB:    Neon branch `pr<N>-<slug>`, carrying the `app` database (see the Resolve step)
 #
 # Two preview resources aren't self-cleaning: the Neon branch and the Pages
 # deployment(s). The Pages side is pruned here after each successful deploy so
@@ -147,7 +146,7 @@ jobs:
     # carries (ADR-0029) and the branch previews fork from — pinned rather than
     # left to the project default (issue #118). The create step below and the
     # schema-diff step both read them, so changing either name moves creation
-    # and comparison together. (A `pr-<N>` branch reused across pushes keeps the
+    # and comparison together. (A preview branch reused across pushes keeps the
     # parent it was created with; the diff's base is this named branch, not a
     # per-branch `parent_id` lookup.)
     env:
@@ -244,15 +243,13 @@ jobs:
           # shellcheck source=scripts/neon-preview-branches.sh
           . scripts/neon-preview-branches.sh
 
-          prefix=$(preview_prefix "$PR_NUMBER")
-          fallback=$(preview_number_name "$PR_NUMBER")
-          matches=$(neon_matching_branches "$NEON_PROJECT_ID" "$NEON_API_KEY" "$prefix" "$fallback")
+          matches=$(neon_matching_branches "$NEON_PROJECT_ID" "$NEON_API_KEY" "$PR_NUMBER")
 
           # One branch should match: this PR's own. If the desired name is
           # already among them there is nothing to do; otherwise the first match
-          # is renamed and any extras — a leftover from a run that died between
-          # the rename and the create, say — are left for Cleanup, which deletes
-          # every match.
+          # is renamed and any extras — a leftover from a failed rename, a
+          # cancelled race, say — are left for Cleanup, which deletes every
+          # match.
           rename_id=""
           rename_from=""
           extras=0

@@ -2,7 +2,7 @@
 #
 # Tests for the preview identifier scheme (`preview-identifiers.sh`).
 #
-# The alias is the only one of the three names that is decoration, but it is
+# The alias is the only identifier here that is decoration, but it is
 # decoration with a hard budget: Cloudflare Pages truncates the branch alias it
 # becomes to 28 characters, so anything longer resolves at a different address
 # than the one we compute. (The Workers side is looser: `<alias>-vmb-api` has to
@@ -124,26 +124,32 @@ check "and its alias is still 28 characters" "28" "$((${#monster5}))"
 check "the prefix is number-keyed" "pr148-" "$(preview_prefix 148)"
 check "the number-keyed fallback is the pr-<N> shape" "pr-9" "$(preview_number_name 9)"
 
-# The Pages sweep and the Neon branch delete match a name that is the fallback
-# exactly, or starts with the prefix. Every alias must satisfy one of them, or
-# the reapers would leave it behind: the slug source decides which shape comes
-# out, so pin all three sources.
+# `preview_name_matches` is the rule both reapers apply: the fallback exactly,
+# or anything under the prefix. The slug's source decides which shape an alias
+# takes, so every source's output goes through the real predicate rather than a
+# copy of it.
+matches_rule() { # <pr> <name>
+  if preview_name_matches "$1" "$2"; then
+    printf 'match'
+  else
+    printf 'miss'
+  fi
+}
+
 for spec in "148|a title long enough to be cut on a word boundary|branch" "7||branch" "9|🚀|///"; do
   IFS='|' read -r pr title ref <<< "$spec"
-  alias=$(preview_alias "$pr" "$title" "$ref")
-  prefix=$(preview_prefix "$pr")
-  fallback=$(preview_number_name "$pr")
-
-  if [ "$alias" = "$fallback" ] || [ "${alias#"$prefix"}" != "$alias" ]; then
-    match="a name the reapers match"
-  else
-    match="a name neither reaper would find"
-  fi
-
-  check "pr $pr's alias is one of the reapers' shapes ($alias)" \
-    "a name the reapers match" \
-    "$match"
+  check "pr $pr's alias is a name the reapers find ($(preview_alias "$pr" "$title" "$ref"))" \
+    "match" \
+    "$(matches_rule "$pr" "$(preview_alias "$pr" "$title" "$ref")")"
 done
+
+# Near misses must stay out: another PR's branch, a longer number, and the
+# parent branch — `search=pr` returns `production`, which must never match.
+check "another PR's branch does not match" "miss" "$(matches_rule 148 pr1489-x)"
+check "a longer fallback does not match" "miss" "$(matches_rule 148 pr-1480)"
+check "the parent branch does not match" "miss" "$(matches_rule 148 production)"
+check "a dev branch does not match" "miss" "$(matches_rule 148 dev-76271600-ubeann)"
+check "the fallback itself matches" "match" "$(matches_rule 148 pr-148)"
 
 # ── The sanitizer on its own ────────────────────────────────────────────────
 
