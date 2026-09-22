@@ -923,19 +923,22 @@ describe("the index operator classes after the instant conversion", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("re-creates the four indexes it re-declares, rather than only renaming the class", async () => {
+  it("keeps the four re-declared indexes present after the chain", async () => {
     // the source check above proves the wrong class is gone; only the database
     // proves the migration did not drop an index and forget to recreate it
-    const recreated = await count(
-      client,
-      `select count(*)::int as value from pg_indexes
-        where indexname in (
-          'expense_requests_division_id_status_created_at_index',
-          'trucking_invoice_comments_invoice_id_created_at_index',
-          'warehouse_procurement_requests_status_created_at_index',
-          'warehouse_stock_requisitions_status_created_at_index'
-        )`
+    const redeclared = [
+      "expense_requests_division_id_status_created_at_index",
+      "trucking_invoice_comments_invoice_id_created_at_index",
+      "warehouse_procurement_requests_status_created_at_index",
+      "warehouse_stock_requisitions_status_created_at_index"
+    ];
+
+    const present = await client.query<{ indexname: string }>(
+      `select indexname from pg_indexes
+        where schemaname in ('expense', 'trucking', 'warehouse')
+          and indexname in (${redeclared.map((name) => `'${name}'`).join(", ")})
+        order by indexname`
     );
-    expect(recreated).toBe(4);
+    expect(present.map((row) => row.indexname)).toEqual(redeclared);
   });
 });
