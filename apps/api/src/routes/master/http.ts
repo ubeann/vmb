@@ -3,7 +3,7 @@ import type { MasterStore } from "@vmb/db";
 import type { Context } from "hono";
 import { validator } from "hono/validator";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { z } from "zod";
+import { z } from "zod";
 import type { Bindings } from "../../bindings.js";
 
 export type MasterEnv = {
@@ -55,8 +55,7 @@ export function queryParams<T extends z.ZodType>(c: Context<MasterEnv>, schema: 
 
 export function pathId(c: Context<MasterEnv>): string {
   const id = c.req.param("id");
-  if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-    throw new HttpError(400, "Invalid id.");
-  }
-  return id;
+  const parsed = z.uuid().safeParse(id);
+  if (!parsed.success) throw new HttpError(400, "Invalid id.");
+  return parsed.data;
 }

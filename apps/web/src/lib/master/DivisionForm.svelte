@@ -1,6 +1,7 @@
 <script lang="ts">
-  import type { DivisionInput } from "@vmb/types";
+  import { DivisionInputSchema, type DivisionInput } from "@vmb/types";
   import { superForm, type SuperValidated } from "sveltekit-superforms";
+  import { zod4Client } from "sveltekit-superforms/adapters";
 
   let {
     form,
@@ -8,7 +9,14 @@
   }: { form: SuperValidated<DivisionInput>; submitLabel?: string } = $props();
 
   // svelte-ignore state_referenced_locally
-  const { form: fields, errors, enhance, submitting } = superForm(form);
+  const {
+    form: fields,
+    errors,
+    enhance,
+    submitting
+  } = superForm(form, {
+    validators: zod4Client(DivisionInputSchema)
+  });
 </script>
 
 <form method="POST" use:enhance>
@@ -55,7 +63,6 @@
     <legend>Settings</legend>
     <label>
       <input type="checkbox" name="isActive" bind:checked={$fields.isActive} />
-      <input type="hidden" name="isActive" value="false" />
       <span>Active</span>
     </label>
   </fieldset>

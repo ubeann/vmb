@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { ROLE_ACCESS_LEVELS, type RoleInput } from "@vmb/types";
+  import { ROLE_ACCESS_LEVELS, RoleInputSchema, type RoleInput } from "@vmb/types";
   import { superForm, type SuperValidated } from "sveltekit-superforms";
+  import { zod4Client } from "sveltekit-superforms/adapters";
 
   let {
     form,
@@ -8,7 +9,14 @@
   }: { form: SuperValidated<RoleInput>; submitLabel?: string } = $props();
 
   // svelte-ignore state_referenced_locally
-  const { form: fields, errors, enhance, submitting } = superForm(form);
+  const {
+    form: fields,
+    errors,
+    enhance,
+    submitting
+  } = superForm(form, {
+    validators: zod4Client(RoleInputSchema)
+  });
 </script>
 
 <form method="POST" use:enhance>
@@ -59,7 +67,6 @@
     <legend>Status</legend>
     <label>
       <input type="checkbox" name="isActive" bind:checked={$fields.isActive} />
-      <input type="hidden" name="isActive" value="false" />
       <span>Active</span>
     </label>
   </fieldset>

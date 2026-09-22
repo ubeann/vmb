@@ -87,6 +87,25 @@ describe("createMasterFormAction", () => {
     );
   });
 
+  it("reads an unchecked checkbox as inactive", async () => {
+    const withoutActive = {
+      name: "Operations",
+      code: "OPS",
+      description: "",
+      colorHex: "#2563EB",
+      iconName: "heroicon-o-cog-6-tooth"
+    };
+    submit.mockResolvedValue({ ok: true, value: { id: "d1000000-0000-4000-8000-000000000001" } });
+
+    await expect(action(fakeEvent(withoutActive))).rejects.toMatchObject({ status: 303 });
+
+    expect(submit).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ isActive: false }),
+      expect.anything()
+    );
+  });
+
   it("puts the API's domain error on the form", async () => {
     submit.mockResolvedValue({
       ok: false,

@@ -494,6 +494,45 @@ describe("users store", () => {
     });
   });
 
+  it("rolls the whole update back when the identity refuses the change", async () => {
+    await withMigratedDb(async (db, client) => {
+      const divisionId = await seedDivisionId(client);
+      const store = storeFor(db);
+      const created = await store.createUser(input(divisionId));
+
+      // An identity Better Auth owns under an email no business row holds: the
+      // signup case, where only public."user" knows the address.
+      await client.exec(
+        `insert into public."user" (id, name, email, email_verified, created_at, updated_at)
+          values ('ffffffff-0000-4000-8000-000000000001', 'Other', 'other@vmblogistics.id', false, now(), now())`
+      );
+
+      await expect(
+        store.updateUser(created.id, {
+          name: "Rina Wijaya",
+          email: "other@vmblogistics.id",
+          phone: "+628111000001",
+          divisionId,
+          status: "active",
+          profilePhotoPath: "",
+          password: "newpassword123",
+          passwordConfirmation: "newpassword123"
+        })
+      ).rejects.toThrow("A user with that email already exists.");
+
+      // the business row and the credential are as they were
+      expect(
+        await scalar<string>(client, `select email from master.users where id = '${created.id}'`)
+      ).toBe("rina@vmblogistics.id");
+      expect(
+        await scalar<string>(
+          client,
+          `select password from public.account where account_id = '${created.id}'`
+        )
+      ).toBe("hashed:password123");
+    });
+  });
+
   it("gives a legacy-imported user a credential when a password is set", async () => {
     await withMigratedDb(async (db, client) => {
       const divisionId = await seedDivisionId(client);

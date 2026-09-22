@@ -12,10 +12,12 @@ export function optionalText(max: number) {
 /**
  * A checkbox, from either a JSON request or an HTML form.
  *
- * A native form sends `"on"` when checked and nothing when unchecked, so a
- * form renders a hidden `value="false"` input after the checkbox; absent
- * entirely (a JSON body) means unchecked. Plain `z.coerce.boolean()` cannot be
- * used here: it reads the string `"false"` as `true`.
+ * A native form sends `"on"` when checked and nothing at all when unchecked,
+ * which `z.boolean().default(false)` would already read as false — so a form
+ * renders no hidden companion input. (A duplicate name would be a bug:
+ * Superforms parses the last `FormData` entry, so a hidden `"false"` after the
+ * checkbox silently deactivates every submit.) Plain `z.coerce.boolean()` is
+ * unusable either way: it reads the string `"false"` as `true`.
  */
 export const checkboxSchema = z.preprocess(
   (value) =>

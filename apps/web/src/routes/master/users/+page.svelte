@@ -66,6 +66,7 @@
       <option value="exclude" selected={data.query.trashed === "exclude"}>Without trashed</option>
       <option value="only" selected={data.query.trashed === "only"}>Only trashed</option>
       <option value="include" selected={data.query.trashed === "include"}>With trashed</option>
+      <option value="include" selected={data.query.trashed === "include"}>With trashed</option>
     </select>
   </label>
 

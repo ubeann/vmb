@@ -2,10 +2,12 @@
   import {
     USER_STATUS_LABELS,
     USER_STATUSES,
+    UserUpdateInputSchema,
     type Division,
     type UserUpdateInput
   } from "@vmb/types";
   import { superForm, type SuperValidated } from "sveltekit-superforms";
+  import { zod4Client } from "sveltekit-superforms/adapters";
 
   let {
     form,
@@ -20,7 +22,14 @@
   } = $props();
 
   // svelte-ignore state_referenced_locally
-  const { form: fields, errors, enhance, submitting } = superForm(form);
+  const {
+    form: fields,
+    errors,
+    enhance,
+    submitting
+  } = superForm(form, {
+    validators: zod4Client(UserUpdateInputSchema)
+  });
 </script>
 
 <form method="POST" use:enhance>

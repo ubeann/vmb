@@ -145,6 +145,7 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 
 - Wraps the typed Hono client calls in `createQuery` / `createMutation` for caching, refetching, and optimistic UI updates — important for a CRUD-heavy admin panel with lots of list/detail/edit screens.
 - Keeps server-state (API data) cleanly separated from local UI state.
+- Deferred for the Master module's first CRUD screens: they fetch in SvelteKit server loads through the API access seam and submit through form actions, and TanStack Query returns when a screen needs client-side caching (ADR-0031).
 
 ### 7.3 Forms & Validation
 
