@@ -102,6 +102,7 @@ vmb/
 ## 5. Data Layer
 
 - **Database:** Neon Postgres, single project/branch for production; consider a separate Neon branch for staging/dev (Neon supports database branching similar to git branches).
+- **Session timezone:** the application database (`vmb`) _declares_ `timezone = 'UTC'` on production, so a query that renders a timestamp without naming a zone produces the same text in any fresh session; there is no standing dev or staging database to mirror it — per-PR previews fork production and inherit the declaration (ADR-0019). The app itself renders in the reader's zone (#115). Configuration, not schema — see ADR-0027.
 - **ORM:** Drizzle, chosen over Prisma because it has no native binary engine — required for compatibility with the Cloudflare Workers edge runtime.
 - **Cold starts:** Neon's free tier autosuspends compute after inactivity. Expect 1–3s latency on the first query after idle. Acceptable for an internal tool with sporadic usage; document this for end users if it comes up.
 - **Migrations:** managed via Drizzle Kit, run as part of CI/CD pipeline or manually before deploy.
@@ -193,4 +194,4 @@ See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-18 (§9: per-PR previews ADR-0019 — now pruning superseded Pages deployments per push — and Dependabot secret-free CI ADR-0020; §11: staging strategy superseded by previews)_
+_Last updated: 2026-09-22 (§5: session timezone declared UTC per ADR-0027)_
