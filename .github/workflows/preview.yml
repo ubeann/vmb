@@ -38,11 +38,15 @@ on:
     # holds secrets and creates Cloudflare/Neon resources) is skipped before it
     # starts.
 
-# Shared with cleanup.yml's `pull_request: closed` run. Closing a PR
-# therefore cancels any in-flight preview deploy in this group *before* the
-# cleanup deletes the Neon branch, so a half-finished run can't create the
-# branch after deletion and leak it. Otherwise, a new push cancels this PR's
-# superseded preview run; the branch is reused, not recreated.
+# Shared with cleanup.yml's `pull_request: closed` run, so closing a PR
+# normally cancels any in-flight preview deploy in this group before the
+# cleanup deletes the Neon branch — a half-finished run creating the branch
+# after deletion would leak it. GitHub documents same-group ordering as not
+# guaranteed, so read that as the normal path rather than a promise: the
+# branch's `expires_at`, renewed on every preview run through the API's PATCH
+# (issue #150), is the backstop when a cancelled run does create one after
+# cleanup. Otherwise, a new push cancels this PR's superseded preview run; the
+# branch is reused, not recreated.
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -207,10 +211,13 @@ jobs:
           neon_branch=$alias
 
           # Safety net for a run that dies before cleanup.yml sees the PR close
-          # (issue #118): the branch expires 30 days after creation, longer than
-          # any plausible PR lifetime. `expires_at` is honoured only when the
-          # branch is created — a re-push to an older PR reuses the existing
-          # branch and keeps its original deadline.
+          # (issue #118): the branch expires 30 days from now, longer than any
+          # plausible PR lifetime. One definition, read by two steps: the create
+          # step, whose action honours it only when it creates the branch, and
+          # the renewal step below, which PATCHes it onto a branch that already
+          # exists — the API accepts `expires_at` on an existing branch, the
+          # action does not — so a PR open longer than 30 days keeps its safety
+          # net (issue #150).
           neon_expires_at=$(date -u -d '+30 days' +%Y-%m-%dT%H:%M:%SZ)
 
           {
@@ -306,7 +313,9 @@ jobs:
       #
       # `expires_at` (30 days, computed in the Resolve step) is the cleanup
       # safety net a leaked branch needs if a run dies before cleanup.yml sees
-      # the PR close: it deletes itself rather than surviving unreaped.
+      # the PR close: it deletes itself rather than surviving unreaped. The
+      # action applies it only on the path that creates the branch; the renewal
+      # step below re-applies it on every run (issue #150).
       # `ssl: verify-full` rather than the action's `require` default: `pg`
       # treats `require` as `verify-full` today and warns that a future major
       # version will not, so naming the stronger mode keeps the behaviour and
@@ -322,6 +331,64 @@ jobs:
           ssl: verify-full
           expires_at: ${{ steps.ids.outputs.neon_expires_at }}
           api_key: ${{ secrets.NEON_API_KEY }}
+
+      # The action's idempotent path returns an existing branch and applies
+      # nothing, so without this a PR open longer than 30 days would lose its
+      # cleanup safety net while its branch is still live (issue #150). The API
+      # accepts `expires_at` on an existing branch — at most 30 days from now,
+      # the value the Resolve step computed for this run — so every preview run
+      # renews the deadline rather than leaving it at the creation date.
+      #
+      # The target is this PR's own branch, the id the create step just
+      # returned. The step checks the branch's actual name before it PATCHes:
+      # the name must be this PR's `pr<N>-` branch, and the id must resolve to
+      # that same name, so a protected, default or parent branch — `production`
+      # is both the parent and the project default — can never be a target.
+      # Neon would refuse to expire such a branch anyway, but the run should
+      # not rely on the API rejecting a request the workflow should never make.
+      #
+      # A failed renewal fails the run: leak prevention that silently stops
+      # working is the failure this step exists to remove, and the failure
+      # names the branch id.
+      - name: Renew this PR's Neon branch expiry
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
+          NEON_BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+          NEON_EXPIRES_AT: ${{ steps.ids.outputs.neon_expires_at }}
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          # shellcheck source=scripts/neon-preview-branches.sh
+          . scripts/neon-preview-branches.sh
+
+          if ! preview_name_matches "$PR_NUMBER" "$NEON_BRANCH"; then
+            echo "::error::Refusing to set an expiry on '$NEON_BRANCH', which is not PR #$PR_NUMBER's branch."
+            exit 1
+          fi
+
+          # The desired name above is the workflow's own derivation; this reads
+          # the branch the create step actually returned, so a branch id that
+          # points somewhere else stops here instead of being PATCHed.
+          if ! target_branch=$(neon_branch_name "$NEON_PROJECT_ID" "$NEON_API_KEY" "$NEON_BRANCH_ID"); then
+            echo "::error::Could not read the name of Neon branch $NEON_BRANCH_ID; refusing to set an expiry on a branch that cannot be identified."
+            exit 1
+          fi
+
+          if [ "$target_branch" != "$NEON_BRANCH" ]; then
+            echo "::error::Neon branch $NEON_BRANCH_ID is '$target_branch', not '$NEON_BRANCH' — refusing to set an expiry on it."
+            exit 1
+          fi
+
+          if ! neon_set_branch_expiry \
+            "$NEON_PROJECT_ID" "$NEON_API_KEY" "$NEON_BRANCH_ID" "$NEON_EXPIRES_AT"; then
+            echo "::error::Could not renew the expiry of Neon branch $NEON_BRANCH_ID ('$NEON_BRANCH'); the branch would outlive its cleanup safety net."
+            exit 1
+          fi
 
       - name: Run database migrations against the PR's Neon branch
         env:
