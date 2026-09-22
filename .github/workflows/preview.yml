@@ -245,6 +245,12 @@ jobs:
       # accepts the preview web origin (Better Auth `baseURL`/`trustedOrigins`
       # and the auth route's CORS allowlist all read these).
       #
+      # EMAIL_TRANSPORT=log is what keeps a preview from sending real mail
+      # (issue #121): the Resend key and EMAIL_FROM above still ride along, but
+      # the API logs the message instead of handing it to Resend, so a stranger
+      # who finds the unlisted-but-public preview URL cannot send from the
+      # production sender. Production leaves the flag unset and sends for real.
+      #
       # Written as JSON so Neon's connection string and any special characters
       # survive intact; `--secrets-file` keeps them out of argv/logs.
       - name: Assemble API preview secrets
@@ -274,16 +280,18 @@ jobs:
             --arg WEB_URL "$WEB_PREVIEW_URL" \
             --arg RESEND_API_KEY "$resend_api_key" \
             --arg EMAIL_FROM "$email_from" \
+            --arg EMAIL_TRANSPORT "log" \
             '{
               DATABASE_URL: $DATABASE_URL,
               BETTER_AUTH_SECRET: $BETTER_AUTH_SECRET,
               BETTER_AUTH_URL: $BETTER_AUTH_URL,
               WEB_URL: $WEB_URL,
               RESEND_API_KEY: $RESEND_API_KEY,
-              EMAIL_FROM: $EMAIL_FROM
+              EMAIL_FROM: $EMAIL_FROM,
+              EMAIL_TRANSPORT: $EMAIL_TRANSPORT
             }' > "$RUNNER_TEMP/api-preview-secrets.json"
 
-          for key in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL WEB_URL RESEND_API_KEY EMAIL_FROM; do
+          for key in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL WEB_URL RESEND_API_KEY EMAIL_FROM EMAIL_TRANSPORT; do
             value=$(jq -r --arg key "$key" '.[$key]' "$RUNNER_TEMP/api-preview-secrets.json")
             if [ -z "$value" ] || [ "$value" = "null" ]; then
               echo "::error::$key resolved to an empty value — check the fnox store / create-branch output."

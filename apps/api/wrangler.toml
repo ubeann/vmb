@@ -23,6 +23,11 @@ compatibility_flags = ["nodejs_compat"]
 # will actually send. EMAIL_FROM is the verified sender address — Resend's
 # sandbox `onboarding@resend.dev` works without owning a domain for local
 # dev/testing, but production needs a real domain verified in Resend.
+#
+# EMAIL_TRANSPORT is optional and unset everywhere except preview versions,
+# whose secrets file sets it to `log` so outbound email is logged instead of
+# sent via Resend (issue #121). Local `wrangler dev` and production leave it
+# unset and send for real — the local `.dev.vars` needs no entry.
 
 [env.staging]
 name = "vmb-api-staging"
