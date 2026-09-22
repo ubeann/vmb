@@ -133,7 +133,7 @@ _Avoid_: Approver (that's the User), sign-off
 ### Migration vocabulary
 
 **Legacy snapshot**:
-A `pg_dump` of the deployed legacy database; the source for dev imports and cutover.
+A `pg_dump` of the deployed legacy database; the source for the cutover rehearsal and cutover.
 
 **Baseline**:
 Migration `0000` — the legacy schema minus the excluded tables. Nothing is written against it.

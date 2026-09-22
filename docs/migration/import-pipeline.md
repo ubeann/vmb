@@ -1,6 +1,6 @@
 # Import pipeline
 
-Puts real legacy records into a Neon branch so development and parity checks run against actual data, and so cutover is a replay rather than a second, untested ETL (ADR-0024). The code lives in `packages/db/src/import`; the harness in `packages/db/test` runs the same pipeline and the same assertions against embedded Postgres by default, or against a real one when `TEST_DATABASE_URL` is set.
+Puts real legacy records into a database so cutover is a replay rather than a second, untested ETL (ADR-0024). There is no standing dev branch (ADR-0028): day-to-day development data comes from `db:seed`, and this pipeline's rehearsal target is a throwaway Neon branch created for the run and deleted after — the verifier report is what outlives it. The code lives in `packages/db/src/import`; the harness in `packages/db/test` runs the same pipeline and the same assertions against embedded Postgres by default, or against a real one when `TEST_DATABASE_URL` is set.
 
 ## The order that matters
 
@@ -28,7 +28,7 @@ Dry run — throwaway in-memory database, nothing to clean up:
 pnpm --filter @vmb/db db:import --snapshot snapshot.sql
 ```
 
-Against a Neon branch, pass its connection string:
+Against a Neon branch — the rehearsal's throwaway one, or the cutover target — pass its connection string:
 
 ```sh
 pnpm --filter @vmb/db db:import --snapshot snapshot.sql --url "$DATABASE_URL"
