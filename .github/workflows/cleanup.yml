@@ -1,6 +1,6 @@
 name: Cleanup
 
-# The teardown half of preview.yml. Two of the three per-PR preview resources
+# The teardown half of preview.yml. Three of the four per-PR preview resources
 # are not self-cleaning and are deleted here (issue #55):
 #   - Neon branch — Neon caps branches per project, so a leaked branch blocks
 #     new previews. Deleted on close.
@@ -10,6 +10,11 @@ name: Cleanup
 #     (issue #84); this close-time sweep is the safety net that deletes the
 #     last one and anything the prune left behind. Every one is deleted (issue
 #     #68); there is no protected residual.
+#   - GitHub deployment environment — naming one in a deployment auto-creates
+#     it and GitHub never reaps it, so a per-PR environment would accumulate
+#     one per pull request forever (issue #154). Deleted on close; this is the
+#     one delete that needs an admin-capable token, because GITHUB_TOKEN cannot
+#     be granted Administration: write.
 # The Workers preview alias needs no cleanup: aliases are LRU-pruned past 1000
 # concurrent ones, and the version behind an alias is CF-retained with no
 # supported individual delete (issue #55). That is the distinction the original
@@ -199,3 +204,65 @@ jobs:
             echo "::error::$failed Pages deployment(s) failed to delete."
             exit 1
           fi
+
+      # GitHub auto-creates an environment when a deployment names one and never
+      # deletes it, so without this every pull request would leave one behind
+      # (issue #154). `preview.yml` registers the deployment under the name this
+      # step re-derives from the shared module (issue #78) — number-keyed, so a
+      # retitle cannot orphan it.
+      #
+      # The delete needs a token that can administer the repository:
+      # `DELETE /repos/{owner}/{repo}/environments/{name}` requires
+      # Administration: write, which GITHUB_TOKEN cannot be granted (measured;
+      # GitHub documents the permission and the default token has no such
+      # grant). This is therefore the one preview step running on its own
+      # credential, `PREVIEW_ENVIRONMENT_TOKEN`, and the only workflow that
+      # needs it — `preview.yml` only creates.
+      #
+      # The name is URL-encoded because `preview/pr-<N>` carries a `/`, which
+      # would otherwise route to a different endpoint and 404 (measured).
+      #
+      # 404 is not a failure: the PR may never have reached the registration
+      # step, or the environment may already be gone — the same
+      # nothing-to-delete case as the Neon branch above. Any other non-2xx is
+      # real — missing or expired token, lost Administration scope, 5xx — and
+      # fails the run like the Pages sweep above, so a green run cannot mean a
+      # leaked environment.
+      - name: Delete this PR's preview environment
+        env:
+          PREVIEW_ENVIRONMENT_TOKEN: ${{ secrets.PREVIEW_ENVIRONMENT_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PREVIEW_ENVIRONMENT_TOKEN" ]; then
+            echo "::error::PREVIEW_ENVIRONMENT_TOKEN is not set — the environment needs Administration: write, which GITHUB_TOKEN cannot be granted."
+            exit 1
+          fi
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          environment=$(preview_environment_name "$PR_NUMBER")
+          encoded=$(jq -rn --arg name "$environment" '$name|@uri')
+
+          # The body is kept so a failure can print the API's own reason
+          # (`Resource not accessible by integration`, say) instead of a bare
+          # status; `curl -f` would swallow it.
+          body="$RUNNER_TEMP/environment-delete.json"
+          status=$(curl -sS -o "$body" -w '%{http_code}' -X DELETE \
+            -H "Authorization: Bearer $PREVIEW_ENVIRONMENT_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/environments/$encoded")
+
+          case "$status" in
+          204)
+            echo "Deleted preview environment '$environment'."
+            ;;
+          404)
+            echo "No preview environment '$environment' — nothing to delete."
+            ;;
+          *)
+            echo "::error::Deleting preview environment '$environment' failed with HTTP $status: $(cat "$body")"
+            exit 1
+            ;;
+          esac

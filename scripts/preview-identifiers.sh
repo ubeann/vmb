@@ -2,13 +2,16 @@
 #
 # The one definition of a per-PR preview's identifiers (issue #78).
 #
-# A preview has three names:
+# A preview has four names:
 #   - the Workers preview alias / Pages branch alias: `pr<N>-<slug>`, falling
 #     back to `pr-<N>` when nothing slugs at all;
 #   - the Pages deployment prefix: `pr<N>-`, which matches every deployment the
 #     PR ever made, including ones orphaned by a rename;
 #   - the Neon branch name: `pr-<N>`, internal and number-keyed so a rename
-#     cannot orphan it.
+#     cannot orphan it;
+#   - the GitHub deployment environment: `preview/pr-<N>`, number-keyed for the
+#     same reason and named here because referencing an environment auto-creates
+#     it and nothing reaps it (issue #154).
 #
 # The slug is decoration, and it comes from the pull request *title* — the text
 # a human wrote, and the text that describes the PR in review — with the
@@ -32,6 +35,7 @@
 #   alias=$(preview_alias "$PR_NUMBER" "$PR_TITLE" "$HEAD_REF")  # pr<N>-<slug> | pr-<N>
 #   prefix=$(preview_pages_prefix "$PR_NUMBER")                  # pr<N>-
 #   branch=$(preview_neon_branch "$PR_NUMBER")                   # pr-<N>
+#   env_name=$(preview_environment_name "$PR_NUMBER")            # preview/pr-<N>
 #
 # `scripts/preview-identifiers.test.sh` pins the cases; CI runs it in the
 # `lint-workflows-and-scripts` job. This file is also shellchecked by CI and
@@ -127,4 +131,19 @@ preview_pages_prefix() {
 # for its own sake.
 preview_neon_branch() {
   preview_number_name "$1"
+}
+
+# The GitHub deployment environment `preview/pr-<N>` (issue #154). GitHub
+# auto-creates an environment when a deployment names one and never reaps it, so
+# this is a resource like the Neon branch, not a label: number-keyed so a
+# retitle cannot orphan it, and defined here so `preview.yml` (which registers
+# the deployment) and `cleanup.yml` (which deletes the environment) cannot
+# disagree — a second inline literal on either side would strand an environment
+# forever. The `preview/` prefix is a namespace, not a second key: it groups
+# these per-PR environments away from any hand-made one.
+preview_environment_name() {
+  local number_name
+  number_name=$(preview_number_name "$1")
+
+  printf 'preview/%s' "$number_name"
 }

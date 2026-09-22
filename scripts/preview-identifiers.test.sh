@@ -2,7 +2,7 @@
 #
 # Tests for the preview identifier scheme (`preview-identifiers.sh`).
 #
-# The alias is the only one of the three names that is decoration, but it is
+# The alias is the only one of the four names that is decoration, but it is
 # decoration with a hard budget: Cloudflare Pages truncates the branch alias it
 # becomes to 28 characters, so anything longer resolves at a different address
 # than the one we compute. (The Workers side is looser: `<alias>-vmb-api` has to
@@ -92,11 +92,12 @@ check "the Workers label also stays inside its 63-character DNS limit" \
   "36" \
   "$((${#monster} + 8))"
 
-# ── The other two names are number-keyed and do not move ────────────────────
+# ── The other three names are number-keyed and do not move ──────────────────
 
 check "the Neon branch name is number-keyed" "pr-148" "$(preview_neon_branch 148)"
 check "the Pages prefix is number-keyed" "pr148-" "$(preview_pages_prefix 148)"
 check "the number-keyed name is shared by both" "pr-9" "$(preview_number_name 9)"
+check "the deployment environment is number-keyed" "preview/pr-148" "$(preview_environment_name 148)"
 
 # ── The sanitizer on its own ────────────────────────────────────────────────
 
