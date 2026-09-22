@@ -24,7 +24,7 @@
 - The ops runbook, in order, with the code change merged around it (the window is minutes; a failed preview re-runs):
   1. `ALTER DATABASE vmb RENAME TO app` on `production`, connecting via `neondb` and terminating other connections first. Renaming preserves data, schemas, grants and per-database settings — the same OID — so ADR-0027's `timezone = 'UTC'` declaration survives.
   2. `wrangler secret put DATABASE_URL --name vmb-api` with the renamed connection string; the production Worker is the only consumer that must move immediately.
-  3. `DROP DATABASE neondb` on `production`.
+  3. `DROP DATABASE neondb` on `production`. If it refuses with an open session, `DROP DATABASE neondb WITH (FORCE);` — the holder is usually a pooled server connection left by the old local `DATABASE_URL` (`neondb` on the `-pooler` host), and terminating it is fine because nothing should connect there any more.
   4. Delete every existing `pr-*` branch so previews recreate against `app`; one that keeps `vmb` fails its next migration.
   5. Verify in a fresh session: `SELECT current_setting('TimeZone')` is `UTC`, and `/health` answers.
 - Local development: `scripts/dev-db.sh up` (usage in the script header), with `NEON_API_KEY` and `NEON_PROJECT_ID` in `fnox.local.toml`. Database commands run through fnox (`fnox exec pnpm --filter @vmb/db db:seed`) so the overlay's `DATABASE_URL` reaches them, and `apps/api`'s `predev` exports it into `.dev.vars` for `wrangler dev`.
