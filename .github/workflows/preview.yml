@@ -234,6 +234,22 @@ jobs:
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}
         run: pnpm --filter @vmb/db db:migrate
 
+      # The branch inherits production's rows — `branch_type` stays `default`
+      # so the migration journal travels with the schema (see the Create Neon
+      # branch step) — and this is where those rows stop being production's
+      # (issue #120). Every run replaces every row in the five application
+      # schemas with deterministic fixtures, so a preview URL never serves a
+      # production record and every push starts from the same dataset. Running
+      # on every push rather than only at branch creation is deliberate: the
+      # branch is reused across pushes, and a deterministic dataset every time
+      # is the seeder's whole point. The wipe and the inserts are one
+      # transaction, so a failed seed rolls back and fails this job before any
+      # version is uploaded — never a live, half-emptied preview.
+      - name: Seed the PR's Neon branch with deterministic fixtures
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+        run: pnpm --filter @vmb/db db:seed
+
       # Shared secrets (BETTER_AUTH_SECRET, RESEND_API_KEY, EMAIL_FROM) come from
       # the committed fnox store, same as build-and-test in ci.yml. ADR-0011
       # keeps fnox to local/CI secrets and out of Worker runtime, so this is the
