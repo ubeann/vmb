@@ -194,4 +194,4 @@ See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-22 (§9: fork PRs are secret-free, so Preview and Cleanup skip them, per ADR-0030)_
+_Last updated: 2026-09-22 (§5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR and fork PRs skip Preview and Cleanup, per ADR-0029 and ADR-0030)_
