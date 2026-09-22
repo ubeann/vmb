@@ -756,23 +756,9 @@ describe("the trucking access-path indexes", () => {
   });
 
   it("indexes every foreign key and filter the application reads through", async () => {
-    const indexes = await client.query<{ indexname: string }>(
-      `select indexname from pg_indexes
-        where schemaname = 'trucking' and indexname in (
-          'trucking_approvals_approver_id_index',
-          'trucking_approvals_type_created_at_index',
-          'trucking_daily_trucking_actuals_driver_id_index',
-          'trucking_daily_trucking_plans_driver_id_index',
-          'trucking_invoice_vendor_invoice_id_index',
-          'trucking_invoices_client_id_status_index',
-          'trucking_orders_cancelled_by_index',
-          'trucking_orders_reference_id_index',
-          'trucking_orders_status_created_at_index',
-          'trucking_trips_route_reference_id_index'
-        )
-        order by indexname`
-    );
-    expect(indexes.map((row) => row.indexname)).toEqual([
+    // one list, read by the query and the expectation both: a name that stops
+    // matching in the catalogue makes the two disagree instead of hiding it
+    const accessPaths = [
       "trucking_approvals_approver_id_index",
       "trucking_approvals_type_created_at_index",
       "trucking_daily_trucking_actuals_driver_id_index",
@@ -783,11 +769,19 @@ describe("the trucking access-path indexes", () => {
       "trucking_orders_reference_id_index",
       "trucking_orders_status_created_at_index",
       "trucking_trips_route_reference_id_index"
-    ]);
+    ];
+
+    const indexes = await client.query<{ indexname: string }>(
+      `select indexname from pg_indexes
+        where schemaname = 'trucking'
+          and indexname in (${accessPaths.map((name) => `'${name}'`).join(", ")})
+        order by indexname`
+    );
+    expect(indexes.map((row) => row.indexname)).toEqual(accessPaths);
 
     // the plan and actual `trip_id` are deliberately absent: the unique pair
     // added for #107 leads with them, so a bare index would be dead weight
-    const covered = await count(
+    const coveredByTheUniquePair = await count(
       client,
       `select count(*)::int as value from pg_indexes
         where schemaname = 'trucking' and indexname in (
@@ -795,7 +789,7 @@ describe("the trucking access-path indexes", () => {
           'trucking_daily_trucking_plans_trip_id_index'
         )`
     );
-    expect(covered).toBe(0);
+    expect(coveredByTheUniquePair).toBe(0);
   });
 
   it("drops the single-column indexes its composites lead with, and keeps the one they do not", async () => {
@@ -890,6 +884,19 @@ describe("the index operator classes after the instant conversion", () => {
   // indexes over them under the instant class by itself — but the declarations
   // still said `timestamp_ops`, which accepts only wall-clock. Nothing fails
   // until one of those indexes is re-created, and then the chain stops.
+  let database: TestDatabase;
+  let client: SqlClient;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+    client = database.client;
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
   it("never names the wall-clock operator class, which cannot exist on an instant", async () => {
     // Read from the source, not from the database, and deliberately: Postgres
     // refuses `timestamp_ops` on a `timestamptz` column outright, so a database
@@ -914,5 +921,21 @@ describe("the index operator classes after the instant conversion", () => {
     // or a rename would make the assertion above pass by matching nothing
     expect(instantDeclarations).toBeGreaterThanOrEqual(4);
     expect(offenders).toEqual([]);
+  });
+
+  it("re-creates the four indexes it re-declares, rather than only renaming the class", async () => {
+    // the source check above proves the wrong class is gone; only the database
+    // proves the migration did not drop an index and forget to recreate it
+    const recreated = await count(
+      client,
+      `select count(*)::int as value from pg_indexes
+        where indexname in (
+          'expense_requests_division_id_status_created_at_index',
+          'trucking_invoice_comments_invoice_id_created_at_index',
+          'warehouse_procurement_requests_status_created_at_index',
+          'warehouse_stock_requisitions_status_created_at_index'
+        )`
+    );
+    expect(recreated).toBe(4);
   });
 });
