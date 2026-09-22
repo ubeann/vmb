@@ -1,0 +1,35 @@
+import { withApiClient } from "$lib/api-access.js";
+import { deleteUser, getUser, restoreUser } from "$lib/master/api.js";
+import { runRowAction } from "$lib/master/form-action.js";
+import { loadDivisionOptions } from "$lib/master/loads.js";
+import { error, redirect } from "@sveltejs/kit";
+import type { Actions, PageServerLoad } from "./$types.js";
+
+export const load: PageServerLoad = async (event) => {
+  const divisions = loadDivisionOptions(event);
+  const access = await withApiClient(event, (client) => getUser(client, event.params.id));
+
+  if (!access.ok) {
+    console.error("user detail: failed to reach the API", access.error);
+    error(500, "Could not load this user. Please try again.");
+  }
+  if (!access.value.ok) {
+    error(access.value.status === 404 ? 404 : 500, access.value.error);
+  }
+
+  return { user: access.value.value, divisions: await divisions };
+};
+
+export const actions: Actions = {
+  delete: (event) =>
+    runRowAction(event, {
+      logLabel: "user delete",
+      run: (client, id) => deleteUser(client, id),
+      onSuccess: () => redirect(303, "/master/users")
+    }),
+  restore: (event) =>
+    runRowAction(event, {
+      logLabel: "user restore",
+      run: (client, id) => restoreUser(client, id)
+    })
+};

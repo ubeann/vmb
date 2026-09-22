@@ -241,6 +241,79 @@ const people = [
  * `division_id` pairs each user with the division of the same index, which is
  * what makes every division in the list clickable.
  */
+const roles = table(
+  "master.roles",
+  [
+    "id",
+    "name",
+    "guard_name",
+    "level",
+    "is_active",
+    "is_system",
+    "color_hex",
+    "icon_name",
+    "description",
+    "metadata",
+    "created_at",
+    "updated_at"
+  ],
+  [
+    {
+      id: fixtureId(ID_GROUPS.role, 1),
+      name: "Super Admin",
+      guard_name: "web",
+      level: 3,
+      is_active: true,
+      is_system: true,
+      color_hex: "#3182CE",
+      icon_name: "heroicon-o-shield-check",
+      description: "Full access to all system features, configurations, and settings.",
+      metadata: null,
+      ...stamps(1)
+    },
+    {
+      id: fixtureId(ID_GROUPS.role, 2),
+      name: "Manager Finance",
+      guard_name: "web",
+      level: 2,
+      is_active: true,
+      is_system: false,
+      color_hex: "#48BB78",
+      icon_name: "heroicon-o-banknotes",
+      description: "Responsible for financial planning, budget management, and fiscal oversight.",
+      metadata: null,
+      ...stamps(2)
+    },
+    {
+      id: fixtureId(ID_GROUPS.role, 3),
+      name: "Manager Division",
+      guard_name: "web",
+      level: 2,
+      is_active: true,
+      is_system: false,
+      color_hex: "#ED8936",
+      icon_name: "heroicon-o-building-office-2",
+      description:
+        "Ensures operational efficiency, oversees workflows, and manages division activities.",
+      metadata: null,
+      ...stamps(3)
+    },
+    {
+      id: fixtureId(ID_GROUPS.role, 4),
+      name: "Staff",
+      guard_name: "web",
+      level: 0,
+      is_active: true,
+      is_system: false,
+      color_hex: "#805AD5",
+      icon_name: "heroicon-o-user",
+      description: "Supports daily operations, office management, and administrative functions.",
+      metadata: null,
+      ...stamps(4)
+    }
+  ]
+);
+
 const users = table(
   "master.users",
   [
@@ -277,4 +350,4 @@ const users = table(
   })
 );
 
-export const masterTables = [divisions, users];
+export const masterTables = [divisions, roles, users];

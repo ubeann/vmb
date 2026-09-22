@@ -1,5 +1,7 @@
 import {
   index,
+  integer,
+  json,
   text,
   timestamp,
   unique,
@@ -32,6 +34,29 @@ export const divisions = master.table(
     unique("master_divisions_name_unique").on(table.name),
     unique("master_divisions_code_unique").on(table.code)
   ]
+);
+
+// Recreated in the legacy shape while #8 decides the replacement RBAC model:
+// `guard_name`, `level`, `is_system` and `metadata` are Spatie/custom columns
+// the admin panel reads today. Permissions and role assignments are not ported
+// yet; their tables stay #8's design (deviations ledger D-003).
+export const roles = master.table(
+  "roles",
+  {
+    id: uuid().primaryKey().notNull().defaultRandom(),
+    name: varchar({ length: 255 }).notNull(),
+    guardName: varchar("guard_name", { length: 255 }).notNull(),
+    level: integer().default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    isSystem: boolean("is_system").default(false).notNull(),
+    colorHex: varchar("color_hex", { length: 255 }).default("#000000").notNull(),
+    iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-rocket-launch").notNull(),
+    description: varchar({ length: 255 }),
+    metadata: json(),
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
+  },
+  (table) => [unique("master_roles_name_guard_name_unique").on(table.name, table.guardName)]
 );
 
 export const users = master.table(

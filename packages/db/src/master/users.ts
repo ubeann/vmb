@@ -1,0 +1,286 @@
+import type {
+  User,
+  UserCreateInput,
+  UserListQuery,
+  UserListResponse,
+  UserStatus,
+  UserUpdateInput
+} from "@vmb/types";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL
+} from "drizzle-orm";
+import { account, session as authSession, user as authUser } from "../schema/auth.js";
+import { users } from "../schema/master.js";
+import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
+import { MasterNotFoundError } from "./errors.js";
+
+type UserRow = typeof users.$inferSelect;
+
+/**
+ * Better Auth owns identity (ADR-0012), so `master.users.password` — a column
+ * the legacy staging table keeps for parity — carries this marker rather than
+ * a second copy of the credential. The credential lives in `public.account`,
+ * where `db:seed` puts it for the preview user too.
+ */
+export const STAGING_PASSWORD_MARKER = "!better-auth-credential";
+
+export type UserStoreOptions = {
+  hashPassword: (password: string) => Promise<string>;
+};
+
+const SORT_COLUMNS = {
+  name: users.name,
+  email: users.email,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt
+} as const;
+
+const EMAIL_CONFLICT = {
+  master_users_email_unique: "A user with that email already exists.",
+  user_email_unique: "A user with that email already exists."
+};
+
+function toUser(row: UserRow): User {
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status as UserStatus,
+    divisionId: row.divisionId,
+    phone: row.phone,
+    email: row.email,
+    emailVerifiedAt: toIso(row.emailVerifiedAt),
+    profilePhotoPath: row.profilePhotoPath,
+    createdAt: toIso(row.createdAt),
+    updatedAt: toIso(row.updatedAt),
+    deletedAt: toIso(row.deletedAt)
+  };
+}
+
+function whereFor(query: UserListQuery) {
+  const conditions: SQL[] = [];
+
+  if (query.trashed === "exclude") conditions.push(isNull(users.deletedAt));
+  if (query.trashed === "only") conditions.push(isNotNull(users.deletedAt));
+  if (query.status !== "all") conditions.push(eq(users.status, query.status));
+  if (query.divisionId) conditions.push(eq(users.divisionId, query.divisionId));
+  if (query.search) {
+    const pattern = `%${query.search}%`;
+    const matches = or(
+      ilike(users.name, pattern),
+      ilike(users.email, pattern),
+      ilike(users.phone, pattern)
+    );
+    if (matches) conditions.push(matches);
+  }
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+export async function listUsers(db: MasterDb, query: UserListQuery): Promise<UserListResponse> {
+  const where = whereFor(query);
+  const column = SORT_COLUMNS[query.sort];
+  const order = query.dir === "asc" ? asc(column) : desc(column);
+
+  const [rows, totals] = await Promise.all([
+    db
+      .select()
+      .from(users)
+      .where(where)
+      .orderBy(order, asc(users.id))
+      .limit(query.perPage)
+      .offset((query.page - 1) * query.perPage),
+    db.select({ value: count() }).from(users).where(where)
+  ]);
+
+  return {
+    items: rows.map(toUser),
+    total: totals[0]?.value ?? 0,
+    page: query.page,
+    perPage: query.perPage
+  };
+}
+
+export async function getUser(db: MasterDb, id: string): Promise<User> {
+  const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  const row = rows[0];
+  if (!row) throw new MasterNotFoundError("User not found.");
+  return toUser(row);
+}
+
+export async function createUser(
+  db: MasterDb,
+  options: UserStoreOptions,
+  input: UserCreateInput
+): Promise<User> {
+  const id = crypto.randomUUID();
+  const passwordHash = await options.hashPassword(input.password);
+
+  try {
+    // One statement, so either the business row, the Better Auth identity and
+    // its credential all land, or none does: the Neon HTTP driver has no
+    // interactive transactions, but a single CTE is atomic on any Postgres.
+    await db.execute(sql`
+      with business_user as (
+        insert into master.users
+          (id, name, status, division_id, phone, email, profile_photo_path, password, created_at, updated_at)
+        values
+          (${id}, ${input.name}, ${input.status}, ${input.divisionId}, ${input.phone}, ${input.email},
+           ${nullIfEmpty(input.profilePhotoPath)}, ${STAGING_PASSWORD_MARKER}, now(), now())
+        returning id
+      ), auth_user as (
+        insert into public."user" (id, name, email, email_verified, image, created_at, updated_at)
+        select id, ${input.name}, ${input.email}, false, ${nullIfEmpty(input.profilePhotoPath)}, now(), now()
+          from business_user
+        returning id
+      )
+      insert into public.account
+        (id, account_id, provider_id, user_id, password, created_at, updated_at)
+      select ${crypto.randomUUID()}, id, 'credential', id, ${passwordHash}, now(), now()
+        from auth_user
+    `);
+  } catch (error) {
+    return conflictFrom(error, EMAIL_CONFLICT);
+  }
+
+  return getUser(db, id);
+}
+
+export async function updateUser(
+  db: MasterDb,
+  options: UserStoreOptions,
+  id: string,
+  input: UserUpdateInput
+): Promise<User> {
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+  if (!existing[0]) throw new MasterNotFoundError("User not found.");
+
+  try {
+    // One statement, so an existing Better Auth identity cannot drift from the
+    // business row when either side refuses the change (a duplicate email, most
+    // likely). An identity that does not exist yet is #7's transform to create.
+    await db.execute(sql`
+      with business_user as (
+        update master.users
+           set name = ${input.name},
+               status = ${input.status},
+               division_id = ${input.divisionId},
+               phone = ${input.phone},
+               email = ${input.email},
+               profile_photo_path = ${nullIfEmpty(input.profilePhotoPath)},
+               updated_at = now()
+         where id = ${id}
+        returning id
+      )
+      update public."user"
+         set name = ${input.name},
+             email = ${input.email},
+             image = ${nullIfEmpty(input.profilePhotoPath)},
+             updated_at = now()
+       where id = (select id::text from business_user)
+    `);
+  } catch (error) {
+    return conflictFrom(error, EMAIL_CONFLICT);
+  }
+
+  if (input.password !== "") {
+    try {
+      await setCredential(db, options, {
+        id,
+        email: input.email,
+        name: input.name,
+        image: nullIfEmpty(input.profilePhotoPath),
+        password: input.password
+      });
+    } catch (error) {
+      return conflictFrom(error, EMAIL_CONFLICT);
+    }
+  }
+
+  return getUser(db, id);
+}
+
+export async function deleteUser(db: MasterDb, id: string): Promise<void> {
+  const rows = await db
+    .update(users)
+    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(users.id, id), isNull(users.deletedAt)))
+    .returning({ id: users.id });
+
+  if (!rows[0]) throw new MasterNotFoundError("User not found.");
+
+  // A deleted user must not stay signed in; identity removal itself is #7's.
+  await db.delete(authSession).where(eq(authSession.userId, id));
+}
+
+export async function restoreUser(db: MasterDb, id: string): Promise<User> {
+  const rows = await db
+    .update(users)
+    .set({ deletedAt: null, updatedAt: new Date() })
+    .where(and(eq(users.id, id), isNotNull(users.deletedAt)))
+    .returning();
+
+  const row = rows[0];
+  if (!row) throw new MasterNotFoundError("Deleted user not found.");
+  return toUser(row);
+}
+
+/**
+ * Give a user a working credential: hash and store it on the Better Auth
+ * account, creating the auth user and account when the row predates them
+ * (legacy-imported users have no Better Auth identity until #7's transform).
+ */
+async function setCredential(
+  db: MasterDb,
+  options: UserStoreOptions,
+  user: { id: string; email: string; name: string; image: string | null; password: string }
+): Promise<void> {
+  const passwordHash = await options.hashPassword(user.password);
+
+  const existing = await db
+    .select({ id: authUser.id })
+    .from(authUser)
+    .where(eq(authUser.id, user.id))
+    .limit(1);
+
+  if (!existing[0]) {
+    const stamp = new Date();
+    await db.insert(authUser).values({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: false,
+      image: user.image,
+      createdAt: stamp,
+      updatedAt: stamp
+    });
+  }
+
+  const accounts = await db
+    .update(account)
+    .set({ password: passwordHash, updatedAt: new Date() })
+    .where(and(eq(account.accountId, user.id), eq(account.providerId, "credential")))
+    .returning({ id: account.id });
+
+  if (!accounts[0]) {
+    const stamp = new Date();
+    await db.insert(account).values({
+      id: crypto.randomUUID(),
+      accountId: user.id,
+      providerId: "credential",
+      userId: user.id,
+      password: passwordHash,
+      createdAt: stamp,
+      updatedAt: stamp
+    });
+  }
+}

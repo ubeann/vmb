@@ -27,7 +27,7 @@ describe("the migration chain", () => {
       `select count(*)::int as value from information_schema.tables
         where table_schema in (${LEGACY_SCHEMAS})`
     );
-    expect(tables).toBe(30);
+    expect(tables).toBe(31);
   });
 
   it("keeps the four legacy schemas and no others", async () => {
@@ -110,7 +110,7 @@ describe("the migration chain", () => {
           and pg_get_constraintdef(p.oid) like '%PRIMARY KEY (id)%'
           and c.column_default like 'gen_random_uuid%'`
     );
-    expect(withDefault).toBe(29);
+    expect(withDefault).toBe(30);
 
     // the client-route link keeps its natural key and no surrogate
     const surrogate = await count(

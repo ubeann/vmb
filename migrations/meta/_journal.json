@@ -176,6 +176,13 @@
       "when": 1789889445154,
       "tag": "0024_index_instant_opclass",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790088833615,
+      "tag": "0025_roles",
+      "breakpoints": true
     }
   ]
 }

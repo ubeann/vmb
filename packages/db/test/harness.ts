@@ -6,7 +6,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
+import type { MasterDb } from "../src/master/db.js";
 import { migrationsFolder } from "../src/migrations-path.js";
+import { schema } from "../src/schema/index.js";
 import { pgClient, pgliteClient, type SqlClient } from "../src/sql-client.js";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +26,8 @@ export { migrationsFolder };
  */
 export type TestDatabase = {
   client: SqlClient;
+  /** The same database through Drizzle, for the stores built on it. */
+  db: MasterDb;
   /**
    * Replay the chain with drizzle's own migrator — the independent oracle the
    * migration module is checked against, not what a deployment runs
@@ -67,15 +71,40 @@ export async function withMigratedDatabase<T>(fn: (client: SqlClient) => Promise
   }
 }
 
+/** The same, handing the test the Drizzle client the Master store speaks to. */
+export async function withMigratedDb<T>(
+  fn: (db: MasterDb, client: SqlClient) => Promise<T>
+): Promise<T> {
+  const database = await createDatabase();
+  try {
+    await database.migrate();
+    return await fn(database.db, database.client);
+  } finally {
+    await database.close();
+  }
+}
+
 function createEmbedded(): TestDatabase {
   const pglite = new PGlite();
   return {
     client: pgliteClient(pglite),
+    db: drizzleEmbedded(pglite, { schema }),
     migrate: async (folder = migrationsFolder) => {
       await migrateEmbedded(drizzleEmbedded(pglite), { migrationsFolder: folder });
+      await resetSearchPath(pgliteClient(pglite));
     },
     close: () => pglite.close()
   };
+}
+
+/**
+ * The legacy dump's baseline opens with pg_dump's
+ * `set_config('search_path', '', false)`, which sticks to the test's single
+ * session. Every real request runs on a fresh connection whose default is
+ * `public`, so put the session back the way the application finds it.
+ */
+async function resetSearchPath(client: SqlClient): Promise<void> {
+  await client.exec("set search_path = public");
 }
 
 /**
@@ -103,8 +132,10 @@ async function createPostgres(url: string): Promise<TestDatabase> {
 
     return {
       client: pgClient(client),
+      db: drizzle(client, { schema }),
       migrate: async (folder = migrationsFolder) => {
         await migrate(drizzle(client), { migrationsFolder: folder });
+        await resetSearchPath(pgClient(client));
       },
       close: async () => {
         try {
