@@ -110,8 +110,9 @@ jobs:
       # is the close-time safety net that deletes the last one and any prune
       # miss.
       #
-      # `preview.yml` names the deployment's branch `<alias>` (`pr<N>-<slug>`,
-      # or `pr-<N>` when the branch name sanitizes to nothing), so every
+      # `preview.yml` names the deployment's branch `<alias>` — `pr<N>-<slug>`,
+      # falling back to `pr-<N>` when nothing slugs (the title first, then the
+      # source branch, per `scripts/preview-identifiers.sh`) — so every
       # deployment this PR ever made shares the `pr<N>-` prefix — including ones
       # orphaned by a branch rename (`pr<N>-<old>` → `pr<N>-<new>`), which a
       # branch-name lookup alone would miss. This is why cleanup keys on the PR
