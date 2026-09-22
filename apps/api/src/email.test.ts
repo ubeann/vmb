@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendMock = vi.fn();
 const resendConstructorMock = vi.fn((apiKey?: string) => apiKey);
@@ -23,8 +23,19 @@ const env = {
   EMAIL_FROM: "onboarding@resend.dev"
 };
 
+let logSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  logSpy.mockRestore();
+});
+
 describe("sendVerificationEmail", () => {
-  it("sends via Resend using the configured from address and the verification url", async () => {
+  it("sends via Resend when EMAIL_TRANSPORT is unset, using the configured from address and the verification url", async () => {
     sendMock.mockResolvedValueOnce({ data: { id: "email_1" }, error: null });
 
     await sendVerificationEmail(
@@ -43,6 +54,33 @@ describe("sendVerificationEmail", () => {
       })
     );
   });
+
+  it.each(["log", "quiet"])(
+    "logs the email and never reaches Resend when EMAIL_TRANSPORT is %s",
+    async (transport) => {
+      const previewEnv = { ...env, EMAIL_TRANSPORT: transport };
+
+      await sendVerificationEmail(
+        previewEnv,
+        "user@example.com",
+        "https://vmb-api.example.com/api/auth/verify-email?token=abc"
+      );
+
+      expect(resendConstructorMock).not.toHaveBeenCalled();
+      expect(sendMock).not.toHaveBeenCalled();
+      expect(logSpy).toHaveBeenCalledWith(
+        `EMAIL_TRANSPORT=${transport}: suppressed outbound email`,
+        expect.objectContaining({
+          from: "onboarding@resend.dev",
+          to: "user@example.com",
+          subject: "Verify your email — VMB",
+          html: expect.stringContaining(
+            "https://vmb-api.example.com/api/auth/verify-email?token=abc"
+          )
+        })
+      );
+    }
+  );
 
   it("throws with the Resend error message when the send fails", async () => {
     sendMock.mockResolvedValueOnce({
