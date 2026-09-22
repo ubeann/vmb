@@ -218,7 +218,7 @@ wait_until_ready() {
 # database's owner and its password is URL-encoded with jq, so a password
 # containing `@`, `/` or `:` cannot break the URI.
 connection_url() {
-  local branch_id=$1 host=$2 owner password encoded
+  local branch_id=$1 host=$2 owner password encoded role
 
   owner=$(api GET "/projects/$NEON_PROJECT_ID/branches/$branch_id/databases" \
     | jq -r --arg db "$DATABASE_NAME" '[.databases[] | select(.name == $db) | .owner_name] | first // ""')
@@ -226,8 +226,12 @@ connection_url() {
     fail "branch has no database named '$DATABASE_NAME' — if it predates the rename, re-run with: scripts/dev-db.sh up --reset"
   fi
 
-  password=$(api GET "/projects/$NEON_PROJECT_ID/branches/$branch_id/roles" \
-    | jq -r --arg role "$owner" '[.roles[] | select(.name == $role) | .password] | first // ""')
+  # The roles *list* does not carry passwords, so this reads the dedicated
+  # reveal endpoint — the same call `neondatabase/create-branch-action` makes on
+  # every run, and it reveals rather than rotates the password.
+  role=$(printf '%s' "$owner" | jq -Rr @uri)
+  password=$(api GET "/projects/$NEON_PROJECT_ID/branches/$branch_id/roles/$role/reveal_password" \
+    | jq -r '.password // ""')
   if [ -z "$password" ]; then
     fail "could not read the '$owner' role's password for branch $branch_id"
   fi
@@ -295,7 +299,7 @@ cmd_up() {
   if [ -n "$BRANCH_ID" ]; then
     log "Reusing Neon branch '$BRANCH_NAME' ($BRANCH_ID)."
     ENDPOINT_HOST=$(api GET "/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID/endpoints" \
-      | jq -r '.endpoints[0].host')
+      | jq -r '[.endpoints[] | select(.type == "read_write") | .host] | first // ""')
     if [ -z "$ENDPOINT_HOST" ] || [ "$ENDPOINT_HOST" = "null" ]; then
       fail "branch '$BRANCH_NAME' has no compute endpoint — re-run with: scripts/dev-db.sh up --reset"
     fi
