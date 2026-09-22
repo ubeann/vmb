@@ -1,5 +1,7 @@
 # ADR-0027: Database session timezone declared UTC
 
+**Amended by [ADR-0029](0029-app-on-every-branch.md):** the application database is `app` on every environment branch now, `neondb` is removed, and local development's `DATABASE_URL` is a per-developer branch rather than the production branch's `neondb` — so the body's `vmb`, `neondb` and local-development sentences describe the state before that change. The declaration itself and the reasoning below stand unchanged.
+
 **Context:** Every stored timestamp is already an absolute instant: `0022` converted the schema to `timestamptz(3)`, and Better Auth's columns were written through a driver that serialises a `Date` as UTC. Storage is unambiguous. Rendering is not. `timestamptz` is rendered as text in the session's `TimeZone`, and until now that zone was inherited rather than declared — Neon's compute defaulted to `GMT`, the drivers default their own sessions to UTC, and nothing said so. The same row can therefore read as `2026-01-02 01:00` in one session and `2026-01-02 08:00` in another (measured: session `UTC` versus session `Asia/Jakarta` on a row holding `2026-01-02T01:00:00Z`), and the difference reads as a bug in the data. Issue #115 is the other half of the contract: the application renders in the _reader's_ zone, from their profile, never the server's. This ADR only fixes the default for sessions no application code has configured.
 
 **Options considered:**
@@ -15,8 +17,8 @@
 
 **Consequences:**
 
-- Apply on each environment's application database:
-  `ALTER DATABASE vmb SET timezone TO 'UTC';`
+- Apply on each environment's application database (`app`; `vmb` before ADR-0029):
+  `ALTER DATABASE app SET timezone TO 'UTC';`
   On production this was applied and verified on 2026-09-22 (issue #133), and a fresh fork of `production` reads it from a new session, so previews inherit it.
 - Verify in a fresh session: the direct endpoint, or a pooled one — a pooled backend that predates the change keeps its connect-time zone until the compute's autosuspend recycles it.
 

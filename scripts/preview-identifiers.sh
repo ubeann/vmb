@@ -2,14 +2,23 @@
 #
 # The one definition of a per-PR preview's identifiers (issue #78).
 #
-# A preview has three names, all derived from the immutable PR number plus the
-# (mutable) source branch:
+# A preview has three names:
 #   - the Workers preview alias / Pages branch alias: `pr<N>-<slug>`, falling
-#     back to `pr-<N>` when the branch name sanitizes to nothing;
+#     back to `pr-<N>` when nothing slugs at all;
 #   - the Pages deployment prefix: `pr<N>-`, which matches every deployment the
-#     PR ever made, including ones orphaned by a branch rename;
-#   - the Neon branch name: `pr-<N>`, internal and number-keyed so a branch
-#     rename cannot orphan it.
+#     PR ever made, including ones orphaned by a rename;
+#   - the Neon branch name: `pr-<N>`, internal and number-keyed so a rename
+#     cannot orphan it.
+#
+# The slug is decoration, and it comes from the pull request *title* — the text
+# a human wrote, and the text that describes the PR in review — with the
+# Conventional Commit prefix (`docs(db): ...`) stripped so the slug starts with
+# the subject. It falls back to the source branch when the title sanitizes
+# away (an emoji-only title, say) and to the number-keyed name when both do.
+# A title is mutable, so retitling moves the alias on the next push; that is
+# safe because nothing that outlives a run is derived from the slug: cleanup
+# matches the `pr<N>-` prefix and deletes the Neon branch by `pr-<N>`, so an
+# old slug leaves no orphan.
 #
 # `preview.yml` mints these when it creates the environment; `cleanup.yml`
 # re-derives them independently when it destroys it. Keeping the scheme here,
@@ -17,33 +26,64 @@
 # create and destroy disagree and silently orphan a Pages deployment or Neon
 # branch.
 #
-# Behaviour-preserving: the strings produced for a given PR number and branch
-# name must not change. Source it, then call the functions:
+# Source it, then call the functions:
 #
 #   . scripts/preview-identifiers.sh
-#   alias=$(preview_alias "$PR_NUMBER" "$HEAD_REF")     # pr<N>-<slug> | pr-<N>
-#   prefix=$(preview_pages_prefix "$PR_NUMBER")         # pr<N>-
-#   branch=$(preview_neon_branch "$PR_NUMBER")          # pr-<N>
+#   alias=$(preview_alias "$PR_NUMBER" "$PR_TITLE" "$HEAD_REF")  # pr<N>-<slug> | pr-<N>
+#   prefix=$(preview_pages_prefix "$PR_NUMBER")                  # pr<N>-
+#   branch=$(preview_neon_branch "$PR_NUMBER")                   # pr-<N>
 #
-# This file is shellchecked by CI's workflow-lint job and lefthook's
-# pre-commit hook (issue #61).
+# `scripts/preview-identifiers.test.sh` pins the cases; CI runs it in the
+# `lint-workflows-and-scripts` job. This file is also shellchecked by CI and
+# lefthook's pre-commit hook (issue #61).
 
-# Sanitize a branch name the way Cloudflare does: lowercase, runs of
+# The slug budget for `pr<N>-<slug>`: Cloudflare Pages truncates the branch
+# alias this becomes to 28 characters (`<alias>.vmb-web.pages.dev`), so a longer
+# alias resolves at a *different* address than the one the workflow computes.
+# 28 is stricter than the Workers side (`<alias>-vmb-api` must fit a
+# 63-character DNS label), so it is the binding limit: `pr` + the number + `-`
+# costs `${#pr_number} + 3`, leaving `25 - ${#pr_number}` for the slug. Pages
+# may also append a disambiguating suffix when the truncated alias is already
+# taken, so `preview.yml` posts the web URL `wrangler` reports; this string is
+# what the Workers `<alias>-vmb-api` URL and the cleanup prefix use verbatim.
+preview_slug_limit() {
+  local limit=$((25 - ${#1}))
+
+  if [ "$limit" -lt 1 ]; then
+    limit=1
+  fi
+
+  printf '%s' "$limit"
+}
+
+# Sanitize arbitrary text into a DNS-label-safe slug: lowercase, runs of
 # non-alphanumerics collapsed to a single dash, trimmed at both ends, and
-# capped at 32 chars so `<alias>-vmb-api` stays inside the 63-char DNS label
-# limit (re-trimming any dash the cut leaves dangling). Falls back to nothing
-# when the name sanitizes entirely away; callers decide what that means.
+# capped at `max` (re-trimming any dash the cut leaves dangling). Falls back to
+# nothing when the text sanitizes entirely away; callers decide what that
+# means.
 preview_slug() {
-  local head_ref=$1
-  local slug
+  local text=$1
+  local max=$2
 
-  slug=$(printf '%s' "$head_ref" \
+  printf '%s' "$text" \
     | tr '[:upper:]' '[:lower:]' \
     | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
-    | cut -c1-32 \
-    | sed -E 's/-+$//')
+    | cut -c1-"$max" \
+    | sed -E 's/-+$//'
+}
 
-  printf '%s' "$slug"
+# The pull request title, minus the Conventional Commit prefix the repo's
+# titles carry, then sanitized. A title that is only a prefix sanitizes to
+# nothing, exactly like a title with nothing slug-safe in it.
+preview_title_slug() {
+  local title=$1
+  local max=$2
+  local subject
+
+  subject=$(printf '%s' "$title" \
+    | sed -E 's/^[A-Za-z]+(\([^)]*\))?!?:[[:space:]]*//')
+
+  preview_slug "$subject" "$max"
 }
 
 # The number-keyed name `pr-<N>`. It is the one string shared by the Neon
@@ -53,14 +93,20 @@ preview_number_name() {
   printf 'pr-%s' "$1"
 }
 
-# The Workers preview alias and Pages branch alias: `pr<N>-<slug>`, or the
-# number-keyed name when the branch name sanitizes to nothing.
+# The Workers preview alias and Pages branch alias: `pr<N>-<slug>` from the
+# title, then the branch, or the number-keyed name when neither slugs.
 preview_alias() {
   local pr_number=$1
-  local head_ref=$2
-  local slug
+  local title=$2
+  local head_ref=$3
+  local max slug
 
-  slug=$(preview_slug "$head_ref")
+  max=$(preview_slug_limit "$pr_number")
+  slug=$(preview_title_slug "$title" "$max")
+  if [ -z "$slug" ]; then
+    slug=$(preview_slug "$head_ref" "$max")
+  fi
+
   if [ -n "$slug" ]; then
     printf 'pr%s-%s' "$pr_number" "$slug"
   else

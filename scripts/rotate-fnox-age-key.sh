@@ -248,10 +248,9 @@ fi
 # ── Stage 3: re-enter every secret ────────────────────────────────────────
 stage "Re-enter the shared secrets"
 say "Each value is re-encrypted into fnox.toml under the new key."
-
-open_url "https://console.neon.tech/app/projects"
-step "Project → Connection string → copy the default-branch DATABASE_URL."
-ask_secret DATABASE_URL "DATABASE_URL:"
+note "DATABASE_URL is not one of them any more: the local development branch's"
+note "connection string is per-developer and lives in the gitignored"
+note "fnox.local.toml overlay (ADR-0029). This rotation does not need it."
 
 generated_secret=$(openssl rand -base64 32)
 say "A fresh BETTER_AUTH_SECRET will be used unless you paste your own."
@@ -275,7 +274,6 @@ step "Create (or copy) a Sending-access Resend API key."
 ask_secret RESEND_API_KEY "RESEND_API_KEY:"
 ask EMAIL_FROM "EMAIL_FROM:"
 
-set_fnox DATABASE_URL "$DATABASE_URL"
 set_fnox BETTER_AUTH_SECRET "$BETTER_AUTH_SECRET"
 set_fnox BETTER_AUTH_URL "$BETTER_AUTH_URL"
 set_fnox WEB_URL "$WEB_URL"
@@ -297,10 +295,10 @@ else
   SKIPPED+=("gh secret set FNOX_AGE_KEY")
 fi
 
-if value=$(fnox get DATABASE_URL 2>/dev/null) && [[ -n "$value" ]]; then
+if value=$(fnox get BETTER_AUTH_SECRET 2>/dev/null) && [[ -n "$value" ]]; then
   say "verified: fnox can decrypt the new store locally"
 else
-  warn "fnox get DATABASE_URL failed — the store is not decryptable with the new key."
+  warn "fnox get BETTER_AUTH_SECRET failed — the store is not decryptable with the new key."
   SKIPPED+=("Verify local decryption")
 fi
 warn "Back up $AGE_KEY_FILE in a password manager NOW — losing it again means another rotation."

@@ -12,7 +12,7 @@ name: Preview
 # idempotent per PR:
 #   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
 #   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
-#   - DB:    Neon branch named `pr-<N>`                          (see the Resolve step)
+#   - DB:    Neon branch named `pr-<N>`, carrying the `app` database (see the Resolve step)
 #
 # Two preview resources aren't self-cleaning: the Neon branch and the Pages
 # deployment(s). The Pages side is pruned here after each successful deploy so
@@ -141,10 +141,14 @@ jobs:
 
       # The alias, the Pages prefix, and the Neon branch name all come from
       # `scripts/preview-identifiers.sh` (issue #78), so create and destroy
-      # read one definition. The alias is sanitized from the branch name the
-      # way Cloudflare does, capped so `<alias>-vmb-api` stays inside the
-      # 63-char DNS label limit, and falls back to `pr-<N>` when the branch
-      # name sanitizes to nothing.
+      # read one definition. The alias is slugged from the pull request title
+      # with its Conventional Commit prefix stripped, falls back to the branch
+      # name and then `pr-<N>`, and is capped so the whole alias fits inside
+      # Cloudflare Pages' 28-character branch-alias limit — a longer one is
+      # truncated by Pages, so a URL computed from it would not resolve.
+      # Cloudflare may still disambiguate a colliding alias with a suffix, so
+      # the web link posted below is the URL wrangler reports, not `web_url`
+      # here. `scripts/preview-identifiers.test.sh` pins the cases (#155).
       #
       # The account's workers.dev subdomain is not known to the workflow —
       # read it from the Cloudflare API rather than a hardcoded repo variable.
@@ -159,6 +163,9 @@ jobs:
           # Passed through the environment, never interpolated into the script:
           # a branch name is attacker-controlled text.
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          # Same reason as HEAD_REF, and the alias's first source: a pull
+          # request title is attacker-controlled text too.
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           # shellcheck source=scripts/preview-identifiers.sh
           . scripts/preview-identifiers.sh
@@ -173,7 +180,7 @@ jobs:
             exit 1
           fi
 
-          alias=$(preview_alias "$PR_NUMBER" "$HEAD_REF")
+          alias=$(preview_alias "$PR_NUMBER" "$PR_TITLE" "$HEAD_REF")
           neon_branch=$(preview_neon_branch "$PR_NUMBER")
 
           # Safety net for a run that dies before cleanup.yml sees the PR close
@@ -202,10 +209,11 @@ jobs:
       # action's defaults (`neondb` and the project's default branch), so the
       # preview's contract with production is explicit (issue #118):
       #
-      #   - `database: vmb` is the database production runs on. `db_url` feeds
+      #   - `database: app` is the database production runs on, under the one
+      #     name every environment branch carries (ADR-0029). `db_url` feeds
       #     both the migration step and the preview Worker's DATABASE_URL, so
       #     the default pointed both at `neondb`, a database production never
-      #     migrates.
+      #     migrated and which no longer exists.
       #   - `parent_branch: production` makes the fork point a decision. The
       #     project default is production today, but left implicit a
       #     project-default change would silently repoint every preview.
@@ -218,14 +226,19 @@ jobs:
       # `expires_at` (30 days, computed in the Resolve step) is the cleanup
       # safety net a leaked branch needs if a run dies before cleanup.yml sees
       # the PR close: it deletes itself rather than surviving unreaped.
+      # `ssl: verify-full` rather than the action's `require` default: `pg`
+      # treats `require` as `verify-full` today and warns that a future major
+      # version will not, so naming the stronger mode keeps the behaviour and
+      # keeps the warning out of the migrate and seed logs.
       - name: Create Neon branch
         id: neon
         uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ secrets.NEON_PROJECT_ID }}
           branch_name: ${{ steps.ids.outputs.neon_branch }}
-          database: vmb
+          database: app
           parent_branch: production
+          ssl: verify-full
           expires_at: ${{ steps.ids.outputs.neon_expires_at }}
           api_key: ${{ secrets.NEON_API_KEY }}
 
@@ -364,6 +377,7 @@ jobs:
         run: pnpm turbo build --filter=@vmb/web
 
       - name: Deploy web preview
+        id: web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -373,12 +387,35 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           # Same identifier as the API alias, so the Pages branch alias and the
-          # Workers preview alias line up. The commit metadata makes the
-          # Cloudflare Pages dashboard readable.
+          # Workers preview alias line up where Cloudflare lets them. The commit
+          # metadata makes the Cloudflare Pages dashboard readable.
+          set -o pipefail
           pnpm --filter @vmb/web exec wrangler pages deploy .svelte-kit/cloudflare \
             --branch "$PREVIEW_ALIAS" \
             --commit-message "$PR_TITLE" \
-            --commit-hash "$HEAD_SHA"
+            --commit-hash "$HEAD_SHA" 2>&1 | tee "$RUNNER_TEMP/pages-deploy.log"
+
+          # Cloudflare owns the Pages branch alias, and it is not a pure
+          # function of the `--branch` passed: it lowercases and truncates to 28
+          # characters, and appends a short suffix when that alias is already
+          # taken (seen on PR #156, where an earlier run's longer alias
+          # truncated onto the same string and the next one became `…-15b2`).
+          # So post the URL wrangler reports, not one computed from the alias —
+          # a stale link a reviewer cannot open is worse than this parse
+          # (issue #155). A URL that is not a Pages URL means the output shape
+          # changed; warn, and fall back to the deployment URL, which is the
+          # atomic one Pages printed and always resolves.
+          alias_url=$(sed -n 's/.*Deployment alias URL: \(https:\/\/[^[:space:]]*\)[[:space:]]*$/\1/p' \
+            "$RUNNER_TEMP/pages-deploy.log" | tail -n 1)
+          case "$alias_url" in
+          https://*.vmb-web.pages.dev) ;;
+          *)
+            echo "::warning::wrangler did not report a Pages alias URL; posting the deployment URL instead."
+            alias_url=$(sed -n 's/.*Take a peek over at \(https:\/\/[^[:space:]]*\)[[:space:]]*$/\1/p' \
+              "$RUNNER_TEMP/pages-deploy.log" | tail -n 1)
+            ;;
+          esac
+          echo "web_url=$alias_url" >> "$GITHUB_OUTPUT"
 
       # A Pages preview deployment is retained indefinitely and each push adds
       # another, so without this an open PR accumulates one deployment per push
@@ -465,7 +502,11 @@ jobs:
         if: always()
         uses: actions/github-script@v9
         env:
-          WEB_PREVIEW_URL: ${{ steps.ids.outputs.web_url }}
+          # The URL Cloudflare actually assigned this deployment (the deploy
+          # step reads it from wrangler's output), falling back to the computed
+          # one when the deploy itself failed — in which case the comment does
+          # not print URLs anyway.
+          WEB_PREVIEW_URL: ${{ steps.web.outputs.web_url || steps.ids.outputs.web_url }}
           API_PREVIEW_URL: ${{ steps.ids.outputs.api_url }}
           NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
           JOB_STATUS: ${{ job.status }}
@@ -506,7 +547,7 @@ jobs:
                   `| API preview | ${apiUrl} |`,
                   `| API health | ${apiUrl}/health |`,
                   "",
-                  `The preview API uses an isolated Neon branch (\`${neonBranch}\`), which is deleted when this pull request closes.`,
+                  `The preview API runs on the application database \`app\` in an isolated Neon branch (\`${neonBranch}\`), which is deleted when this pull request closes.`,
                   "",
                   `<sub>This comment updates on every push. [Workflow run](${runUrl})</sub>`,
                 ].join("\n")

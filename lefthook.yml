@@ -31,6 +31,12 @@ pre-commit:
     shellcheck:
       glob: "scripts/**/*.sh"
       run: shellcheck {staged_files}
+    # The preview identifier module is shared by preview.yml and cleanup.yml, so
+    # a wrong slug orphans a Pages deployment or a Neon branch rather than
+    # merely looking odd; shellcheck cannot see behaviour, this can.
+    preview-identifiers:
+      glob: "scripts/preview-identifiers*.sh"
+      run: bash scripts/preview-identifiers.test.sh
     actionlint:
       # actionlint with no arguments walks .github/workflows and also checks
       # the local actions those workflows reference, so the composite action is

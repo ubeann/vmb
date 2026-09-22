@@ -124,6 +124,11 @@ age.txt
 *age-key*.txt
 .secrets-local/
 
+# Per-developer fnox overlay: secrets that must not be shared or committed,
+# such as the local development branch's DATABASE_URL (ADR-0029). fnox merges
+# it over fnox.toml automatically.
+fnox.local.toml
+
 # fnox-exported plaintext secrets for local `wrangler dev` (ADR-0011)
 .dev.vars
 

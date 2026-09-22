@@ -249,7 +249,7 @@ fi
 stage "Neon: project ID (repo secret)"
 say "The create-branch action also needs the project ID."
 open_url "https://console.neon.tech/app/projects"
-step "Open the project this app uses (the one whose connection string is in fnox)."
+step "Open the project this app uses (the one carrying the 'app' database)."
 step "Go to Settings → General and copy 'Project ID'."
 ask NEON_PROJECT_ID "Paste the Neon project ID:"
 if [[ -n "$NEON_PROJECT_ID" ]]; then

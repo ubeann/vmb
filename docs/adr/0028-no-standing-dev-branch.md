@@ -10,8 +10,8 @@
 
 **Decision:** No standing dev branch.
 
-- The Neon project holds `production` and per-PR preview branches (ADR-0019). Development data — for previews and locally — comes from `db:seed`, whose fixtures grow as modules land.
-- The import pipeline remains the cutover mechanism (ADR-0024). Its rehearsal target is a throwaway branch: create it, `pnpm --filter @vmb/db db:import --snapshot snapshot.sql --url "$DATABASE_URL"`, record the report, delete the branch. The report is the deliverable; the branch is disposable.
+- The Neon project holds `production`, per-PR preview branches (ADR-0019), and each developer's own throwaway local branch (ADR-0029) — never a shared, standing one. Development data — for previews and locally — comes from `db:seed`, whose fixtures grow as modules land.
+- The import pipeline remains the cutover mechanism (ADR-0024). Its rehearsal target is a throwaway branch: create it, `pnpm --filter @vmb/db db:import --snapshot snapshot.sql --url "<the branch's connection string>"`, record the report, delete the branch. The report is the deliverable; the branch is disposable.
 - #18 is rescoped to that rehearsal — no dev-branch acceptance criterion — and its blocking edge over #6 is dropped: CRUD development runs against seeded data, so it does not wait on legacy records. At cutover, #17 points the same pipeline at the real target.
 - `db:import` and `db:seed` each own the database they run against (both wipe it) and cannot share a branch; preview branches re-seed on every push, so the rehearsal cannot borrow one.
 
@@ -22,4 +22,4 @@
 - Supersedes the dev-branch references in ADR-0024; the baseline/replay decision there stands unchanged. ADR-0027's "no dev branch to mirror it" is now the decision rather than a state found.
 - The rehearsal needs a branch an operator can create and delete around one run; nothing in CI provisions it.
 - #131 — whether anything migrates `production`, or previews fork a CI-maintained parent — is unaffected: a CI-maintained preview parent, if chosen, is a CI artifact, not the dev branch this ADR rejects.
-- Local development still has no data environment: the fnox `DATABASE_URL` resolves to the production branch's `neondb` (ADR-0027), so running `db:seed` locally needs a deliberate target. Open, and separable from this decision.
+- Local development still has no data environment: the fnox `DATABASE_URL` resolves to the production branch's `neondb` (ADR-0027), so running `db:seed` locally needs a deliberate target. Open, and separable from this decision — **closed by [ADR-0029](0029-app-on-every-branch.md):** local development runs on a per-developer branch (`dev-<slug>`, seeded, disposable, its connection string in the gitignored `fnox.local.toml`), and the rehearsal passes its own throwaway branch's URL explicitly, since `$DATABASE_URL` is now a developer's local branch.
