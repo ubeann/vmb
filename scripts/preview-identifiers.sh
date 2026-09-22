@@ -15,6 +15,9 @@
 # Conventional Commit prefix (`docs(db): ...`) stripped so the slug starts with
 # the subject. It falls back to the source branch when the title sanitizes
 # away (an emoji-only title, say) and to the number-keyed name when both do.
+# An over-long slug is cut on a word boundary, filler words first, so the
+# visible part reads as words — only a single word too long to fit is cut
+# mid-word, having no boundary to cut at.
 # A title is mutable, so retitling moves the alias on the next push; that is
 # safe because nothing that outlives a run is derived from the slug: cleanup
 # matches the `pr<N>-` prefix and deletes the Neon branch by `pr-<N>`, so an
@@ -56,34 +59,121 @@ preview_slug_limit() {
   printf '%s' "$limit"
 }
 
-# Sanitize arbitrary text into a DNS-label-safe slug: lowercase, runs of
-# non-alphanumerics collapsed to a single dash, trimmed at both ends, and
-# capped at `max` (re-trimming any dash the cut leaves dangling). Falls back to
-# nothing when the text sanitizes entirely away; callers decide what that
-# means.
+# Sanitize arbitrary text into a DNS-label-safe slug, uncapped: lowercase, runs
+# of non-alphanumerics collapsed to a single dash, trimmed at both ends. Falls
+# back to nothing when the text sanitizes entirely away; callers decide what
+# that means.
+preview_sanitize() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
+# `preview_sanitize` plus a hard cut at `max` characters, re-trimming any dash
+# the cut leaves dangling. This is the last resort, for a single word too long
+# to fit whole: with no boundary to cut at, a slug can still end mid-word.
 preview_slug() {
+  preview_sanitize "$1" | cut -c1-"$2" | sed -E 's/-+$//'
+}
+
+# The words of a sanitized slug, one per line. Both helpers below walk a slug
+# word by word, so the split lives here rather than in each of them.
+preview_words() {
+  printf '%s' "$1" | tr '-' '\n'
+}
+
+# The longest run of whole words from a sanitized slug that fits in `max`
+# characters, so the cut reads as words instead of chopping one in half. Two
+# consequences are deliberate: the result can be shorter than the budget (the
+# next whole word did not fit), and only a first word that cannot fit alone is
+# cut mid-word, since it has no boundary to cut at.
+preview_fit_words() {
   local text=$1
   local max=$2
+  local out=""
+  local word
+  local candidate
 
-  printf '%s' "$text" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
-    | cut -c1-"$max" \
-    | sed -E 's/-+$//'
+  while IFS= read -r word; do
+    [ -n "$word" ] || continue
+
+    if [ -z "$out" ]; then
+      candidate=$word
+    else
+      candidate="$out-$word"
+    fi
+
+    if [ "${#candidate}" -le "$max" ]; then
+      out=$candidate
+    else
+      break
+    fi
+  done <<< "$(preview_words "$text")"
+
+  if [ -z "$out" ]; then
+    preview_slug "$text" "$max"
+  else
+    printf '%s' "$out"
+  fi
+}
+
+# A sanitized slug with its filler words removed. `preview_title_slug` calls
+# this only when the slug does not fit as it stands: a slug that fits keeps
+# every word it has.
+preview_drop_fillers() {
+  local out=""
+  local word
+
+  while IFS= read -r word; do
+    [ -n "$word" ] || continue
+
+    case "$word" in
+    and | the | for | to | of | a) continue ;;
+    esac
+
+    if [ -z "$out" ]; then
+      out=$word
+    else
+      out="$out-$word"
+    fi
+  done <<< "$(preview_words "$1")"
+
+  printf '%s' "$out"
 }
 
 # The pull request title, minus the Conventional Commit prefix the repo's
-# titles carry, then sanitized. A title that is only a prefix sanitizes to
-# nothing, exactly like a title with nothing slug-safe in it.
+# titles carry, cut to fit `max`. A title that is only a prefix sanitizes to
+# nothing, exactly like a title with nothing slug-safe in it. Order matters:
+# filler words go before any word is cut, and a word is only cut when no whole
+# word fits (`Kubernetesconfiguration` has nowhere else to cut).
 preview_title_slug() {
-  local title=$1
   local max=$2
   local subject
+  local slug
 
-  subject=$(printf '%s' "$title" \
+  subject=$(printf '%s' "$1" \
     | sed -E 's/^[A-Za-z]+(\([^)]*\))?!?:[[:space:]]*//')
+  slug=$(preview_sanitize "$subject")
 
-  preview_slug "$subject" "$max"
+  if [ "${#slug}" -le "$max" ]; then
+    printf '%s' "$slug"
+    return
+  fi
+
+  slug=$(preview_drop_fillers "$slug")
+  if [ "${#slug}" -le "$max" ]; then
+    printf '%s' "$slug"
+    return
+  fi
+
+  preview_fit_words "$slug" "$max"
+}
+
+# The source branch, sanitized and cut on a word boundary. Fillers are not
+# dropped here: a branch name is deliberately structured (`fix/api/session…`),
+# so removing words would change what it says rather than tighten it.
+preview_branch_slug() {
+  preview_fit_words "$(preview_sanitize "$1")" "$2"
 }
 
 # The number-keyed name `pr-<N>`. It is the one string shared by the Neon
@@ -104,7 +194,7 @@ preview_alias() {
   max=$(preview_slug_limit "$pr_number")
   slug=$(preview_title_slug "$title" "$max")
   if [ -z "$slug" ]; then
-    slug=$(preview_slug "$head_ref" "$max")
+    slug=$(preview_branch_slug "$head_ref" "$max")
   fi
 
   if [ -n "$slug" ]; then

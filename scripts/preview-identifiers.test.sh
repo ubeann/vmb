@@ -7,8 +7,9 @@
 # becomes to 28 characters, so anything longer resolves at a different address
 # than the one we compute. (The Workers side is looser: `<alias>-vmb-api` has to
 # fit a 63-character DNS label.) The cases below pin the sources (title, then
-# branch, then number), the Conventional Commit prefix strip, the sanitizer and
-# the cap.
+# branch, then number), the Conventional Commit prefix strip, the sanitizer, and
+# the way an over-long slug is cut: on a word boundary, with filler words dropped
+# before any word is cut, and a hard cut only when no whole word fits.
 #
 # Run from anywhere: `bash scripts/preview-identifiers.test.sh`. CI runs it in
 # the `lint-workflows-and-scripts` job, and lefthook runs it on a commit that
@@ -43,14 +44,14 @@ check() {
 
 # ── The title is the first source, minus its Conventional Commit prefix ──────
 
-check "a conventional title loses its prefix and is capped" \
+check "a conventional title loses its prefix and is cut to fit" \
   "pr148-record-no-standing-dev" \
   "$(preview_alias 148 \
     "docs(db): record no standing dev branch and rescope the import to a cutover rehearsal" \
     "docs/db/no-standing-dev-branch")"
 
-check "a title without a prefix is used as it stands" \
-  "pr9-fix-the-trucking-invoice" \
+check "a title without a prefix drops its fillers to fit" \
+  "pr9-fix-trucking-invoice" \
   "$(preview_alias 9 "Fix the trucking invoice rounding bug" "whatever")"
 
 check "punctuation and case sanitize" \
@@ -61,21 +62,41 @@ check "a prefix-only title has nothing left to slug" \
   "pr12-docs-db-thing" \
   "$(preview_alias 12 "docs(db):" "docs/db/thing")"
 
+check "fillers are kept when the slug fits without dropping them" \
+  "pr148-fix-the-invoice" \
+  "$(preview_alias 148 "Fix the invoice" "x")"
+
+check "fillers are dropped when the slug would not fit" \
+  "pr148-fix-invoice-rounding" \
+  "$(preview_alias 148 "Fix the invoice rounding" "x")"
+
+check "a single word too long to fit is cut mid-word, having no boundary" \
+  "pr148-kubernetesconfiguratio" \
+  "$(preview_alias 148 "Kubernetesconfiguration" "x")"
+
 # ── The branch is the fallback, for titles that sanitize away ────────────────
 
 check "an emoji-only title falls back to the branch" \
-  "pr42-feature-trucking-roundi" \
+  "pr42-feature-trucking" \
   "$(preview_alias 42 "🚀✨" "feature/trucking/rounding")"
 
 check "an uppercase branch fallback is lowercased" \
   "pr4-feature-upper-case" \
   "$(preview_alias 4 "" "Feature/UPPER_Case")"
 
-check "a long branch fallback is capped and re-trimmed" \
-  "pr3-feature-trucking-very-lo" \
+check "a long branch fallback is cut on a word boundary" \
+  "pr3-feature-trucking-very" \
   "$(preview_alias 3 "" "feature/trucking/very-long-branch-name-that-keeps-going-and-going-and-going")"
 
+check "the branch fallback keeps its words, fillers included" \
+  "pr42-fix-to-the-invoice" \
+  "$(preview_alias 42 "" "fix/to/the/invoice-rounding-bug")"
+
 # ── The number is the last resort, and the cap leaves room for the suffix ────
+
+check "an all-filler title drops to nothing and falls back to the branch" \
+  "pr7-feature-thing" \
+  "$(preview_alias 7 "and the for to of a and the for to of a" "feature/thing")"
 
 check "nothing left to slug falls back to the number" \
   "pr-7" \
@@ -92,6 +113,12 @@ check "the Workers label also stays inside its 63-character DNS limit" \
   "36" \
   "$((${#monster} + 8))"
 
+monster5=$(preview_alias 99999 "$(printf 'x%.0s' {1..200})" "")
+check "a five-digit PR number fills the budget exactly too" \
+  "pr99999-xxxxxxxxxxxxxxxxxxxx" \
+  "$monster5"
+check "and its alias is still 28 characters" "28" "$((${#monster5}))"
+
 # ── The other two names are number-keyed and do not move ────────────────────
 
 check "the Neon branch name is number-keyed" "pr-148" "$(preview_neon_branch 148)"
@@ -106,6 +133,12 @@ check "the sanitizer lowercases, collapses and trims" \
 check "the sanitizer caps" \
   "abcdefghij" \
   "$(preview_slug "abcdefghijklmno" 10)"
+check "the sanitizer itself is uncapped" \
+  "hello-world" \
+  "$(preview_sanitize "  Hello, -- World!  ")"
+check "a hard cut re-trims the dash it lands on" \
+  "hello" \
+  "$(preview_slug "hello-world" 6)"
 
 # ── Report ──────────────────────────────────────────────────────────────────
 
