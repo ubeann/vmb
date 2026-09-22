@@ -20,10 +20,10 @@ name: Cleanup
 # supported individual delete (issue #55). That is the distinction the original
 # "neither needs cleanup" claim collapsed.
 #
-# Runs on `closed`, which covers both merged and closed-without-merge. Both the
-# Neon and Pages lookups make this idempotent: if the preview workflow never got
-# as far as creating the resource (or it was already removed), there's nothing
-# to delete and the job succeeds quietly instead of erroring on a 404.
+# Runs on `closed`, which covers both merged and closed-without-merge. All three
+# lookups make this idempotent: if the preview workflow never got as far as
+# creating the resource (or it was already removed), there's nothing to delete
+# and the job succeeds quietly instead of erroring on a 404.
 
 on:
   pull_request:
@@ -49,6 +49,10 @@ concurrency:
 
 permissions:
   contents: read
+  # Needed to mark this PR's deployments inactive before the environment they
+  # belong to is deleted. `GITHUB_TOKEN` can hold this one; deleting the
+  # environment itself cannot be done with any GITHUB_TOKEN permission.
+  deployments: write
 
 jobs:
   cleanup:
@@ -204,6 +208,65 @@ jobs:
             echo "::error::$failed Pages deployment(s) failed to delete."
             exit 1
           fi
+
+      # The deployment records are history and stay; their state may not. The
+      # Pages deployment the newest of them points at was deleted just above, so
+      # a `success` status left behind would advertise a live preview for a
+      # closed PR. GitHub's automatic inactivate-the-previous rule only fires
+      # when a newer deployment succeeds in the same environment, which cannot
+      # happen once the PR is closed, so the PR's deployments are marked
+      # inactive here.
+      #
+      # Best-effort, unlike the sweeps around it: this is a status update, not a
+      # reaping — nothing leaks if it fails, and the environment delete below
+      # must not be skipped over a cosmetic miss. The deletes themselves stay
+      # available if a future decision wants the records gone too (inactive
+      # deployments are the deletable ones).
+      - name: Deactivate this PR's GitHub deployments
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Best-effort by design: clear the runner's inherited `-e` so a
+          # failure here cannot skip the environment delete below.
+          set +e
+          set -uo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+          environment=$(preview_environment_name "$PR_NUMBER")
+          # A `/` is a path separator in the endpoint URL unless encoded, and the
+          # name carries one.
+          encoded=$(jq -rn --arg name "$environment" '$name|@uri')
+
+          # The list is newest-first and `per_page` is the endpoint's maximum.
+          deployment_ids=$(curl -fsS \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments?environment=$encoded&per_page=100" \
+            | jq -r '.[].id') || deployment_ids=""
+
+          if [ -z "$deployment_ids" ]; then
+            echo "No deployments for preview environment '$environment' — nothing to deactivate."
+            exit 0
+          fi
+
+          deactivated=0
+          while IFS= read -r deployment_id; do
+            [ -n "$deployment_id" ] || continue
+
+            if curl -fsS -o /dev/null -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
+              --data '{"state":"inactive"}'; then
+              deactivated=$((deactivated + 1))
+            else
+              echo "::warning::Deployment $deployment_id was not marked inactive; leaving its record to history."
+            fi
+          done <<< "$deployment_ids"
+
+          echo "Marked $deactivated deployment(s) of '$environment' inactive."
 
       # GitHub auto-creates an environment when a deployment names one and never
       # deletes it, so without this every pull request would leave one behind

@@ -5,27 +5,24 @@ name: Preview
 # and the full stack get a real dry run before merging, without touching
 # production or a shared staging database.
 #
-# The three identifiers — the Workers alias / Pages branch (`pr<N>-<slug>` or
-# the `pr-<N>` fallback), the Pages deployment prefix (`pr<N>-`), and the Neon
-# branch (`pr-<N>`) — come from `scripts/preview-identifiers.sh`, the one
-# definition this workflow shares with cleanup.yml (issue #78). All three are
-# idempotent per PR:
+# The four identifiers — the Workers alias / Pages branch (`pr<N>-<slug>` or
+# the `pr-<N>` fallback), the Pages deployment prefix (`pr<N>-`), the Neon
+# branch (`pr-<N>`), and the GitHub deployment environment (`preview/pr-<N>`) —
+# come from `scripts/preview-identifiers.sh`, the one definition this workflow
+# shares with cleanup.yml (issue #78). All four are idempotent per PR:
 #   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
 #   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias)
 #   - DB:    Neon branch named `pr-<N>`, carrying the `app` database (see the Resolve step)
+#   - Deploy: GitHub deployment environment `preview/pr-<N>`     (see the Register step)
 #
-# Two preview resources aren't self-cleaning: the Neon branch and the Pages
-# deployment(s). The Pages side is pruned here after each successful deploy so
-# an open PR keeps only its newest deployment (issue #84); cleanup.yml is the
-# close-time safety net that deletes the Neon branch and any Pages deployment
-# this prune left behind. The Workers preview alias needs nothing — aliases are
-# LRU-pruned past 1000 concurrent ones and the version behind an alias is
-# CF-retained (issue #55). See cleanup.yml for the full three-way distinction.
-#
-# This workflow also registers the web preview as a GitHub deployment, so the
-# pull request timeline gets a "View deployment" button and the repository's
-# Deployments page an entry (issue #154); that deployment's environment is the
-# fourth preview resource, and cleanup.yml deletes it on close.
+# Three preview resources aren't self-cleaning: the Neon branch, the Pages
+# deployment(s), and the GitHub deployment environment. The Pages side is pruned
+# here after each successful deploy so an open PR keeps only its newest
+# deployment (issue #84); cleanup.yml is the close-time safety net that deletes
+# the Neon branch, any Pages deployment this prune left behind, and the
+# environment (issues #55, #154). The Workers preview alias needs nothing —
+# aliases are LRU-pruned past 1000 concurrent ones and the version behind an
+# alias is CF-retained (issue #55). See cleanup.yml for the full distinction.
 #
 # Whether a PR gets a preview at all is decided by the `Detect code-relevant
 # changes` job, not a trigger-level `paths` filter. The canonical
@@ -446,20 +443,19 @@ jobs:
       # Best-effort, like the prune below and unlike the deploys above: the
       # comment already carries both URLs, so a failed registration costs the
       # timeline affordance and nothing else. GitHub's default shell runs
-      # `bash -e`, so errexit is cleared explicitly and every call is checked by
-      # hand; the next push or the close-time Cleanup reconciles whatever a miss
-      # leaves behind.
+      # `bash -e`, so errexit is cleared explicitly and each call is checked by
+      # hand; the next push or the close-time Cleanup reconciles a miss.
       #
       # `required_contexts: []` is load-bearing: without it the create-deployment
       # API refuses (409) until the ref's commit statuses pass, and a preview
-      # runs before they do. `transient_environment: true` states what
-      # cleanup.yml makes true — the environment does not outlive the pull
-      # request. It also opts out of GitHub's automatic inactivate-the-previous
-      # rule, which skips transient deployments (measured: a second successful
-      # transient deployment leaves the first's success status untouched), so the
-      # PR's earlier deployments are marked inactive here by hand: their Pages
-      # deployments were just pruned, so their URLs are already dead and a
-      # success status would claim otherwise.
+      # runs before they do. `transient_environment` is left at its default
+      # (false) so GitHub's automatic inactivate-the-previous rule applies to
+      # each push — transient deployments are excluded from it (measured: a
+      # second successful transient deployment leaves the first's success status
+      # untouched) — and the flag's other effect, the "destroyed" state a status
+      # can carry, is moot because cleanup.yml deletes the environment itself.
+      # `production_environment: false` keeps the preview out of the production
+      # rollup (`environment` defaults it to true only for "production").
       - name: Register the web preview as a GitHub deployment
         if: steps.web.outputs.web_url != ''
         env:
@@ -482,35 +478,9 @@ jobs:
           # The shared module's environment name (issue #154), not a second
           # inline `preview/pr-` literal (issue #78).
           environment=$(preview_environment_name "$PR_NUMBER")
-          # A `/` is a path separator in the endpoint URL unless encoded, and the
-          # name carries one.
-          encoded=$(jq -rn --arg name "$environment" '$name|@uri')
           # The API rejects a description longer than 140 characters; a pull
           # request title has no such limit.
           description=$(printf 'PR #%s: %s' "$PR_NUMBER" "$PR_TITLE" | cut -c1-140)
-          api="https://api.github.com/repos/$GITHUB_REPOSITORY"
-
-          # Every deployment this PR made is inactivated first, so the one
-          # created below is the environment's only active one. The list is
-          # newest-first; `per_page` is the endpoint's maximum, well past the
-          # deployments a PR can have left once each run inactivates the last.
-          prior_ids=$(curl -fsS \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "$api/deployments?environment=$encoded&per_page=100" \
-            | jq -r '.[].id') || prior_ids=""
-
-          while IFS= read -r prior_id; do
-            [ -n "$prior_id" ] || continue
-
-            if ! curl -fsS -o /dev/null -X POST \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "$api/deployments/$prior_id/statuses" \
-              --data '{"state":"inactive"}'; then
-              echo "::warning::Could not mark deployment $prior_id inactive; leaving it for the next run."
-            fi
-          done <<< "$prior_ids"
 
           deployment_id=$(jq -n \
             --arg ref "$HEAD_SHA" \
@@ -518,11 +488,11 @@ jobs:
             --arg description "$description" \
             '{ref: $ref, environment: $environment, description: $description,
               required_contexts: [], auto_merge: false,
-              transient_environment: true, production_environment: false}' \
+              production_environment: false}' \
             | curl -fsS -X POST \
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "Accept: application/vnd.github+json" \
-                "$api/deployments" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments" \
                 --data @- \
             | jq -r '.id // ""') || deployment_id=""
 
@@ -539,7 +509,7 @@ jobs:
             | curl -fsS -o /dev/null -X POST \
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 -H "Accept: application/vnd.github+json" \
-                "$api/deployments/$deployment_id/statuses" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
                 --data @-; then
             echo "::warning::Deployment $deployment_id was registered but not marked successful; the preview itself is unaffected."
             exit 0

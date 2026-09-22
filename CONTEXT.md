@@ -136,6 +136,10 @@ _Avoid_: Approver (that's the User), sign-off
 A Neon branch that is an environment: `production`, a per-PR preview (`pr-<n>`), or a per-developer local branch (`dev-<slug>`). Qualify "branch" — environment branch, or git branch — whenever the bare word would be ambiguous; there is no standing dev branch (ADR-0028).
 _Avoid_: dev branch (unqualified), DB branch
 
+**Deployment environment**:
+The GitHub environment a preview's web URL is registered under: `preview/pr-<n>`, one per pull request, deleted when the pull request closes (ADR-0019). It carries no data — a preview's data lives in its Neon environment branch — so qualify "environment" whenever the bare word could mean either.
+_Avoid_: environment (unqualified), preview environment (that is the pull request's whole stack)
+
 **Application database**:
 The one database every environment branch carries: `app`. Branches differ in rows; the name does not. It is what the app migrates and what a Worker's `DATABASE_URL` points at.
 _Avoid_: `vmb` as a database name (the pre-rename name), `neondb` (Neon's project default, removed by ADR-0029)
