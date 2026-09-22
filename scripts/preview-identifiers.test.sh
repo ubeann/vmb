@@ -3,10 +3,12 @@
 # Tests for the preview identifier scheme (`preview-identifiers.sh`).
 #
 # The alias is the only one of the three names that is decoration, but it is
-# decoration with a hard budget: it becomes a Workers preview alias and a Pages
-# branch alias, so `<alias>-vmb-api` must stay inside a 63-character DNS label.
-# The cases below pin the sources (title, then branch, then number), the
-# Conventional Commit prefix strip, the sanitizer and the cap.
+# decoration with a hard budget: Cloudflare Pages truncates the branch alias it
+# becomes to 28 characters, so anything longer resolves at a different address
+# than the one we compute. (The Workers side is looser: `<alias>-vmb-api` has to
+# fit a 63-character DNS label.) The cases below pin the sources (title, then
+# branch, then number), the Conventional Commit prefix strip, the sanitizer and
+# the cap.
 #
 # Run from anywhere: `bash scripts/preview-identifiers.test.sh`. CI runs it in
 # the `lint-workflows-and-scripts` job, and lefthook runs it on a commit that
@@ -42,13 +44,13 @@ check() {
 # ── The title is the first source, minus its Conventional Commit prefix ──────
 
 check "a conventional title loses its prefix and is capped" \
-  "pr148-record-no-standing-dev-branch-and-rescope-the-im" \
+  "pr148-record-no-standing-dev" \
   "$(preview_alias 148 \
     "docs(db): record no standing dev branch and rescope the import to a cutover rehearsal" \
     "docs/db/no-standing-dev-branch")"
 
 check "a title without a prefix is used as it stands" \
-  "pr9-fix-the-trucking-invoice-rounding-bug" \
+  "pr9-fix-the-trucking-invoice" \
   "$(preview_alias 9 "Fix the trucking invoice rounding bug" "whatever")"
 
 check "punctuation and case sanitize" \
@@ -62,7 +64,7 @@ check "a prefix-only title has nothing left to slug" \
 # ── The branch is the fallback, for titles that sanitize away ────────────────
 
 check "an emoji-only title falls back to the branch" \
-  "pr42-feature-trucking-rounding" \
+  "pr42-feature-trucking-roundi" \
   "$(preview_alias 42 "🚀✨" "feature/trucking/rounding")"
 
 check "an uppercase branch fallback is lowercased" \
@@ -70,7 +72,7 @@ check "an uppercase branch fallback is lowercased" \
   "$(preview_alias 4 "" "Feature/UPPER_Case")"
 
 check "a long branch fallback is capped and re-trimmed" \
-  "pr3-feature-trucking-very-long-branch-name-that-keeps" \
+  "pr3-feature-trucking-very-lo" \
   "$(preview_alias 3 "" "feature/trucking/very-long-branch-name-that-keeps-going-and-going-and-going")"
 
 # ── The number is the last resort, and the cap leaves room for the suffix ────
@@ -81,10 +83,13 @@ check "nothing left to slug falls back to the number" \
 
 monster=$(preview_alias 148 "$(printf 'x%.0s' {1..200})" "")
 check "a 200-character title fills the slug budget exactly" \
-  "pr148-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  "pr148-xxxxxxxxxxxxxxxxxxxxxx" \
   "$monster"
-check "the Workers label fits the 63-character DNS limit" \
-  "62" \
+check "the alias fills Cloudflare Pages' 28-character branch-alias budget" \
+  "28" \
+  "$((${#monster}))"
+check "the Workers label also stays inside its 63-character DNS limit" \
+  "36" \
   "$((${#monster} + 8))"
 
 # ── The other two names are number-keyed and do not move ────────────────────

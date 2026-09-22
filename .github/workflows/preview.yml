@@ -143,9 +143,10 @@ jobs:
       # `scripts/preview-identifiers.sh` (issue #78), so create and destroy
       # read one definition. The alias is slugged from the pull request title
       # with its Conventional Commit prefix stripped, falls back to the branch
-      # name and then `pr-<N>`, and is capped so `<alias>-vmb-api` stays inside
-      # the 63-char DNS label limit. `scripts/preview-identifiers.test.sh` pins
-      # the cases (issue #155).
+      # name and then `pr-<N>`, and is capped so the whole alias fits inside
+      # Cloudflare Pages' 28-character branch-alias limit — a longer one is
+      # truncated by Pages, so the URL computed here would not resolve.
+      # `scripts/preview-identifiers.test.sh` pins the cases (issue #155).
       #
       # The account's workers.dev subdomain is not known to the workflow —
       # read it from the Cloudflare API rather than a hardcoded repo variable.

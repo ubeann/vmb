@@ -37,13 +37,14 @@
 # `lint-workflows-and-scripts` job. This file is also shellchecked by CI and
 # lefthook's pre-commit hook (issue #61).
 
-# The slug budget for `pr<N>-<slug>`: the Workers preview URL is
-# `<alias>-vmb-api.<subdomain>.workers.dev`, whose leftmost DNS label is capped
-# at 63 characters. `pr` + the number + `-` costs `${#pr_number} + 3`, the
-# `-vmb-api` suffix costs 8, and one character is left as slack, so the slug
-# gets `51 - ${#pr_number}`.
+# The slug budget for `pr<N>-<slug>`: Cloudflare Pages truncates the branch
+# alias this becomes to 28 characters (`<alias>.vmb-web.pages.dev`), so a longer
+# alias resolves at a *different* address than the one computed here — the
+# truncated one. 28 is stricter than the Workers side (`<alias>-vmb-api` must
+# fit a 63-character DNS label), so it is the binding limit: `pr` + the number +
+# `-` costs `${#pr_number} + 3`, leaving `25 - ${#pr_number}` for the slug.
 preview_slug_limit() {
-  local limit=$((51 - ${#1}))
+  local limit=$((25 - ${#1}))
 
   if [ "$limit" -lt 1 ]; then
     limit=1
