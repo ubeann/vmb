@@ -101,8 +101,8 @@ vmb/
 
 ## 5. Data Layer
 
-- **Database:** Neon Postgres, single project/branch for production; consider a separate Neon branch for staging/dev (Neon supports database branching similar to git branches).
-- **Session timezone:** the application database (`vmb`) _declares_ `timezone = 'UTC'` on production, so a query that renders a timestamp without naming a zone produces the same text in any fresh session; there is no standing dev or staging database to mirror it — per-PR previews fork production and inherit the declaration (ADR-0019). The app itself renders in the reader's zone (#115). Configuration, not schema — see ADR-0027.
+- **Database:** Neon Postgres, one project. `production` is the only long-lived branch: every pull request gets a throwaway preview branch and every developer a throwaway local branch (`scripts/dev-db.sh`), so there is no standing dev or staging environment to keep at head (ADR-0019, ADR-0028, ADR-0029). The application database is named `app` on every branch, so a connection string differs between environments only by host (ADR-0029).
+- **Session timezone:** the application database (`app`) _declares_ `timezone = 'UTC'` on production, so a query that renders a timestamp without naming a zone produces the same text in any fresh session; every other branch is forked from `production` and inherits the declaration, so previews and each developer's local branch agree (ADR-0019, ADR-0029). The app itself renders in the reader's zone (#115). Configuration, not schema — see ADR-0027.
 - **ORM:** Drizzle, chosen over Prisma because it has no native binary engine — required for compatibility with the Cloudflare Workers edge runtime.
 - **Cold starts:** Neon's free tier autosuspends compute after inactivity. Expect 1–3s latency on the first query after idle. Acceptable for an internal tool with sporadic usage; document this for end users if it comes up.
 - **Migrations:** managed via Drizzle Kit, run as part of CI/CD pipeline or manually before deploy.
@@ -163,12 +163,12 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
   - `apps/api`: `wrangler deploy`
   - `apps/web`: `wrangler pages deploy` (or framework-specific Cloudflare adapter build)
 - GitHub Actions (or equivalent) runs `turbo build` then deploy scripts on merge to `master`.
-- Per-PR preview deployments (ADR-0019): each PR gets an isolated `apps/api` Worker version, an `apps/web` Pages deployment pruned to the newest on each push, and a Neon branch, torn down on close. Replaces the standing staging environment as the dry-run mechanism.
+- Per-PR preview deployments (ADR-0019): each PR gets an isolated `apps/api` Worker version, an `apps/web` Pages deployment pruned to the newest on each push, and a Neon branch carrying the `app` database, torn down on close. The preview alias is slugged from the PR title — the branch name is the fallback — so a preview URL describes the PR rather than the branch its author's tooling minted (ADR-0029). Replaces the standing staging environment as the dry-run mechanism.
 - Node/pnpm versions are pinned via `mise` (`.mise.toml`) and installed in CI via `jdx/mise-action`, so local and CI toolchains match exactly. Cloudflare Pages' own build environment doesn't read `.mise.toml`, so its dashboard `NODE_VERSION` is set manually to stay in sync.
 - The one tool CI does not pin is the browser `apps/web`'s component tests run in: CI drives the runner image's preinstalled Chrome (`channel: "chrome"` when `CI` is set), which is already on the image and needs no download or OS-dependency install — 23 s of every run. Local runs keep the Chromium `pnpm-lock.yaml` pins. The deliberate cost is that CI tests whichever Chrome version the runner image ships.
 - Workflow action versions are kept current by Dependabot (`.github/dependabot.yml`, grouped weekly for `github-actions` and for npm minor/patch), so an action's runtime deprecation is fixed by a PR rather than noticed only once GitHub force-runs the old one.
 - Dependabot runs receive no Actions secrets, so Dependabot-authored PRs take a secret-free path (ADR-0020): `ci.yml` runs build/test/lint/typecheck without `fnox exec`, and `preview.yml`/`cleanup.yml` skip their environment jobs outright. The repo-wide `Format` check runs in its own step for every actor, before that split (ADR-0023). Withholding `FNOX_AGE_KEY` and `CLOUDFLARE_API_TOKEN` from a run that builds freshly-bumped dependencies is deliberate; human PRs keep the full secret path.
-- Local and CI dev secrets (e.g. Neon connection string) are managed with `fnox`, age-encrypted and committed to the repo; decrypted via `fnox exec` locally and in CI using an age key stored as a GitHub Actions secret. Production Worker secrets remain in `wrangler secret` / the Cloudflare dashboard, not fnox — ephemeral preview versions are the one exception (ADR-0019).
+- Local and CI dev secrets (shared values such as `BETTER_AUTH_SECRET`) are managed with `fnox`, age-encrypted and committed to the repo; decrypted via `fnox exec` locally and in CI using an age key stored as a GitHub Actions secret. Values that are per-developer rather than shared — the local development branch's `DATABASE_URL`, the Neon API key `scripts/dev-db.sh` needs — live in the gitignored `fnox.local.toml` overlay, which fnox merges over the committed store (ADR-0029). Production Worker secrets remain in `wrangler secret` / the Cloudflare dashboard, not fnox — ephemeral preview versions are the one exception (ADR-0019).
 
 ## 10. Migration Plan (from Laravel/Filament)
 
@@ -194,4 +194,4 @@ See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-22 (§5: session timezone declared UTC per ADR-0027)_
+_Last updated: 2026-09-22 (§5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, per ADR-0029)_

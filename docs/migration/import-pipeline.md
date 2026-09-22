@@ -31,8 +31,10 @@ pnpm --filter @vmb/db db:import --snapshot snapshot.sql
 Against a Neon branch — the rehearsal's throwaway one, or the cutover target — pass its connection string:
 
 ```sh
-pnpm --filter @vmb/db db:import --snapshot snapshot.sql --url "$DATABASE_URL"
+pnpm --filter @vmb/db db:import --snapshot snapshot.sql --url "<the throwaway branch's connection string>"
 ```
+
+`$DATABASE_URL` is a developer's own local branch — the `app` database on their `dev-<slug>` branch (ADR-0029) — not the rehearsal's target: this pipeline wipes the database it is pointed at, and the rehearsal's branch is created for the run and deleted after (ADR-0028).
 
 `--database <dir>` keeps an embedded database on disk instead, which is useful for poking at the result without a server.
 

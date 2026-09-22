@@ -130,6 +130,16 @@ _Avoid_: Urgent request, urgent fund
 A recorded approval decision. Legacy implemented three independent approval tables (warehouse, trucking, expense); each is a distinct concept that happens to share a name, so always qualify which domain an Approval belongs to.
 _Avoid_: Approver (that's the User), sign-off
 
+### Environments
+
+**Environment branch**:
+A Neon branch that is an environment: `production`, a per-PR preview (`pr-<n>`), or a per-developer local branch (`dev-<slug>`). Qualify "branch" — environment branch, or git branch — whenever the bare word would be ambiguous; there is no standing dev branch (ADR-0028).
+_Avoid_: dev branch (unqualified), DB branch
+
+**Application database**:
+The one database every environment branch carries: `app`. Branches differ in rows; the name does not. It is what the app migrates and what a Worker's `DATABASE_URL` points at.
+_Avoid_: `vmb` as a database name (the pre-rename name), `neondb` (Neon's project default, removed by ADR-0029)
+
 ### Migration vocabulary
 
 **Legacy snapshot**:
