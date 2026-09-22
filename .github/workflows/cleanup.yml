@@ -16,9 +16,11 @@ name: Cleanup
 #     one delete that needs an admin-capable token, because GITHUB_TOKEN cannot
 #     be granted Administration: write.
 # The Workers preview alias needs no cleanup: aliases are LRU-pruned past 1000
-# concurrent ones, and the version behind an alias is CF-retained with no
-# supported individual delete (issue #55). That is the distinction the original
-# "neither needs cleanup" claim collapsed.
+# concurrent ones, and the version behind an alias is Cloudflare-retained with
+# no supported individual delete — versions have no documented retention policy
+# either, so they accumulate and are counted per preview run rather than reaped
+# (issues #55, #152). That is the distinction the original "neither needs
+# cleanup" claim collapsed.
 #
 # Runs on `closed`, which covers both merged and closed-without-merge. All three
 # lookups make this idempotent: if the preview workflow never got as far as

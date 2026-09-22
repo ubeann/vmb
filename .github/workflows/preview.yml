@@ -25,7 +25,11 @@ name: Preview
 # the Neon branch, any Pages deployment this prune left behind, and the
 # environment (issues #55, #154). The Workers preview alias needs nothing —
 # aliases are LRU-pruned past 1000 concurrent ones and the version behind an
-# alias is CF-retained (issue #55). See cleanup.yml for the full distinction.
+# alias is Cloudflare-retained (issue #55). The versions themselves are not
+# reaped: no retention policy is documented and the only delete path is a beta
+# API, so the count is reported around each upload below and accumulation is
+# accepted until the trend or a documented limit says otherwise (issue #152).
+# See cleanup.yml for the full distinction.
 #
 # Whether a PR gets a preview at all is decided by the `Detect code-relevant
 # changes` job, not a trigger-level `paths` filter. The canonical
@@ -596,12 +600,51 @@ jobs:
             fi
           done
 
+      # Issue #152 instrumentation, first half: every preview run mints one more
+      # `vmb-api` version, Cloudflare documents no retention policy or cap for
+      # uploaded versions, and the only delete path is a beta API — so the count
+      # is recorded either side of the upload below. The trend across runs is
+      # the measurement; the per-run delta is the integrity check (a run that
+      # uploaded twice, or not at all, is visible rather than inferred).
+      # Accumulation is accepted for now, so this step reports instead of
+      # reaping; the reasoning is recorded on issue #152.
+      #
+      # Best-effort, like the Pages prune: a count that cannot be read must not
+      # fail a deploy that otherwise succeeded. `per_page=1` is deliberate — the
+      # total comes from `result_info.total_count`, so one version's worth of
+      # payload answers the question.
+      - name: Count vmb-api versions before this run
+        id: versions_before
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Best-effort by design: clear the runner's inherited `-e` so an
+          # unexpected failure here cannot fail an otherwise-green deploy.
+          set +e
+          set -uo pipefail
+
+          before=$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/vmb-api/versions?per_page=1" \
+            | jq -r '.result_info.total_count // empty')
+
+          case "$before" in
+          '' | *[!0-9]*)
+            echo "::warning::Could not read a numeric vmb-api version count before this run; the growth report will be skipped."
+            exit 0
+            ;;
+          esac
+
+          echo "count=$before" >> "$GITHUB_OUTPUT"
+
       # `versions upload` (not `deploy`) uploads a version without shifting
       # production traffic; `--preview-alias` gives that version a stable URL
       # for the life of the PR. No cleanup needed — aliases are only LRU-pruned
-      # past 1000 concurrent aliases, and the version behind one is CF-retained
-      # (issue #55). The Pages deployment below is a different story; see
-      # cleanup.yml.
+      # past 1000 concurrent aliases, and the version behind one is
+      # Cloudflare-retained (issue #55); the versions themselves accumulate, and
+      # the count is reported after this upload (issue #152). The Pages
+      # deployment below is a different story; see cleanup.yml.
       #
       # `--env=""` states the top-level (production) Worker explicitly. Without
       # it wrangler warns, because wrangler.toml defines [env.staging]; the
@@ -629,6 +672,46 @@ jobs:
             --secrets-file "$RUNNER_TEMP/api-preview-secrets.json" \
             --message "PR #$PR_NUMBER: $PR_TITLE" \
             --tag "${PREVIEW_ALIAS}-${HEAD_SHA:0:7}"
+
+      # Issue #152 instrumentation, second half (see the count step above): the
+      # count after this run's upload, the delta it caused, and the newest
+      # version's alias — which should be this run's, so a second uploader is
+      # visible rather than inferred. Best-effort, like the first half: a
+      # missing count warns, never fails. The implicit `success()` is wanted: a
+      # run whose upload failed has no growth to report.
+      - name: Report vmb-api version growth
+        if: steps.versions_before.outputs.count != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_ALIAS: ${{ steps.ids.outputs.alias }}
+          VERSIONS_BEFORE: ${{ steps.versions_before.outputs.count }}
+        run: |
+          # Best-effort by design: clear the runner's inherited `-e` so an
+          # unexpected failure here cannot fail an otherwise-green deploy.
+          set +e
+          set -uo pipefail
+
+          if ! response=$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/vmb-api/versions?per_page=1"); then
+            echo "::warning::Could not read the vmb-api version count after this run; no growth was recorded."
+            exit 0
+          fi
+
+          after=$(printf '%s' "$response" | jq -r '.result_info.total_count // empty')
+          newest=$(printf '%s' "$response" | jq -r '.result.items[0].number // "?"')
+          newest_alias=$(printf '%s' "$response" | jq -r '.result.items[0].annotations["workers/alias"] // "(none)"')
+
+          case "$after" in
+          '' | *[!0-9]*)
+            echo "::warning::Could not read a numeric vmb-api version count after this run; no growth was recorded."
+            exit 0
+            ;;
+          esac
+
+          printf "vmb-api versions: %s -> %s (%+d this run); newest version #%s, alias '%s' (this run's alias '%s')\n" \
+            "$VERSIONS_BEFORE" "$after" "$((after - VERSIONS_BEFORE))" "$newest" "$newest_alias" "$PREVIEW_ALIAS"
 
       # Pages Preview environment variables are shared across every preview
       # deployment, so the per-PR API URL is injected at build time instead —
