@@ -278,6 +278,7 @@ jobs:
             echo "::warning::$extras other branch(es) also match this PR; renaming '$rename_from' and leaving the rest to Cleanup."
           fi
 
+          echo "Renaming Neon branch '$rename_from' ($rename_id) to '$NEON_BRANCH'."
           neon_rename_branch "$NEON_PROJECT_ID" "$NEON_API_KEY" "$rename_id" "$NEON_BRANCH"
 
       # Idempotent: if a branch with this PR's alias already exists (a re-push to
