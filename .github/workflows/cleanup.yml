@@ -56,12 +56,10 @@ jobs:
     # signal, actor or PR author, rather than fail for a reason unrelated to the
     # change (issue #45).
     #
-    # Fork PRs are skipped for the same two reasons (issue #149): preview.yml
-    # never creates a Neon branch or Pages deployment for one — GitHub passes no
-    # repository secrets to a fork's `pull_request` run, so the preview job skips
-    # before creating anything — and this run carries no secrets either, so the
-    # lookups below would fail on an empty NEON_API_KEY / CLOUDFLARE_API_TOKEN.
-    # Nothing was created, so nothing leaks by skipping.
+    # Fork PRs are skipped the same way (issue #149, ADR-0030): no repository
+    # secrets reach a fork's run either, and preview.yml's guard means it created
+    # no Neon branch or Pages deployment to delete — nothing leaks by skipping.
+    # preview.yml carries the full reasoning next to the same guard.
     if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 10
     steps:

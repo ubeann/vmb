@@ -127,15 +127,15 @@ jobs:
     # A docs-only PR skips this job the same way: `changes` above concludes
     # `code_changed=false` and no secret-bearing runner starts (issue #83).
     #
-    # Fork PRs skip it too (issue #149). GitHub passes no repository secrets to
-    # a `pull_request`-triggered run from a fork (GITHUB_TOKEN excepted), so such
-    # a PR would start this job and fail at `Resolve preview identifiers` on an
-    # empty CLOUDFLARE_API_TOKEN — red for a reason unrelated to the change.
-    # `pull_request` stays the trigger: `pull_request_target` would run a fork's
-    # code with the base repository's secrets, which is exactly what this guard
-    # exists to avoid. The skip is safe because a fork PR never creates a
-    # Cloudflare or Neon resource, so there is nothing for cleanup.yml to reap
-    # either — it skips them the same way.
+    # Fork PRs skip it too (issue #149, ADR-0030). GitHub passes no repository
+    # secrets to a `pull_request`-triggered run from a fork (GITHUB_TOKEN
+    # excepted), so such a PR would start this job and fail at `Resolve preview
+    # identifiers` on an empty CLOUDFLARE_API_TOKEN — red for a reason unrelated
+    # to the change. `pull_request` stays the trigger: `pull_request_target`
+    # would run a fork's code with the base repository's secrets, which is
+    # exactly what this guard exists to avoid. The skip is safe because a fork
+    # PR never creates a Cloudflare or Neon resource, so there is nothing for
+    # cleanup.yml to reap either — it skips them the same way.
     #
     # Fail open, like the deploy gate: `!cancelled()` lets this job run when
     # `changes` itself failed, and an absent output is not `false`, so a broken
