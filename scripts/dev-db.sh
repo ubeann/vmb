@@ -220,12 +220,22 @@ create_branch() {
   wait_until_ready "$BRANCH_ID" "$ENDPOINT_ID"
 }
 
+# Refuses an id that is the parent branch's. A name check would be dead code —
+# the dev name always carries DEV_BRANCH_PREFIX — so what actually keeps `down`
+# and `up --reset` from deleting `production` is comparing identities.
+refuse_parent_branch() {
+  local branch_id=$1
+
+  if [ -n "$branch_id" ] && [ "$branch_id" = "$PARENT_ID" ]; then
+    fail "refusing to operate on '$PARENT_BRANCH' ($PARENT_ID)"
+  fi
+}
+
 cmd_up() {
   local reset=${1:-}
 
-  [ "$BRANCH_NAME" != "$PARENT_BRANCH" ] || fail "refusing to operate on '$PARENT_BRANCH'"
-
   BRANCH_ID=$(branch_id_of "$BRANCH_NAME")
+  refuse_parent_branch "$BRANCH_ID"
   if [ -n "$BRANCH_ID" ] && [ "$reset" = "--reset" ]; then
     log "Deleting existing branch '$BRANCH_NAME' ($BRANCH_ID)…"
     api DELETE "/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" >/dev/null
@@ -264,9 +274,8 @@ cmd_up() {
 }
 
 cmd_down() {
-  [ "$BRANCH_NAME" != "$PARENT_BRANCH" ] || fail "refusing to operate on '$PARENT_BRANCH'"
-
   BRANCH_ID=$(branch_id_of "$BRANCH_NAME")
+  refuse_parent_branch "$BRANCH_ID"
   if [ -z "$BRANCH_ID" ]; then
     log "No Neon branch named '$BRANCH_NAME'."
   else
