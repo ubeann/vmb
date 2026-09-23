@@ -154,8 +154,8 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 
 ## 8. Auth
 
-- **Decided: Better Auth**, self-hosted, mounted directly in the `apps/api` Hono Worker and backed by `packages/db` — see ADR-0012. No external auth vendor or MAU ceiling; trades that for owning the login/signup UI and a known, accepted risk around Workers free-tier CPU time for password hashing (measure-then-migrate plan in ADR-0012).
-- Session/token integration strategy (Better Auth session verification in the Hono API + SvelteKit `hooks.server.ts`) is left for the auth implementation ticket, not this scaffold.
+- **Decided: Better Auth**, self-hosted, mounted directly in the `apps/api` Hono Worker and backed by `packages/db` — see ADR-0012. No external auth vendor or MAU ceiling; trades that for owning the login/activation UI and a known, accepted risk around Workers free-tier CPU time for password hashing (measure-then-migrate plan in ADR-0012).
+- Session/token strategy: database-backed sessions gated at creation and bridged to `apps/web` — see ADR-0034. Public sign-up is disabled; users are provisioned by admins and migrated accounts activate by email OTP (ADR-0033).
 
 ## 9. Deployment & CI/CD
 

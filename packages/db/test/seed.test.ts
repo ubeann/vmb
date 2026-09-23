@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { applyMigrations } from "../src/migration/apply.js";
 import {
+  ACTIVATION_USER_EMAIL,
+  ACTIVATION_USER_ID,
   PREVIEW_USER_EMAIL,
   PREVIEW_USER_ID,
   PREVIEW_USER_PASSWORD_HASH
@@ -146,6 +148,33 @@ describe("seed", () => {
         `select email from master.users where id = '${PREVIEW_USER_ID}'`
       );
       expect(businessEmail).toBe(PREVIEW_USER_EMAIL);
+    });
+  });
+
+  it("seeds an activatable identity — verified, no credential — for #7's OTP path", async () => {
+    await withMigratedDatabase(async (client) => {
+      await seed(client);
+
+      expect(
+        await scalar<boolean>(
+          client,
+          `select email_verified from public."user" where id = '${ACTIVATION_USER_ID}'`
+        )
+      ).toBe(true);
+
+      expect(
+        await scalar<number>(
+          client,
+          `select count(*)::int from public.account where account_id = '${ACTIVATION_USER_ID}'`
+        )
+      ).toBe(0);
+
+      expect(
+        await scalar<string>(
+          client,
+          `select email from master.users where id = '${ACTIVATION_USER_ID}'`
+        )
+      ).toBe(ACTIVATION_USER_EMAIL);
     });
   });
 

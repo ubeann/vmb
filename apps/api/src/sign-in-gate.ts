@@ -1,13 +1,13 @@
+import type { SignInEligibility } from "@vmb/db";
 import { APIError } from "better-auth/api";
 
 /**
- * The slice of the business user the gate reads. `master.users` is the durable
- * record (ADR-0032); `deletedAt` is its soft-delete marker, and there is no
- * status check — legacy removed `users.status` and never enforced it.
+ * The lookup the gate reads. `master.users` is the durable record (ADR-0032)
+ * and `deletedAt` its soft-delete marker; there is deliberately no status
+ * check — legacy never enforced `users.status`, and the unmerged
+ * `refactor/divisions-on-roles` branch removes the column (deviations ledger).
  */
-export type BusinessUserLookup = (
-  userId: string
-) => Promise<{ deletedAt: Date | string | null } | null>;
+export type BusinessUserLookup = (userId: string) => Promise<SignInEligibility>;
 
 /**
  * The one seam that decides whether a session may exist at all. Wired into

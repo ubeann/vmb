@@ -370,14 +370,16 @@ describe("users store", () => {
 
       const created = await store.createUser(input(divisionId));
 
-      await expect(store.getUserStatus(created.id)).resolves.toEqual({ deletedAt: null });
+      await expect(store.getSignInEligibility(created.id)).resolves.toEqual({ deletedAt: null });
 
       await store.deleteUser(created.id);
-      const afterDelete = await store.getUserStatus(created.id);
+      const afterDelete = await store.getSignInEligibility(created.id);
 
       expect(afterDelete?.deletedAt).toEqual(expect.any(String));
 
-      await expect(store.getUserStatus("d1000000-0000-4000-8000-0000000000ff")).resolves.toBeNull();
+      await expect(
+        store.getSignInEligibility("d1000000-0000-4000-8000-0000000000ff")
+      ).resolves.toBeNull();
     });
   });
 

@@ -18,16 +18,22 @@ vi.mock("$lib/session.js", () => ({
   loadSession: (client: unknown, cookie: string | null) => loadSessionMock(client, cookie)
 }));
 
+// The unit project runs without SvelteKit's Vite plugin, so `$lib` isn't a
+// resolvable alias here — re-export the real module by its path.
+vi.mock("$lib/public-routes.js", () => import("./lib/public-routes.js"));
+
 const { handle } = await import("./hooks.server.js");
 
-function fakeEvent(cookie: string | null) {
+function fakeEvent(pathname = "/", routeId: string | null = pathname, cookie?: string) {
   const headers = new Headers();
   if (cookie) headers.set("cookie", cookie);
 
   return {
     platform: undefined,
     fetch: vi.fn(),
-    request: new Request("http://localhost/", { headers }),
+    request: new Request(`http://localhost${pathname}`, { headers }),
+    url: new URL(`http://localhost${pathname}`),
+    route: { id: routeId },
     locals: { session: "stale" as unknown, user: "stale" as unknown }
   };
 }
@@ -43,7 +49,7 @@ describe("handle", () => {
     const user = { id: "user_1" };
     loadSessionMock.mockResolvedValueOnce({ session, user });
 
-    const event = fakeEvent("better-auth.session_token=abc");
+    const event = fakeEvent("/", "/", "better-auth.session_token=abc");
     const resolve = vi.fn().mockResolvedValue(new Response("ok"));
 
     const res = await handle({ event, resolve } as never);
@@ -61,7 +67,7 @@ describe("handle", () => {
   it("sets null session/user when there is no active session", async () => {
     loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
 
-    const event = fakeEvent(null);
+    const event = fakeEvent("/login");
     const resolve = vi.fn().mockResolvedValue(new Response("ok"));
 
     await handle({ event, resolve } as never);
@@ -76,7 +82,7 @@ describe("handle", () => {
       error: new Error("API_URL is not configured for this deployment")
     });
 
-    const event = fakeEvent(null);
+    const event = fakeEvent("/login");
     const resolve = vi.fn().mockResolvedValue(new Response("ok"));
 
     const res = await handle({ event, resolve } as never);
@@ -86,5 +92,43 @@ describe("handle", () => {
     expect(event.locals.user).toBeNull();
     expect(resolve).toHaveBeenCalledWith(event);
     await expect(res.text()).resolves.toBe("ok");
+  });
+
+  it("redirects an unauthenticated request for a protected route before routing", async () => {
+    loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
+
+    const event = fakeEvent("/master/users", "/master/users");
+    const resolve = vi.fn();
+
+    await expect(handle({ event, resolve } as never)).rejects.toMatchObject({
+      status: 303,
+      location: "/login"
+    });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it.each(["/login", "/activate", "/logout"])(
+    "leaves %s reachable without a session",
+    async (pathname) => {
+      loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
+
+      const event = fakeEvent(pathname, pathname);
+      const resolve = vi.fn().mockResolvedValue(new Response("ok"));
+
+      await handle({ event, resolve } as never);
+
+      expect(resolve).toHaveBeenCalledWith(event);
+    }
+  );
+
+  it("leaves non-route requests (static assets) alone", async () => {
+    loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
+
+    const event = fakeEvent("/_app/immutable/entry.js", null);
+    const resolve = vi.fn().mockResolvedValue(new Response("ok"));
+
+    await handle({ event, resolve } as never);
+
+    expect(resolve).toHaveBeenCalledWith(event);
   });
 });

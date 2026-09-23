@@ -16,7 +16,7 @@ vi.mock("@vmb/db", () => ({
 }));
 
 vi.mock("./master.js", () => ({
-  masterStore: () => ({ getUserStatus: (userId: string) => userStatusMock(userId) })
+  masterStore: () => ({ getSignInEligibility: (userId: string) => userStatusMock(userId) })
 }));
 
 vi.mock("better-auth", () => ({

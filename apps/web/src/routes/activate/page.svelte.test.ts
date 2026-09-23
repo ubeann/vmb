@@ -24,7 +24,7 @@ describe("activate page", () => {
   it("shows the code step with the email carried forward", async () => {
     const screen = await render(Page, {
       form: { step: "reset", email: "a@example.com" }
-    } as never);
+    });
 
     await expect.element(screen.getByLabelText("Code")).toBeVisible();
     await expect.element(screen.getByLabelText("New password")).toBeVisible();
@@ -33,7 +33,7 @@ describe("activate page", () => {
   });
 
   it("shows the server action's error message", async () => {
-    const screen = await render(Page, { form: { error: "Invalid code" } } as never);
+    const screen = await render(Page, { form: { error: "Invalid code" } });
 
     await expect.element(screen.getByRole("alert")).toHaveTextContent("Invalid code");
   });

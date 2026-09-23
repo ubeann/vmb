@@ -110,14 +110,19 @@ export async function getUser(db: MasterDb, id: string): Promise<User> {
 }
 
 /**
- * The sign-in gate's lookup (#7, ADR-0033): whether a session may exist at all
- * for this user. Missing rows and DB failures are the caller's to interpret;
- * this returns `null` only for a user that is not there.
+ * What the sign-in gate reads (#7): `deletedAt` is the soft-delete marker, and
+ * `null` means the user has no business record at all. There is deliberately no
+ * `status` here — legacy never enforced `users.status`, and the unmerged
+ * `refactor/divisions-on-roles` branch removes the column.
  */
-export async function getUserStatus(
-  db: MasterDb,
-  id: string
-): Promise<{ deletedAt: string | null } | null> {
+export type SignInEligibility = { deletedAt: string | null } | null;
+
+/**
+ * The sign-in gate's lookup (ADR-0033): whether a session may exist at all for
+ * this user. Missing rows and DB failures are the caller's to interpret; this
+ * returns `null` only for a user that is not there.
+ */
+export async function getSignInEligibility(db: MasterDb, id: string): Promise<SignInEligibility> {
   const rows = await db
     .select({ deletedAt: users.deletedAt })
     .from(users)
@@ -266,9 +271,10 @@ export async function deleteUser(db: MasterDb, id: string): Promise<void> {
 
   if (!rows[0]) throw new MasterNotFoundError("User not found.");
 
-  // Until the auth gate lands (#7), sign-in is not yet checked against this
-  // record, so ending the sessions is what a delete can enforce today; the
-  // deleted_at it writes is what the gate will read.
+  // The sign-in gate reads this row (#7): soft-deleting it blocks future
+  // sessions, and ending the current ones here closes the window for cookies
+  // already issued. Deleting the session rows directly is equivalent to Better
+  // Auth's `deleteUserSessions` while no cookie cache is configured (ADR-0034).
   await db.delete(authSession).where(eq(authSession.userId, id));
 }
 

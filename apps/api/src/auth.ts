@@ -47,7 +47,7 @@ function buildAuth(env: Bindings) {
     databaseHooks: {
       session: {
         create: {
-          before: createSignInGate((userId) => store.getUserStatus(userId))
+          before: createSignInGate((userId) => store.getSignInEligibility(userId))
         }
       }
     },
