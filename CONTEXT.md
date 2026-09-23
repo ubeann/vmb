@@ -11,8 +11,12 @@ Organisational unit that groups users, warehouse items and expense budgets.
 _Avoid_: Department, unit, team
 
 **User**:
-A person who signs in to VMB. Identity is owned by Better Auth (ADR-0012); business and profile attributes live alongside it.
+A person who signs in to VMB. The durable business record every domain references; Better Auth owns the identity, credentials and sessions behind it (ADR-0012, ADR-0032).
 _Avoid_: Account, member, staff
+
+**Identity**:
+The Better Auth-owned record behind a User: credentials, sessions and email verification. A User has exactly one (ADR-0032).
+_Avoid_: Auth user, credential
 
 **Role**:
 A named bundle of permissions granted to users.
@@ -154,7 +158,10 @@ Migration `0000` — the legacy schema minus the excluded tables. Nothing is wri
 _Avoid_: Legacy schema (that is the untrimmed dump)
 
 **Excluded tables**:
-Legacy tables deliberately not ported: Laravel runtime, Laravel auth, and the Spatie RBAC tables. `master.users` is retained in the baseline as a staging table until the identity transform lands.
+Legacy tables deliberately not ported: Laravel runtime, Laravel auth, and the Spatie RBAC tables. `master.users` survives as the durable business user record; the identity transform drops only its legacy auth columns (`password`, `remember_token`) (ADR-0032).
+
+**Activation**:
+A migrated User's first access: proving inbox control with an email OTP and setting a first password, because legacy passwords are not carried (ADR-0033).
 
 **Replay**:
 Bringing a database to the current shape by applying the ordered migration chain over a legacy snapshot.

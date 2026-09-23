@@ -26,6 +26,8 @@ Postgres schemas (`master`, `warehouse`, `trucking`, `expense`) are **kept**, so
 
 `master.users` is the one deliberate exception: it stays in the baseline so the foreign keys from every domain remain valid, and the identity transform (#7) later copies its rows — preserving ids, since they are already UUIDs — into Better Auth's tables, re-points the foreign keys, and drops it. This amends D-004 in the deviation ledger.
 
+**Amendment (2026-09-23):** The identity transform deliberately does _not_ copy `master.users` into Better Auth and drop it. The table survives as the durable business user record; Better Auth owns credentials and sessions only, and #7 drops just the legacy auth columns (`password`, `remember_token`). Migrated accounts carry no password — first access is an email-OTP activation — so the raw snapshot's bcrypt hashes never enter Better Auth (ADR-0032, ADR-0033; D-004 and D-010 in the ledger). The hybrid-pipeline framing above still holds; only the transform's destination changes.
+
 **Trade-offs:** The repository carries a baseline no one hand-edited and that no application code is written against, and the pipeline remains hybrid for identity/RBAC. In exchange, every later deviation is an executable, ordered, replayable statement that can be proven against real records — and cutover reuses the exact chain development ran, rather than a second, untested ETL.
 
 **Consequences:**
