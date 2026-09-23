@@ -21,7 +21,8 @@
     "@vmb/types": "workspace:*",
     "better-auth": "^1.7.4",
     "hono": "^4.6.0",
-    "resend": "^6.28.0"
+    "resend": "^6.28.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260914.1",

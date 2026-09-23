@@ -9,6 +9,7 @@
  */
 export const ID_GROUPS = {
   account: "a1",
+  role: "c1",
   division: "d1",
   user: "d2",
   client: "d3",
