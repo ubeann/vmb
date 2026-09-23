@@ -263,9 +263,9 @@ describe("the master and warehouse hygiene migrations", () => {
        values ('d2222222-2222-4222-8222-222222222222', 'Hygiene', 'HYG')`
     );
     await client.exec(
-      `insert into master.users (id, name, email, password, division_id)
+      `insert into master.users (id, name, email, division_id)
        values ('d3333333-3333-4333-8333-333333333333', 'Hygiene User',
-               'hygiene@example.test', 'x', 'd2222222-2222-4222-8222-222222222222')`
+               'hygiene@example.test', 'd2222222-2222-4222-8222-222222222222')`
     );
     await client.exec(
       `insert into warehouse.items (id, division_id, name)

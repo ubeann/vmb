@@ -325,8 +325,6 @@ const users = table(
     "email",
     "email_verified_at",
     "profile_photo_path",
-    "password",
-    "remember_token",
     "created_at",
     "updated_at",
     "deleted_at"
@@ -343,8 +341,6 @@ const users = table(
       // one minute after the row's own created_at, never before it
       email_verified_at: atMinute(index * 10 + 1),
       profile_photo_path: null,
-      password: "!preview-fixture-no-login",
-      remember_token: null,
       ...softStamps(index)
     };
   })

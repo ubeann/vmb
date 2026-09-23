@@ -45,11 +45,19 @@ describe("login page", () => {
     await expect.element(screen.getByText(/verified/i)).toBeVisible();
   });
 
-  it("links to the signup page", async () => {
+  it("shows an activated banner when arriving via ?activated=true", async () => {
+    mockPage.url = new URL("http://localhost/login?activated=true");
+
+    const screen = await render(Page, { form: null });
+
+    await expect.element(screen.getByText(/password is set/i)).toBeVisible();
+  });
+
+  it("links to the activation page for first-time users", async () => {
     mockPage.url = new URL("http://localhost/login");
 
     const screen = await render(Page, { form: null });
 
-    await expect.element(screen.getByRole("link", { name: "Sign up" })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: "Activate your account" })).toBeVisible();
   });
 });

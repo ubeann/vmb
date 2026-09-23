@@ -43,3 +43,15 @@ export async function sendVerificationEmail(env: Bindings, to: string, url: stri
     html: `<p>Click the link below to verify your email address:</p><p><a href="${url}">${url}</a></p>`
   });
 }
+
+// The activation code (ADR-0033): a migrated user proves they own this inbox,
+// then sets the password that replaces the legacy one. The announcement copy
+// lives here because this is the first email most users get from the new
+// platform.
+export async function sendOtpEmail(env: Bindings, to: string, otp: string) {
+  await sendEmail(env, {
+    to,
+    subject: "Your VMB sign-in code",
+    html: `<p>VMB has moved to a new platform. Use this code to sign in and set your password:</p><p><strong>${otp}</strong></p><p>The code expires in 5 minutes. If you did not request it, you can ignore this email.</p>`
+  });
+}

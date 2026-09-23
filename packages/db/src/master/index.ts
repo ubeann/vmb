@@ -23,12 +23,19 @@ import {
   updateDivision
 } from "./divisions.js";
 import { createRole, deleteRole, getRole, listRoles, updateRole } from "./roles.js";
-import { createUser, deleteUser, getUser, listUsers, restoreUser, updateUser } from "./users.js";
+import {
+  createUser,
+  deleteUser,
+  getUser,
+  getUserStatus,
+  listUsers,
+  restoreUser,
+  updateUser
+} from "./users.js";
 import type { UserStoreOptions } from "./users.js";
 
 export * from "./db.js";
 export * from "./errors.js";
-export { STAGING_PASSWORD_MARKER } from "./users.js";
 export type { UserStoreOptions } from "./users.js";
 
 /**
@@ -52,6 +59,7 @@ export type MasterStore = {
 
   listUsers(query: UserListQuery): Promise<UserListResponse>;
   getUser(id: string): Promise<User>;
+  getUserStatus(id: string): Promise<{ deletedAt: string | null } | null>;
   createUser(input: UserCreateInput): Promise<User>;
   updateUser(id: string, input: UserUpdateInput): Promise<User>;
   deleteUser(id: string): Promise<void>;
@@ -75,6 +83,7 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
 
     listUsers: (query) => listUsers(db, query),
     getUser: (id) => getUser(db, id),
+    getUserStatus: (id) => getUserStatus(db, id),
     createUser: (input) => createUser(db, options, input),
     updateUser: (id, input) => updateUser(db, options, id, input),
     deleteUser: (id) => deleteUser(db, id),

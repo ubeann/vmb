@@ -31,11 +31,15 @@ export interface AuthActionConfig<Field extends string> {
     event: RequestEvent
   ) => Promise<AuthCallResult>;
   // What a successful call should do: redirect, or hand back the action data
-  // the page expects.
-  onSuccess: () => MaybePromise<Data>;
+  // the page expects. Receives the validated values so a multi-step route can
+  // carry a value (an email, say) into the next step.
+  onSuccess: (values: Record<Field, string>) => MaybePromise<Data>;
+  // Extra action data to merge into a failure response, for a multi-step route
+  // that must render the same step again after an error.
+  failureData?: (values: Partial<Record<Field, string>>) => Data;
 }
 
-// Login and signup were near-identical: read fields, type-check them, build the
+// The auth routes were near-identical: read fields, type-check them, build the
 // auth client, call a Better Auth method, map `error` to a failure (issue #85).
 // This is that one flow. Each route declares only what differs — its fields, its
 // messages, its Better Auth call, and what success means.
@@ -47,7 +51,7 @@ export function createAuthAction<const Field extends string>(config: AuthActionC
     for (const field of config.fields) {
       const value = form.get(field);
       if (typeof value !== "string" || !value) {
-        return fail(400, { error: config.missingFieldsMessage });
+        return fail(400, { ...config.failureData?.(values), error: config.missingFieldsMessage });
       }
       values[field] = value;
     }
@@ -56,15 +60,19 @@ export function createAuthAction<const Field extends string>(config: AuthActionC
 
     if (!access.ok) {
       console.error(`${config.logLabel}: request to API failed`, access.error);
-      return fail(500, { error: "Something went wrong. Please try again." });
+      return fail(500, {
+        ...config.failureData?.(values),
+        error: "Something went wrong. Please try again."
+      });
     }
 
     if (access.value.error) {
       return fail(400, {
+        ...config.failureData?.(values),
         error: access.value.error.message ?? config.fallbackErrorMessage
       });
     }
 
-    return config.onSuccess();
+    return config.onSuccess(values);
   };
 }

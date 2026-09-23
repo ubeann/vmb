@@ -59,6 +59,10 @@ export const roles = master.table(
   (table) => [unique("master_roles_name_guard_name_unique").on(table.name, table.guardName)]
 );
 
+// The durable business record (ADR-0032). The legacy auth columns — `password`
+// and `remember_token` — were dropped by migration 0026: Better Auth owns
+// credentials in `public.account`, and migrated accounts activate by email OTP
+// rather than carrying a bcrypt hash (ADR-0033).
 export const users = master.table(
   "users",
   {
@@ -70,8 +74,6 @@ export const users = master.table(
     email: varchar({ length: 255 }).notNull(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true, precision: 3 }),
     profilePhotoPath: varchar("profile_photo_path", { length: 255 }),
-    password: varchar({ length: 255 }).notNull(),
-    rememberToken: varchar("remember_token", { length: 100 }),
     createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
     updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
     deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })

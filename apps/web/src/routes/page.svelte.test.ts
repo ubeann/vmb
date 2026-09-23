@@ -6,6 +6,7 @@ describe("home page", () => {
   it("shows the API health status from page data", async () => {
     const screen = await render(Page, {
       data: {
+        user: null,
         health: { status: "ok", db: "connected", timestamp: "2026-01-01T00:00:00.000Z" }
       }
     });
@@ -18,6 +19,7 @@ describe("home page", () => {
   it("shows the error status when the API is unreachable", async () => {
     const screen = await render(Page, {
       data: {
+        user: null,
         health: { status: "error", db: "unreachable", timestamp: "2026-01-01T00:00:00.000Z" }
       }
     });

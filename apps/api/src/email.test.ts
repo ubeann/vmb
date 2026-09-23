@@ -12,7 +12,7 @@ vi.mock("resend", () => ({
   }
 }));
 
-const { sendVerificationEmail } = await import("./email.js");
+const { sendOtpEmail, sendVerificationEmail } = await import("./email.js");
 
 const env = {
   DATABASE_URL: "postgres://test",
@@ -91,5 +91,34 @@ describe("sendVerificationEmail", () => {
     await expect(
       sendVerificationEmail(env, "user@example.com", "https://example.com/verify")
     ).rejects.toThrow("Invalid from address");
+  });
+});
+
+describe("sendOtpEmail", () => {
+  it("sends the one-time code via Resend with actionable copy", async () => {
+    sendMock.mockResolvedValueOnce({ data: { id: "email_2" }, error: null });
+
+    await sendOtpEmail(env, "user@example.com", "482913");
+
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "onboarding@resend.dev",
+        to: "user@example.com",
+        subject: "Your VMB sign-in code",
+        html: expect.stringContaining("482913")
+      })
+    );
+  });
+
+  it("logs and never reaches Resend when EMAIL_TRANSPORT is set", async () => {
+    const previewEnv = { ...env, EMAIL_TRANSPORT: "log" };
+
+    await sendOtpEmail(previewEnv, "user@example.com", "482913");
+
+    expect(resendConstructorMock).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      "EMAIL_TRANSPORT=log: suppressed outbound email",
+      expect.objectContaining({ to: "user@example.com", subject: "Your VMB sign-in code" })
+    );
   });
 });

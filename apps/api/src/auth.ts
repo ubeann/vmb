@@ -1,12 +1,18 @@
 import { account, createDb, session, user, verification } from "@vmb/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import type { Bindings } from "./bindings.js";
-import { sendVerificationEmail } from "./email.js";
+import { sendOtpEmail, sendVerificationEmail } from "./email.js";
+import { masterStore } from "./master.js";
+import { createSignInGate } from "./sign-in-gate.js";
 
 function buildAuth(env: Bindings) {
+  const db = createDb(env.DATABASE_URL);
+  const store = masterStore(env);
+
   return betterAuth({
-    database: drizzleAdapter(createDb(env.DATABASE_URL), {
+    database: drizzleAdapter(db, {
       provider: "pg",
       schema: { user, session, account, verification }
     }),
@@ -15,7 +21,10 @@ function buildAuth(env: Bindings) {
     trustedOrigins: [env.WEB_URL],
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true
+      requireEmailVerification: true,
+      // Public sign-up is gone (#7): users are provisioned by the Master CRUD,
+      // as in the legacy app. Activation is the email-OTP flow below.
+      disableSignUp: true
     },
     emailVerification: {
       sendOnSignUp: true,
@@ -32,7 +41,28 @@ function buildAuth(env: Bindings) {
       sendVerificationEmail: async ({ user, url }) => {
         await sendVerificationEmail(env, user.email, url);
       }
-    }
+    },
+    // The one seam that decides whether a session may exist at all (#7): the
+    // business record must exist and not be soft-deleted. See ADR-0032/0033.
+    databaseHooks: {
+      session: {
+        create: {
+          before: createSignInGate((userId) => store.getUserStatus(userId))
+        }
+      }
+    },
+    plugins: [
+      // Activation (ADR-0033): a migrated user has no credential row, proves
+      // inbox control with a one-time code, and sets a fresh password on the
+      // same screen. `disableSignUp` keeps an unknown email from being
+      // auto-registered by the OTP endpoints.
+      emailOTP({
+        disableSignUp: true,
+        sendVerificationOTP: async ({ email, otp }) => {
+          await sendOtpEmail(env, email, otp);
+        }
+      })
+    ]
   });
 }
 

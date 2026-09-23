@@ -75,6 +75,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     deleteRole: vi.fn(async () => undefined),
     listUsers: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
     getUser: vi.fn(async () => user),
+    getUserStatus: vi.fn(async () => ({ deletedAt: null })),
     createUser: vi.fn(async () => user),
     updateUser: vi.fn(async () => user),
     deleteUser: vi.fn(async () => undefined),
