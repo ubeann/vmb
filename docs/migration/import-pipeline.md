@@ -8,7 +8,7 @@ Puts real legacy records into a database so cutover is a replay rather than a se
 baseline (0000–0001)  →  load the snapshot  →  everything after the baseline
 ```
 
-The baseline must exist before rows arrive, and every later migration must run **over the loaded rows** — otherwise a conversion like the `timestamptz` change (#114) would never see the data. The pipeline splits the chain at `0001_legacy_baseline` and journals each migration as it completes, so a database it produces is indistinguishable from one the migrator built and a later `db:migrate` applies only what is missing.
+The baseline must exist before rows arrive, and every later migration must run **over the loaded rows** — otherwise a conversion like the `timestamptz` change (#114) would never see the data. The pipeline splits the chain at `0001_legacy_baseline` and journals each migration as it completes, so a database it produces is indistinguishable from one the migrator built and a later `db:migrate` applies only what is missing. Once the chain is done, the identity transform runs over the replayed rows (#7, ADR-0032/0033).
 
 `db:migrate` is `packages/db/src/migration/apply.ts`, not `drizzle-kit migrate`: it writes the same journal rows (`hash` is sha256 of the file, `created_at` is the journal's `when`) but replays each pending migration as one round trip — its statements, its transaction and its journal insert in a single `exec`. Replaying the chain's 975 statements one at a time against a remote database is minutes of latency; per file it is seconds. The drizzle-orm migrators the tests use stay the independent oracle it is checked against (`packages/db/test/migrate.test.ts`).
 
@@ -44,7 +44,7 @@ Exit code 0 means the report carried no findings at all — no errors **and** no
 
 ## What is carried, and what is not
 
-Carried: the 30 ported tables under `master` (including `users`), `warehouse`, `trucking` and `expense`. `master.users` travels because every domain holds foreign keys to it (ledger D-004) and the identity transform (#7) needs it.
+Carried: the 30 ported tables under `master` (including `users`), `warehouse`, `trucking` and `expense`. `master.users` travels because every domain holds foreign keys to it (ledger D-004) and the identity transform (#7) reads it as the durable business record (ADR-0032).
 
 Left behind, with the reason recorded in `src/import/manifest.ts`:
 
@@ -110,4 +110,5 @@ A database is created and dropped around each test — or around a block that de
 
 - **`COPY` format only.** Only `pg_dump --data-only` output is understood; `--inserts` is not. `COPY FROM stdin` is unavailable on every target the pipeline runs against, so the loader emits `INSERT` statements.
 - **The target is reset, not merged.** There is no upsert path, and nothing outside the schemas the pipeline owns survives a run.
-- **Identity and RBAC are out of scope.** Their transform needs #7 and #8; until then their rows stay in the snapshot.
+- **Identity is in the pipeline (#7).** After the chain finishes, every replayed `master.users` row becomes a Better Auth identity under the same UUID — verified, with no credential row, so migrated accounts activate by email OTP (ADR-0032, ADR-0033). The run's report carries an `identities` count.
+- **RBAC is out of scope.** The role→permission mapping and role assignments need #8; until then their rows stay in the snapshot.
