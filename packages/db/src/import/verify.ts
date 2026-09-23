@@ -16,6 +16,8 @@ export type Report = {
   rowCounts: Record<string, number>;
   /** Business-key checksum per table, compared between snapshot and database. */
   checksums: Record<string, string>;
+  /** Identities created by the run's transform (#7); absent before that phase. */
+  identities?: { users: number };
 };
 
 /** Compare one table's business keys between the snapshot and the database. */
