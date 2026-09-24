@@ -30,6 +30,7 @@ const trashed: Division = {
 describe("divisions list", () => {
   it("renders the filters, rows and pagination", async () => {
     const data = {
+      user: null,
       query: DivisionListQuerySchema.parse({ search: "ops" }),
       divisions: {
         items: [division, trashed],
@@ -60,6 +61,7 @@ describe("divisions list", () => {
   it("shows the empty state and an API failure", async () => {
     const empty = await render(Page, {
       data: {
+        user: null,
         query: DivisionListQuerySchema.parse({}),
         divisions: { items: [], total: 0, page: 1, perPage: 10 }
       },
@@ -68,7 +70,7 @@ describe("divisions list", () => {
     await expect.element(empty.getByText("No divisions found.")).toBeVisible();
 
     const failed = await render(Page, {
-      data: { query: DivisionListQuerySchema.parse({}), divisions: null },
+      data: { user: null, query: DivisionListQuerySchema.parse({}), divisions: null },
       form: null
     });
     await expect
@@ -79,6 +81,7 @@ describe("divisions list", () => {
   it("shows an action's error on the page", async () => {
     const screen = await render(Page, {
       data: {
+        user: null,
         query: DivisionListQuerySchema.parse({}),
         divisions: { items: [division], total: 1, page: 1, perPage: 10 }
       },

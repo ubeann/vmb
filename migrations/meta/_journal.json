@@ -183,6 +183,13 @@
       "when": 1790088833615,
       "tag": "0025_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790136095918,
+      "tag": "0026_drop_user_auth_columns",
+      "breakpoints": true
     }
   ]
 }

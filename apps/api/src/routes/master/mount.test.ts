@@ -1,4 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The session guard (#7) sits in front of /api/master; this fake lets the
+// test reach the route's own validation without a real Better Auth session.
+vi.mock("../../auth.js", () => ({
+  createAuth: () => ({
+    api: { getSession: async () => ({ user: { id: "u1" }, session: { id: "s1" } }) }
+  })
+}));
 
 const { default: app } = await import("../../index.js");
 

@@ -1,10 +1,6 @@
 import type { DivisionInput, RoleInput, UserCreateInput, UserUpdateInput } from "@vmb/types";
 import { describe, expect, it } from "vitest";
-import {
-  createMasterStore,
-  MasterSystemRoleError,
-  STAGING_PASSWORD_MARKER
-} from "../src/master/index.js";
+import { createMasterStore, MasterSystemRoleError } from "../src/master/index.js";
 import type { MasterStore } from "../src/master/index.js";
 import type { SqlClient } from "../src/sql-client.js";
 import { count, scalar, withMigratedDb } from "./harness.js";
@@ -344,9 +340,16 @@ describe("users store", () => {
         emailVerifiedAt: null
       });
 
+      // #7's migration dropped the legacy auth columns; the credential lives
+      // only in Better Auth's account row.
       expect(
-        await scalar<string>(client, `select password from master.users where id = '${created.id}'`)
-      ).toBe(STAGING_PASSWORD_MARKER);
+        await scalar<number>(
+          client,
+          `select count(*)::int from information_schema.columns
+            where table_schema = 'master' and table_name = 'users'
+              and column_name in ('password', 'remember_token')`
+        )
+      ).toBe(0);
       expect(
         await scalar<string>(client, `select name from public."user" where id = '${created.id}'`)
       ).toBe("Rina Wijaya");
@@ -357,6 +360,26 @@ describe("users store", () => {
             where provider_id = 'credential' and account_id = '${created.id}'`
         )
       ).toBe("hashed:password123");
+    });
+  });
+
+  it("reports sign-in status for an active user, a soft-deleted one, and a stranger", async () => {
+    await withMigratedDb(async (db, client) => {
+      const divisionId = await seedDivisionId(client);
+      const store = storeFor(db);
+
+      const created = await store.createUser(input(divisionId));
+
+      await expect(store.getSignInEligibility(created.id)).resolves.toEqual({ deletedAt: null });
+
+      await store.deleteUser(created.id);
+      const afterDelete = await store.getSignInEligibility(created.id);
+
+      expect(afterDelete?.deletedAt).toEqual(expect.any(String));
+
+      await expect(
+        store.getSignInEligibility("d1000000-0000-4000-8000-0000000000ff")
+      ).resolves.toBeNull();
     });
   });
 
@@ -537,9 +560,9 @@ describe("users store", () => {
     await withMigratedDb(async (db, client) => {
       const divisionId = await seedDivisionId(client);
       await client.exec(
-        `insert into master.users (id, name, status, division_id, phone, email, password, created_at, updated_at)
+        `insert into master.users (id, name, status, division_id, phone, email, created_at, updated_at)
           values ('d2000000-0000-4000-8000-000000000099', 'Legacy User', 'active', '${divisionId}',
-                  '+628111000099', 'legacy@vmblogistics.id', '!legacy', now(), now())`
+                  '+628111000099', 'legacy@vmblogistics.id', now(), now())`
       );
       const store = storeFor(db);
 

@@ -7,6 +7,7 @@
   let { form }: { form: ActionData } = $props();
 
   let verified = $derived(page.url.searchParams.get("verified") === "true");
+  let activated = $derived(page.url.searchParams.get("activated") === "true");
 </script>
 
 <svelte:head>
@@ -17,6 +18,10 @@
 
 {#if verified}
   <p>Your email is verified — you can log in now.</p>
+{/if}
+
+{#if activated}
+  <p>Your password is set — log in with it now.</p>
 {/if}
 
 {#if form?.error}
@@ -37,4 +42,4 @@
   <button type="submit">Log in</button>
 </form>
 
-<p>Don't have an account? <a href={resolve("/signup")}>Sign up</a></p>
+<p>First time here? <a href={resolve("/activate")}>Activate your account</a></p>

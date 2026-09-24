@@ -1,4 +1,5 @@
 import type { SqlClient } from "../sql-client.js";
+import { transformIdentities, type IdentityTransformResult } from "./identity.js";
 import { loadStatements } from "./load.js";
 import { journalDdl, journalInsertSql } from "../migration/journal.js";
 import { byPhase, readChain, type Migration } from "./phases.js";
@@ -26,6 +27,7 @@ export async function importSnapshot(
   const snapshot = await readSnapshot(snapshotFile);
   const migrations = await readChain(migrationsFolder);
   const { statements, problems } = loadStatements(snapshot);
+  let identities: IdentityTransformResult | undefined;
 
   try {
     await reset(client);
@@ -43,12 +45,17 @@ export async function importSnapshot(
     }
 
     await apply(client, byPhase(migrations, "after"));
+
+    // Identity is the one ETL path (#7, ADR-0032/0033): it reads the replayed
+    // business rows the chain left behind and writes Better Auth identities.
+    identities = await transformIdentities(client);
   } catch (error) {
     return failedReport(error instanceof Error ? error.message : String(error));
   }
 
   const report = await verify(snapshot, client);
   report.errors.push(...problems);
+  report.identities = identities;
   return report;
 }
 
@@ -98,6 +105,9 @@ export function summarise(report: Report): string {
     `errors: ${report.errors.length}`,
     `warnings: ${report.warnings.length}`
   ];
+  if (report.identities) {
+    lines.push(`identities: ${report.identities.users} user(s) created`);
+  }
   for (const finding of [...report.errors, ...report.warnings]) {
     lines.push(`  [${finding.level}] ${finding.code}: ${finding.message}`);
   }

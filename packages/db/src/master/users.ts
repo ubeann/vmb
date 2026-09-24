@@ -26,14 +26,6 @@ import { MasterNotFoundError } from "./errors.js";
 
 type UserRow = typeof users.$inferSelect;
 
-/**
- * Better Auth owns identity (ADR-0012), so `master.users.password` — a column
- * the legacy staging table keeps for parity — carries this marker rather than
- * a second copy of the credential. The credential lives in `public.account`,
- * where `db:seed` puts it for the preview user too.
- */
-export const STAGING_PASSWORD_MARKER = "!better-auth-credential";
-
 export type UserStoreOptions = {
   hashPassword: (password: string) => Promise<string>;
 };
@@ -117,6 +109,30 @@ export async function getUser(db: MasterDb, id: string): Promise<User> {
   return toUser(row);
 }
 
+/**
+ * What the sign-in gate reads (#7): `deletedAt` is the soft-delete marker, and
+ * `null` means the user has no business record at all. There is deliberately no
+ * `status` here — legacy never enforced `users.status`, and the unmerged
+ * `refactor/divisions-on-roles` branch removes the column.
+ */
+export type SignInEligibility = { deletedAt: string | null } | null;
+
+/**
+ * The sign-in gate's lookup (ADR-0033): whether a session may exist at all for
+ * this user. Missing rows and DB failures are the caller's to interpret; this
+ * returns `null` only for a user that is not there.
+ */
+export async function getSignInEligibility(db: MasterDb, id: string): Promise<SignInEligibility> {
+  const rows = await db
+    .select({ deletedAt: users.deletedAt })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  return { deletedAt: toIso(row.deletedAt) };
+}
+
 export async function createUser(
   db: MasterDb,
   options: UserStoreOptions,
@@ -132,10 +148,10 @@ export async function createUser(
     await db.execute(sql`
       with business_user as (
         insert into master.users
-          (id, name, status, division_id, phone, email, profile_photo_path, password, created_at, updated_at)
+          (id, name, status, division_id, phone, email, profile_photo_path, created_at, updated_at)
         values
           (${id}, ${input.name}, ${input.status}, ${input.divisionId}, ${input.phone}, ${input.email},
-           ${nullIfEmpty(input.profilePhotoPath)}, ${STAGING_PASSWORD_MARKER}, now(), now())
+           ${nullIfEmpty(input.profilePhotoPath)}, now(), now())
         returning id
       ), auth_user as (
         insert into public."user" (id, name, email, email_verified, image, created_at, updated_at)
@@ -255,9 +271,10 @@ export async function deleteUser(db: MasterDb, id: string): Promise<void> {
 
   if (!rows[0]) throw new MasterNotFoundError("User not found.");
 
-  // Until the auth gate lands (#7), sign-in is not yet checked against this
-  // record, so ending the sessions is what a delete can enforce today; the
-  // deleted_at it writes is what the gate will read.
+  // The sign-in gate reads this row (#7): soft-deleting it blocks future
+  // sessions, and ending the current ones here closes the window for cookies
+  // already issued. Deleting the session rows directly is equivalent to Better
+  // Auth's `deleteUserSessions` while no cookie cache is configured (ADR-0034).
   await db.delete(authSession).where(eq(authSession.userId, id));
 }
 

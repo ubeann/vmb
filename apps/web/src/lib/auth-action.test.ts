@@ -128,4 +128,34 @@ describe("createAuthAction", () => {
       action(fakeAuthEvent({ email: "a@example.com", password: "secret" }))
     ).resolves.toEqual({ success: true });
   });
+
+  it("passes the validated values to onSuccess, so a route can carry them forward", async () => {
+    const onSuccess = vi.fn((_values: unknown) => ({ ok: true }));
+    const action = makeAction(undefined, onSuccess as never);
+
+    await action(fakeAuthEvent({ email: "a@example.com", password: "secret" }));
+
+    expect(onSuccess).toHaveBeenCalledWith({ email: "a@example.com", password: "secret" });
+  });
+
+  it("merges failureData into a Better Auth failure, so a multi-step route keeps its step", async () => {
+    const action = createAuthAction({
+      fields: ["email", "password"] as const,
+      missingFieldsMessage: "Email and password are required.",
+      fallbackErrorMessage: "Invalid email or password.",
+      logLabel: "login action",
+      run: (async () => ({ error: {} })) as never,
+      onSuccess: (() => ({ ok: true })) as never,
+      failureData: ((values: Partial<Record<"email" | "password", string>>) => ({
+        email: values.email ?? ""
+      })) as never
+    });
+
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "nope" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { error: "Invalid email or password.", email: "a@example.com" }
+    });
+  });
 });

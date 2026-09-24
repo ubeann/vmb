@@ -1,4 +1,5 @@
 import { checksumRows, pickKeys } from "./checksum.js";
+import type { IdentityTransformResult } from "./identity.js";
 import type { SqlClient } from "../sql-client.js";
 import { isExcluded, isPorted, portedTables } from "./manifest.js";
 import type { Snapshot } from "./snapshot.js";
@@ -16,6 +17,8 @@ export type Report = {
   rowCounts: Record<string, number>;
   /** Business-key checksum per table, compared between snapshot and database. */
   checksums: Record<string, string>;
+  /** Identities created by the run's transform (#7); absent before that phase. */
+  identities?: IdentityTransformResult;
 };
 
 /** Compare one table's business keys between the snapshot and the database. */

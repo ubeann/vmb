@@ -14,9 +14,10 @@ import { table } from "../sql.js";
  *
  * The UUID is shared with the `master.users` row below because the ten
  * business FKs (requesters, approvers, drivers of plans and actuals) point at
- * `master.users`, while Better Auth reads only `public."user"`. Unifying the
- * two identities is #7's transform; until then the seeder maintains both rows
- * with the same id so a preview click-through resolves at either end.
+ * `master.users`, while Better Auth reads only `public."user"`. The seeder
+ * maintains both rows with the same id so a preview click-through resolves at
+ * either end; imported databases get the same alignment from the identity
+ * transform (#7, ADR-0032).
  */
 export const PREVIEW_USER_ID = fixtureId(ID_GROUPS.user, 1);
 export const PREVIEW_USER_EMAIL = "preview@vmblogistics.id";
@@ -25,7 +26,16 @@ export const PREVIEW_USER_PASSWORD_HASH =
   "94ab73dbe9a7d76c1908a13d7786bfda:76850c6b81ff1c69849d3ea338f14367d72cec57776e305eb80bd48f518924744d3123627ee5427ab0e2a4e76510ec8e5e9739dfcee74ec0ae22cd79d7eb6322";
 
 /**
- * `public` is Better Auth's schema (ADR-0012), so these two rows are the
+ * The activation fixture (#7, ADR-0033): the shape every migrated account
+ * has — a Better Auth identity with no credential row. A preview click-through
+ * of `/activate` uses it end to end: the OTP is logged rather than sent
+ * (issue #121), and setting a password creates the missing credential.
+ */
+export const ACTIVATION_USER_ID = fixtureId(ID_GROUPS.user, 2);
+export const ACTIVATION_USER_EMAIL = "rina.wijaya@vmblogistics.id";
+
+/**
+ * `public` is Better Auth's schema (ADR-0012), so these rows are the
  * sign-in side of the shared identity: `user` carries the verified email and
  * `account` the credential provider with the digest above. `account_id` must
  * equal `user.id` for Better Auth's credential lookup to find the account.
@@ -41,6 +51,14 @@ export const user = table(
       email_verified: true,
       image: null,
       ...stamps(1)
+    },
+    {
+      id: ACTIVATION_USER_ID,
+      name: "Rina Wijaya",
+      email: ACTIVATION_USER_EMAIL,
+      email_verified: true,
+      image: null,
+      ...stamps(2)
     }
   ]
 );
@@ -325,8 +343,6 @@ const users = table(
     "email",
     "email_verified_at",
     "profile_photo_path",
-    "password",
-    "remember_token",
     "created_at",
     "updated_at",
     "deleted_at"
@@ -343,8 +359,6 @@ const users = table(
       // one minute after the row's own created_at, never before it
       email_verified_at: atMinute(index * 10 + 1),
       profile_photo_path: null,
-      password: "!preview-fixture-no-login",
-      remember_token: null,
       ...softStamps(index)
     };
   })
