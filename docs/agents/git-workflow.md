@@ -51,9 +51,22 @@ The model that actually did the work is already recorded per-commit by the `Co-A
 
 Full pricing/benchmark rationale and the model lineup this table routes to: `docs/research/llm-model-tiering-2026-09.md`. That file carries its own review-by date — re-verify this table whenever that date is reached, since new model waves can shift which tier a name like "GPT-6 Sol" belongs to.
 
+## Big issues: sub-issues and stacked PRs
+
+A big issue — one too large for a single PR — stays focused on the plan; detail work moves to GitHub sub-issues, one per tracer-bullet ticket, linked via GitHub's native sub-issue relationship (the same `gh api` sub-issues-endpoint mechanic `issue-tracker.md`'s wayfinding operations use — reuse that linking call, not the `wayfinder:*` labels or map/claim/frontier-query flow around it, which are scoped to `/wayfinder`). Work each sub-issue on its own GitButler branch, stacked on the one before it when it depends on that ticket's changes:
+
+- `but move <child-branch> --above <parent-branch>` stacks an existing branch on its dependency
+- `but pr new <top-branch> -t` publishes the whole stack in one step, with PR bases set automatically
+
+Keep the big issue open as the tracking parent until every sub-issue's PR has merged; close each sub-issue as its own PR lands, not before.
+
 ## Merging
 
-Merge with `gh pr merge --merge` (merge commit, not squash) — history so far preserves each PR's own commit(s) rather than squashing them away.
+Default to **squash** (`gh pr merge --squash`) for a standalone ticket or the PR at the top of a stack — it collapses a small ticket into one clean commit on `master`.
+
+**Exception: a PR that has a child branch stacked on top of it.** Squashing it replaces its commits with a new SHA, so the child ends up diffed against a stale base — a "phantom diff," sometimes surfaced as a false conflict (mechanics and sources: `docs/research/squash-merge-vs-stacked-prs.md`). For that PR, use `gh pr merge --merge` instead (or rebase-merge). Merge a stack bottom-up, one layer at a time, and run `but pull` right after each merge to resync before continuing to the next.
+
+If this repo is enrolled in GitHub's native stacked-PR feature (public preview since 2026-07-30), merging the whole stack in one action applies squash per layer atomically and the exception above doesn't apply. Check with `but config forge github-stacks` — it reports whether GitButler is configured to use native stacks when available (`but config forge github-stacks disable` opts out) — but that only shows GitButler's local setting, not whether GitHub has actually enrolled this repo. Confirm the real thing by publishing a stack with `but pr new <top-branch> -t` and reading its output: it says explicitly whether it created a native GitHub stack or fell back to description-footer stacking.
 
 ## Local hooks
 
