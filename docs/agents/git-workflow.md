@@ -35,6 +35,22 @@ Two sections:
 
 Keep the PR title identical to (or a clean rollup of) the first commit's message headline.
 
+## Model routing
+
+Before starting work on a ticket, set a `complexity:*` label — it decides which model tier picks up the work, and keeps expensive models off tickets that don't need them.
+
+| Label                 | Criteria                                                                                                                                                                                   | Routes to                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `complexity:trivial`  | Mechanical, no design judgment: typo/doc fixes, dependency/version bumps, single obvious line fixes, boilerplate from an established pattern                                               | GPT-6 Luna                                                                         |
+| `complexity:standard` | The default. Normal feature work or bug fix scoped to a few files, following existing patterns in the codebase                                                                             | GPT-6 Sol or Claude Sonnet 5 (same price; alternate by provider load/availability) |
+| `complexity:complex`  | Cross-cutting or ambiguous requirements, novel architecture/design decisions, security- or data-integrity-sensitive changes, or any ticket that already failed once at the `standard` tier | Claude Opus 5.5 first, GPT-6 Astra as fallback/second opinion                      |
+
+Apply it the same way as any other label (`gh issue edit <n> --add-label "complexity:standard"` — see `issue-tracker.md`). A `standard` ticket that stalls gets bumped to `complexity:complex` rather than retried blind on the same tier; note the escalation in the PR's Testing section so the routing miss is visible later.
+
+The model that actually did the work is already recorded per-commit by the `Co-Authored-By` trailer (below), so there's no separate field to keep in sync — comparing a PR's trailer(s) against its ticket's final `complexity:*` label is enough to audit whether routing matched reality. An escalated ticket can leave two different trailers on one PR (one per tier it passed through); read the Testing-section escalation note alongside the trailers in that case rather than expecting a single trailer to match the final label.
+
+Full pricing/benchmark rationale and the model lineup this table routes to: `docs/research/llm-model-tiering-2026-09.md`. That file carries its own review-by date — re-verify this table whenever that date is reached, since new model waves can shift which tier a name like "GPT-6 Sol" belongs to.
+
 ## Merging
 
 Merge with `gh pr merge --merge` (merge commit, not squash) — history so far preserves each PR's own commit(s) rather than squashing them away.
