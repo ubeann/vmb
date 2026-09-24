@@ -1,4 +1,5 @@
 import { sveltekit } from "@sveltejs/kit/vite";
+import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
@@ -17,7 +18,7 @@ export default defineConfig({
   // `vite dev`/`vite build` there. The browser-mode "component" project below
   // doesn't have this problem (different server/teardown lifecycle) and
   // needs sveltekit() anyway, to resolve $app/* imports in .svelte files.
-  plugins: process.env.VITEST ? [] : [sveltekit()],
+  plugins: [tailwindcss(), ...(process.env.VITEST ? [] : [sveltekit()])],
   test: {
     projects: [
       {
