@@ -59,5 +59,28 @@ describe("login page", () => {
     const screen = await render(Page, { form: null });
 
     await expect.element(screen.getByRole("link", { name: "Activate your account" })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: "Forgot password?" })).toBeVisible();
+  });
+
+  it("confirms sign-out on the login page", async () => {
+    mockPage.url = new URL("http://localhost/login?logged_out=true");
+
+    const screen = await render(Page, { form: null });
+
+    await expect.element(screen.getByText(/logged out/i)).toBeVisible();
+  });
+
+  it("renders missing-field errors beside the relevant input", async () => {
+    mockPage.url = new URL("http://localhost/login");
+
+    const screen = await render(Page, {
+      form: {
+        error: "Email and password are required.",
+        fieldErrors: { password: "Password is required." }
+      }
+    });
+
+    await expect.element(screen.getByText("Password is required.")).toBeVisible();
+    await expect.element(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
   });
 });

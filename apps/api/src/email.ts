@@ -7,6 +7,50 @@ type OutboundEmail = {
   html: string;
 };
 
+// Email clients do not reliably support CSS variables or OKLCH. These hex
+// equivalents follow the light palette in apps/web/src/app.css (ADR-0035).
+const emailColors = {
+  primary: "#00786f",
+  foreground: "#090b0c",
+  mutedForeground: "#5e6f73",
+  muted: "#f4f6f6",
+  card: "#ffffff",
+  border: "#e3e7e8"
+};
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    };
+    return entities[character] ?? character;
+  });
+}
+
+function emailLayout(preview: string, title: string, content: string) {
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} — VMB</title></head>
+<body style="margin:0;padding:0;background:${emailColors.muted};color:${emailColors.foreground};font-family:Arial,Helvetica,sans-serif">
+  <span style="display:none;max-height:0;overflow:hidden;opacity:0">${preview}</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:${emailColors.muted}"><tr><td align="center" style="padding:32px 16px">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;border-collapse:collapse;background:${emailColors.card};border:1px solid ${emailColors.border};border-radius:12px">
+      <tr><td style="padding:28px 32px 16px;color:${emailColors.primary};font-size:18px;font-weight:700;letter-spacing:2px">VMB</td></tr>
+      <tr><td style="padding:0 32px 32px">
+        <h1 style="margin:0 0 16px;color:${emailColors.foreground};font-size:24px;line-height:1.3">${title}</h1>
+        ${content}
+        <p style="margin:28px 0 0;color:${emailColors.mutedForeground};font-size:13px;line-height:1.6">If you did not request this, you can ignore this email.</p>
+      </td></tr>
+    </table>
+    <p style="margin:20px 0 0;color:${emailColors.mutedForeground};font-size:12px">VMB Logistics</p>
+  </td></tr></table>
+</body></html>`;
+}
+
 // `EMAIL_TRANSPORT` is the preview escape hatch (issue #121): a preview URL is
 // unlisted but public, so with production's Resend key and sender, anyone who
 // finds one could send real mail in the production sender's name. Any value —
@@ -37,10 +81,20 @@ async function sendEmail(env: Bindings, email: OutboundEmail) {
 }
 
 export async function sendVerificationEmail(env: Bindings, to: string, url: string) {
+  const safeUrl = escapeHtml(url);
   await sendEmail(env, {
     to,
     subject: "Verify your email — VMB",
-    html: `<p>Click the link below to verify your email address:</p><p><a href="${url}">${url}</a></p>`
+    html: emailLayout(
+      "Verify your VMB email address.",
+      "Verify your email address",
+      `<p style="margin:0 0 24px;font-size:16px;line-height:1.6">Confirm your email address to finish setting up your VMB access.</p>
+       <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${emailColors.primary};border-radius:8px">
+         <a href="${safeUrl}" style="display:inline-block;padding:14px 22px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none">Verify email address</a>
+       </td></tr></table>
+       <p style="margin:24px 0 8px;color:${emailColors.mutedForeground};font-size:13px;line-height:1.6">If the button does not work, copy this link into your browser:</p>
+       <p style="margin:0;overflow-wrap:anywhere;font-size:13px;line-height:1.6"><a href="${safeUrl}" style="color:${emailColors.primary}">${safeUrl}</a></p>`
+    )
   });
 }
 
@@ -51,7 +105,13 @@ export async function sendVerificationEmail(env: Bindings, to: string, url: stri
 export async function sendOtpEmail(env: Bindings, to: string, otp: string) {
   await sendEmail(env, {
     to,
-    subject: "Your VMB sign-in code",
-    html: `<p>VMB has moved to a new platform. Use this code to sign in and set your password:</p><p><strong>${otp}</strong></p><p>The code expires in 5 minutes. If you did not request it, you can ignore this email.</p>`
+    subject: "Your VMB password code",
+    html: emailLayout(
+      "Your code to set a VMB password. It expires in 5 minutes.",
+      "Set your password",
+      `<p style="margin:0 0 20px;font-size:16px;line-height:1.6">Use this code to set your password, whether this is your first time or you need to reset your password.</p>
+       <p style="margin:0 0 20px;padding:16px;background:${emailColors.muted};border:1px solid ${emailColors.border};border-radius:8px;color:${emailColors.foreground};font-size:30px;font-weight:700;letter-spacing:6px;text-align:center">${escapeHtml(otp)}</p>
+       <p style="margin:0;color:${emailColors.mutedForeground};font-size:14px;line-height:1.6">This code expires in 5 minutes.</p>`
+    )
   });
 }

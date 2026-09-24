@@ -14,9 +14,7 @@ describe("activate page", () => {
   it("asks for the email first", async () => {
     const screen = await render(Page, { form: null });
 
-    await expect
-      .element(screen.getByRole("heading", { name: "Activate your account" }))
-      .toBeVisible();
+    await expect.element(screen.getByRole("heading", { name: "Set your password" })).toBeVisible();
     await expect.element(screen.getByLabelText("Email")).toBeVisible();
     await expect.element(screen.getByRole("button", { name: "Send code" })).toBeVisible();
   });
@@ -36,5 +34,27 @@ describe("activate page", () => {
     const screen = await render(Page, { form: { error: "Invalid code" } });
 
     await expect.element(screen.getByRole("alert")).toHaveTextContent("Invalid code");
+  });
+
+  it("explains both first access and password reset", async () => {
+    const screen = await render(Page, { form: null });
+
+    await expect.element(screen.getByText(/first time/i)).toBeVisible();
+    await expect.element(screen.getByText(/forgot your password/i)).toBeVisible();
+  });
+
+  it("shows a visible error when the hidden email is missing on the code step", async () => {
+    const screen = await render(Page, {
+      form: {
+        step: "reset",
+        email: "",
+        error: "Email, code, and new password are required.",
+        fieldErrors: { email: "Email is required." }
+      }
+    });
+
+    await expect
+      .element(screen.getByRole("alert"))
+      .toHaveTextContent("Email, code, and new password are required.");
   });
 });

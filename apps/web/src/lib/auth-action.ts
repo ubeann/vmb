@@ -47,13 +47,24 @@ export function createAuthAction<const Field extends string>(config: AuthActionC
   return async (event: RequestEvent) => {
     const form = await event.request.formData();
     const values = {} as Record<Field, string>;
+    const fieldErrors: Partial<Record<Field, string>> = {};
 
     for (const field of config.fields) {
       const value = form.get(field);
       if (typeof value !== "string" || !value) {
-        return fail(400, { ...config.failureData?.(values), error: config.missingFieldsMessage });
+        fieldErrors[field] =
+          `${field === "otp" ? "Code" : field.charAt(0).toUpperCase() + field.slice(1)} is required.`;
+      } else {
+        values[field] = value;
       }
-      values[field] = value;
+    }
+
+    if (Object.keys(fieldErrors).length) {
+      return fail(400, {
+        ...config.failureData?.(values),
+        error: config.missingFieldsMessage,
+        fieldErrors
+      });
     }
 
     const access = await withAuthApiClient(event, (client) => config.run(client, values, event));

@@ -29,7 +29,7 @@ describe("logout action", () => {
   it("signs the session out and returns to the login page", async () => {
     await expect(actions.default!(fakeAuthEvent())).rejects.toMatchObject({
       status: 303,
-      location: "/login"
+      location: "/login?logged_out=true"
     });
 
     expect(signOutMock).toHaveBeenCalledTimes(1);
@@ -41,7 +41,7 @@ describe("logout action", () => {
 
     await expect(actions.default!(fakeAuthEvent())).rejects.toMatchObject({
       status: 303,
-      location: "/login"
+      location: "/login?logged_out=true"
     });
 
     expect(consoleError).toHaveBeenCalledWith(

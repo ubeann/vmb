@@ -53,6 +53,9 @@ describe("sendVerificationEmail", () => {
         html: expect.stringContaining("https://vmb-api.example.com/api/auth/verify-email?token=abc")
       })
     );
+    const html = sendMock.mock.calls[0]?.[0]?.html as string;
+    expect(html).toContain('style="');
+    expect(html).toContain("Verify email address");
   });
 
   it.each(["log", "quiet"])(
@@ -92,6 +95,16 @@ describe("sendVerificationEmail", () => {
       sendVerificationEmail(env, "user@example.com", "https://example.com/verify")
     ).rejects.toThrow("Invalid from address");
   });
+
+  it("escapes a verification URL in both the link and its visible text", async () => {
+    sendMock.mockResolvedValueOnce({ data: { id: "email_3" }, error: null });
+
+    await sendVerificationEmail(env, "user@example.com", "https://example.com/verify?a=1&b=2");
+
+    const html = sendMock.mock.calls[0]?.[0]?.html as string;
+    expect(html).toContain("https://example.com/verify?a=1&amp;b=2");
+    expect(html).not.toContain("?a=1&b=2");
+  });
 });
 
 describe("sendOtpEmail", () => {
@@ -104,10 +117,14 @@ describe("sendOtpEmail", () => {
       expect.objectContaining({
         from: "onboarding@resend.dev",
         to: "user@example.com",
-        subject: "Your VMB sign-in code",
+        subject: "Your VMB password code",
         html: expect.stringContaining("482913")
       })
     );
+    const html = sendMock.mock.calls[0]?.[0]?.html as string;
+    expect(html).toContain('style="');
+    expect(html).toContain("482913");
+    expect(html).toMatch(/first time|reset your password/i);
   });
 
   it("logs and never reaches Resend when EMAIL_TRANSPORT is set", async () => {
@@ -118,7 +135,7 @@ describe("sendOtpEmail", () => {
     expect(resendConstructorMock).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
       "EMAIL_TRANSPORT=log: suppressed outbound email",
-      expect.objectContaining({ to: "user@example.com", subject: "Your VMB sign-in code" })
+      expect.objectContaining({ to: "user@example.com", subject: "Your VMB password code" })
     );
   });
 });

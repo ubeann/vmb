@@ -14,6 +14,6 @@ export const actions: Actions = {
       console.error("logout action: request to API failed", access.error);
     }
 
-    redirect(303, "/login");
+    redirect(303, "/login?logged_out=true");
   }
 };
