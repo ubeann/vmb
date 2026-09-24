@@ -25,6 +25,7 @@ VMB is being rebuilt from a monolithic Laravel + Filament application into a dec
 | Server-state / data fetching | [TanStack Query (Svelte Query)](https://tanstack.com/query) | Caching, refetching, optimistic updates for CRUD-heavy screens                                                       |
 | Forms                        | [Superforms](https://superforms.rocks)                      | SvelteKit-idiomatic form handling, progressive enhancement, server-side validation                                   |
 | Validation                   | [Zod](https://zod.dev)                                      | Shared schemas between backend validation and frontend forms                                                         |
+| UI / styling                 | Tailwind v4 + [shadcn-svelte](https://shadcn-svelte.com)    | Registry components on bits-ui, semantic OKLCH tokens, Lucide icons (ADR-0035)                                       |
 | File Storage                 | Cloudflare R2                                               | Needed — legacy `FileUpload` usage is broad (ADR-0013)                                                               |
 | Background jobs              | Cloudflare Queues _(not for MVP)_                           | Not needed yet — legacy queue is configured but unused (ADR-0014)                                                    |
 | Auth                         | Better Auth (self-hosted, on `apps/api`)                    | Decided (ADR-0012)                                                                                                   |
@@ -191,8 +192,14 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - [x] Cloudflare Queues: **not needed for MVP** — decided (ADR-0014)
 - [x] Staging environment strategy: separate Neon branch + separate Workers/Pages environment (ADR-0015), now largely superseded by **per-PR preview deployments** (ADR-0019). Pages allows only `preview`/`production`, so the Pages `[env.staging]` was invalid and removed; the `apps/api` `[env.staging]` remains, unprovisioned, pending an explicit decision.
 
+### 7.4 Design System
+
+- **Tailwind v4 + shadcn-svelte** (ADR-0035): registry components copied into `apps/web/src/lib/components/ui` over bits-ui's accessible primitives; VMB-specific composition lives beside them in `$lib/components`.
+- One token source, `apps/web/src/app.css`: semantic OKLCH variables for light and `.dark`, teal primary on a cool-grey neutral. Pages use token utilities only — no raw colours.
+- `/design-system` is the living reference, and ADR-0035 holds the rules every UI PR is checked against (tokens, ownership, icons, forms, data, accessibility, dark mode).
+
 See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-22 (§5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
+_Last updated: 2026-09-24 (§2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
