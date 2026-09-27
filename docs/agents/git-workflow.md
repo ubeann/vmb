@@ -37,21 +37,48 @@ Keep the PR title identical to (or a clean rollup of) the first commit's message
 
 ## Model routing
 
-Before starting work on a ticket, set a `complexity:*` label — it decides which model tier picks up the work, and keeps expensive models off tickets that don't need them.
+Route work to a **tier** — `fast`, `daily`, or `frontier` — never straight to a model name. The rules below speak only in tiers; the one table that names models is the tier table, so a new model wave is a one-row edit.
 
-| Label                 | Criteria                                                                                                                                                                                   | Routes to                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `complexity:trivial`  | Mechanical, no design judgment: typo/doc fixes, dependency/version bumps, single obvious line fixes, boilerplate from an established pattern                                               | GPT-6 Luna                                                                         |
-| `complexity:standard` | The default. Normal feature work or bug fix scoped to a few files, following existing patterns in the codebase                                                                             | GPT-6 Sol or Claude Sonnet 5 (same price; alternate by provider load/availability) |
-| `complexity:complex`  | Cross-cutting or ambiguous requirements, novel architecture/design decisions, security- or data-integrity-sensitive changes, or any ticket that already failed once at the `standard` tier | Claude Opus 5.5 first, GPT-6 Astra as fallback/second opinion                      |
+### Tiers
 
-Skill-driven work (`/implement`, `/tdd`, `/code-review`) goes only to a harness that has the skills — see `harnesses.md`.
+| Tier       | Codex                                   | Claude                         | OpenCode                               |
+| ---------- | --------------------------------------- | ------------------------------ | -------------------------------------- |
+| `fast`     | GPT-6 Luna                              | —                              | DeepSeek V4.1 Flash (OpenCode Go plan) |
+| `daily`    | GPT-6 Sol                               | Claude Sonnet 5                | —                                      |
+| `frontier` | GPT-6 Astra (fallback / second opinion) | Claude Opus 5.5 (first choice) | —                                      |
 
-Apply it the same way as any other label (`gh issue edit <n> --add-label "complexity:standard"` — see `issue-tracker.md`). A `standard` ticket that stalls gets bumped to `complexity:complex` rather than retried blind on the same tier; note the escalation in the PR's Testing section so the routing miss is visible later.
+Within a tier, alternate providers by quota and availability. **Gemini has no tier slot** — it is a second-opinion reviewer only (decision in #184): Antigravity has no skills (`harnesses.md`) and its only picker model is a Flash.
 
-The model that actually did the work is already recorded per-commit by the `Co-Authored-By` trailer (below), so there's no separate field to keep in sync — comparing a PR's trailer(s) against its ticket's final `complexity:*` label is enough to audit whether routing matched reality. An escalated ticket can leave two different trailers on one PR (one per tier it passed through); read the Testing-section escalation note alongside the trailers in that case rather than expecting a single trailer to match the final label.
+Pricing, benchmarks, and billing behind this table: `docs/research/llm-model-tiering-2026-09.md`. Re-verify the table when that file's review-by date passes **or when a provider is added**, and update both together.
 
-Full pricing/benchmark rationale and the model lineup this table routes to: `docs/research/llm-model-tiering-2026-09.md`. That file carries its own review-by date — re-verify this table whenever that date is reached, since new model waves can shift which tier a name like "GPT-6 Sol" belongs to.
+### Which tier, by stage
+
+| Stage                                                                 | Tier                                                                                             |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Planning: `/grill-with-docs`, `/to-spec`, `/to-tickets`, `/wayfinder` | `frontier`, always — a weak spec degrades every ticket built from it                             |
+| Building: `/implement`, `/tdd`                                        | From the ticket's `complexity:*` label (below)                                                   |
+| Subagent legwork: searches, exploration, lookups, mechanical edits    | `fast`                                                                                           |
+| Review: `/code-review`                                                | The ticket's tier or higher, on a **different provider family** than the one that wrote the code |
+
+**Cross-provider review.** Claude writes → Codex reviews, and the other way round; a different model family has different blind spots. Gemini may add a free-form second-opinion review on top, since that needs no skills.
+
+Skill-driven work (`/implement`, `/tdd`, `/code-review`, and the planning flows) goes only to a harness that has the skills — see `harnesses.md`.
+
+### Complexity labels
+
+| Label                 | Criteria                                                                                                                                                  | Tier       |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `complexity:trivial`  | Mechanical, no design judgment: typo/doc fixes, dependency/version bumps, single obvious line fixes, boilerplate from an established pattern              | `fast`     |
+| `complexity:standard` | The default. Feature work or bug fix following existing patterns or an already-decided design — even across several files                                 | `daily`    |
+| `complexity:complex`  | Needs a stated reason: cross-cutting change, security- or data-integrity risk (e.g. rewriting production data), or a new architecture decision still open | `frontier` |
+
+- **Set it once, at creation.** `/to-tickets` sets the label on each ticket it creates (and `/triage` on incoming issues); don't re-pick it by feel at pickup time. Apply it like any other label (`gh issue edit <n> --add-label "complexity:standard"` — see `issue-tracker.md`).
+- **`complex` names its reason** in the ticket body. No reason, no `complex` — it's `standard`.
+- **Escalate once, then re-plan.** A stalled `standard` ticket first gets checked for an unclear spec, then moves up to `complexity:complex` once; note the escalation in the PR's Testing section so the routing miss stays visible. If it fails again at `frontier`, the ticket goes back to `/grill-with-docs` — not to a bigger model.
+
+### Auditing routing
+
+The `Co-Authored-By` trailer (below) names the model that did the work, so comparing a PR's trailer(s) against its ticket's final `complexity:*` label shows whether routing matched reality — no separate field to keep in sync. An escalated ticket can leave two trailers on one PR (one per tier it passed through); read them alongside the Testing-section escalation note.
 
 ## Big issues: sub-issues and stacked PRs
 
