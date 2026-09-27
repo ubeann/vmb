@@ -45,6 +45,8 @@ Before starting work on a ticket, set a `complexity:*` label — it decides whic
 | `complexity:standard` | The default. Normal feature work or bug fix scoped to a few files, following existing patterns in the codebase                                                                             | GPT-6 Sol or Claude Sonnet 5 (same price; alternate by provider load/availability) |
 | `complexity:complex`  | Cross-cutting or ambiguous requirements, novel architecture/design decisions, security- or data-integrity-sensitive changes, or any ticket that already failed once at the `standard` tier | Claude Opus 5.5 first, GPT-6 Astra as fallback/second opinion                      |
 
+Skill-driven work (`/implement`, `/tdd`, `/code-review`) goes only to a harness that has the skills — see `harnesses.md`.
+
 Apply it the same way as any other label (`gh issue edit <n> --add-label "complexity:standard"` — see `issue-tracker.md`). A `standard` ticket that stalls gets bumped to `complexity:complex` rather than retried blind on the same tier; note the escalation in the PR's Testing section so the routing miss is visible later.
 
 The model that actually did the work is already recorded per-commit by the `Co-Authored-By` trailer (below), so there's no separate field to keep in sync — comparing a PR's trailer(s) against its ticket's final `complexity:*` label is enough to audit whether routing matched reality. An escalated ticket can leave two different trailers on one PR (one per tier it passed through); read the Testing-section escalation note alongside the trailers in that case rather than expecting a single trailer to match the final label.

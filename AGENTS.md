@@ -15,3 +15,7 @@ Branch naming, commit message format, PR body template, merge strategy, and AI c
 ### Legacy reference
 
 VMB is being migrated from `ubeann/vmb-warehouse` (Laravel + Filament). See `docs/agents/legacy-reference.md` for where it lives and how to use it as a parity reference.
+
+### Agent harnesses
+
+Which harnesses (Claude Code, Codex, OpenCode, Antigravity) load these instructions and the skill-driven flows, and the routing constraint that follows. See `docs/agents/harnesses.md`.
