@@ -51,7 +51,10 @@ describe("createAuthAction", () => {
 
     expect(result).toMatchObject({
       status: 400,
-      data: { error: "Email and password are required." }
+      data: {
+        error: "Email and password are required.",
+        fieldErrors: { password: "Password is required." }
+      }
     });
     expect(run).not.toHaveBeenCalled();
     expect(withAuthApiClientMock).not.toHaveBeenCalled();
@@ -64,7 +67,10 @@ describe("createAuthAction", () => {
 
     expect(result).toMatchObject({
       status: 400,
-      data: { error: "Email and password are required." }
+      data: {
+        error: "Email and password are required.",
+        fieldErrors: { email: "Email is required." }
+      }
     });
     expect(withAuthApiClientMock).not.toHaveBeenCalled();
   });
