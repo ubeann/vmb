@@ -95,9 +95,11 @@ When a change was written or substantially drafted by an AI model, add a `Co-Aut
 
 1. **A service account on the GitHub org for that model or agent.** This is the only form that gives real GitHub attribution — a linked avatar and contribution-graph credit. Use that account's numeric `noreply` address: `Co-Authored-By: <Model Display Name> <ID+username@users.noreply.github.com>`. Register the account once and give each model its own.
 2. **The model's own GitHub bot account, if it has one.** Same numeric form — e.g. `Co-Authored-By: Copilot <223556219+Copilot@users.noreply.github.com>`.
-3. **The vendor's documented AI co-author address**, when the vendor publishes one — e.g. `Co-Authored-By: Claude <noreply@anthropic.com>`, `Co-Authored-By: Codex <noreply@openai.com>`. This renders in the commit list but links to no profile; that is expected and honest, since there is no account to link.
+3. **The vendor's documented AI co-author address**, when the vendor publishes one — e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, `Co-Authored-By: GPT-6 Sol <noreply@openai.com>`. This renders in the commit list but links to no profile; that is expected and honest, since there is no account to link.
 4. **This repository's own agent address**: `Co-Authored-By: <Model Display Name> <noreply@vmblogistics.id>`. Never invent an address at a domain the project does not control.
 
-Use the model's display name in the name part, not an internal model ID. Do **not** use the legacy `username@users.noreply.github.com` form — GitHub stopped issuing it in 2017 and it links to nothing.
+Use the model's display name in the name part — not an internal model ID, and not the harness. Write `GPT-6 Sol <noreply@openai.com>`, not `Codex <noreply@openai.com>`: the routing audit (see Model routing) reads the name to tell which tier did the work, and a harness name hides that.
+
+Providers with no documented vendor address fall through to step 4 — today that is Gemini (via Antigravity) and DeepSeek (via OpenCode Go), e.g. `Co-Authored-By: DeepSeek V4.1 Flash <noreply@vmblogistics.id>`. The findings behind that are in `docs/research/llm-model-tiering-2026-09.md`, section "AI co-author addresses". Do **not** use the legacy `username@users.noreply.github.com` form — GitHub stopped issuing it in 2017 and it links to nothing.
 
 Every address used must be registered in `scripts/ai-coauthors.txt`. `scripts/check-commit-msg.sh` rejects a `Co-Authored-By` trailer whose address is not in that file, so adopting a new model is one line there, not a hook edit.
