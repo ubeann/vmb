@@ -6,9 +6,9 @@ token, so the source only needs to say *where* ink is: this writes black RGB
 with the ink density in the alpha channel. Paper becomes transparent, so the
 same file works on the light paper and the dark navy scheme.
 
-Usage: prepare-etching.py <source.png> <out-dir> [--white 212] [--black 40]
+Usage: prepare-etching.py <source.png> <out-dir> [--name vmb-etching] [--white 212] [--black 40]
 
-Writes vmb-etching-2400.webp and vmb-etching-1200.webp (needs `cwebp`).
+Writes <name>-2400.webp and <name>-1200.webp (needs `cwebp`).
 """
 
 import argparse
@@ -21,6 +21,7 @@ from PIL import Image
 parser = argparse.ArgumentParser()
 parser.add_argument("source")
 parser.add_argument("out_dir")
+parser.add_argument("--name", default="vmb-etching", help="output file prefix")
 parser.add_argument("--white", type=int, default=212, help="luminance treated as bare paper")
 parser.add_argument("--black", type=int, default=40, help="luminance treated as full ink")
 parser.add_argument("--quality", type=int, default=60)
@@ -39,7 +40,7 @@ for width in (2400, 1200):
     ink.putalpha(alpha.resize((width, height), Image.Resampling.LANCZOS))
     with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
         ink.save(tmp.name)
-        target = out / f"vmb-etching-{width}.webp"
+        target = out / f"{args.name}-{width}.webp"
         subprocess.run(
             ["cwebp", "-quiet", "-q", str(args.quality), "-alpha_q", str(args.alpha_quality), tmp.name, "-o", str(target)],
             check=True,

@@ -14,6 +14,7 @@
 - **`--primary` and `--ring` are the logo green** `#087c16`: 5.1:1 under white button text and 5.1:1 as link text on paper. In dark mode they become a lighter green with dark text (7.8:1 as a fill, 8.9:1 as a link on the navy background).
 - **`--input` is darkened to 3:1** against both paper (3.18:1) and white (3.38:1). This retires ADR-0035's known exception: field boundaries now meet the 3:1 non-text contrast target on their own.
 - **New token `--etching`** is the ink for engraved illustrations: the logo navy eased toward paper in light mode (L 0.36) and a muted periwinkle on dark navy (L 0.63). Illustrations ship as alpha masks filled with this token, so one asset serves both schemes (see `EtchedScene.svelte`).
+- **New token `--brand-mark`** colours the logo's swoosh: the logo navy in light mode and paper on the dark navy background, where the original navy would disappear. The logo's green stripes use `--primary`.
 - **Transactional emails** (`apps/api/src/email.ts`) carry hex equivalents of the light palette, since email clients support neither CSS variables nor OKLCH.
 - **New font token `--font-display`**, Newsreader Variable (weight axis, 57 kB latin woff2), for display headings only. Body and UI text stay Inter.
 

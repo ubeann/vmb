@@ -5,9 +5,9 @@
   without the artwork.
 -->
 <script lang="ts">
-  import logo from "$lib/assets/brand/vmb-logo.png";
   import EtchedScene from "$lib/components/EtchedScene.svelte";
-  import Rosette from "$lib/components/Rosette.svelte";
+  import EtchedSky from "$lib/components/EtchedSky.svelte";
+  import VmbLogo from "$lib/components/VmbLogo.svelte";
   import type { Snippet } from "svelte";
 
   let {
@@ -24,10 +24,12 @@
 </script>
 
 <div class="relative isolate flex min-h-dvh flex-col overflow-x-clip">
+  <EtchedSky class="absolute inset-x-0 top-0 -z-10 hidden h-[clamp(16rem,55vh,36rem)] lg:block" />
+
   <header
     class="mx-auto flex w-full max-w-7xl items-center justify-between gap-6 px-6 pt-6 sm:px-10 lg:px-16 lg:pt-10"
   >
-    <img src={logo} alt="VMB" width="229" height="166" class="h-10 w-auto sm:h-11" />
+    <VmbLogo class="h-10 sm:h-11" />
     <p class="text-muted-foreground hidden text-xs font-medium tracking-[0.2em] uppercase sm:block">
       Warehouse · Trucking · Expense
     </p>
@@ -49,10 +51,6 @@
     </div>
 
     <div class="relative w-full lg:justify-self-end">
-      <Rosette
-        class="absolute top-1/2 left-1/2 -z-10 hidden w-[34rem] -translate-x-1/2 -translate-y-1/2 lg:block"
-      />
-
       <section
         aria-labelledby="auth-heading"
         class="bg-card text-card-foreground w-full rounded-md border p-6 shadow-[0_0_0_5px_var(--card),0_0_0_6px_var(--border),0_24px_48px_-32px_color-mix(in_oklch,var(--etching)_40%,transparent)] sm:p-8"

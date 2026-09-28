@@ -11,69 +11,68 @@ The auth pages (`/login`, `/activate`) redesigned as an engraved plate. It follo
 
 ## Composition
 
-| Viewport          | Layout                                                                                                                                                                                                                                                     |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop (≥ 64rem) | Masthead (logo, "Warehouse · Trucking · Expense"); brand line on the left, form sheet on the right; the engraving is pinned to the bottom of the viewport, so the page never scrolls. On short screens the sheet overlaps the plate like paper laid on it. |
-| Tablet            | Same stack as mobile, with a 30vh plate.                                                                                                                                                                                                                   |
-| Mobile            | Logo, brand line, form, then the plate as a short ribbon (22vh, max 12rem) that crops to the bridge and trucks. The fields and submit button sit above the fold at 390 × 844.                                                                              |
+| Viewport          | Layout                                                                                                                                                                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop (≥ 64rem) | Masthead (logo, "Warehouse · Trucking · Expense"); brand line on the left, form sheet on the right; an engraved sky (clouds, low sun, seabirds) behind the right half; the landscape is pinned to the bottom of the viewport, so the page never scrolls. On short screens the sheet overlaps the plate like paper laid on it. |
+| Tablet            | Same stack as mobile, with a 30vh plate and no sky.                                                                                                                                                                                                                                                                           |
+| Mobile            | Logo, brand line, form, then the plate as a short ribbon (22vh, max 12rem) showing the whole scene; no sky. The fields and submit button sit above the fold at 390 × 844.                                                                                                                                                     |
 
 ## Storyboard
 
-| State          | Behaviour                                                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Arrival        | The form is ready immediately. The plate draws in once, left to right like a press roller: a mask sweep over 1.6 s, ease-in-out, starting after 150 ms. |
-| Seal           | On desktop, a faint guilloché rosette behind the sheet is cut in by a turning sweep (2.4 s, starting after 400 ms). It is hidden on small screens.      |
-| Focus          | The green ring and border from the design system. Nothing else moves.                                                                                   |
-| Password       | The eye toggle shows or hides the characters (`aria-pressed`, fixed label "Show password").                                                             |
-| Submitting     | The button changes to "Signing in…" with a spinner and is disabled until the action settles.                                                            |
-| Error          | Field message under the field with `aria-invalid`, or a form-level alert with an icon. No shake.                                                        |
-| Success        | Server redirect; there is no success animation to wait for.                                                                                             |
-| Reduced motion | The plate is shown finished; the spinner collapses under the global reduced-motion rule.                                                                |
-| Dark           | The same mask filled with the dark `--etching` token, so the plate reads as a blueprint on navy.                                                        |
+| State          | Behaviour                                                                                                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arrival        | The form is ready immediately. The plate draws in once, left to right like a press roller: a mask sweep over 1.6 s, ease-in-out, starting after 150 ms.               |
+| Sky            | On desktop, the sky fades in and settles 2.5rem to the left over 2.4 s, starting after 900 ms, then stops. It never loops, so it needs no pause control (WCAG 2.2.2). |
+| Focus          | The green ring and border from the design system. Nothing else moves.                                                                                                 |
+| Password       | The eye toggle shows or hides the characters (`aria-pressed`, fixed label "Show password").                                                                           |
+| Submitting     | The button changes to "Signing in…" with a spinner and is disabled until the action settles.                                                                          |
+| Error          | Field message under the field with `aria-invalid`, or a form-level alert with an icon. No shake.                                                                      |
+| Success        | Server redirect; there is no success animation to wait for.                                                                                                           |
+| Reduced motion | Plate and sky are shown finished; the spinner collapses under the global reduced-motion rule.                                                                         |
+| Dark           | The same masks filled with the dark `--etching` token, so the plate reads as a blueprint on navy; the logo swoosh turns paper-coloured (`--brand-mark`).              |
 
 ## Asset pipeline
 
-The plate is a single-colour **alpha mask**: black RGB with ink density in the alpha channel. `EtchedScene.svelte` fills it with `--etching` through CSS `mask-image`, so there's no second file for dark mode and the colour stays a token.
+Both engravings are single-colour **alpha masks**: black RGB with ink density in the alpha channel. `EtchedScene.svelte` (landscape) and `EtchedSky.svelte` (sky, at a 45% wash) fill them with `--etching` through CSS `mask-image`, so there's no second file for dark mode and the colour stays a token. The sky's mask also fades out over the masthead band and the headline column.
 
 ```sh
-python3 docs/design/etched-login/prepare-etching.py <engraving.png> apps/web/src/lib/assets/auth
+python3 docs/design/etched-login/prepare-etching.py docs/design/etched-login/sources/landscape-a1-4096.jpg apps/web/src/lib/assets/auth
+python3 docs/design/etched-login/prepare-etching.py docs/design/etched-login/sources/sky-2-1536.jpg apps/web/src/lib/assets/auth --name vmb-sky
 ```
 
-The script writes 2400px and 1200px WebPs. It treats luminance ≥ 212 as bare paper, which keeps paper grain out of the alpha channel: with grain kept and higher quality settings, the stand-in's 2400px file was 846 KB; now it is 333 KB.
+The script writes 2400px and 1200px WebPs (landscape 283 KB and 80 KB, sky 54 KB and 18 KB). It treats luminance ≥ 212 as bare paper, which keeps paper grain out of the alpha channel.
 
-The sheet's rosette is drawn in code rather than generated: `make-rosette.py` writes `vmb-rosette.svg`, which holds bands of phase-shifted wavy rings, as on a banknote seal (65 KB, 28 KB gzipped). `Rosette.svelte` uses it as a mask filled with 28% `--etching`.
+The logo is `VmbLogo.svelte`, an inline SVG of the legacy mark: navy swoosh on `--brand-mark`, green stripes on `--primary`. `vmb-logo.svg` is the same mark in fixed brand colours for use outside the app.
 
-```sh
-python3 docs/design/etched-login/make-rosette.py apps/web/src/lib/assets/auth/vmb-rosette.svg
-```
+## Recraft round (28 Sep, 18 credits)
 
-**Current art is a stand-in.** `stand-in-panorama.jpg` was generated with Pen's AI image generation to test the composition. Its production rights are unverified, so the final plate should come from the Recraft kit below.
+The art comes from Recraft on the paid Basic plan, so VMB holds commercial rights to it. Generation ran through Recraft's MCP (`https://mcp.recraft.ai/mcp`, OAuth), which spends the same subscription credits as Studio. The MCP's hosts sit on Cloudflare IPs that one office network resets; it connects from other networks.
 
-## Recraft kit (Basic plan, ~1,000 credits)
+| Step                | Settings                        | Credits | Result                                                                                                                                                        |
+| ------------------- | ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Landscape A, B      | `recraftv4_1`, 2:1, n 2 each    | 8       | **A1 chosen**: clear, separate warehouse, bridge and yard, light enough to sit under text. A2 is cut in an oval vignette; B1 and B2 are heavy black woodcuts. |
+| Sky C               | same, n 2                       | 4       | Both too dark or fully hatched behind the headline.                                                                                                           |
+| Sky, lighter prompt | same, n 2                       | 4       | **Sky 2 chosen**: clouds and sun on the right, left half empty.                                                                                               |
+| Crisp upscale A1    | 1536 → 4096 px                  | 1       | Source for the 2400px mask.                                                                                                                                   |
+| Vectorize logo      | from the legacy PNG enlarged 4× | 1       | 23 paths; the background and 5 anti-alias fragments were removed by hand.                                                                                     |
 
-The Recraft MCP (`https://mcp.recraft.ai/mcp`, OAuth) spends the same subscription credits, so an agent can run these steps directly. On 28 Sep it failed to connect from the maintainer's network: `api.recraft.ai` and `mcp.recraft.ai` sit on Cloudflare IPs (`104.26.6.194`, `104.26.7.194`, `172.67.75.83`) whose TLS connections are reset, while `www.recraft.ai` loads. Retry over a VPN or Cloudflare WARP; the steps below also work by hand in Recraft Studio.
+`sources/candidates-round-1-2.jpg` shows every candidate. The two prompts that were kept:
 
-1. **Build a custom style** (Styles → create), from 3–5 public-domain 19th-century steel engravings of harbours, warehouses or river towns. The Rijksmuseum's public-domain print collection has many Dutch East Indies harbour views. You can add `stand-in-panorama.jpg` as one reference. Don't use the Native site's artwork: it's another company's brand asset.
-2. **Model:** Recraft V4.1 raster (2 credits per image) for exploration, and V4.1 Pro (10 credits) for the chosen final. Don't use vector output: real hatching becomes tens of thousands of paths, too heavy to ship.
-3. **Size:** the widest landscape option, at least 2400px wide once upscaled (Crisp upscale is 1 credit).
-4. **Prompt**, with your custom style applied:
+> **Landscape:** Wide panoramic 19th-century steel engraving, fine cross-hatching and stipple, black ink on plain white paper, monochrome. A tropical Indonesian logistics landscape seen from slight elevation: on the left a row of long pitched-roof timber warehouses with loading docks and stacked crates; in the centre a stone-and-steel truss bridge over a calm river with three container trucks crossing, each carrying one shipping container; on the right a container yard with stacked shipping containers, two gantry cranes and a modest colonial office building. Palm trees and distant volcanic mountains behind. The scene fills only the bottom half of the image and fades into blank white paper at the top and at both sides. Even line weight, calm and orderly, museum-quality engraving. No text, lettering, logos, signatures, borders or foreground people.
 
-   > Wide panoramic 19th-century steel engraving, fine cross-hatching and stipple, black ink on plain white paper. A tropical Indonesian logistics landscape seen from slight elevation: on the left a row of long pitched-roof timber warehouses with loading docks and stacked crates; in the centre a stone-and-steel truss bridge over a calm river with three container trucks crossing, each carrying one shipping container; on the right a container yard with stacked containers, two gantry cranes and a modest colonial office building. Palm trees and distant volcanic mountains behind. The scene fills only the bottom 55% of the image and fades into blank paper at the top and both sides. Even line weight, calm and orderly. No text, lettering, logos, signatures, borders or foreground people.
+> **Sky:** Delicate 19th-century steel engraving of a calm tropical sky only, thin black ink lines on plain white paper, monochrome, very light and airy: two or three soft cumulus clouds drawn with sparse fine parallel hatching and open white interiors, a low sun on the right with thin radiating engraved rays fading out, and three or four tiny distant seabirds. At least two thirds of the image is empty white paper, especially the left half and the bottom edge. No land, no horizon line, no buildings, no text, no border, no frame, no dense dark areas.
 
-5. **Variations to try, 2–3 images each:** (a) the prompt as written; (b) "larger, simpler forms, fewer and bolder hatching lines", which survives the mobile ribbon better; (c) a harbour-weighted version with the container yard centred.
-6. **Logo:** run **Vectorize** (1 credit) on `vmb-warehouse/public/img/logo.png`. The current PNG is 229px wide, soft on high-density screens, and its navy swoosh disappears on the dark background. An SVG allows a dark-mode variant.
-7. **Hand-off:** put the PNGs in `docs/design/etched-login/candidates/`. Each goes through `prepare-etching.py` and is compared in the browser at 1440 × 900, 1366 × 768 and 390 × 844, in light and dark.
-
-Estimated use: about 15 explorations × 2 + 2 Pro finals × 10 + upscales and vectorize ≈ **55 credits**, around 5% of the month's allowance.
+A guilloché rosette behind the sheet was tried and removed: its rings tangled with the sun's rays. It is in commit `5a900cd` if a later screen wants it.
 
 ## Checked
 
-- `pnpm typecheck`, `pnpm lint`, `pnpm test` (95 tests) in `apps/web`.
-- Rendered in the browser at 1440 × 900, 1366 × 768 and 390 × 844, in light and dark. The desktop page doesn't scroll, and the mobile fields and submit button are above the fold.
+- `pnpm typecheck`, `pnpm lint`, `pnpm test` in `apps/web`.
+- Playwright renders at 1440 × 900, 1366 × 768 and 390 × 844, in light and dark: the desktop page doesn't scroll, the sky clears the masthead and headline, and the mobile fields and submit button are above the fold.
 - Sampled the reveal progress (10% → 44% → 95% between 0.6 s and 1.2 s) and ran the password toggle both ways.
 
 ## Not yet checked
 
 - A real sign-in against the API; the local dev server had no `API_URL`.
 - The reduced-motion emulation, 200% zoom, screen readers, and password-manager autofill with the toggle.
-- Real-device performance of the 333 KB WebP mask; AVIF may cut it further.
+- Real-device loading of the 283 KB landscape mask; AVIF may cut it further.
+- The traced logo edges at large sizes. It is sharp at header size; a designer's redraw would be the long-term master.
