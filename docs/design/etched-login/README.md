@@ -46,6 +46,14 @@ The script writes 2400px and 1200px WebPs (landscape 274 KB and 77 KB, sky 54 KB
 
 The logo is `VmbLogo.svelte`, an inline SVG of the legacy mark: navy swoosh on `--brand-mark`, green stripes on `--primary`. `vmb-logo.svg` is the same mark in fixed brand colours for use outside the app.
 
+The icon set and link-preview image in `apps/web/static` are built from `vmb-logo.svg` and the 2400px landscape mask (#207). The script lives with the artwork and uses Playwright and the fonts from `apps/web/node_modules`. Rerun it after either source changes:
+
+```sh
+node docs/design/etched-login/build-brand-assets.mjs
+```
+
+`favicon.svg` simplifies the logo to its blue swoosh and green striped V so the shape reads at 16px. It is transparent and switches to the dark palette with `prefers-color-scheme`. `favicon.ico` (32px, 1 KB) and `apple-touch-icon.png` (180px, 7 KB) sit on an opaque paper tile, since neither can switch scheme. `og-image.jpg` (1200 × 630, 104 KB) is the auth page in miniature. It is a JPEG because WhatsApp drops preview images over about 300 KB.
+
 ## Recraft rounds (28 Sep, 22 credits)
 
 The art comes from Recraft on the paid Basic plan, so VMB holds commercial rights to it. Generation ran through Recraft's MCP (`https://mcp.recraft.ai/mcp`, OAuth), which spends the same subscription credits as Studio. The MCP's hosts sit on Cloudflare IPs that one office network resets; it connects from other networks.

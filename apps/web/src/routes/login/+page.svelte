@@ -6,6 +6,7 @@
   import CircleCheck from "@lucide/svelte/icons/circle-check";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import AuthShell from "$lib/components/AuthShell.svelte";
+  import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -29,9 +30,10 @@
     "text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
 </script>
 
-<svelte:head>
-  <title>Log in — VMB</title>
-</svelte:head>
+<PageMeta
+  title="Log in"
+  description="Log in to VMB, where warehouse items, trucking orders and division expenses are kept on record."
+/>
 
 <AuthShell heading="Log in">
   {#snippet description()}Use the email and password for your VMB access.{/snippet}

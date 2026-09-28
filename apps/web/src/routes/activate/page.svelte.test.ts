@@ -6,6 +6,9 @@ vi.mock("$app/forms", () => ({
 vi.mock("$app/paths", () => ({
   resolve: (path: string) => path
 }));
+vi.mock("$app/state", () => ({
+  page: { url: new URL("http://localhost/activate") }
+}));
 
 const { render } = await import("vitest-browser-svelte");
 const { default: Page } = await import("./+page.svelte");

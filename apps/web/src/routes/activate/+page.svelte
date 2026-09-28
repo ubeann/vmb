@@ -4,6 +4,7 @@
   import CircleAlert from "@lucide/svelte/icons/circle-alert";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import AuthShell from "$lib/components/AuthShell.svelte";
+  import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -35,9 +36,10 @@
   );
 </script>
 
-<svelte:head>
-  <title>Set your password — VMB</title>
-</svelte:head>
+<PageMeta
+  title="Set your password"
+  description="First time on VMB or forgot your password? Get a one-time code by email and set a new one."
+/>
 
 <AuthShell heading="Set your password">
   {#snippet description()}
