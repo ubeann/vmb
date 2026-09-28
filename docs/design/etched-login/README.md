@@ -36,11 +36,11 @@ The auth pages (`/login`, `/activate`) redesigned as an engraved plate. It follo
 Both engravings are single-colour **alpha masks**: black RGB with ink density in the alpha channel. `EtchedScene.svelte` (landscape) and `EtchedSky.svelte` (sky, at a 45% wash) fill them with `--etching` through CSS `mask-image`, so there's no second file for dark mode and the colour stays a token. The sky's mask also fades out over the masthead band and the headline column.
 
 ```sh
-python3 docs/design/etched-login/prepare-etching.py docs/design/etched-login/sources/landscape-a1-4096.jpg apps/web/src/lib/assets/auth
+python3 docs/design/etched-login/prepare-etching.py docs/design/etched-login/sources/landscape-a1-4096.jpg apps/web/src/lib/assets/auth --trim --fade-sides 0.06
 python3 docs/design/etched-login/prepare-etching.py docs/design/etched-login/sources/sky-2-1536.jpg apps/web/src/lib/assets/auth --name vmb-sky
 ```
 
-The script writes 2400px and 1200px WebPs (landscape 283 KB and 80 KB, sky 54 KB and 18 KB). It treats luminance ≥ 212 as bare paper, which keeps paper grain out of the alpha channel.
+The script writes 2400px and 1200px WebPs (landscape 274 KB and 77 KB, sky 54 KB and 18 KB). For the landscape, `--trim` crops the empty paper above the scene (the plate becomes 4096 × 1106, ratio 3.703) and `--fade-sides` bakes a soft fade into both edges. `EtchedScene` fits the plate to the band's height (`mask-size: auto 100%`) and sizes the band from `--plate-ratio`, so the scene is never cropped at the top on wide screens; it bleeds off the sides on narrow ones. Update `--plate-ratio` whenever the plate changes. It treats luminance ≥ 212 as bare paper, which keeps paper grain out of the alpha channel.
 
 The logo is `VmbLogo.svelte`, an inline SVG of the legacy mark: navy swoosh on `--brand-mark`, green stripes on `--primary`. `vmb-logo.svg` is the same mark in fixed brand colours for use outside the app.
 
@@ -69,6 +69,11 @@ A guilloché rosette behind the sheet was tried and removed: its rings tangled w
 - `pnpm typecheck`, `pnpm lint`, `pnpm test` in `apps/web`.
 - Playwright renders at 1440 × 900, 1366 × 768 and 390 × 844, in light and dark: the desktop page doesn't scroll, the sky clears the masthead and headline, and the mobile fields and submit button are above the fold.
 - Sampled the reveal progress (10% → 44% → 95% between 0.6 s and 1.2 s) and ran the password toggle both ways.
+
+## Fixed after review
+
+- **Plate cropped on wide screens:** with the 2:1 source and `mask-size: cover`, a band wider than about 3:1 scaled the plate to its width and cut off the scene's top (warehouse roofs, cranes) at 1680 × 1000. Fixed by trimming the source and fitting it by height, as above.
+- **Sheet grows when a field is focused:** password-manager extensions insert an element after the focused input; inside a `space-y-2` field it picked up an 8px margin. Every auth input now sits in its own wrapper, so injected elements land inside it. Checked by injecting an element after each input: sheet height stays the same.
 
 ## Not yet checked
 

@@ -27,14 +27,20 @@
   }
 
   .etched-scene {
+    /* Width ÷ height of the trimmed plate (vmb-etching-*.webp, 4096 × 1106). */
+    --plate-ratio: 3.703;
     --etching-image: var(--etching-small);
-    height: clamp(8rem, 22vh, 12rem);
+    height: clamp(7rem, calc(100vw / var(--plate-ratio)), 22vh);
+    /*
+     * The plate is fitted to the band's height, never cropped vertically: on a
+     * band wider than the plate it ends in its own baked-in side fade, on a
+     * narrower one it bleeds off both edges.
+     */
     mask-image:
-      var(--etching-image), linear-gradient(to right, transparent, #000 7%, #000 93%, transparent),
+      var(--etching-image),
       linear-gradient(to right, #000 calc(var(--etch-reveal) - 15%), transparent var(--etch-reveal));
     mask-size:
-      cover,
-      100% 100%,
+      auto 100%,
       100% 100%;
     mask-position: center bottom;
     mask-repeat: no-repeat;
@@ -44,14 +50,14 @@
 
   @media (min-width: 40rem) {
     .etched-scene {
-      height: clamp(9rem, 30vh, 20rem);
+      height: clamp(9rem, calc(100vw / var(--plate-ratio)), 30vh);
     }
   }
 
   @media (min-width: 64rem) {
     .etched-scene {
       --etching-image: var(--etching-large);
-      height: clamp(9rem, 36vh, 26rem);
+      height: min(calc(100vw / var(--plate-ratio)), 44vh);
     }
   }
 
