@@ -22,6 +22,7 @@ The auth pages (`/login`, `/activate`) redesigned as an engraved plate. It follo
 | State          | Behaviour                                                                                                                                               |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Arrival        | The form is ready immediately. The plate draws in once, left to right like a press roller: a mask sweep over 1.6 s, ease-in-out, starting after 150 ms. |
+| Seal           | On desktop, a faint guilloché rosette behind the sheet is cut in by a turning sweep (2.4 s, starting after 400 ms). It is hidden on small screens.      |
 | Focus          | The green ring and border from the design system. Nothing else moves.                                                                                   |
 | Password       | The eye toggle shows or hides the characters (`aria-pressed`, fixed label "Show password").                                                             |
 | Submitting     | The button changes to "Signing in…" with a spinner and is disabled until the action settles.                                                            |
@@ -40,9 +41,17 @@ python3 docs/design/etched-login/prepare-etching.py <engraving.png> apps/web/src
 
 The script writes 2400px and 1200px WebPs. It treats luminance ≥ 212 as bare paper, which keeps paper grain out of the alpha channel: with grain kept and higher quality settings, the stand-in's 2400px file was 846 KB; now it is 333 KB.
 
+The sheet's rosette is drawn in code rather than generated: `make-rosette.py` writes `vmb-rosette.svg`, which holds bands of phase-shifted wavy rings, as on a banknote seal (65 KB, 28 KB gzipped). `Rosette.svelte` uses it as a mask filled with 28% `--etching`.
+
+```sh
+python3 docs/design/etched-login/make-rosette.py apps/web/src/lib/assets/auth/vmb-rosette.svg
+```
+
 **Current art is a stand-in.** `stand-in-panorama.jpg` was generated with Pen's AI image generation to test the composition. Its production rights are unverified, so the final plate should come from the Recraft kit below.
 
 ## Recraft kit (Basic plan, ~1,000 credits)
+
+The Recraft MCP (`https://mcp.recraft.ai/mcp`, OAuth) spends the same subscription credits, so an agent can run these steps directly. On 28 Sep it failed to connect from the maintainer's network: `api.recraft.ai` and `mcp.recraft.ai` sit on Cloudflare IPs (`104.26.6.194`, `104.26.7.194`, `172.67.75.83`) whose TLS connections are reset, while `www.recraft.ai` loads. Retry over a VPN or Cloudflare WARP; the steps below also work by hand in Recraft Studio.
 
 1. **Build a custom style** (Styles → create), from 3–5 public-domain 19th-century steel engravings of harbours, warehouses or river towns. The Rijksmuseum's public-domain print collection has many Dutch East Indies harbour views. You can add `stand-in-panorama.jpg` as one reference. Don't use the Native site's artwork: it's another company's brand asset.
 2. **Model:** Recraft V4.1 raster (2 credits per image) for exploration, and V4.1 Pro (10 credits) for the chosen final. Don't use vector output: real hatching becomes tens of thousands of paths, too heavy to ship.

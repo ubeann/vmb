@@ -7,6 +7,7 @@
 <script lang="ts">
   import logo from "$lib/assets/brand/vmb-logo.png";
   import EtchedScene from "$lib/components/EtchedScene.svelte";
+  import Rosette from "$lib/components/Rosette.svelte";
   import type { Snippet } from "svelte";
 
   let {
@@ -22,7 +23,7 @@
   } = $props();
 </script>
 
-<div class="relative isolate flex min-h-dvh flex-col">
+<div class="relative isolate flex min-h-dvh flex-col overflow-x-clip">
   <header
     class="mx-auto flex w-full max-w-7xl items-center justify-between gap-6 px-6 pt-6 sm:px-10 lg:px-16 lg:pt-10"
   >
@@ -47,25 +48,31 @@
       </p>
     </div>
 
-    <section
-      aria-labelledby="auth-heading"
-      class="bg-card text-card-foreground w-full rounded-md border p-6 shadow-[0_0_0_5px_var(--card),0_0_0_6px_var(--border),0_24px_48px_-32px_color-mix(in_oklch,var(--etching)_40%,transparent)] sm:p-8 lg:justify-self-end"
-    >
-      <h1 id="auth-heading" class="font-display text-3xl font-medium tracking-tight">
-        {heading}
-      </h1>
-      {#if description}
-        <p class="text-muted-foreground mt-2 text-sm text-pretty">{@render description()}</p>
-      {/if}
+    <div class="relative w-full lg:justify-self-end">
+      <Rosette
+        class="absolute top-1/2 left-1/2 -z-10 hidden w-[34rem] -translate-x-1/2 -translate-y-1/2 lg:block"
+      />
 
-      <div class="mt-6">{@render children()}</div>
+      <section
+        aria-labelledby="auth-heading"
+        class="bg-card text-card-foreground w-full rounded-md border p-6 shadow-[0_0_0_5px_var(--card),0_0_0_6px_var(--border),0_24px_48px_-32px_color-mix(in_oklch,var(--etching)_40%,transparent)] sm:p-8"
+      >
+        <h1 id="auth-heading" class="font-display text-3xl font-medium tracking-tight">
+          {heading}
+        </h1>
+        {#if description}
+          <p class="text-muted-foreground mt-2 text-sm text-pretty">{@render description()}</p>
+        {/if}
 
-      {#if footer}
-        <div class="border-border text-muted-foreground mt-6 border-t pt-4 text-sm">
-          {@render footer()}
-        </div>
-      {/if}
-    </section>
+        <div class="mt-6">{@render children()}</div>
+
+        {#if footer}
+          <div class="border-border text-muted-foreground mt-6 border-t pt-4 text-sm">
+            {@render footer()}
+          </div>
+        {/if}
+      </section>
+    </div>
   </main>
 
   <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0" />
