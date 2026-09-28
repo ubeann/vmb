@@ -76,8 +76,26 @@ describe("login page", () => {
     const screen = await render(Page, { form: null });
 
     await expect
-      .element(screen.getByRole("contentinfo"))
-      .toHaveTextContent(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`);
+      .element(
+        screen
+          .getByRole("contentinfo")
+          .getByText(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`)
+      )
+      .toBeVisible();
+  });
+
+  it("offers a sign-in help address and the developer credit in the footer", async () => {
+    mockPage.url = new URL("http://localhost/login");
+
+    const screen = await render(Page, { form: null });
+    const footer = screen.getByRole("contentinfo");
+
+    await expect
+      .element(footer.getByRole("link", { name: "vmb_operation@vifieraminova.com" }))
+      .toHaveAttribute("href", "mailto:vmb_operation@vifieraminova.com");
+    await expect
+      .element(footer.getByRole("link", { name: "ubeann" }))
+      .toHaveAttribute("href", "https://github.com/ubeann");
   });
 
   it("renders missing-field errors beside the relevant input", async () => {

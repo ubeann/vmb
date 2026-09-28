@@ -1,8 +1,8 @@
 <!--
   Frame for the signed-out pages (login, activate): the VMB masthead and brand
   line on paper, the page's form on a ruled sheet, and the engraved panorama
-  along the foot of the viewport. The sheet stays usable before, during and
-  without the artwork.
+  resting on a ruled footer strip at the foot of the viewport. The sheet stays
+  usable before, during and without the artwork.
 -->
 <script lang="ts">
   import EtchedFlock from "$lib/components/EtchedFlock.svelte";
@@ -24,6 +24,9 @@
   } = $props();
 
   const copyrightYear = new Date().getFullYear();
+
+  const footerLinkClass =
+    "text-foreground decoration-muted-foreground hover:decoration-foreground focus-visible:ring-ring inline-flex min-h-6 pointer-coarse:min-h-11 items-center rounded-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none";
 </script>
 
 <div class="relative isolate flex min-h-dvh flex-col overflow-x-clip">
@@ -77,15 +80,31 @@
     </div>
   </main>
 
-  <footer
-    class="relative z-20 mx-auto w-full max-w-7xl px-6 text-center text-xs sm:px-10 lg:absolute lg:inset-x-0 lg:bottom-6 lg:px-16 lg:text-right"
+  <!-- The strip's top padding is the 2.5rem clear zone; the reserve fits it with 24px links, or 44px on touch. -->
+  <div
+    class="relative lg:[--etched-scene-reserve:4.5rem] lg:pointer-coarse:[--etched-scene-reserve:5.5rem]"
   >
-    <span
-      class="bg-background/90 text-muted-foreground inline-block rounded px-2 py-1 shadow-sm backdrop-blur-sm"
-    >
-      © {copyrightYear} PT. Vifiera Minova Bersaudara
-    </span>
-  </footer>
+    <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-full lg:mt-0" />
 
-  <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0" />
+    <footer
+      class="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:min-h-(--etched-scene-reserve) lg:px-16"
+    >
+      <div
+        class="border-border text-muted-foreground flex flex-col items-center gap-y-1 border-t pt-10 pb-6 text-center text-xs lg:flex-row lg:justify-between lg:gap-x-6 lg:pb-0"
+      >
+        <p class="whitespace-nowrap">© {copyrightYear} PT. Vifiera Minova Bersaudara</p>
+        <p class="flex flex-wrap justify-center gap-x-5 gap-y-1">
+          <span>
+            Trouble logging in?
+            <a class={footerLinkClass} href="mailto:vmb_operation@vifieraminova.com"
+              >vmb_operation@vifieraminova.com</a
+            >
+          </span>
+          <span
+            >Built by <a class={footerLinkClass} href="https://github.com/ubeann">ubeann</a></span
+          >
+        </p>
+      </div>
+    </footer>
+  </div>
 </div>

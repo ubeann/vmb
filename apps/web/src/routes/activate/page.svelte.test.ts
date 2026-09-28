@@ -50,8 +50,12 @@ describe("activate page", () => {
     const screen = await render(Page, { form: null });
 
     await expect
-      .element(screen.getByRole("contentinfo"))
-      .toHaveTextContent(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`);
+      .element(
+        screen
+          .getByRole("contentinfo")
+          .getByText(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`)
+      )
+      .toBeVisible();
   });
 
   it("shows a visible error when the hidden email is missing on the code step", async () => {

@@ -66,7 +66,8 @@
   @media (min-width: 64rem) {
     .etched-scene {
       --etching-image: var(--etching-large);
-      height: min(calc(100vw / var(--plate-ratio)), 44vh);
+      /* A reserve (the footer strip below the plate) comes off the height, so the plate's top edge stays put. */
+      height: calc(min(calc(100vw / var(--plate-ratio)), 44vh) - var(--etched-scene-reserve, 0px));
     }
   }
 
