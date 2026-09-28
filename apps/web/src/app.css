@@ -21,6 +21,7 @@
   --popover-foreground: oklch(0.247 0.094 267.7);
   /* The logo green, #087c16: 5.1:1 as link text on paper, 5.1:1 under white text */
   --primary: oklch(0.51 0.164 143.6);
+  --primary-hover: oklch(0.46 0.15 143.6);
   --primary-foreground: oklch(0.982 0.01 145.5);
   --secondary: oklch(0.95 0.01 273.4);
   --secondary-foreground: oklch(0.247 0.094 267.7);
@@ -63,6 +64,7 @@
   --popover-foreground: oklch(0.954 0.011 95.2);
   /* A lighter green with dark text: 8.9:1 as link text, 7.8:1 as a button fill */
   --primary: oklch(0.75 0.165 146.3);
+  --primary-hover: oklch(0.79 0.16 146.3);
   --primary-foreground: oklch(0.237 0.062 146.7);
   --secondary: oklch(0.284 0.082 271.7);
   --secondary-foreground: oklch(0.954 0.011 95.2);
@@ -171,6 +173,14 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+/* The registry's translucent primary hover fill loses text contrast on white.
+ * Use an opaque shade for default buttons and linked badges in both schemes. */
+@layer utilities {
+  :is([data-slot="button"], a[data-slot="badge"]).bg-primary:hover {
+    background-color: var(--primary-hover);
   }
 }
 
