@@ -70,6 +70,16 @@ describe("login page", () => {
     await expect.element(screen.getByText(/logged out/i)).toBeVisible();
   });
 
+  it("shows a copyright footer with the current year", async () => {
+    mockPage.url = new URL("http://localhost/login");
+
+    const screen = await render(Page, { form: null });
+
+    await expect
+      .element(screen.getByRole("contentinfo"))
+      .toHaveTextContent(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`);
+  });
+
   it("renders missing-field errors beside the relevant input", async () => {
     mockPage.url = new URL("http://localhost/login");
 

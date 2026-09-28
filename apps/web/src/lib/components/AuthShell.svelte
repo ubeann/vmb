@@ -22,6 +22,8 @@
     children: Snippet;
     footer?: Snippet;
   } = $props();
+
+  const copyrightYear = new Date().getFullYear();
 </script>
 
 <div class="relative isolate flex min-h-dvh flex-col overflow-x-clip">
@@ -74,6 +76,16 @@
       </section>
     </div>
   </main>
+
+  <footer
+    class="relative z-20 mx-auto w-full max-w-7xl px-6 text-center text-xs sm:px-10 lg:absolute lg:inset-x-0 lg:bottom-6 lg:px-16 lg:text-right"
+  >
+    <span
+      class="bg-background/90 text-muted-foreground inline-block rounded px-2 py-1 shadow-sm backdrop-blur-sm"
+    >
+      © {copyrightYear} PT. Vifiera Minova Bersaudara
+    </span>
+  </footer>
 
   <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0" />
 </div>

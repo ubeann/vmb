@@ -46,6 +46,14 @@ describe("activate page", () => {
     await expect.element(screen.getByText(/forgot your password/i)).toBeVisible();
   });
 
+  it("shows a copyright footer with the current year", async () => {
+    const screen = await render(Page, { form: null });
+
+    await expect
+      .element(screen.getByRole("contentinfo"))
+      .toHaveTextContent(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`);
+  });
+
   it("shows a visible error when the hidden email is missing on the code step", async () => {
     const screen = await render(Page, {
       form: {
