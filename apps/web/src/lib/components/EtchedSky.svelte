@@ -23,14 +23,18 @@
   .etched-sky {
     --sky-image: var(--sky-small);
     background-color: color-mix(in oklch, var(--etching) 45%, transparent);
-    /* Clear the masthead band and the headline column; the art sits right. */
+    /*
+     * Clear the masthead band and the headline column; the art sits right.
+     * The full-box gradients come first so no snapped tile edge of the image
+     * leaves bare gradient showing (see EtchedScene, #202).
+     */
     mask-image:
-      var(--sky-image), linear-gradient(to bottom, transparent 4rem, #000 9rem),
-      linear-gradient(to right, transparent 38%, #000 58%);
+      linear-gradient(to bottom, transparent 4rem, #000 9rem),
+      linear-gradient(to right, transparent 38%, #000 58%), var(--sky-image);
     mask-size:
-      cover,
       100% 100%,
-      100% 100%;
+      100% 100%,
+      cover;
     mask-position: right top;
     mask-repeat: no-repeat;
     mask-composite: intersect;
