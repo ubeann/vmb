@@ -19,3 +19,7 @@ VMB is being migrated from `ubeann/vmb-warehouse` (Laravel + Filament). See `doc
 ### Agent harnesses
 
 Which harnesses (Claude Code, Codex, OpenCode, Antigravity) load these instructions and the skill-driven flows, and the routing constraint that follows. See `docs/agents/harnesses.md`.
+
+### Design workflow
+
+Redesigning a screen's look, or making illustrations, logos or motion for it: the steps, rules and paid tools (Recraft, Pen, Rive) proven on the auth pages. See `docs/agents/design-workflow.md`.
