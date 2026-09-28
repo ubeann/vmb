@@ -21,5 +21,12 @@ export default [
     files: ["src/lib/components/ui/**"],
     rules: { "svelte/no-navigation-without-resolve": "off" }
   },
+  {
+    // Node tooling scripts; `document` appears only inside Playwright page.evaluate callbacks.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: { process: "readonly", console: "readonly", document: "readonly" }
+    }
+  },
   { ignores: [".svelte-kit/**"] }
 ];
