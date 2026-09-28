@@ -6,7 +6,7 @@ token, so the source only needs to say *where* ink is: this writes black RGB
 with the ink density in the alpha channel. Paper becomes transparent, so the
 same file works on the light paper and the dark navy scheme.
 
-Usage: prepare-etching.py <source.png> <out-dir> [--name vmb-etching] [--trim] [--fade-sides 0.06]
+Usage: prepare-etching.py <source.png> <out-dir> [--name vmb-etching] [--trim] [--trim-x] [--fade-sides 0.06]
                           [--white 212] [--black 40]
 
 Writes <name>-2400.webp and <name>-1200.webp (needs `cwebp`).
@@ -28,6 +28,7 @@ parser.add_argument("--black", type=int, default=40, help="luminance treated as 
 parser.add_argument("--quality", type=int, default=60)
 parser.add_argument("--alpha-quality", type=int, default=50)
 parser.add_argument("--trim", action="store_true", help="crop empty paper above and below the ink")
+parser.add_argument("--trim-x", action="store_true", help="also crop empty paper left and right of the ink")
 parser.add_argument("--fade-sides", type=float, default=0, help="fraction of width to fade out at each side")
 args = parser.parse_args()
 
@@ -41,6 +42,12 @@ if args.trim:
     inked = [y for y, count in enumerate(rows) if count > alpha.width // 800]
     pad = alpha.height // 50
     alpha = alpha.crop((0, max(inked[0] - pad, 0), alpha.width, min(inked[-1] + pad, alpha.height)))
+
+if args.trim_x:
+    cols = [sum(1 for y in range(0, alpha.height, 8) if alpha.getpixel((x, y)) > 96) for x in range(alpha.width)]
+    inked = [x for x, count in enumerate(cols) if count > 0]
+    pad = alpha.height // 50
+    alpha = alpha.crop((max(inked[0] - pad, 0), 0, min(inked[-1] + pad, alpha.width), alpha.height))
 
 if args.fade_sides:
     # Bake the side fade into the art, so it ends softly wherever CSS places it.

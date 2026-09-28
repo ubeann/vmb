@@ -5,6 +5,7 @@
   without the artwork.
 -->
 <script lang="ts">
+  import EtchedFlock from "$lib/components/EtchedFlock.svelte";
   import EtchedScene from "$lib/components/EtchedScene.svelte";
   import EtchedSky from "$lib/components/EtchedSky.svelte";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
@@ -38,7 +39,7 @@
   <main
     class="relative z-10 mx-auto grid w-full max-w-7xl flex-1 content-start gap-8 px-6 pt-8 pb-6 sm:px-10 sm:pt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:gap-16 lg:px-16 lg:pt-16"
   >
-    <div class="max-w-xl lg:pt-4">
+    <div class="relative max-w-xl self-start lg:pt-4">
       <p
         class="font-display text-[2rem] leading-[1.05] font-normal tracking-tight text-balance sm:text-5xl lg:text-6xl"
       >
@@ -48,6 +49,7 @@
         Warehouse items, trucking orders and division expenses, kept in one place for the people who
         run them.
       </p>
+      <EtchedFlock class="absolute top-full left-0 mt-10 w-[26rem]" />
     </div>
 
     <div class="relative w-full lg:justify-self-end">
