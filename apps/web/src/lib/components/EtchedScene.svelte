@@ -35,13 +35,22 @@
      * The plate is fitted to the band's height, never cropped vertically: on a
      * band wider than the plate it ends in its own baked-in side fade, on a
      * narrower one it bleeds off both edges.
+     *
+     * The full-box reveal gradient must be the top layer. Chrome snaps the
+     * plate's tile to device pixels, and `intersect` only masks where the top
+     * layer draws, so with the plate on top a fractional band edge (e.g. at
+     * 1.5× zoom) left a sliver of bare gradient: a faint line (#202).
      */
     mask-image:
-      var(--etching-image),
-      linear-gradient(to right, #000 calc(var(--etch-reveal) - 15%), transparent var(--etch-reveal));
+      linear-gradient(
+        to right,
+        #000 calc(var(--etch-reveal) - 15%),
+        transparent var(--etch-reveal)
+      ),
+      var(--etching-image);
     mask-size:
-      auto 100%,
-      100% 100%;
+      100% 100%,
+      auto 100%;
     mask-position: center bottom;
     mask-repeat: no-repeat;
     mask-composite: intersect;
