@@ -8,7 +8,7 @@ For branches you create, use `<type>/<scope>/<slug>`, matching the commit type b
 
 ## Choose the Git workflow
 
-Check the current checkout with `git rev-parse --show-toplevel` and `git worktree list`. Then choose by checkout and PR dependency:
+Check the current checkout with `git rev-parse --show-toplevel` and `git worktree list`. If the top level is the first path `git worktree list` prints and the current branch is `gitbutler/workspace`, you are in the GitButler-managed workspace; any other path is a linked worktree. Then choose by checkout and PR dependency:
 
 | Checkout                           | Independent PR                                                                            | PR depending on an unmerged PR                                                                                                                                                                            |
 | ---------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -97,7 +97,7 @@ The `Co-Authored-By` trailer (below) names the model that did the work, so compa
 
 ## Big issues: sub-issues and stacked PRs
 
-A big issue — one too large for a single PR — stays focused on the plan; detail work moves to GitHub sub-issues, one per tracer-bullet ticket, linked via GitHub's native sub-issue relationship (the same `gh api` sub-issues-endpoint mechanic `issue-tracker.md`'s wayfinding operations use — reuse that linking call, not the `wayfinder:*` labels or map/claim/frontier-query flow around it, which are scoped to `/wayfinder`). Give each sub-issue its own branch and stack it on the one before it only when it depends on that ticket's changes. In the GitButler workspace:
+A big issue — one too large for a single PR — stays focused on the plan; detail work moves to GitHub sub-issues, one per tracer-bullet ticket, linked via GitHub's native sub-issue relationship (the same `gh api` sub-issues-endpoint mechanic `issue-tracker.md`'s wayfinding operations use — reuse that linking call, not the `wayfinder:*` labels or map/claim/frontier-query flow around it, which are scoped to `/wayfinder`). Give each sub-issue its own branch and stack it on the one before it only when it depends on that ticket's changes. In a linked worktree, build the stack by hand as described in [Choose the Git workflow](#choose-the-git-workflow). In the GitButler workspace:
 
 - `but move <child-branch> --above <parent-branch>` stacks an existing branch on its dependency
 - `but pr new <top-branch> -t` publishes the whole stack in one step, with PR bases set automatically
@@ -112,7 +112,7 @@ Default to **squash** (`gh pr merge --squash`) for a standalone ticket or the PR
 
 If this repo is enrolled in GitHub's native stacked-PR feature (public preview since 2026-07-30), merging the whole stack in one action applies squash per layer atomically and the exception above doesn't apply. Check with `but config forge github-stacks` — it reports whether GitButler is configured to use native stacks when available (`but config forge github-stacks disable` opts out) — but that only shows GitButler's local setting, not whether GitHub has actually enrolled this repo. Confirm the real thing by publishing a stack with `but pr new <top-branch> -t` and reading its output: it says explicitly whether it created a native GitHub stack or fell back to description-footer stacking.
 
-For a manual stack made in linked worktrees, merge bottom-up with the same merge-method rule. After each lower PR merges, check that the next PR targets the right base and contains only its own changes; use `gh pr edit <number> --base master` if it still targets the merged branch. A merge commit preserves the parent commits. After a squash or rebase merge, update the next branch from the new base with `git fetch origin` and `git rebase --onto origin/master <old-parent-branch> <next-branch>`, then `git push --force-with-lease`; work upward one layer at a time. For a native GitHub stack, use its stack merge and rebase operations instead of manually rewriting its branches.
+For a manual stack made in linked worktrees, merge bottom-up with the same merge-method rule. After each lower PR merges, check that the next PR targets the right base and contains only its own changes; use `gh pr edit <number> --base master` if it still targets the merged branch. A merge commit preserves the parent commits. If a lower PR is squash- or rebase-merged anyway, first record its tip with `git rev-parse <parent-branch>`; deleting the branch on merge removes that ref. After the merge, run `git fetch origin` and `git rebase --onto origin/master <old-parent-sha> <next-branch>`, then `git push --force-with-lease`. Work upward one layer at a time. For a native GitHub stack, use its stack merge and rebase operations instead of manually rewriting its branches.
 
 ## Local hooks
 
