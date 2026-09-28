@@ -1,6 +1,6 @@
 # Etched login — design round
 
-The auth pages (`/login`, `/activate`) redesigned as an engraved plate. It follows the design workflow trial in `docs/design/workflow.md` on the research branch `t3code/design-workflow-research`: brand brief → style territory → storyboard → asset → motion → rendered critique.
+The auth pages (`/login`, `/activate`) redesigned as an engraved plate. This round was the pilot for the [design workflow](../../agents/design-workflow.md), and is its worked example.
 
 ## Brief
 
