@@ -164,6 +164,8 @@
     }
   }
 
+  /* CSS motion only. Svelte transitions and JS animation don't pass through
+   * here; they gate on `prefersReducedMotion` themselves (ADR-0035 rule 6). */
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,

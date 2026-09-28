@@ -12,6 +12,7 @@
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import { toast } from "svelte-sonner";
   import DemoForm from "./DemoForm.svelte";
+  import MotionDemo from "./MotionDemo.svelte";
   import type { PageData } from "./$types.js";
 
   let { data }: { data: PageData } = $props();
@@ -276,6 +277,15 @@
       >
       <Button variant="outline" onclick={() => toast.info("3 users imported")}>Info toast</Button>
     </div>
+  </section>
+
+  <section class="space-y-4" aria-labelledby="motion">
+    {@render section(
+      "motion",
+      "Reduced motion",
+      "CSS motion collapses globally; Svelte transitions gate on prefersReducedMotion themselves."
+    )}
+    <MotionDemo />
   </section>
 
   <section class="space-y-4" aria-labelledby="icons">
