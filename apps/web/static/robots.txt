@@ -1,0 +1,11 @@
+# VMB is an internal tool: nothing here belongs in a search index. Every page
+# also sends `noindex, nofollow`. Link-preview bots stay allowed so a shared
+# link (an activation email forwarded to chat) still previews with the brand.
+User-agent: Slackbot-LinkExpanding
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: WhatsApp
+Allow: /
+
+User-agent: *
+Disallow: /
