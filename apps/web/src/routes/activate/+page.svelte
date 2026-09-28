@@ -70,17 +70,20 @@
 
         <div class="space-y-2">
           <Label for="otp">Code</Label>
-          <Input
-            class="min-h-11 font-mono tracking-[0.3em]"
-            id="otp"
-            type="text"
-            name="otp"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            aria-invalid={fieldErrors?.otp ? "true" : undefined}
-            aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
-            required
-          />
+          <!-- Own wrapper: password-manager extensions insert elements after the input, which would pick up the field's spacing. -->
+          <div class="relative">
+            <Input
+              class="min-h-11 font-mono tracking-[0.3em]"
+              id="otp"
+              type="text"
+              name="otp"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              aria-invalid={fieldErrors?.otp ? "true" : undefined}
+              aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
+              required
+            />
+          </div>
           <p id="otp-hint" class="text-muted-foreground text-sm">Use the code from your email.</p>
           {#if fieldErrors?.otp}
             <p id="otp-error" role="alert" class="text-destructive text-sm">
@@ -130,16 +133,18 @@
       <form method="POST" use:enhance={track} class="space-y-5">
         <div class="space-y-2">
           <Label for="email">Email</Label>
-          <Input
-            class="min-h-11"
-            id="email"
-            type="email"
-            name="email"
-            autocomplete="email"
-            aria-invalid={fieldErrors?.email ? "true" : undefined}
-            aria-describedby={fieldErrors?.email ? "email-error" : undefined}
-            required
-          />
+          <div class="relative">
+            <Input
+              class="min-h-11"
+              id="email"
+              type="email"
+              name="email"
+              autocomplete="email"
+              aria-invalid={fieldErrors?.email ? "true" : undefined}
+              aria-describedby={fieldErrors?.email ? "email-error" : undefined}
+              required
+            />
+          </div>
           {#if fieldErrors?.email}
             <p id="email-error" role="alert" class="text-destructive text-sm">
               {fieldErrors.email}

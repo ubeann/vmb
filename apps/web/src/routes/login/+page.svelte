@@ -70,16 +70,19 @@
   >
     <div class="space-y-2">
       <Label for="email">Email</Label>
-      <Input
-        class="min-h-11"
-        id="email"
-        type="email"
-        name="email"
-        autocomplete="email"
-        aria-invalid={fieldErrors?.email ? "true" : undefined}
-        aria-describedby={fieldErrors?.email ? "email-error" : undefined}
-        required
-      />
+      <!-- Own wrapper: password-manager extensions insert elements after the input, which would pick up the field's spacing. -->
+      <div class="relative">
+        <Input
+          class="min-h-11"
+          id="email"
+          type="email"
+          name="email"
+          autocomplete="email"
+          aria-invalid={fieldErrors?.email ? "true" : undefined}
+          aria-describedby={fieldErrors?.email ? "email-error" : undefined}
+          required
+        />
+      </div>
       {#if fieldErrors?.email}
         <p id="email-error" role="alert" class="text-destructive text-sm">
           {fieldErrors.email}
