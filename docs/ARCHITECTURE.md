@@ -195,11 +195,11 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 ### 7.4 Design System
 
 - **Tailwind v4 + shadcn-svelte** (ADR-0035): registry components copied into `apps/web/src/lib/components/ui` over bits-ui's accessible primitives; VMB-specific composition lives beside them in `$lib/components`.
-- One token source, `apps/web/src/app.css`: semantic OKLCH variables for light and `.dark`, teal primary on a cool-grey neutral. Pages use token utilities only — no raw colours.
+- One token source, `apps/web/src/app.css`: semantic OKLCH variables for light and `.dark` — navy ink and the logo green on warm paper, plus an `--etching` ink for engraved illustrations (ADR-0036). Pages use token utilities only — no raw colours.
 - `/design-system` is the living reference, and ADR-0035 holds the rules every UI PR is checked against (tokens, ownership, icons, forms, data, accessibility, dark mode).
 
 See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-24 (§2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
+_Last updated: 2026-09-28 (§7.4: the navy and green palette, per ADR-0036; §2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
