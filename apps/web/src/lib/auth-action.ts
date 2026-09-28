@@ -1,6 +1,8 @@
 import type { RequestEvent } from "@sveltejs/kit";
 import { fail } from "@sveltejs/kit";
 import { withAuthApiClient } from "./api-access.js";
+import type { AuthErrorLike } from "./auth-error-copy.js";
+import { mapAuthErrorToCopy } from "./auth-error-copy.js";
 import type { AuthApiClient } from "./auth.js";
 
 type Data = Record<string, unknown> | void;
@@ -9,9 +11,11 @@ type MaybePromise<T> = T | Promise<T>;
 // The shared shape of the Better Auth calls these actions make: a resolved
 // call reports a domain failure through `error` (its message is optional)
 // rather than throwing. A thrown transport failure is different, and stays
-// owned by the access seam (issue #82).
+// owned by the access seam (issue #82). `code` and `status` (from
+// `AuthErrorLike`) drive the copy mapping in `auth-error-copy.js`; `message`
+// is Better Auth's own developer text and is never shown to a user (issue #205).
 export interface AuthCallResult {
-  error?: { message?: string } | null;
+  error?: (AuthErrorLike & { message?: string }) | null;
 }
 
 export interface AuthActionConfig<Field extends string> {
@@ -73,14 +77,14 @@ export function createAuthAction<const Field extends string>(config: AuthActionC
       console.error(`${config.logLabel}: request to API failed`, access.error);
       return fail(500, {
         ...config.failureData?.(values),
-        error: "Something went wrong. Please try again."
+        error: "Unable to reach the server. Check your connection and try again."
       });
     }
 
     if (access.value.error) {
       return fail(400, {
         ...config.failureData?.(values),
-        error: access.value.error.message ?? config.fallbackErrorMessage
+        error: mapAuthErrorToCopy(access.value.error, config.fallbackErrorMessage)
       });
     }
 

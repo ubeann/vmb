@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthErrorLike } from "./auth-error-copy.js";
 
 const withAuthApiClientMock = vi.fn();
 
@@ -16,7 +17,7 @@ type Run = (
   client: unknown,
   values: { email: string; password: string },
   event: unknown
-) => Promise<{ error?: { message?: string } | null }>;
+) => Promise<{ error?: (AuthErrorLike & { message?: string }) | null }>;
 
 function makeAction(
   run: Run = async () => ({ error: null }),
@@ -85,24 +86,37 @@ describe("createAuthAction", () => {
 
     expect(result).toMatchObject({
       status: 500,
-      data: { error: "Something went wrong. Please try again." }
+      data: { error: "Unable to reach the server. Check your connection and try again." }
     });
     expect(consoleError).toHaveBeenCalledWith("login action: request to API failed", error);
     consoleError.mockRestore();
   });
 
-  it("uses the Better Auth error's message when it has one", async () => {
-    const action = makeAction(async () => ({ error: { message: "Invalid email or password" } }));
+  it("maps a known Better Auth error code to VMB copy, never the raw message", async () => {
+    const action = makeAction(async () => ({
+      error: { code: "EMAIL_NOT_VERIFIED", message: "email not verified" }
+    }));
 
     const result = await action(fakeAuthEvent({ email: "a@example.com", password: "nope" }));
 
     expect(result).toMatchObject({
       status: 400,
-      data: { error: "Invalid email or password" }
+      data: { error: "Verify your email to sign in. Check your inbox for the verification link." }
     });
   });
 
-  it("falls back to the route's error when Better Auth reports none", async () => {
+  it("treats a 429 status as rate limiting even though it carries no code", async () => {
+    const action = makeAction(async () => ({ error: { status: 429 } }));
+
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "nope" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { error: "Too many attempts. Wait a moment and try again." }
+    });
+  });
+
+  it("falls back to the route's error when Better Auth reports no known code", async () => {
     const action = makeAction(async () => ({ error: {} }));
 
     const result = await action(fakeAuthEvent({ email: "a@example.com", password: "nope" }));
