@@ -1,13 +1,30 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
+  import CircleAlert from "@lucide/svelte/icons/circle-alert";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import AuthShell from "$lib/components/AuthShell.svelte";
+  import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import * as Card from "$lib/components/ui/card/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import type { ActionData } from "./$types.js";
 
   let { form }: { form: ActionData } = $props();
+
+  let submitting = $state(false);
+
+  // Shared by every form here: the button reports progress until the action settles.
+  const track = () => {
+    submitting = true;
+    return async ({ update }: { update: () => Promise<void> }) => {
+      await update();
+      submitting = false;
+    };
+  };
+
+  const linkClass =
+    "text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
 
   let step = $derived(form && "step" in form && form.step === "reset" ? "reset" : "request");
   let email = $derived(form && "email" in form ? form.email : "");
@@ -22,123 +39,126 @@
   <title>Set your password — VMB</title>
 </svelte:head>
 
-<main class="flex min-h-[calc(100vh-5rem)] items-center justify-center px-4 py-12">
-  <div class="w-full max-w-md space-y-6">
-    <div class="space-y-2 text-center">
-      <p class="text-primary text-sm font-semibold tracking-widest uppercase">VMB</p>
-      <h1 class="text-2xl font-semibold tracking-tight">Set your password</h1>
-      <p class="text-muted-foreground text-sm">
-        First time here or forgot your password? We will email you a one-time code to set a new one.
-      </p>
-    </div>
+<AuthShell heading="Set your password">
+  {#snippet description()}
+    First time here or forgot your password? We will email you a one-time code to set a new one.
+  {/snippet}
 
-    <Card.Root>
-      <Card.Header>
-        <Card.Title>{step === "reset" ? "Enter your code" : "Get a code"}</Card.Title>
-        <Card.Description>
-          {#if step === "reset"}
-            We sent a code to <strong class="text-foreground">{email}</strong>. It expires in 5
-            minutes.
-          {:else}
-            Enter the email associated with your VMB access.
-          {/if}
-        </Card.Description>
-      </Card.Header>
-      <Card.Content class="space-y-5">
-        {#if form?.error && (!fieldErrors || (step === "reset" && fieldErrors.email))}
-          <p
-            role="alert"
-            class="border-destructive/40 text-destructive rounded-lg border p-3 text-sm"
-          >
-            {form.error}
-          </p>
-        {/if}
+  <h2 class="text-base font-semibold">{step === "reset" ? "Enter your code" : "Get a code"}</h2>
+  <p class="text-muted-foreground mt-1 text-sm">
+    {#if step === "reset"}
+      We sent a code to <strong class="text-foreground">{email}</strong>. It expires in 5 minutes.
+    {:else}
+      Enter the email associated with your VMB access.
+    {/if}
+  </p>
 
-        {#if step === "reset"}
-          <form method="POST" action="?/reset" use:enhance class="space-y-5">
-            <input type="hidden" name="email" value={email} />
-
-            <div class="space-y-2">
-              <Label for="otp">Code</Label>
-              <Input
-                class="min-h-11"
-                id="otp"
-                type="text"
-                name="otp"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                aria-invalid={fieldErrors?.otp ? "true" : undefined}
-                aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
-                required
-              />
-              <p id="otp-hint" class="text-muted-foreground text-sm">
-                Use the code from your email.
-              </p>
-              {#if fieldErrors?.otp}
-                <p id="otp-error" role="alert" class="text-destructive text-sm">
-                  {fieldErrors.otp}
-                </p>
-              {/if}
-            </div>
-
-            <div class="space-y-2">
-              <Label for="new-password">New password</Label>
-              <Input
-                class="min-h-11"
-                id="new-password"
-                type="password"
-                name="password"
-                autocomplete="new-password"
-                aria-invalid={fieldErrors?.password ? "true" : undefined}
-                aria-describedby={fieldErrors?.password ? "password-error" : undefined}
-                required
-              />
-              {#if fieldErrors?.password}
-                <p id="password-error" role="alert" class="text-destructive text-sm">
-                  {fieldErrors.password}
-                </p>
-              {/if}
-            </div>
-
-            <Button type="submit" class="min-h-11 w-full">Set password</Button>
-          </form>
-
-          <form method="POST" use:enhance>
-            <input type="hidden" name="email" value={email} />
-            <Button type="submit" variant="outline" class="min-h-11 w-full">Send a new code</Button>
-          </form>
-        {:else}
-          <form method="POST" use:enhance class="space-y-5">
-            <div class="space-y-2">
-              <Label for="email">Email</Label>
-              <Input
-                class="min-h-11"
-                id="email"
-                type="email"
-                name="email"
-                autocomplete="email"
-                aria-invalid={fieldErrors?.email ? "true" : undefined}
-                aria-describedby={fieldErrors?.email ? "email-error" : undefined}
-                required
-              />
-              {#if fieldErrors?.email}
-                <p id="email-error" role="alert" class="text-destructive text-sm">
-                  {fieldErrors.email}
-                </p>
-              {/if}
-            </div>
-            <Button type="submit" class="min-h-11 w-full">Send code</Button>
-          </form>
-        {/if}
-      </Card.Content>
-    </Card.Root>
-
-    <p class="text-center text-sm">
-      <a
-        href={resolve("/login")}
-        class="text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
-        >Back to log in</a
+  <div class="mt-5 space-y-5">
+    {#if form?.error && (!fieldErrors || (step === "reset" && fieldErrors.email))}
+      <p
+        role="alert"
+        class="border-destructive/40 text-destructive flex gap-2.5 rounded-md border px-3.5 py-3 text-sm"
       >
-    </p>
+        <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>{form.error}</span>
+      </p>
+    {/if}
+
+    {#if step === "reset"}
+      <form method="POST" action="?/reset" use:enhance={track} class="space-y-5">
+        <input type="hidden" name="email" value={email} />
+
+        <div class="space-y-2">
+          <Label for="otp">Code</Label>
+          <Input
+            class="min-h-11 font-mono tracking-[0.3em]"
+            id="otp"
+            type="text"
+            name="otp"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            aria-invalid={fieldErrors?.otp ? "true" : undefined}
+            aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
+            required
+          />
+          <p id="otp-hint" class="text-muted-foreground text-sm">Use the code from your email.</p>
+          {#if fieldErrors?.otp}
+            <p id="otp-error" role="alert" class="text-destructive text-sm">
+              {fieldErrors.otp}
+            </p>
+          {/if}
+        </div>
+
+        <div class="space-y-2">
+          <Label for="new-password">New password</Label>
+          <PasswordInput
+            id="new-password"
+            name="password"
+            autocomplete="new-password"
+            aria-invalid={fieldErrors?.password ? "true" : undefined}
+            aria-describedby={fieldErrors?.password ? "password-error" : undefined}
+            required
+          />
+          {#if fieldErrors?.password}
+            <p id="password-error" role="alert" class="text-destructive text-sm">
+              {fieldErrors.password}
+            </p>
+          {/if}
+        </div>
+
+        <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
+          {#if submitting}
+            <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
+            Saving…
+          {:else}
+            Set password
+          {/if}
+        </Button>
+      </form>
+
+      <form method="POST" use:enhance={track}>
+        <input type="hidden" name="email" value={email} />
+        <Button
+          type="submit"
+          variant="outline"
+          class="min-h-11 w-full"
+          disabled={submitting}
+          aria-busy={submitting}>Send a new code</Button
+        >
+      </form>
+    {:else}
+      <form method="POST" use:enhance={track} class="space-y-5">
+        <div class="space-y-2">
+          <Label for="email">Email</Label>
+          <Input
+            class="min-h-11"
+            id="email"
+            type="email"
+            name="email"
+            autocomplete="email"
+            aria-invalid={fieldErrors?.email ? "true" : undefined}
+            aria-describedby={fieldErrors?.email ? "email-error" : undefined}
+            required
+          />
+          {#if fieldErrors?.email}
+            <p id="email-error" role="alert" class="text-destructive text-sm">
+              {fieldErrors.email}
+            </p>
+          {/if}
+        </div>
+        <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
+          {#if submitting}
+            <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
+            Sending…
+          {:else}
+            Send code
+          {/if}
+        </Button>
+      </form>
+    {/if}
   </div>
-</main>
+
+  {#snippet footer()}
+    <a href={resolve("/login")} class={linkClass}>Back to log in</a>
+  {/snippet}
+</AuthShell>
