@@ -19,6 +19,14 @@ docs: add architecture guide and decision records
 
 Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`. The body is a bullet list of _what_ changed; _why_ belongs in the PR body, not the commit.
 
+## Commit signing
+
+Respect the contributor's configured commit signing. This maintainer signs commits with a 1Password SSH key and may need to approve each signing prompt. Run the normal commit command and allow time for that approval. If signing fails or approval is unavailable, leave the changes uncommitted (and staged if using Git) and report the failure. Use an unsigned commit only when the contributor explicitly authorizes that exception for that commit; do not silently set `commit.gpgsign=false` or use `--no-gpg-sign`.
+
+In a GitButler workspace, check `git config --show-origin --get gitbutler.signCommits` before committing. GitButler gives this setting precedence over `commit.gpgsign` and can set it to `false` locally after a signing failure. Restore signing for this repository with `git config --local gitbutler.signCommits true` when the signer is available, then verify that the next GitButler commit is signed. In a linked worktree, use the normal signed `git commit` flow. The [1Password setup guide](https://www.1password.dev/ssh/git-commit-signing) covers machine-specific configuration; GitHub must have the public key registered as a **signing key** to mark commits Verified.
+
+After pushing, check GitHub's **Verified** status for the commit. If an unsigned commit is already on your own PR branch, `git commit --amend --no-edit -S` and `git push --force-with-lease` can replace it after the signer is available; this changes the commit SHA, so confirm no one else has updated the branch before rewriting it. Use GitButler's history tools for a branch in its managed workspace.
+
 ## PR body
 
 Two sections:
