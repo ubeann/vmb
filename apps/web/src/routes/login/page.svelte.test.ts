@@ -23,7 +23,7 @@ describe("login page", () => {
 
     await expect.element(screen.getByRole("heading", { name: "Log in" })).toBeVisible();
     await expect.element(screen.getByLabelText("Email")).toBeVisible();
-    await expect.element(screen.getByLabelText("Password")).toBeVisible();
+    await expect.element(screen.getByLabelText("Password", { exact: true })).toBeVisible();
     await expect.element(screen.getByRole("button", { name: "Log in" })).toBeVisible();
     expect(screen.getByRole("alert").elements()).toHaveLength(0);
     expect(screen.getByText(/verified/i).elements()).toHaveLength(0);
@@ -81,6 +81,8 @@ describe("login page", () => {
     });
 
     await expect.element(screen.getByText("Password is required.")).toBeVisible();
-    await expect.element(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
+    await expect
+      .element(screen.getByLabelText("Password", { exact: true }))
+      .toHaveAttribute("aria-invalid", "true");
   });
 });

@@ -8,14 +8,14 @@ type OutboundEmail = {
 };
 
 // Email clients do not reliably support CSS variables or OKLCH. These hex
-// equivalents follow the light palette in apps/web/src/app.css (ADR-0035).
+// equivalents follow the light palette in apps/web/src/app.css (ADR-0036).
 const emailColors = {
-  primary: "#00786f",
-  foreground: "#090b0c",
-  mutedForeground: "#5e6f73",
-  muted: "#f4f6f6",
+  primary: "#087c16",
+  foreground: "#0e1b4d",
+  mutedForeground: "#565e7e",
+  muted: "#f0ede4",
   card: "#ffffff",
-  border: "#e3e7e8"
+  border: "#dddad0"
 };
 
 function escapeHtml(value: string) {
