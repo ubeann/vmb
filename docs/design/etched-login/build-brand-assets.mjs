@@ -40,11 +40,15 @@ if (paths.length !== 2) {
 }
 const [markPath, stripesPath] = paths.map((match) => match[2]);
 
-// At 16px the full logo's fine letter cutouts disappear. Keep its blue swoosh
-// and green striped V as a simplified tab mark; the other assets use the full logo.
+// The logo's viewBox, and the same box padded top and bottom to a square.
 const LOGO_BOX = "205 260 1621 972";
+const SQUARE = "205 -64.5 1621 1621";
 
-const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><style>.m{fill:${LIGHT.mark}}.s{fill:${LIGHT.stripes}}@media (prefers-color-scheme:dark){.m{fill:${DARK.mark}}.s{fill:${DARK.stripes}}}</style><path class="m" d="M10 4C4.5 7.5 2 12 3 18c1.4 7.5 9 11 24 9-10 0-16.6-2.5-19-8.8C6.5 13 7.5 8.5 10 4Z"/><path class="s" d="M9 9h3l3.5 11L19 9h3l-5 15h-3zM22 9h5v2.4h-5zM21 13h6v2.4h-6zM20 17h7v2.4h-7z"/></svg>\n`;
+// The favicon is the real mark, not a redraw: at 16px the letters cut out of
+// the green blur, but the swoosh-and-oval silhouette stays the brand's. The
+// cutouts are transparent, so the tab strip shows through them — paper-like
+// in light browsers, dark in dark ones, as the logo reads in the app.
+const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${SQUARE}"><style>.m{fill:${LIGHT.mark}}.s{fill:${LIGHT.stripes}}@media (prefers-color-scheme:dark){.m{fill:${DARK.mark}}.s{fill:${DARK.stripes}}}</style><path class="m" d="${markPath}"/><path class="s" d="${stripesPath}"/></svg>\n`;
 
 const logoSvg = (viewBox) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"><path fill="${LIGHT.mark}" d="${markPath}"/><path fill="${LIGHT.stripes}" d="${stripesPath}"/></svg>`;

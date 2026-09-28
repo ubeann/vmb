@@ -52,7 +52,7 @@ The icon set and link-preview image in `apps/web/static` are built from `vmb-log
 node docs/design/etched-login/build-brand-assets.mjs
 ```
 
-`favicon.svg` simplifies the logo to its blue swoosh and green striped V so the shape reads at 16px. It is transparent and switches to the dark palette with `prefers-color-scheme`. `favicon.ico` (32px, 1 KB) and `apple-touch-icon.png` (180px, 7 KB) sit on an opaque paper tile, since neither can switch scheme. `og-image.jpg` (1200 × 630, 104 KB) is the auth page in miniature. It is a JPEG because WhatsApp drops preview images over about 300 KB.
+`favicon.svg` is the full mark, not a redraw. At 16px the letters cut out of the green blur, but the swoosh-and-oval silhouette stays recognisable; a legible 16px glyph would need a designer's simplified mark. It is transparent and switches to the dark palette with `prefers-color-scheme`. `favicon.ico` (32px, 1 KB) and `apple-touch-icon.png` (180px, 7 KB) sit on an opaque paper tile, since neither can switch scheme. `og-image.jpg` (1200 × 630, 104 KB) is the auth page in miniature. It is a JPEG because WhatsApp drops preview images over about 300 KB.
 
 ## Recraft rounds (28 Sep, 22 credits)
 
