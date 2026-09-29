@@ -70,6 +70,12 @@
     view-transition-name: auth-card;
   }
 
+  /* The browser otherwise cross-fades the entire page behind the named card. */
+  :global(::view-transition-old(root)),
+  :global(::view-transition-new(root)) {
+    animation: none;
+  }
+
   :global(::view-transition-group(auth-card)) {
     animation-duration: 220ms;
     animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);

@@ -23,7 +23,7 @@
 <h1
   id="auth-heading"
   tabindex="-1"
-  class="font-display text-3xl font-medium tracking-tight outline-none"
+  class="font-display focus:outline-ring text-3xl font-medium tracking-tight focus:rounded-sm focus:outline-2 focus:outline-offset-4"
 >
   {heading}
 </h1>
