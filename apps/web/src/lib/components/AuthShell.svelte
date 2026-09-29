@@ -86,9 +86,9 @@
     </div>
   </main>
 
-  <!-- The plate's bottom fades into the paper; the strip's top padding is the clear zone below the plate's last visible ink. The reserve fits 24px links, or 44px on touch. The headroom is the flock's bottom edge (505px from 80rem wide) plus its 2.5rem clear zone: it lets the plate grow into the room above it, so revisit it when the brand line or flock moves. -->
+  <!-- The plate's bottom fades into the paper; the strip's top padding is the clear zone below the plate's last visible ink. The reserve fits 24px links, or 44px on touch. The headroom is the flock's bottom edge plus its 2.5rem clear zone, and it lets the plate grow into the room above it. The flock sits at 655px below 66rem wide (the brand line wraps to four lines), 568px to 72.5rem (three lines) and 505px beyond (two); the steps sit a little late so a slow wrap never hits the flock. Revisit them when the brand line or flock moves. -->
   <div
-    class="relative lg:[--etched-scene-reserve:3.25rem] min-[80rem]:[--etched-scene-headroom:545px] lg:pointer-coarse:[--etched-scene-reserve:4.25rem]"
+    class="relative lg:[--etched-scene-headroom:695px] lg:[--etched-scene-reserve:3.25rem] min-[66.5rem]:[--etched-scene-headroom:608px] min-[73rem]:[--etched-scene-headroom:545px] lg:pointer-coarse:[--etched-scene-reserve:4.25rem]"
   >
     <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-full lg:mt-0" />
 

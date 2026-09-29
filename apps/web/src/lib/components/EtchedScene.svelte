@@ -97,14 +97,15 @@
   }
 
   /*
-   * Where the flock sits (from 80rem wide and 56rem tall), the room between it
+   * Where the flock sits (from 64rem wide and 56rem tall), the room between it
    * and the plate is known: `--etched-scene-headroom` is the flock's bottom edge
-   * plus its 2.5rem clear zone, measured from the top of the viewport. The band
-   * grows into that room until its ink spans the viewport, and never past it.
-   * Without the variable the extra term is negative and the band keeps the
-   * height set above.
+   * plus its 2.5rem clear zone, measured from the top of the viewport (AuthShell
+   * sets it per width, since the brand line wraps to fewer lines as it widens).
+   * The band grows into that room until its ink spans the viewport, and never
+   * past it. Without the variable the extra term is negative and the band keeps
+   * the height set above.
    */
-  @media (min-width: 80rem) and (min-height: 56rem) {
+  @media (min-width: 64rem) and (min-height: 56rem) {
     .etched-scene {
       height: clamp(
         calc(100vw / var(--plate-ratio)),
