@@ -96,10 +96,10 @@
       class="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:min-h-(--etched-scene-reserve) lg:px-16"
     >
       <div
-        class="text-muted-foreground flex flex-col items-center gap-y-1 pt-10 pb-4 text-center text-xs sm:flex-row sm:justify-between sm:gap-x-6 lg:pt-5 lg:pb-0"
+        class="text-muted-foreground flex items-center justify-between gap-x-3 pt-10 pb-4 text-xs sm:gap-x-6 lg:pt-5 lg:pb-0"
       >
-        <p class="whitespace-nowrap">© {copyrightYear} PT. Vifiera Minova Bersaudara</p>
-        <p class="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+        <p class="sm:whitespace-nowrap">© {copyrightYear} PT. Vifiera Minova Bersaudara</p>
+        <p class="flex shrink-0 flex-wrap items-center justify-center gap-x-1 gap-y-1 lg:gap-x-5">
           <a
             class={footerIconClass}
             href="mailto:support@vmblogistics.id"
