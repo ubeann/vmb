@@ -79,11 +79,36 @@ describe("error page", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
     const screen = await render(ErrorPage);
-    await screen.getByRole("button", { name: "Copy reference" }).click();
+    const copy = screen.getByRole("button", { name: "Copy reference" });
+    await expect.element(copy).toHaveTextContent("Copy");
+    await expect
+      .element(screen.getByRole("group", { name: "Reference" }).getByText("3f9a1c2e"))
+      .toBeVisible();
+    await copy.click();
 
     expect(writeText).toHaveBeenCalledWith("3f9a1c2e");
     await expect.element(screen.getByRole("button", { name: "Copied" })).toBeVisible();
     await expect.element(screen.getByText("Reference copied")).toBeInTheDocument();
+    writeText.mockRestore();
+  });
+
+  it("selects the reference and names the shortcut when the clipboard is blocked", async () => {
+    mockPage.status = 500;
+    mockPage.error = { message: "Internal Error", errorId: "3f9a1c2e" };
+    mockPage.data = { user: null };
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+
+    const screen = await render(ErrorPage);
+    await screen.getByRole("button", { name: "Copy reference" }).click();
+
+    const shortcut = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘C" : "Ctrl+C";
+    await expect
+      .element(screen.getByRole("status"))
+      .toHaveTextContent(`Press ${shortcut} to copy the reference.`);
+    expect(window.getSelection()?.toString()).toBe("3f9a1c2e");
+    expect(screen.getByRole("button", { name: "Copied" }).elements()).toHaveLength(0);
     writeText.mockRestore();
   });
 

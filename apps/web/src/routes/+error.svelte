@@ -8,41 +8,53 @@
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import EtchedVignette from "$lib/components/EtchedVignette.svelte";
+  import Check from "$lib/components/movingicons/check.svelte";
+  import Copy from "$lib/components/movingicons/copy.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import SiteHeader from "$lib/components/SiteHeader.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { errorPageContent, SUPPORT_EMAIL, supportMailtoQuery } from "$lib/error-page.js";
-  import Check from "@lucide/svelte/icons/check";
-  import Copy from "@lucide/svelte/icons/copy";
   import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import LogIn from "@lucide/svelte/icons/log-in";
   import RotateCw from "@lucide/svelte/icons/rotate-cw";
-  import { onMount } from "svelte";
+  import { onDestroy } from "svelte";
 
   let content = $derived(errorPageContent(page.status));
   let errorId = $derived(page.error?.errorId);
 
-  // The copy button needs the Clipboard API, so it appears only once the page
-  // has hydrated in a browser that has one; the reference stays selectable text.
-  let canCopy = $state(false);
+  // Copying needs the Clipboard API, which a denied permission or a non-HTTPS
+  // page withholds; then the reference is selected and the page names the
+  // shortcut instead, so there is always a next step.
+  let referenceEl: HTMLElement | undefined = $state();
   let copied = $state(false);
+  let copyHint = $state("");
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
-  onMount(() => {
-    canCopy = typeof navigator.clipboard?.writeText === "function";
-    return () => clearTimeout(copiedTimer);
-  });
+  onDestroy(() => clearTimeout(copiedTimer));
 
   async function copyReference(reference: string) {
     try {
       await navigator.clipboard.writeText(reference);
     } catch {
+      selectReference();
       return;
     }
+    copyHint = "";
     copied = true;
     clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => (copied = false), 2000);
+  }
+
+  function selectReference() {
+    if (!referenceEl) return;
+    const range = document.createRange();
+    range.selectNodeContents(referenceEl);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const shortcut = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘C" : "Ctrl+C";
+    copyHint = `Press ${shortcut} to copy the reference.`;
   }
 
   const supportLinkClass =
@@ -55,11 +67,11 @@
   <SiteHeader />
 
   <main
-    class="mx-auto grid w-full max-w-7xl flex-1 content-center items-center gap-10 px-6 py-10 sm:px-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-16 lg:px-16"
+    class="mx-auto grid w-full max-w-7xl flex-1 content-center items-center gap-10 px-6 py-8 sm:px-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-16 lg:px-16"
   >
     <EtchedVignette
       scene={content.scene}
-      class="justify-self-center [--vignette-max-height:11rem] sm:[--vignette-max-height:15rem] lg:order-last lg:[--vignette-max-height:26rem]"
+      class="justify-self-center [--vignette-max-height:10rem] sm:[--vignette-max-height:15rem] lg:order-last lg:[--vignette-max-height:26rem]"
     />
 
     <div class="max-w-xl">
@@ -109,27 +121,35 @@
 
       {#if errorId}
         <div class="border-border mt-6 max-w-md border-t pt-5">
-          <div class="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span class="text-muted-foreground">Reference</span>
-            <code class="text-foreground font-mono select-all">{errorId}</code>
-            {#if canCopy}
-              <Button
-                variant="ghost"
-                size="sm"
-                class="text-muted-foreground -ml-1 pointer-coarse:min-h-11"
-                onclick={() => copyReference(errorId)}
-              >
-                {#if copied}
-                  <Check aria-hidden="true" />
-                  Copied
-                {:else}
-                  <Copy aria-hidden="true" />
-                  Copy reference
-                {/if}
-              </Button>
-            {/if}
+          <p id="error-reference-label" class="text-muted-foreground text-sm">Reference</p>
+          <div
+            role="group"
+            aria-labelledby="error-reference-label"
+            class="border-input dark:bg-input/30 mt-2 flex max-w-xs items-center justify-between gap-3 rounded-lg border py-1 pr-1 pl-3"
+          >
+            <code bind:this={referenceEl} class="text-foreground font-mono text-sm select-all"
+              >{errorId}</code
+            >
+            <Button
+              variant="ghost"
+              size="sm"
+              class="text-muted-foreground pointer-coarse:min-h-11"
+              aria-label={copied ? undefined : "Copy reference"}
+              onclick={() => copyReference(errorId)}
+            >
+              {#if copied}
+                <Check animate class="text-primary" />
+                Copied
+              {:else}
+                <Copy />
+                Copy
+              {/if}
+            </Button>
           </div>
           <p class="sr-only" aria-live="polite">{copied ? "Reference copied" : ""}</p>
+          {#if copyHint}
+            <p role="status" class="text-muted-foreground mt-2 text-sm">{copyHint}</p>
+          {/if}
           <p class="text-muted-foreground mt-2 text-sm text-pretty">
             If this keeps happening, email the support team at
             <a
