@@ -149,6 +149,18 @@
     @apply font-sans;
   }
 
+  /* Tailwind v4 dropped the pointer cursor from buttons. Restore it for enabled
+   * controls; :where() keeps specificity at zero so a `cursor-*` utility still
+   * wins (menu items stay `cursor-default`, as on a desktop menu). */
+  :where(
+    button,
+    [role="button"],
+    input:is([type="button"], [type="submit"], [type="reset"], [type="checkbox"]),
+    label:has(input[type="checkbox"]:not(:disabled, [aria-disabled="true"]))
+  ):where(:not(:disabled, [aria-disabled="true"])) {
+    cursor: pointer;
+  }
+
   /* The registry is desktop-dense; touch pointers get 44px targets. */
   @media (pointer: coarse) {
     :where(
@@ -269,7 +281,6 @@
     border: 1px solid var(--input);
     border-radius: calc(var(--radius) * 0.6);
     background-color: var(--secondary);
-    cursor: pointer;
   }
 
   fieldset:not([data-slot]) {
