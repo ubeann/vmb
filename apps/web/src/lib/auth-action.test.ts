@@ -158,6 +158,60 @@ describe("createAuthAction", () => {
     expect(onSuccess).toHaveBeenCalledWith({ email: "a@example.com", password: "secret" });
   });
 
+  describe("with a checkbox field", () => {
+    function makeRememberAction(run: (client: unknown, values: unknown) => Promise<unknown>) {
+      return createAuthAction({
+        fields: ["email", "password"] as const,
+        checkboxes: ["rememberMe"] as const,
+        missingFieldsMessage: "Email and password are required.",
+        fallbackErrorMessage: "Invalid email or password.",
+        logLabel: "login action",
+        run: run as never,
+        onSuccess: () => ({ ok: true })
+      });
+    }
+
+    it("reads a ticked checkbox as true", async () => {
+      const run = vi.fn(async () => ({ error: null }));
+      const action = makeRememberAction(run);
+
+      await action(fakeAuthEvent({ email: "a@example.com", password: "secret", rememberMe: "on" }));
+
+      expect(run).toHaveBeenCalledWith(
+        clientSentinel,
+        { email: "a@example.com", password: "secret", rememberMe: true },
+        expect.anything()
+      );
+    });
+
+    it("reads an absent checkbox as false, not as a missing field", async () => {
+      const run = vi.fn(async () => ({ error: null }));
+      const action = makeRememberAction(run);
+
+      const result = await action(fakeAuthEvent({ email: "a@example.com", password: "secret" }));
+
+      expect(result).toEqual({ ok: true });
+      expect(run).toHaveBeenCalledWith(
+        clientSentinel,
+        { email: "a@example.com", password: "secret", rememberMe: false },
+        expect.anything()
+      );
+    });
+
+    it("still fails a missing required field when the checkbox is ticked", async () => {
+      const run = vi.fn(async () => ({ error: null }));
+      const action = makeRememberAction(run);
+
+      const result = await action(fakeAuthEvent({ email: "a@example.com", rememberMe: "on" }));
+
+      expect(result).toMatchObject({
+        status: 400,
+        data: { fieldErrors: { password: "Password is required." } }
+      });
+      expect(run).not.toHaveBeenCalled();
+    });
+  });
+
   it("merges failureData into a Better Auth failure, so a multi-step route keeps its step", async () => {
     const action = createAuthAction({
       fields: ["email", "password"] as const,

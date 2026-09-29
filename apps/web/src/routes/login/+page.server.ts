@@ -11,6 +11,8 @@ export const load: PageServerLoad = ({ locals }) => {
 export const actions: Actions = {
   default: createAuthAction({
     fields: ["email", "password"],
+    // Unticked gives a browser-session cookie (ADR-0034's amendment, #206).
+    checkboxes: ["rememberMe"],
     missingFieldsMessage: "Email and password are required.",
     fallbackErrorMessage: "Invalid email or password.",
     logLabel: "login action",

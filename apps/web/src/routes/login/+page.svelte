@@ -9,6 +9,7 @@
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
+  import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import type { ActionData } from "./$types.js";
@@ -111,6 +112,12 @@
         </p>
       {/if}
     </div>
+
+    <!-- Unticked by default, as in the legacy login: the session then ends when the browser closes (ADR-0034, #206). The whole row is the 44px target. -->
+    <Label class="min-h-11 w-fit cursor-pointer gap-3 font-normal">
+      <Checkbox name="rememberMe" />
+      Remember me
+    </Label>
 
     <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
       {#if submitting}
