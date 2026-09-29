@@ -1,5 +1,6 @@
 <script lang="ts">
   import HeroIcon from "$lib/components/HeroIcon.svelte";
+  import Notice from "$lib/components/Notice.svelte";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
@@ -30,6 +31,12 @@
     { name: "destructive", swatch: "bg-destructive", text: "text-background" },
     { name: "border", swatch: "bg-border", text: "text-foreground" }
   ];
+
+  const NOTICES = [
+    { variant: "destructive", text: "Unable to reach the server. Try again in a moment." },
+    { variant: "success", text: "Your password is set — log in with it now." },
+    { variant: "default", text: "Codes expire after ten minutes." }
+  ] as const;
 
   const BUTTON_VARIANTS = [
     "default",
@@ -161,6 +168,19 @@
       <Badge variant="secondary">Secondary</Badge>
       <Badge variant="outline">Outline</Badge>
       <Badge variant="destructive">Destructive</Badge>
+    </div>
+  </section>
+
+  <section class="space-y-4" aria-labelledby="alerts">
+    {@render section(
+      "alerts",
+      "Alerts",
+      "A tinted fill, an icon and text — errors are announced as alerts, notices as status."
+    )}
+    <div class="grid max-w-xl gap-3">
+      {#each NOTICES as { variant, text } (variant)}
+        <Notice {variant}>{text}</Notice>
+      {/each}
     </div>
   </section>
 
@@ -331,6 +351,11 @@
         <Badge variant="secondary">Secondary</Badge>
         <Badge variant="outline">Outline</Badge>
         <Badge variant="destructive">Destructive</Badge>
+      </div>
+      <div class="grid max-w-xl gap-3">
+        {#each NOTICES as { variant, text } (variant)}
+          <Notice {variant}>{text}</Notice>
+        {/each}
       </div>
       <Card.Root class="max-w-sm">
         <Card.Header>

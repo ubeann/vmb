@@ -43,6 +43,18 @@ describe("login page", () => {
     const screen = await render(Page, { form: null });
 
     await expect.element(screen.getByText(/verified/i)).toBeVisible();
+    await expect
+      .element(screen.getByRole("status"))
+      .toHaveTextContent("Your email is verified — you can log in now.");
+    expect(screen.getByRole("alert").elements()).toHaveLength(0);
+  });
+
+  it("announces the logged-out notice as a status", async () => {
+    mockPage.url = new URL("http://localhost/login?logged_out=true");
+
+    const screen = await render(Page, { form: null });
+
+    await expect.element(screen.getByRole("status")).toHaveTextContent("You have logged out.");
   });
 
   it("shows an activated banner when arriving via ?activated=true", async () => {
