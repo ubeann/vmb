@@ -99,8 +99,8 @@
           <span class="inline-flex items-center gap-1.5">
             <Mail class="size-3.5 shrink-0" aria-hidden="true" />
             Support team:
-            <a class={footerLinkClass} href="mailto:vmb_operation@vifieraminova.com"
-              >vmb_operation@vifieraminova.com</a
+            <a class={footerLinkClass} href="mailto:support@vmblogistics.id"
+              >support@vmblogistics.id</a
             >
           </span>
           <span class="inline-flex items-center gap-1.5">

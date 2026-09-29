@@ -91,14 +91,12 @@ describe("login page", () => {
     const footer = screen.getByRole("contentinfo");
 
     await expect
-      .element(footer.getByRole("link", { name: "vmb_operation@vifieraminova.com", exact: true }))
-      .toHaveAttribute("href", "mailto:vmb_operation@vifieraminova.com");
+      .element(footer.getByRole("link", { name: "support@vmblogistics.id", exact: true }))
+      .toHaveAttribute("href", "mailto:support@vmblogistics.id");
     await expect
       .element(footer.getByRole("link", { name: "ubeann", exact: true }))
       .toHaveAttribute("href", "https://github.com/ubeann");
-    expect(footer.element().textContent).toMatch(
-      /Support team:\s+vmb_operation@vifieraminova\.com/
-    );
+    expect(footer.element().textContent).toMatch(/Support team:\s+support@vmblogistics\.id/);
   });
 
   it("renders missing-field errors beside the relevant input", async () => {
