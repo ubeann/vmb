@@ -1,14 +1,16 @@
 <!--
   Frame for the signed-out pages (login, activate): the VMB masthead and brand
   line on paper, the page's form on a ruled sheet, and the engraved panorama
-  along the foot of the viewport. The sheet stays usable before, during and
-  without the artwork.
+  fading into a footer strip at the foot of the viewport. The sheet stays
+  usable before, during and without the artwork.
 -->
 <script lang="ts">
   import EtchedFlock from "$lib/components/EtchedFlock.svelte";
   import EtchedScene from "$lib/components/EtchedScene.svelte";
   import EtchedSky from "$lib/components/EtchedSky.svelte";
+  import GitHubMark from "$lib/components/GitHubMark.svelte";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
+  import Mail from "@lucide/svelte/icons/mail";
   import type { Snippet } from "svelte";
 
   let {
@@ -22,6 +24,11 @@
     children: Snippet;
     footer?: Snippet;
   } = $props();
+
+  const copyrightYear = new Date().getFullYear();
+
+  const footerLinkClass =
+    "text-foreground decoration-muted-foreground hover:decoration-foreground focus-visible:ring-ring inline-flex min-h-6 pointer-coarse:min-h-11 items-center rounded-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none";
 </script>
 
 <div class="relative isolate flex min-h-dvh flex-col overflow-x-clip">
@@ -75,5 +82,34 @@
     </div>
   </main>
 
-  <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0" />
+  <!-- The plate's bottom fades into the paper; the strip's top padding is the 2.5rem clear zone below it. The reserve fits 24px links, or 44px on touch. -->
+  <div
+    class="relative [--etched-scene-fade:20%] lg:[--etched-scene-reserve:4.5rem] lg:pointer-coarse:[--etched-scene-reserve:5.5rem]"
+  >
+    <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-full lg:mt-0" />
+
+    <footer
+      class="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:min-h-(--etched-scene-reserve) lg:px-16"
+    >
+      <div
+        class="text-muted-foreground flex flex-col items-center gap-y-1 pt-10 pb-6 text-center text-xs lg:flex-row lg:justify-between lg:gap-x-6 lg:pb-0"
+      >
+        <p class="whitespace-nowrap">© {copyrightYear} PT. Vifiera Minova Bersaudara</p>
+        <p class="flex flex-wrap justify-center gap-x-5 gap-y-1">
+          <span class="inline-flex items-center gap-1.5">
+            <Mail class="size-3.5 shrink-0" aria-hidden="true" />
+            Support team:
+            <a class={footerLinkClass} href="mailto:support@vmblogistics.id"
+              >support@vmblogistics.id</a
+            >
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <GitHubMark class="size-3.5 shrink-0" />
+            Built by
+            <a class={footerLinkClass} href="https://github.com/ubeann">ubeann</a>
+          </span>
+        </p>
+      </div>
+    </footer>
+  </div>
 </div>
