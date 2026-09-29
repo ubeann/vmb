@@ -33,12 +33,30 @@ beforeEach(() => {
 });
 
 describe("login action", () => {
-  it("fails with the same message when email or password is missing", async () => {
+  it("fails with a field error and never signs in when email or password is missing", async () => {
     const result = await action(fakeAuthEvent({ email: "a@example.com" }));
 
     expect(result).toMatchObject({
       status: 400,
-      data: { error: "Email and password are required." }
+      data: { fieldErrors: { password: "Enter your password" } }
+    });
+    expect(signInEmail).not.toHaveBeenCalled();
+  });
+
+  it("accepts any non-empty password, since the server compares it and the length rule is for new ones", async () => {
+    await expect(
+      action(fakeAuthEvent({ email: "a@example.com", password: "x" }))
+    ).rejects.toMatchObject({ status: 303 });
+
+    expect(signInEmail).toHaveBeenCalledWith(expect.objectContaining({ password: "x" }));
+  });
+
+  it("puts a malformed email on the email field, before the API is called", async () => {
+    const result = await action(fakeAuthEvent({ email: "a@", password: "secret" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { fieldErrors: { email: "Enter a valid email, like name@company.com" } }
     });
     expect(signInEmail).not.toHaveBeenCalled();
   });

@@ -1,3 +1,4 @@
+import { EMAIL_INVALID_MESSAGE, LoginInputSchema } from "@vmb/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthErrorLike } from "./auth-error-copy.js";
 
@@ -24,8 +25,8 @@ function makeAction(
   onSuccess: () => unknown = () => ({ ok: true })
 ) {
   return createAuthAction({
-    fields: ["email", "password"] as const,
-    missingFieldsMessage: "Email and password are required.",
+    schema: LoginInputSchema,
+    invalidFieldsMessage: "Enter your email and password",
     fallbackErrorMessage: "Invalid email or password.",
     logLabel: "login action",
     run: run as never,
@@ -53,8 +54,8 @@ describe("createAuthAction", () => {
     expect(result).toMatchObject({
       status: 400,
       data: {
-        error: "Email and password are required.",
-        fieldErrors: { password: "Password is required." }
+        error: "Enter your email and password",
+        fieldErrors: { password: "Enter your password" }
       }
     });
     expect(run).not.toHaveBeenCalled();
@@ -69,11 +70,60 @@ describe("createAuthAction", () => {
     expect(result).toMatchObject({
       status: 400,
       data: {
-        error: "Email and password are required.",
-        fieldErrors: { email: "Email is required." }
+        error: "Enter your email and password",
+        fieldErrors: { email: "Enter your email" }
       }
     });
     expect(withAuthApiClientMock).not.toHaveBeenCalled();
+  });
+
+  it("names every invalid field at once, one message each", async () => {
+    const action = makeAction();
+
+    const result = await action(fakeAuthEvent({ email: "not-an-email" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { fieldErrors: { email: EMAIL_INVALID_MESSAGE, password: "Enter your password" } }
+    });
+  });
+
+  it("rejects a malformed email before the API is called", async () => {
+    const action = makeAction();
+
+    const result = await action(fakeAuthEvent({ email: "name@", password: "secret" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { fieldErrors: { email: EMAIL_INVALID_MESSAGE } }
+    });
+    expect(withAuthApiClientMock).not.toHaveBeenCalled();
+  });
+
+  it("hands the API the parsed values, so a padded email is trimmed", async () => {
+    const run = vi.fn<Run>(async () => ({ error: null }));
+    const action = makeAction(run);
+
+    await action(fakeAuthEvent({ email: " a@example.com ", password: "secret" }));
+
+    expect(run).toHaveBeenCalledWith(
+      clientSentinel,
+      { email: "a@example.com", password: "secret" },
+      expect.anything()
+    );
+  });
+
+  it("turns Better Auth's INVALID_EMAIL into an email field error, not a banner-only failure", async () => {
+    const action = makeAction(async () => ({
+      error: { code: "INVALID_EMAIL", message: "Invalid email" }
+    }));
+
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "secret" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { fieldErrors: { email: EMAIL_INVALID_MESSAGE } }
+    });
   });
 
   it("maps a transport failure to the shared 500 message and logs it", async () => {
@@ -161,9 +211,9 @@ describe("createAuthAction", () => {
   describe("with a checkbox field", () => {
     function makeRememberAction(run: (client: unknown, values: unknown) => Promise<unknown>) {
       return createAuthAction({
-        fields: ["email", "password"] as const,
+        schema: LoginInputSchema,
         checkboxes: ["rememberMe"] as const,
-        missingFieldsMessage: "Email and password are required.",
+        invalidFieldsMessage: "Enter your email and password",
         fallbackErrorMessage: "Invalid email or password.",
         logLabel: "login action",
         run: run as never,
@@ -206,7 +256,7 @@ describe("createAuthAction", () => {
 
       expect(result).toMatchObject({
         status: 400,
-        data: { fieldErrors: { password: "Password is required." } }
+        data: { fieldErrors: { password: "Enter your password" } }
       });
       expect(run).not.toHaveBeenCalled();
     });
@@ -214,8 +264,8 @@ describe("createAuthAction", () => {
 
   it("merges failureData into a Better Auth failure, so a multi-step route keeps its step", async () => {
     const action = createAuthAction({
-      fields: ["email", "password"] as const,
-      missingFieldsMessage: "Email and password are required.",
+      schema: LoginInputSchema,
+      invalidFieldsMessage: "Enter your email and password",
       fallbackErrorMessage: "Invalid email or password.",
       logLabel: "login action",
       run: (async () => ({ error: {} })) as never,

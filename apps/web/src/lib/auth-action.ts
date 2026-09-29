@@ -1,5 +1,7 @@
 import type { RequestEvent } from "@sveltejs/kit";
 import { fail } from "@sveltejs/kit";
+import { EMAIL_INVALID_MESSAGE } from "@vmb/types";
+import type { z } from "zod";
 import { withAuthApiClient } from "./api-access.js";
 import type { AuthErrorLike } from "./auth-error-copy.js";
 import { mapAuthErrorToCopy } from "./auth-error-copy.js";
@@ -18,23 +20,29 @@ export interface AuthCallResult {
   error?: (AuthErrorLike & { message?: string }) | null;
 }
 
-// The validated form: each required field as its string, each checkbox as a
-// boolean.
-type AuthActionValues<Field extends string, CheckboxField extends string = never> = Record<
-  Field,
-  string
-> &
-  Record<CheckboxField, boolean>;
+type AuthSchema = z.ZodObject<Record<string, z.ZodType<string>>>;
 
-export interface AuthActionConfig<Field extends string, CheckboxField extends string = never> {
-  // The form fields this action reads. Each must be a present, non-empty string.
-  fields: readonly Field[];
+// The validated form: each field as the schema parsed it, each checkbox as a
+// boolean.
+type AuthActionValues<
+  Schema extends AuthSchema,
+  CheckboxField extends string = never
+> = z.output<Schema> & Record<CheckboxField, boolean>;
+
+type FieldOf<Schema extends AuthSchema> = keyof Schema["shape"] & string;
+
+export interface AuthActionConfig<Schema extends AuthSchema, CheckboxField extends string = never> {
+  // The rules for the form fields this action reads, shared with the page that
+  // checks them in the browser (issue #231). A field the form left out reads
+  // as an empty string, so the schema words the "required" case itself.
+  schema: Schema;
   // Optional checkboxes this action reads. A ticked box is `true`; an unticked
   // one is left out of the submitted form entirely, so it reads as `false` and
   // is never a missing field (issue #206).
   checkboxes?: readonly CheckboxField[];
-  // Returned when any field is missing, naming the fields the user must supply.
-  missingFieldsMessage: string;
+  // The banner for a failed check on a field the page shows no input for (a
+  // hidden email carried between steps). A visible field shows its own message.
+  invalidFieldsMessage: string;
   // Fallback for a Better Auth error that carries no message of its own.
   fallbackErrorMessage: string;
   // Identifies the route in the transport-failure log line.
@@ -43,16 +51,16 @@ export interface AuthActionConfig<Field extends string, CheckboxField extends st
   // and the request event (for values not in the form, such as a callback URL).
   run: (
     client: AuthApiClient,
-    values: AuthActionValues<Field, CheckboxField>,
+    values: AuthActionValues<Schema, CheckboxField>,
     event: RequestEvent
   ) => Promise<AuthCallResult>;
   // What a successful call should do: redirect, or hand back the action data
   // the page expects. Receives the validated values so a multi-step route can
   // carry a value (an email, say) into the next step.
-  onSuccess: (values: AuthActionValues<Field, CheckboxField>) => MaybePromise<Data>;
+  onSuccess: (values: AuthActionValues<Schema, CheckboxField>) => MaybePromise<Data>;
   // Extra action data to merge into a failure response, for a multi-step route
   // that must render the same step again after an error.
-  failureData?: (values: Partial<Record<Field, string>>) => Data;
+  failureData?: (values: Partial<Record<FieldOf<Schema>, string>>) => Data;
 }
 
 // The auth routes were near-identical: read fields, type-check them, build the
@@ -60,35 +68,34 @@ export interface AuthActionConfig<Field extends string, CheckboxField extends st
 // This is that one flow. Each route declares only what differs — its fields, its
 // messages, its Better Auth call, and what success means.
 export function createAuthAction<
-  const Field extends string,
+  Schema extends AuthSchema,
   const CheckboxField extends string = never
->(config: AuthActionConfig<Field, CheckboxField>) {
+>(config: AuthActionConfig<Schema, CheckboxField>) {
   return async (event: RequestEvent) => {
     const form = await event.request.formData();
-    const fieldValues = {} as Record<Field, string>;
-    const fieldErrors: Partial<Record<Field, string>> = {};
-
-    for (const field of config.fields) {
+    const submitted = {} as Record<FieldOf<Schema>, string>;
+    for (const field of Object.keys(config.schema.shape) as FieldOf<Schema>[]) {
       const value = form.get(field);
-      if (typeof value !== "string" || !value) {
-        fieldErrors[field] =
-          `${field === "otp" ? "Code" : field.charAt(0).toUpperCase() + field.slice(1)} is required.`;
-      } else {
-        fieldValues[field] = value;
-      }
+      submitted[field] = typeof value === "string" ? value : "";
     }
 
-    if (Object.keys(fieldErrors).length) {
+    const parsed = config.schema.safeParse(submitted);
+    if (!parsed.success) {
+      const fieldErrors: Partial<Record<FieldOf<Schema>, string>> = {};
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0] as FieldOf<Schema>;
+        fieldErrors[field] ??= issue.message;
+      }
       return fail(400, {
-        ...config.failureData?.(fieldValues),
-        error: config.missingFieldsMessage,
+        ...config.failureData?.(submitted),
+        error: config.invalidFieldsMessage,
         fieldErrors
       });
     }
 
     const checkboxValues = {} as Record<CheckboxField, boolean>;
     for (const checkbox of config.checkboxes ?? []) checkboxValues[checkbox] = form.has(checkbox);
-    const values: AuthActionValues<Field, CheckboxField> = { ...fieldValues, ...checkboxValues };
+    const values = { ...parsed.data, ...checkboxValues } as AuthActionValues<Schema, CheckboxField>;
 
     const access = await withAuthApiClient(event, (client) => config.run(client, values, event));
 
@@ -101,6 +108,16 @@ export function createAuthAction<
     }
 
     if (access.value.error) {
+      // Better Auth can reject an email the shared rule let through. Say so at
+      // the email field, like any other email mistake, not in the banner.
+      if (access.value.error.code === "INVALID_EMAIL" && "email" in config.schema.shape) {
+        return fail(400, {
+          ...config.failureData?.(values),
+          error: EMAIL_INVALID_MESSAGE,
+          fieldErrors: { email: EMAIL_INVALID_MESSAGE }
+        });
+      }
+
       return fail(400, {
         ...config.failureData?.(values),
         error: mapAuthErrorToCopy(access.value.error, config.fallbackErrorMessage)

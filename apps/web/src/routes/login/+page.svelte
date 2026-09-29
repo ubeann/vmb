@@ -5,6 +5,7 @@
   import CircleAlert from "@lucide/svelte/icons/circle-alert";
   import CircleCheck from "@lucide/svelte/icons/circle-check";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import { LoginInputSchema } from "@vmb/types";
   import AuthShell from "$lib/components/AuthShell.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
@@ -12,6 +13,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import type { ActionData } from "./$types.js";
 
   let { form }: { form: ActionData } = $props();
@@ -21,11 +23,14 @@
   let verified = $derived(page.url.searchParams.get("verified") === "true");
   let activated = $derived(page.url.searchParams.get("activated") === "true");
   let loggedOut = $derived(page.url.searchParams.get("logged_out") === "true");
-  let fieldErrors = $derived(
+  // The browser checks the same rules the action does (issue #231), and shows
+  // what the server sent back beside the same fields.
+  const validation = createFieldValidation(LoginInputSchema, () =>
     form && "fieldErrors" in form
       ? (form.fieldErrors as Partial<Record<"email" | "password", string>>)
       : undefined
   );
+  let fieldErrors = $derived(validation.errors);
 
   const linkClass =
     "text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
@@ -62,11 +67,15 @@
 
   <form
     method="POST"
-    use:enhance={() => {
+    novalidate
+    oninput={validation.oninput}
+    use:enhance={({ formElement, cancel }) => {
+      if (!validation.validate(formElement)) return cancel();
       submitting = true;
-      return async ({ update }) => {
+      return async ({ result, update }) => {
         await update();
         submitting = false;
+        if (result.type === "failure") focusFirstInvalidField(formElement);
       };
     }}
     class="space-y-5"
