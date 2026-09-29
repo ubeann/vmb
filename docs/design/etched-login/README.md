@@ -126,6 +126,8 @@ Below 64rem the footer's two links are 44px icon buttons (mail, GitHub) with the
 
 The 40px minimum is 2.5rem, so the clear zone holds, exactly at 1024 × 923. Blank paper is the plate's margin beyond its ink, estimated from the mask (ink is 77% of the plate). At 1440 × 900 and below the room above the plate is the limit, so a soft vignette of about 127px per side stays. At 1366 × 768 the sheet covers the bridge's right end and the warehouses, and the mobile ribbon (390 × 844) still shows the warehouses, bridge and yard. The 390 × 844 page scrolls to 896px (932px before the icon footer), with the fields and submit button above the fold. The plate top is the same as, or lower than, master's at every size except 1440 × 1284, where it rises 23px on purpose. Those master numbers come from the old CSS formula, not from a master render.
 
+**The sky's crop (#219).** The sky art is 2:1 and its box is at most 36rem tall, so `cover` shows only 60–69% of the art at 1440–1920 wide (45% at 2560, 76% at 1180, all of it at 1024 × 923). Anchored at the top, that cut the low sun (rows 50–79% of the art) in half at 1920 × 1080 and hid it entirely at 2560 × 1440. It is now anchored at `right 60%`, which shows the whole sun at every size that crops at all and drops the empty paper below it. That pulled a dense cloud up under the masthead tagline, so the sky's top fade moved from 4–9rem to 7–11rem (the tagline ends about 4.5rem down). Sky ink in the 2.5rem band under the tagline, measured as screenshot darkening with the sky on and off: 0.1–0.7 (mean, out of 255) before, 0.9–3.1 with only the new anchor, 0 at every size from 1180 to 2560 wide with the new fade.
+
 A guilloché rosette behind the sheet was tried and removed: its rings tangled with the sun's rays. It is in commit `5a900cd` if a later screen wants it.
 
 ## Checked
@@ -147,5 +149,5 @@ A guilloché rosette behind the sheet was tried and removed: its rings tangled w
 - A real sign-in against the API; the local dev server had no `API_URL`.
 - The reduced-motion emulation, 200% zoom, screen readers, and password-manager autofill with the toggle.
 - Real-device loading of the 167 KB landscape mask; AVIF may cut it further (not measured yet).
-- The tall-screen gap on the other tall viewports, and the sky's clearance from the masthead after the plate change (the sky and flock layers were untouched).
+- The tall-screen gap on the other tall viewports.
 - The traced logo edges at very large sizes. The Recraft trace from the crisp upscale is smooth at 1200px and sharp at header size, but a designer's redraw would still be the long-term master.

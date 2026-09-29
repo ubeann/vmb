@@ -24,18 +24,25 @@
     --sky-image: var(--sky-small);
     background-color: color-mix(in oklch, var(--etching) 45%, transparent);
     /*
-     * Clear the masthead band and the headline column; the art sits right.
+     * Clear the masthead band (its tagline ends about 4.5rem down, so the sky
+     * starts 2.5rem below that) and the headline column; the art sits right.
      * The full-box gradients come first so no snapped tile edge of the image
      * leaves bare gradient showing (see EtchedScene, #202).
      */
     mask-image:
-      linear-gradient(to bottom, transparent 4rem, #000 9rem),
+      linear-gradient(to bottom, transparent 7rem, #000 11rem),
       linear-gradient(to right, transparent 38%, #000 58%), var(--sky-image);
     mask-size:
       100% 100%,
       100% 100%,
       cover;
-    mask-position: right top;
+    /*
+     * The art is 2:1 and the box is short and wide, so `cover` crops it: from
+     * the top, that cut the low sun in half. 60% keeps the sun (rows 50–79% of
+     * the art) and crops the empty paper below and the clouds above it, at
+     * every desktop size that crops at all (#219).
+     */
+    mask-position: right 60%;
     mask-repeat: no-repeat;
     mask-composite: intersect;
     animation: sky-settle 2400ms cubic-bezier(0.22, 1, 0.36, 1) 900ms both;
