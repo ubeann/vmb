@@ -50,4 +50,20 @@ describe("logout action", () => {
     );
     consoleError.mockRestore();
   });
+
+  // A refused sign-out (Better Auth's origin check, say) leaves the session
+  // row valid, so it is logged, never silently dropped (#226).
+  it("logs a sign-out the API refused, and still returns to the login page", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = { status: 403, code: "INVALID_ORIGIN" };
+    signOutMock.mockResolvedValueOnce({ data: null, error } as never);
+
+    await expect(actions.default!(fakeAuthEvent())).rejects.toMatchObject({
+      status: 303,
+      location: "/login?logged_out=true"
+    });
+
+    expect(consoleError).toHaveBeenCalledWith("logout action: API refused sign-out", error);
+    consoleError.mockRestore();
+  });
 });
