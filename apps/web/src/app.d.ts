@@ -19,6 +19,12 @@ declare global {
       session: AuthSession | null;
       user: AuthUser | null;
     }
+    // The root layout load always returns `user`, so this is the one property
+    // every route's `data` is guaranteed to carry — including `+error.svelte`,
+    // which has no `data` prop of its own and reads `page.data` instead.
+    interface PageData {
+      user: AuthUser | null;
+    }
     interface Platform {
       env: {
         API_URL: string;

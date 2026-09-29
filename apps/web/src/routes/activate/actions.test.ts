@@ -15,9 +15,9 @@ const { fakeAuthEvent } = await import("../../lib/test-support.js");
 const requestMock = vi.fn<() => Promise<{ data: null; error: { message?: string } | null }>>(
   async () => ({ data: null, error: null })
 );
-const resetMock = vi.fn<() => Promise<{ data: null; error: { message?: string } | null }>>(
-  async () => ({ data: null, error: null })
-);
+const resetMock = vi.fn<
+  () => Promise<{ data: null; error: { message?: string; code?: string } | null }>
+>(async () => ({ data: null, error: null }));
 const client = { emailOtp: { requestPasswordReset: requestMock, resetPassword: resetMock } };
 
 beforeEach(() => {
@@ -62,7 +62,10 @@ describe("activate actions", () => {
   });
 
   it("keeps the code step after a failed reset so the entered code is not lost", async () => {
-    resetMock.mockResolvedValueOnce({ data: null, error: { message: "Invalid code" } });
+    resetMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: "INVALID_OTP", message: "invalid otp" }
+    });
 
     const result = await actions.reset!(
       fakeAuthEvent({ email: "a@example.com", otp: "000000", password: "new-secret" })
@@ -70,7 +73,11 @@ describe("activate actions", () => {
 
     expect(result).toMatchObject({
       status: 400,
-      data: { step: "reset", email: "a@example.com", error: "Invalid code" }
+      data: {
+        step: "reset",
+        email: "a@example.com",
+        error: "That code isn't right. Check it and try again."
+      }
     });
   });
 });

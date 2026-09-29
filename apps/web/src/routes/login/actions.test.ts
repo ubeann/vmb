@@ -16,9 +16,9 @@ const { actions } = await import("./+page.server.js");
 const { fakeAuthEvent } = await import("../../lib/test-support.js");
 const action = actions.default!;
 
-const signInEmail = vi.fn<() => Promise<{ data: null; error: { message?: string } | null }>>(
-  async () => ({ data: null, error: null })
-);
+const signInEmail = vi.fn<
+  () => Promise<{ data: null; error: { message?: string; code?: string } | null }>
+>(async () => ({ data: null, error: null }));
 const client = { signIn: { email: signInEmail } };
 
 beforeEach(() => {
@@ -51,12 +51,32 @@ describe("login action", () => {
     expect(signInEmail).toHaveBeenCalledWith({ email: "a@example.com", password: "secret" });
   });
 
-  it("fails with Better Auth's message for invalid credentials", async () => {
-    signInEmail.mockResolvedValueOnce({ data: null, error: { message: "Invalid credentials" } });
+  it("fails with mapped VMB copy for a known error code, never Better Auth's raw message", async () => {
+    signInEmail.mockResolvedValueOnce({
+      data: null,
+      error: { code: "EMAIL_NOT_VERIFIED", message: "email not verified" }
+    });
 
     const result = await action(fakeAuthEvent({ email: "a@example.com", password: "nope" }));
 
-    expect(result).toMatchObject({ status: 400, data: { error: "Invalid credentials" } });
+    expect(result).toMatchObject({
+      status: 400,
+      data: { error: "Verify your email to sign in. Check your inbox for the verification link." }
+    });
+  });
+
+  it("maps the sign-in gate's ACCOUNT_UNAVAILABLE to VMB copy", async () => {
+    signInEmail.mockResolvedValueOnce({
+      data: null,
+      error: { code: "ACCOUNT_UNAVAILABLE", message: "This account is unavailable." }
+    });
+
+    const result = await action(fakeAuthEvent({ email: "a@example.com", password: "secret" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { error: "This account is unavailable. Contact an administrator." }
+    });
   });
 
   it("falls back to its own message when Better Auth reports none", async () => {
