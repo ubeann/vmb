@@ -14,7 +14,7 @@ The error page (`apps/web/src/routes/+error.svelte`) redesigned in the etched te
 | Viewport          | Layout                                                                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Desktop (≥ 64rem) | The signed-out masthead and footer strip (`SiteHeader`, `SiteFooter`, shared with `AuthShell`); the copy on the left, the vignette on the right, 4rem apart, both centred vertically. |
-| Tablet, mobile    | The vignette above the copy (at most 15rem tall, 11rem below 40rem), 2.5rem clear of the eyebrow. The page fits at 390 × 844 without scrolling.                                       |
+| Tablet, mobile    | The vignette above the copy (at most 15rem tall, 10rem below 40rem), 2.5rem clear of the eyebrow. The page fits at 390 × 844 without scrolling.                                       |
 
 The vignette box takes the art's own ratio and is never taller than `--vignette-max-height` (26rem on desktop), so the wide gate and the tall crates take the same room.
 
@@ -22,14 +22,18 @@ The vignette box takes the art's own ratio and is never taller than `--vignette-
 
 The scene follows the status, never chance: the server and the browser draw the same picture, a refresh doesn't swap it, and tests and screenshots stay stable. `errorPageContent(status)` in `apps/web/src/lib/error-page.ts` holds the mapping.
 
-| Status    | Scene          | Heading                | Actions                      |
-| --------- | -------------- | ---------------------- | ---------------------------- |
-| 404, 410  | Road, signpost | Page not found         | Go to login / Back to VMB    |
-| 401, 403  | Locked gate    | No access to this page | Go to login / Back to VMB    |
-| 5xx       | Toppled crates | Something went wrong   | Try again, then the way back |
-| Other 4xx | Toppled crates | Something went wrong   | The way back                 |
+| Status    | Scene          | Heading                  | Actions                      |
+| --------- | -------------- | ------------------------ | ---------------------------- |
+| 404, 410  | Road, signpost | Page not found           | Log in / Go to dashboard     |
+| 401, 403  | Locked gate    | No access to this page   | Log in / Go to dashboard     |
+| 5xx       | Toppled crates | Unable to load this page | Try again, then the way back |
+| Other 4xx | Toppled crates | Unable to load this page | The way back                 |
 
-"Try again" reloads the same URL (`data-sveltekit-reload`). An unexpected server failure also gets a short reference from `handleError` in `hooks.server.ts`: it is logged with the error, and the page asks the visitor to email it to `support@vmblogistics.id` (the link pre-fills the subject). A 404 gets no reference and no log line.
+The way back depends on the session: "Log in" (to `/login`) when signed out, "Go to dashboard" (to `/`) when signed in, read from `page.data.user`, which the root layout returns on every route. No value is passed in the URL. The labels follow the app's own terms ("Log in", not "login") and name the destination rather than "Back", which reads as the browser's Back button.
+
+"Try again" reloads the same URL (`data-sveltekit-reload`), and the 5xx body names that button ("Try again, or come back in a few minutes.") so the page uses one word for one action. The heading says what failed ("Unable to load this page") instead of "Something went wrong".
+
+An unexpected server failure also gets a short reference and its time from `handleError` in `hooks.server.ts`, both logged with the error. The page shows the reference as a read-only copy field, after the pattern of cloud consoles' account-ID fields: a "Reference" label, then a narrow bordered box (`--input` border, as the login fields) with the value in mono and a "Copy" button inside it. The button's accessible name is "Copy reference" (WCAG 2.5.3: it contains the visible word), since "Copy" alone says nothing in a screen reader's list of buttons. On success it reads "Copied" for 2 s with the animated check (ADR-0035 rule 3: motion for a confirmed copy), and a live region announces "Reference copied". When the clipboard is refused (a denied permission, a non-HTTPS page) the value is selected and the page says "Press ⌘C to copy the reference." (Ctrl+C off Apple devices), so there is always a next step. The button renders with the page, so nothing shifts on hydration. The value is not masked or blurred: a reference is not a secret. Below it: "If this keeps happening, email the support team at support@vmblogistics.id and include this reference." The link pre-fills the subject (`VMB error <reference>`) and a body with the reference, the page and the time in UTC, so support can find the log line without asking; the time comes from the server, so the server and the browser render the same link. A 404 gets no reference and no log line.
 
 ## Storyboard
 
@@ -72,6 +76,7 @@ The script writes 2400px and 1200px files, which upscale these ~840px masks, so 
 - Clear zone: the art never sits under text; the gap is 4rem on desktop and 2.5rem stacked. The text colours are the existing tokens, measured in the login round (`--muted-foreground` 5.99:1 light, 8.45:1 dark).
 - `AuthShell` after the header and footer moved into `SiteHeader` and `SiteFooter`: `/login` is pixel-identical to before at 1440 × 900, 1024 × 923 and 390 × 844 (reduced motion).
 - `pnpm typecheck`, `pnpm lint` and `pnpm test` in `apps/web`.
+- After the copy review (`interfaces:better-writing`) and the copy field: the 500 page at 1440 × 900 (light, and dark after a real copy in Chromium, which put the reference on the clipboard) and 390 × 844 (light), looked at by eye. It measures 844, 768, 923 and 900px tall at 390 × 844, 1366 × 768, 1024 × 923 and 1440 × 900, so it still fits; the field's extra row was paid for on mobile with a 10rem vignette and 2rem page padding. The signed-in "Go to dashboard" button and the blocked-clipboard hint are covered by component tests only.
 
 ## Not yet checked
 
