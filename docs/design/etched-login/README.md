@@ -106,22 +106,25 @@ The flock prompt, for the left column: _Delicate 19th-century steel engraving, t
 
 **Wider plate (#219).** Three problems from the footer strip, and what fixed each:
 
-- _The plate's ends showed._ The 3.7:1 plate was fitted to the band's height, which the strip's reserve had shortened. The new plate is padded to 5:1 with a sparse, faded edge, and the band is at least `100vw ÷ 5` tall from 64rem, so it always spans the viewport. It is at most `100vw ÷ 4` (the art's own ratio), so the scene is never cropped at the sides. On screens at least 68rem tall it grows toward its 44vh cap.
+- _The plate's ends showed._ The 3.7:1 plate was fitted to the band's height, which the strip's reserve had shortened. The new plate is padded to 5:1 with a sparse, faded edge, and the band is at least `100vw ÷ 5` tall from 64rem, so it always spans the viewport. It is at most `100vw ÷ 4` (the art's own ratio), so the scene is never cropped at the sides. From 80rem wide and 56rem tall, where the flock sits, it also grows into the room above the plate: `--etched-scene-headroom` (set in `AuthShell`, the flock's bottom edge at 505px plus its 2.5rem clear zone) lets the band grow until its ink spans the viewport (`--plate-ink-ratio`, 3.85, since the ink is 77% of the plate's width), and no further. Trimming more of the bottom was considered and rejected: filling 1680px that way needs about a 19% cut, and the bridge fades at 15–22%. Below 80rem, or with no flock, the band keeps its earlier height.
 - _The sheet hid the container yard._ At 1366–1680 the sheet covers about 62–88% of the width and the top 40% of the plate. Mirroring the art moves the cranes to about 24–37% of the width and the yard to the left; the warehouse roofs now tuck under the sheet's lower corner, as if the paper lay over them.
 - _Tall screens left a gap._ At 1440 × 1284 the sheet-to-plate gap is 239px (master: 262px).
 
-The footer's top padding also dropped from 2.5rem to 1.25rem from 64rem (mobile keeps 2.5rem), with the reserve at 3.25rem (4.25rem on touch). That works because the art's last 8% is almost bare paper: the ink is 10% opaque about 7.7% of the plate's height above its bottom edge, and 25% opaque about 11% above. The extra padding was spare clear zone.
+Below 64rem the footer's two links are 44px icon buttons (mail, GitHub) with the name in the `aria-label`, in a row with the copyright from 640px and stacked under it below that; the desktop text links are unchanged. The footer's top padding also dropped from 2.5rem to 1.25rem from 64rem (mobile keeps 2.5rem), with the reserve at 3.25rem (4.25rem on touch). That works because the art's last 8% is almost bare paper: the ink is 10% opaque about 7.7% of the plate's height above its bottom edge, and 25% opaque about 11% above. The extra padding was spare clear zone.
 
-| Viewport    | Plate height | Text to 10% ink | Text to 25% ink | Page |
-| ----------- | ------------ | --------------- | --------------- | ---- |
-| 1920 × 1080 | 423px        | 57px            | 71px            | fits |
-| 1680 × 1000 | 368px        | 52px            | 64px            | fits |
-| 1440 × 900  | 308px        | 48px            | 58px            | fits |
-| 1366 × 768  | 286px        | 46px            | 55px            | fits |
-| 1024 × 923  | 205px        | 40px            | 47px            | fits |
-| 1440 × 1284 | 360px        | 52px            | 64px            | fits |
+| Viewport    | Plate height | Blank paper per side | Gap to flock | Text to 10% ink | Page |
+| ----------- | ------------ | -------------------- | ------------ | --------------- | ---- |
+| 1920 × 1080 | 483px        | 30px                 | 40px         | 61px            | fits |
+| 1680 × 1050 | 436px        | 0                    | 57px         | 58px            | fits |
+| 1680 × 1000 | 403px        | 64px                 | 40px         | 55px            | fits |
+| 1440 × 900  | 308px        | 127px                | 35px         | 48px            | fits |
+| 1366 × 768  | 286px        | 133px                | no flock     | 46px            | fits |
+| 1280 × 800  | 268px        | 124px                | no flock     | 45px            | fits |
+| 1440 × 1284 | 374px        | 0                    | 353px        | 53px            | fits |
+| 1024 × 923  | 205px        | 118px                | 11px         | 40px            | fits |
+| 2560 × 1440 | 665px        | 0                    | 218px        | 75px            | fits |
 
-The 40px minimum is 2.5rem, so the clear zone holds, exactly at 1024 × 923. At 1366 × 768 the sheet covers the bridge's right end and the warehouses, and the mobile ribbon (390 × 844) still shows the warehouses, bridge and yard. The 390 × 844 page scrolls to 932px, as before, with the fields and submit button above the fold. The plate top is the same as, or lower than, master's at every size except 1440 × 1284, where it rises 23px on purpose. Those master numbers come from the old CSS formula, not from a master render.
+The 40px minimum is 2.5rem, so the clear zone holds, exactly at 1024 × 923. Blank paper is the plate's margin beyond its ink, estimated from the mask (ink is 77% of the plate). At 1440 × 900 and below the room above the plate is the limit, so a soft vignette of about 127px per side stays. At 1366 × 768 the sheet covers the bridge's right end and the warehouses, and the mobile ribbon (390 × 844) still shows the warehouses, bridge and yard. The 390 × 844 page scrolls to 916px (932px before the icon footer), with the fields and submit button above the fold. The plate top is the same as, or lower than, master's at every size except 1440 × 1284, where it rises 23px on purpose. Those master numbers come from the old CSS formula, not from a master render.
 
 A guilloché rosette behind the sheet was tried and removed: its rings tangled with the sun's rays. It is in commit `5a900cd` if a later screen wants it.
 
