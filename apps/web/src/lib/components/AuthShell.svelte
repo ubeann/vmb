@@ -8,7 +8,6 @@
   import EtchedFlock from "$lib/components/EtchedFlock.svelte";
   import EtchedScene from "$lib/components/EtchedScene.svelte";
   import EtchedSky from "$lib/components/EtchedSky.svelte";
-  import { PAPER_CARD_CLASS } from "$lib/components/paper-card.js";
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import SiteHeader from "$lib/components/SiteHeader.svelte";
   import type { Snippet } from "svelte";
@@ -48,7 +47,10 @@
     </div>
 
     <div class="relative w-full lg:justify-self-end">
-      <section aria-labelledby="auth-heading" class="{PAPER_CARD_CLASS} w-full">
+      <section
+        aria-labelledby="auth-heading"
+        class="bg-card text-card-foreground w-full rounded-md border p-6 shadow-[0_0_0_5px_var(--card),0_0_0_6px_var(--border),0_24px_48px_-32px_color-mix(in_oklch,var(--etching)_40%,transparent)] sm:p-8"
+      >
         <h1 id="auth-heading" class="font-display text-3xl font-medium tracking-tight">
           {heading}
         </h1>
