@@ -2,11 +2,10 @@
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
-  import CircleAlert from "@lucide/svelte/icons/circle-alert";
-  import CircleCheck from "@lucide/svelte/icons/circle-check";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import { LoginInputSchema } from "@vmb/types";
   import AuthShell from "$lib/components/AuthShell.svelte";
+  import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -45,24 +44,15 @@
   {#snippet description()}Use the email and password for your VMB access.{/snippet}
 
   {#if verified || activated || loggedOut}
-    <p role="status" class="bg-muted mb-5 flex gap-2.5 rounded-md border px-3.5 py-3 text-sm">
-      <CircleCheck class="text-primary mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <span>
-        {#if verified}Your email is verified — you can log in now.{/if}
-        {#if activated}Your password is set — log in with it now.{/if}
-        {#if loggedOut}You have logged out.{/if}
-      </span>
-    </p>
+    <Notice variant="success" class="mb-5">
+      {#if verified}Your email is verified — you can log in now.{/if}
+      {#if activated}Your password is set — log in with it now.{/if}
+      {#if loggedOut}You have logged out.{/if}
+    </Notice>
   {/if}
 
   {#if form?.error && !fieldErrors}
-    <p
-      role="alert"
-      class="border-destructive/40 text-destructive mb-5 flex gap-2.5 rounded-md border px-3.5 py-3 text-sm"
-    >
-      <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <span>{form.error}</span>
-    </p>
+    <Notice variant="destructive" class="mb-5">{form.error}</Notice>
   {/if}
 
   <form

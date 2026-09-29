@@ -1,10 +1,10 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
-  import CircleAlert from "@lucide/svelte/icons/circle-alert";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import { ActivateRequestInputSchema, ActivateResetInputSchema } from "@vmb/types";
   import AuthShell from "$lib/components/AuthShell.svelte";
+  import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -83,13 +83,7 @@
 
   <div class="mt-5 space-y-5">
     {#if form?.error && (!fieldErrors || (step === "reset" && fieldErrors.email))}
-      <p
-        role="alert"
-        class="border-destructive/40 text-destructive flex gap-2.5 rounded-md border px-3.5 py-3 text-sm"
-      >
-        <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <span>{form.error}</span>
-      </p>
+      <Notice variant="destructive">{form.error}</Notice>
     {/if}
 
     {#if step === "reset"}
