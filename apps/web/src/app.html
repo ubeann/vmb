@@ -5,12 +5,19 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.ico" sizes="32x32" />
     <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
-    <!-- Hex `--background` from app.css (ADR-0036): browser chrome cannot read CSS variables. -->
-    <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0a1030" media="(prefers-color-scheme: dark)" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
+    <!-- mode-watcher 1.1.0 sets System's initial theme-color to dark on a light OS.
+         Its head script has already resolved the class, so correct the meta before body paint. -->
+    <script>
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute(
+          "content",
+          document.documentElement.classList.contains("dark") ? "#0a1030" : "#faf8f3"
+        );
+    </script>
   </head>
   <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>
