@@ -82,9 +82,9 @@
     </div>
   </main>
 
-  <!-- The plate's bottom fades into the paper; the strip's top padding is the 2.5rem clear zone below it. The reserve fits 24px links, or 44px on touch. -->
+  <!-- The plate's bottom fades into the paper; the strip's top padding is the clear zone below the plate's last visible ink. The reserve fits 24px links, or 44px on touch. -->
   <div
-    class="relative [--etched-scene-fade:20%] lg:[--etched-scene-reserve:4.5rem] lg:pointer-coarse:[--etched-scene-reserve:5.5rem]"
+    class="relative lg:[--etched-scene-reserve:3.25rem] lg:pointer-coarse:[--etched-scene-reserve:4.25rem]"
   >
     <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-full lg:mt-0" />
 
@@ -92,7 +92,7 @@
       class="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:min-h-(--etched-scene-reserve) lg:px-16"
     >
       <div
-        class="text-muted-foreground flex flex-col items-center gap-y-1 pt-10 pb-6 text-center text-xs lg:flex-row lg:justify-between lg:gap-x-6 lg:pb-0"
+        class="text-muted-foreground flex flex-col items-center gap-y-1 pt-10 pb-6 text-center text-xs lg:flex-row lg:justify-between lg:gap-x-6 lg:pt-5 lg:pb-0"
       >
         <p class="whitespace-nowrap">© {copyrightYear} PT. Vifiera Minova Bersaudara</p>
         <p class="flex flex-wrap justify-center gap-x-5 gap-y-1">
