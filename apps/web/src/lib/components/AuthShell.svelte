@@ -1,14 +1,16 @@
 <!--
   Frame for the signed-out pages (login, activate): the VMB masthead and brand
   line on paper, the page's form on a ruled sheet, and the engraved panorama
-  resting on a ruled footer strip at the foot of the viewport. The sheet stays
+  fading into a footer strip at the foot of the viewport. The sheet stays
   usable before, during and without the artwork.
 -->
 <script lang="ts">
   import EtchedFlock from "$lib/components/EtchedFlock.svelte";
   import EtchedScene from "$lib/components/EtchedScene.svelte";
   import EtchedSky from "$lib/components/EtchedSky.svelte";
+  import GitHubMark from "$lib/components/GitHubMark.svelte";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
+  import Mail from "@lucide/svelte/icons/mail";
   import type { Snippet } from "svelte";
 
   let {
@@ -80,9 +82,9 @@
     </div>
   </main>
 
-  <!-- The strip's top padding is the 2.5rem clear zone; the reserve fits it with 24px links, or 44px on touch. -->
+  <!-- The plate's bottom fades into the paper; the strip's top padding is the 2.5rem clear zone below it. The reserve fits 24px links, or 44px on touch. -->
   <div
-    class="relative lg:[--etched-scene-reserve:4.5rem] lg:pointer-coarse:[--etched-scene-reserve:5.5rem]"
+    class="relative [--etched-scene-fade:20%] lg:[--etched-scene-reserve:4.5rem] lg:pointer-coarse:[--etched-scene-reserve:5.5rem]"
   >
     <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-full lg:mt-0" />
 
@@ -90,19 +92,22 @@
       class="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:min-h-(--etched-scene-reserve) lg:px-16"
     >
       <div
-        class="border-border text-muted-foreground flex flex-col items-center gap-y-1 border-t pt-10 pb-6 text-center text-xs lg:flex-row lg:justify-between lg:gap-x-6 lg:pb-0"
+        class="text-muted-foreground flex flex-col items-center gap-y-1 pt-10 pb-6 text-center text-xs lg:flex-row lg:justify-between lg:gap-x-6 lg:pb-0"
       >
         <p class="whitespace-nowrap">© {copyrightYear} PT. Vifiera Minova Bersaudara</p>
         <p class="flex flex-wrap justify-center gap-x-5 gap-y-1">
-          <span>
-            Trouble logging in?
+          <span class="inline-flex items-center gap-1.5">
+            <Mail class="size-3.5 shrink-0" aria-hidden="true" />
+            Support team:
             <a class={footerLinkClass} href="mailto:vmb_operation@vifieraminova.com"
               >vmb_operation@vifieraminova.com</a
             >
           </span>
-          <span
-            >Built by <a class={footerLinkClass} href="https://github.com/ubeann">ubeann</a></span
-          >
+          <span class="inline-flex items-center gap-1.5">
+            <GitHubMark class="size-3.5 shrink-0" />
+            Built by
+            <a class={footerLinkClass} href="https://github.com/ubeann">ubeann</a>
+          </span>
         </p>
       </div>
     </footer>

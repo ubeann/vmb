@@ -36,7 +36,8 @@
      * band wider than the plate it ends in its own baked-in side fade, on a
      * narrower one it bleeds off both edges.
      *
-     * The full-box reveal gradient must be the top layer. Chrome snaps the
+     * The full-box gradients (reveal, then the optional bottom fade set by
+     * `--etched-scene-fade`) must sit above the plate. Chrome snaps the
      * plate's tile to device pixels, and `intersect` only masks where the top
      * layer draws, so with the plate on top a fractional band edge (e.g. at
      * 1.5× zoom) left a sliver of bare gradient: a faint line (#202).
@@ -47,8 +48,14 @@
         #000 calc(var(--etch-reveal) - 15%),
         transparent var(--etch-reveal)
       ),
+      linear-gradient(
+        to bottom,
+        #000 calc(100% - var(--etched-scene-fade, 0%)),
+        transparent calc(100% + 1px)
+      ),
       var(--etching-image);
     mask-size:
+      100% 100%,
       100% 100%,
       auto 100%;
     mask-position: center bottom;

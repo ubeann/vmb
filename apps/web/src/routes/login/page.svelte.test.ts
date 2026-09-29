@@ -84,18 +84,21 @@ describe("login page", () => {
       .toBeVisible();
   });
 
-  it("offers a sign-in help address and the developer credit in the footer", async () => {
+  it("offers the support team's address and the developer credit in the footer", async () => {
     mockPage.url = new URL("http://localhost/login");
 
     const screen = await render(Page, { form: null });
     const footer = screen.getByRole("contentinfo");
 
     await expect
-      .element(footer.getByRole("link", { name: "vmb_operation@vifieraminova.com" }))
+      .element(footer.getByRole("link", { name: "vmb_operation@vifieraminova.com", exact: true }))
       .toHaveAttribute("href", "mailto:vmb_operation@vifieraminova.com");
     await expect
-      .element(footer.getByRole("link", { name: "ubeann" }))
+      .element(footer.getByRole("link", { name: "ubeann", exact: true }))
       .toHaveAttribute("href", "https://github.com/ubeann");
+    expect(footer.element().textContent).toMatch(
+      /Support team:\s+vmb_operation@vifieraminova\.com/
+    );
   });
 
   it("renders missing-field errors beside the relevant input", async () => {
