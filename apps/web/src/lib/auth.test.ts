@@ -5,10 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // action responses. These are internal helpers, so an upgrade that changes
 // this path must recheck the response-boundary assertion below.
 // @ts-expect-error SvelteKit does not publish types for its internal cookie module.
-import {
-  add_cookies_to_headers,
-  get_cookies
-} from "../../node_modules/@sveltejs/kit/src/runtime/server/cookie.js";
+import * as svelteKitCookies from "../../node_modules/@sveltejs/kit/src/runtime/server/cookie.js";
 
 // `getRequestEvent` is a SvelteKit virtual module the "unit" vitest project
 // doesn't resolve (see vite.config.ts) — mock it directly rather than
@@ -102,7 +99,10 @@ describe("remember me through the cookie bridge", () => {
 
   async function webResponseCookies(rememberMe: boolean) {
     const url = new URL("https://web.test/login");
-    const { cookies, new_cookies, set_trailing_slash } = get_cookies(new Request(url), url);
+    const { cookies, new_cookies, set_trailing_slash } = svelteKitCookies.get_cookies(
+      new Request(url),
+      url
+    );
     set_trailing_slash("never");
     cookiesSet.mockImplementation(cookies.set);
 
@@ -110,7 +110,7 @@ describe("remember me through the cookie bridge", () => {
     await client.signIn.email({ ...credentials, rememberMe });
 
     const headers = new Headers();
-    add_cookies_to_headers(headers, new_cookies.values());
+    svelteKitCookies.add_cookies_to_headers(headers, new_cookies.values());
     return headers.getSetCookie();
   }
 
