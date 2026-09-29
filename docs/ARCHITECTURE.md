@@ -192,6 +192,8 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 - [x] File storage: **R2 is needed** — decided (ADR-0013)
 - [x] Cloudflare Queues: **not needed for MVP** — decided (ADR-0014)
 - [x] Staging environment strategy: separate Neon branch + separate Workers/Pages environment (ADR-0015), now largely superseded by **per-PR preview deployments** (ADR-0019). Pages allows only `preview`/`production`, so the Pages `[env.staging]` was invalid and removed; the `apps/api` `[env.staging]` remains, unprovisioned, pending an explicit decision.
+- [x] Effect: **not adopted now** — revisit once v4 is stable and Superforms supports it (ADR-0038)
+- [x] Alchemy (infrastructure as code): **not adopted** — wrangler and scripts stay the provisioning path (ADR-0039)
 
 ### 7.4 Design System
 
@@ -203,4 +205,4 @@ See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-30 (§9: Knip in `Verify`, per ADR-0037; §8: the two session lifetimes behind "Remember me", per ADR-0034's amendment; §7.4: the navy and green palette, per ADR-0036; §2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
+_Last updated: 2026-09-30 (§9: Knip in `Verify`, per ADR-0037; §11: Effect and Alchemy not adopted, per ADR-0038 and ADR-0039; §8: the two session lifetimes behind "Remember me", per ADR-0034's amendment; §7.4: the navy and green palette, per ADR-0036; §2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
