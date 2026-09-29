@@ -1,0 +1,28 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+  "workspaces": {
+    ".": {
+      // Run by hand to rebuild the brand assets (see that round's README).
+      "entry": ["docs/design/**/*.mjs"],
+      // Resolved from apps/web's node_modules through createRequire.
+      "ignoreDependencies": ["playwright"]
+    },
+    "apps/web": {
+      // Run by hand for design reviews (docs/agents/design-workflow.md).
+      "entry": ["scripts/*.mjs"]
+    },
+    "apps/api": {
+      // Never imported here: pinned so drizzle-orm's types resolve to the
+      // same copy @vmb/db uses (commit 6a4aa9b, and the pnpm override).
+      "ignoreDependencies": ["@neondatabase/serverless"]
+    }
+  },
+  // Installed by mise (.mise.toml), not npm.
+  "ignoreBinaries": ["fnox"],
+  // shadcn-svelte registry copies: their barrels export every part so a
+  // component can be dropped in whole. Unused parts are expected there, and
+  // editing them would fork the registry. Unused files and deps still report.
+  "ignoreIssues": {
+    "apps/web/src/lib/components/ui/**": ["exports", "types"]
+  }
+}

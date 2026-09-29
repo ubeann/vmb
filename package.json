@@ -12,10 +12,12 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "knip": "pnpm --filter @vmb/web exec svelte-kit sync && knip"
   },
   "devDependencies": {
     "@vmb/config": "workspace:*",
+    "knip": "^6.38.0",
     "prettier": "^3.9.8",
     "prettier-plugin-svelte": "^4.1.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
