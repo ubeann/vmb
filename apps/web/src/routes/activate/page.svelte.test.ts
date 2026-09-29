@@ -293,4 +293,44 @@ describe("activate page", () => {
       await expect.element(screen.getByLabelText("Email")).toHaveFocus();
     });
   });
+
+  describe("field icons and hints (#234)", () => {
+    const decorativeIcons = (element: Element) =>
+      [...element.querySelectorAll("svg")].filter(
+        (icon) => icon.getAttribute("aria-hidden") === "true"
+      );
+
+    it("hints the email format and puts an icon in the field and on Send code", async () => {
+      const screen = await render(Page, { form: null });
+      const email = screen.getByLabelText("Email").element();
+
+      expect(email.getAttribute("placeholder")).toBe("name@company.com");
+      expect(decorativeIcons(email.parentElement!)).not.toHaveLength(0);
+      expect(
+        decorativeIcons(screen.getByRole("button", { name: "Send code" }).element())
+      ).toHaveLength(1);
+    });
+
+    it("hints the six digits, with icons in both fields and on Set password", async () => {
+      const screen = await render(Page, { form: { step: "reset", email: "a@example.com" } });
+      const code = screen.getByLabelText("Code").element();
+      const password = screen.getByLabelText("New password").element();
+
+      expect(code.getAttribute("placeholder")).toBe("123456");
+      expect(password.hasAttribute("placeholder")).toBe(false);
+      expect(decorativeIcons(code.parentElement!)).not.toHaveLength(0);
+      expect(decorativeIcons(password.parentElement!)).not.toHaveLength(0);
+      expect(
+        decorativeIcons(screen.getByRole("button", { name: "Set password" }).element())
+      ).toHaveLength(1);
+    });
+
+    it("leaves Send a new code as words only", async () => {
+      const screen = await render(Page, { form: { step: "reset", email: "a@example.com" } });
+
+      expect(
+        decorativeIcons(screen.getByRole("button", { name: "Send a new code" }).element())
+      ).toHaveLength(0);
+    });
+  });
 });
