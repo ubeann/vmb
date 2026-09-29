@@ -66,7 +66,7 @@ export async function importSnapshot(
  * creates — and nothing else. Anything the pipeline did not create is left
  * alone, so pointing it at a database with other data will not delete it.
  */
-export async function reset(client: SqlClient): Promise<void> {
+async function reset(client: SqlClient): Promise<void> {
   for (const schema of ["master", "warehouse", "trucking", "expense", "drizzle"]) {
     await client.exec(`drop schema if exists ${schema} cascade`);
   }

@@ -2,7 +2,7 @@
 // PageMeta.svelte. VMB is an internal tool, so this serves the browser tab and
 // link previews — an activation link pasted into WhatsApp or Slack — not
 // search ranking; app.html keeps every page out of search indexes.
-export const SITE_NAME = "VMB";
+const SITE_NAME = "VMB";
 
 // Built by docs/design/etched-login/build-brand-assets.mjs.
 export const OG_IMAGE = {

@@ -62,7 +62,7 @@ async function failure(
 }
 
 /** Query parameters are a string record on the wire; undefined keys are dropped. */
-export function queryStrings(query: Record<string, string | number | undefined>) {
+function queryStrings(query: Record<string, string | number | undefined>) {
   const params: Record<string, string> = {};
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined) params[key] = String(value);

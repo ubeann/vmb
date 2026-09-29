@@ -41,7 +41,7 @@ export function createMasterFormAction<T extends ZodValidationSchema>(config: {
 }
 
 /** The `id` a list row's delete or restore form submitted. */
-export async function submittedId(request: Request): Promise<string | null> {
+async function submittedId(request: Request): Promise<string | null> {
   const data = await request.formData();
   const id = data.get("id");
   return typeof id === "string" && id ? id : null;
