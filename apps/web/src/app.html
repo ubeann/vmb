@@ -8,6 +8,16 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
+    <!-- mode-watcher 1.1.0 sets System's initial theme-color to dark on a light OS.
+         Its head script has already resolved the class, so correct the meta before body paint. -->
+    <script>
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute(
+          "content",
+          document.documentElement.classList.contains("dark") ? "#0a1030" : "#faf8f3"
+        );
+    </script>
   </head>
   <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>

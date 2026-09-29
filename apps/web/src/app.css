@@ -184,6 +184,18 @@
   :is([data-slot="button"], a[data-slot="badge"]).bg-primary:hover {
     background-color: var(--primary-hover);
   }
+
+  /* The registry's menu and select items only change fill on keyboard focus;
+   * inset ink keeps the focus indicator visible without patching vendored files. */
+  :is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="select-item"]
+  ):focus-visible {
+    box-shadow: inset 0 0 0 2px var(--ring);
+  }
 }
 
 /*
