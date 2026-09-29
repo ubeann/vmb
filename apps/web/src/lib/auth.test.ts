@@ -1,6 +1,14 @@
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// Exercise the same cookie store and header writer SvelteKit uses for form
+// action responses. These are internal helpers, so an upgrade that changes
+// this path must recheck the response-boundary assertion below.
+// @ts-expect-error SvelteKit does not publish types for its internal cookie module.
+import {
+  add_cookies_to_headers,
+  get_cookies
+} from "../../node_modules/@sveltejs/kit/src/runtime/server/cookie.js";
 
 // `getRequestEvent` is a SvelteKit virtual module the "unit" vitest project
 // doesn't resolve (see vite.config.ts) — mock it directly rather than
@@ -92,6 +100,20 @@ describe("remember me through the cookie bridge", () => {
     return calls.at(-1)?.[2] as { maxAge?: number; expires?: Date } | undefined;
   }
 
+  async function webResponseCookies(rememberMe: boolean) {
+    const url = new URL("https://web.test/login");
+    const { cookies, new_cookies, set_trailing_slash } = get_cookies(new Request(url), url);
+    set_trailing_slash("never");
+    cookiesSet.mockImplementation(cookies.set);
+
+    const { client } = await setUp();
+    await client.signIn.email({ ...credentials, rememberMe });
+
+    const headers = new Headers();
+    add_cookies_to_headers(headers, new_cookies.values());
+    return headers.getSetCookie();
+  }
+
   function cookieHeader(omit: string[] = []) {
     return [...jar]
       .filter(([name]) => !omit.includes(name))
@@ -112,9 +134,7 @@ describe("remember me through the cookie bridge", () => {
   });
 
   it("gives an unticked sign-in a browser-session cookie, and forwards dont_remember", async () => {
-    const { client } = await setUp();
-
-    await client.signIn.email({ ...credentials, rememberMe: false });
+    const setCookies = await webResponseCookies(false);
 
     const session = lastCookieOptions(SESSION);
     expect(session).toBeDefined();
@@ -125,15 +145,23 @@ describe("remember me through the cookie bridge", () => {
     expect(dontRemember).toBeDefined();
     expect(dontRemember?.maxAge).toBeUndefined();
     expect(dontRemember?.expires).toBeUndefined();
+
+    for (const name of [SESSION, DONT_REMEMBER]) {
+      const header = setCookies.find((cookie) => cookie.startsWith(`${name}=`));
+      expect(header).toBeDefined();
+      expect(header).not.toMatch(/(?:^|;)\s*(?:Max-Age|Expires)=/i);
+    }
   });
 
   it("gives a ticked sign-in today's 7-day cookie and no dont_remember", async () => {
-    const { client } = await setUp();
-
-    await client.signIn.email({ ...credentials, rememberMe: true });
+    const setCookies = await webResponseCookies(true);
 
     expect(lastCookieOptions(SESSION)?.maxAge).toBe(604800);
     expect(lastCookieOptions(DONT_REMEMBER)).toBeUndefined();
+    expect(setCookies.find((cookie) => cookie.startsWith(`${SESSION}=`))).toMatch(
+      /(?:^|;)\s*Max-Age=604800(?:;|$)/i
+    );
+    expect(setCookies.some((cookie) => cookie.startsWith(`${DONT_REMEMBER}=`))).toBe(false);
   });
 
   it("never turns a browser-session cookie persistent when the session is next read", async () => {
