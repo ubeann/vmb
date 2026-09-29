@@ -33,7 +33,6 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.2",
-    "@vitest/browser": "^5.0.1",
     "@vitest/browser-playwright": "^5.0.1",
     "@vmb/api": "workspace:*",
     "@vmb/config": "workspace:*",

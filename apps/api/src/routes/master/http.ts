@@ -23,7 +23,7 @@ export class HttpError extends Error {
   }
 }
 
-export function issuesFrom(error: z.ZodError): ValidationIssue[] {
+function issuesFrom(error: z.ZodError): ValidationIssue[] {
   return error.issues.map((issue) => ({
     path: issue.path.join("."),
     message: issue.message

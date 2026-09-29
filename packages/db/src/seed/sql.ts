@@ -8,7 +8,7 @@
  */
 export type SqlLiteral = string | number | boolean | null | { json: unknown };
 
-export type SeedRow = Record<string, SqlLiteral>;
+type SeedRow = Record<string, SqlLiteral>;
 
 export type SeedTable = {
   name: string;
