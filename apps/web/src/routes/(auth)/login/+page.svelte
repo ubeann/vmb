@@ -4,7 +4,7 @@
   import { page } from "$app/state";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import { LoginInputSchema } from "@vmb/types";
-  import AuthShell from "$lib/components/AuthShell.svelte";
+  import AuthCard from "$lib/components/AuthCard.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
@@ -40,7 +40,7 @@
   description="Log in to VMB, where warehouse items, trucking orders and division expenses are kept on record."
 />
 
-<AuthShell heading="Log in">
+<AuthCard heading="Log in">
   {#snippet description()}Use the email and password for your VMB access.{/snippet}
 
   {#if verified || activated || loggedOut}
@@ -132,4 +132,4 @@
     First time here?
     <a href={resolve("/activate")} class={linkClass}>Activate your account</a>
   {/snippet}
-</AuthShell>
+</AuthCard>

@@ -1,8 +1,10 @@
 <!--
   Frame for the signed-out pages (login, activate): the VMB masthead and brand
-  line on paper, the page's form on a ruled sheet, and the engraved panorama
+  line on paper, the page's card on a ruled sheet, and the engraved panorama
   fading into a footer strip at the foot of the viewport. The sheet stays
-  usable before, during and without the artwork.
+  usable before, during and without the artwork. The `(auth)` layout mounts it
+  once, so the artwork plays its entrance once per visit; each page fills the
+  sheet with an AuthCard.
 -->
 <script lang="ts">
   import EtchedFlock from "$lib/components/EtchedFlock.svelte";
@@ -12,17 +14,7 @@
   import SiteHeader from "$lib/components/SiteHeader.svelte";
   import type { Snippet } from "svelte";
 
-  let {
-    heading,
-    description,
-    children,
-    footer
-  }: {
-    heading: string;
-    description?: Snippet;
-    children: Snippet;
-    footer?: Snippet;
-  } = $props();
+  let { children }: { children: Snippet } = $props();
 </script>
 
 <div class="relative isolate flex min-h-dvh flex-col overflow-x-clip">
@@ -49,22 +41,9 @@
     <div class="relative w-full lg:justify-self-end">
       <section
         aria-labelledby="auth-heading"
-        class="bg-card text-card-foreground w-full rounded-md border p-6 shadow-[0_0_0_5px_var(--card),0_0_0_6px_var(--border),0_24px_48px_-32px_color-mix(in_oklch,var(--etching)_40%,transparent)] sm:p-8"
+        class="auth-card bg-card text-card-foreground w-full rounded-md border p-6 shadow-[0_0_0_5px_var(--card),0_0_0_6px_var(--border),0_24px_48px_-32px_color-mix(in_oklch,var(--etching)_40%,transparent)] sm:p-8"
       >
-        <h1 id="auth-heading" class="font-display text-3xl font-medium tracking-tight">
-          {heading}
-        </h1>
-        {#if description}
-          <p class="text-muted-foreground mt-2 text-sm text-pretty">{@render description()}</p>
-        {/if}
-
-        <div class="mt-6">{@render children()}</div>
-
-        {#if footer}
-          <div class="border-border text-muted-foreground mt-6 border-t pt-4 text-sm">
-            {@render footer()}
-          </div>
-        {/if}
+        {@render children()}
       </section>
     </div>
   </main>
@@ -78,3 +57,21 @@
     <SiteFooter class="lg:min-h-(--etched-scene-reserve) lg:pt-5 lg:pb-0" />
   </div>
 </div>
+
+<style>
+  /*
+   * The sheet is its own view-transition element (see card-transition.ts): the
+   * browser morphs its box from the old height to the new while the old and new
+   * contents cross-fade, and the rest of the page, artwork included, is
+   * untouched. Only client-side moves run a transition, and reduced motion
+   * skips it in script, so these rules never apply otherwise.
+   */
+  .auth-card {
+    view-transition-name: auth-card;
+  }
+
+  :global(::view-transition-group(auth-card)) {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+</style>
