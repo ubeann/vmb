@@ -3,7 +3,7 @@
   explicit choice. Touch sizes are set here because the trigger and menu items
   carry their own `data-slot`, which the base layer's 44px rule doesn't match.
   The trigger glyph follows the `.dark` class in CSS, so it
-  is right on first paint; it turns in once a choice is made (a keyframe
+  is right on first paint; it scales in when a choice changes the scheme (a keyframe
   animation, because mode-watcher suppresses CSS transitions while the class
   changes). The global reduced-motion rule collapses it.
 -->
@@ -20,10 +20,19 @@
 
   const item = "pointer-coarse:min-h-11";
 
-  let chosen = $state(false);
+  // The scheme a choice resolves to; System reads the OS.
+  const resolve = (choice: string) =>
+    choice === "system"
+      ? matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : choice;
+
+  // The glyph that is about to appear, set only when a choice changes the scheme.
+  let turnsTo = $state<string>();
 
   function choose(value: string) {
-    chosen = true;
+    if (resolve(value) !== resolve(userPrefersMode.current)) turnsTo = resolve(value);
     if (value === "light" || value === "dark") setMode(value);
     else resetMode();
   }
@@ -39,9 +48,9 @@
         class={cn("pointer-coarse:size-11", className)}
         aria-label="Theme"
       >
-        <span class="glyph" class:chosen>
-          <Sun class="dark:hidden" aria-hidden="true" />
-          <Moon class="hidden dark:block" aria-hidden="true" />
+        <span class="glyph" data-turns-to={turnsTo}>
+          <Sun class="sun dark:hidden" aria-hidden="true" />
+          <Moon class="moon hidden dark:block" aria-hidden="true" />
         </span>
       </Button>
     {/snippet}
@@ -67,15 +76,18 @@
     place-items: center;
   }
 
-  .chosen :global(svg) {
-    animation: glyph-in 0.3s ease-out;
+  /* On the incoming glyph only: it starts when the class swap shows it, so the
+     outgoing one never blinks and a choice that changes nothing stays still. */
+  .glyph[data-turns-to="dark"] :global(.moon),
+  .glyph[data-turns-to="light"] :global(.sun) {
+    animation: glyph-in 0.3s cubic-bezier(0.2, 0, 0, 1);
   }
 
   @keyframes glyph-in {
     from {
       opacity: 0;
-      rotate: -90deg;
-      scale: 0.4;
+      scale: 0.25;
+      filter: blur(4px);
     }
   }
 </style>

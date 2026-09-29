@@ -65,19 +65,32 @@ describe("ThemeToggle", () => {
     }
   });
 
-  it("animates the glyph once a choice is made, and not under reduced motion", async () => {
+  it("animates the incoming glyph when a choice changes the scheme, not under reduced motion", async () => {
     const screen = await render(ThemeToggle);
-    const glyph = () =>
-      screen.getByRole("button", { name: "Theme" }).element().querySelector("svg")!;
-    const duration = () => getComputedStyle(glyph()).animationDuration;
+    const trigger = screen.getByRole("button", { name: "Theme" });
+    const duration = (glyph: string) =>
+      getComputedStyle(trigger.element().querySelector(`svg.${glyph}`)!).animationDuration;
 
-    expect(duration()).toBe("0s");
+    expect(duration("moon")).toBe("0s");
 
-    await screen.getByRole("button", { name: "Theme" }).click();
+    await trigger.click();
     await screen.getByRole("menuitemradio", { name: "Dark" }).click();
-    expect(duration()).toBe("0.3s");
+    expect(duration("moon")).toBe("0.3s");
+    expect(duration("sun")).toBe("0s");
 
     await emulateReducedMotion("reduce");
-    await expect.poll(() => Number.parseFloat(duration())).toBeLessThan(0.001);
+    await expect.poll(() => Number.parseFloat(duration("moon"))).toBeLessThan(0.001);
+  });
+
+  it("keeps the glyph still when a choice leaves the scheme unchanged", async () => {
+    const screen = await render(ThemeToggle);
+    const trigger = screen.getByRole("button", { name: "Theme" });
+
+    await trigger.click();
+    await screen.getByRole("menuitemradio", { name: "Light" }).click();
+
+    for (const svg of trigger.element().querySelectorAll("svg")) {
+      expect(getComputedStyle(svg).animationDuration).toBe("0s");
+    }
   });
 });
