@@ -1,0 +1,78 @@
+<script lang="ts">
+  interface IconProps {
+    color?: string;
+    size?: number;
+    strokeWidth?: number;
+    animate?: boolean;
+    label?: string;
+    class?: string;
+  }
+
+  let {
+    color = "currentColor",
+    size = 24,
+    strokeWidth = 2,
+    animate = false,
+    label,
+    class: className = ""
+  }: IconProps = $props();
+</script>
+
+<span
+  class={className}
+  role={label ? "img" : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : "true"}
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    stroke-width={strokeWidth}
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    class="check-icon"
+    class:animate
+  >
+    <path d="M4 12l5 5L20 6" class="check-path" />
+  </svg>
+</span>
+
+<style>
+  span {
+    display: inline-block;
+  }
+  .check-icon {
+    overflow: visible;
+  }
+
+  .check-path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 0;
+    transition:
+      stroke-dashoffset 0.125s ease-out,
+      opacity 0.125s ease-out;
+  }
+
+  .check-icon.animate .check-path {
+    animation: checkAnimation 0.5s ease-out backwards;
+  }
+
+  @keyframes checkAnimation {
+    0% {
+      stroke-dashoffset: 24;
+      opacity: 0;
+    }
+    33% {
+      stroke-dashoffset: 24;
+      opacity: 0;
+    }
+    100% {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+  }
+</style>

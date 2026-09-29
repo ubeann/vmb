@@ -11,6 +11,7 @@
   import PlusIcon from "@lucide/svelte/icons/plus";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import { toast } from "svelte-sonner";
+  import AnimatedIconsDemo from "./AnimatedIconsDemo.svelte";
   import DemoForm from "./DemoForm.svelte";
   import MotionDemo from "./MotionDemo.svelte";
   import type { PageData } from "./$types.js";
@@ -302,6 +303,15 @@
         </li>
       {/each}
     </ul>
+  </section>
+
+  <section class="space-y-4" aria-labelledby="animated-icons">
+    {@render section(
+      "animated-icons",
+      "Animated feedback icons",
+      "Vendored moving icons (ADR-0035 rule 3) — used only for state changes, never decoration."
+    )}
+    <AnimatedIconsDemo />
   </section>
 
   <section class="space-y-4" aria-labelledby="dark">
