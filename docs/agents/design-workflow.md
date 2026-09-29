@@ -57,4 +57,4 @@ Checked 2026-09-28.
 
 ## Turning this into a skill
 
-Extract a skill only after a second screen has gone through these steps. Candidates are the app shell (#167) and empty or error states. The skill should encode what repeated across both rounds, not the auth pilot's particular choices.
+Extract a skill only after a second screen has gone through these steps. The error page is that second screen (`docs/design/error-states/README.md`); once its owner review (step 7) is done, the skill can be drafted from what repeated across both rounds, not the auth pilot's particular choices. What repeated so far: one shared prompt frame with a swapped scene sentence, two images per prompt, masks through `prepare-etching.py`, and a ratio test per shipped mask.

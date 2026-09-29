@@ -8,11 +8,8 @@
   import EtchedFlock from "$lib/components/EtchedFlock.svelte";
   import EtchedScene from "$lib/components/EtchedScene.svelte";
   import EtchedSky from "$lib/components/EtchedSky.svelte";
-  import GitHubMark from "$lib/components/GitHubMark.svelte";
-  import { PAPER_CARD_CLASS } from "$lib/components/paper-card.js";
-  import ThemeToggle from "$lib/components/ThemeToggle.svelte";
-  import VmbLogo from "$lib/components/VmbLogo.svelte";
-  import Mail from "@lucide/svelte/icons/mail";
+  import SiteFooter from "$lib/components/SiteFooter.svelte";
+  import SiteHeader from "$lib/components/SiteHeader.svelte";
   import type { Snippet } from "svelte";
 
   let {
@@ -26,33 +23,12 @@
     children: Snippet;
     footer?: Snippet;
   } = $props();
-
-  const copyrightYear = new Date().getFullYear();
-
-  const footerLinkClass =
-    "text-foreground decoration-muted-foreground hover:decoration-foreground focus-visible:ring-ring inline-flex min-h-6 pointer-coarse:min-h-11 items-center rounded-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none";
-
-  // Below 64rem the links shrink to 44px icon buttons; their names stay in the label.
-  const footerIconClass =
-    "text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none lg:hidden";
 </script>
 
 <div class="relative isolate flex min-h-dvh flex-col overflow-x-clip">
   <EtchedSky class="absolute inset-x-0 top-0 -z-10 hidden h-[clamp(16rem,55vh,36rem)] lg:block" />
 
-  <header
-    class="mx-auto flex w-full max-w-7xl items-center justify-between gap-6 px-6 pt-6 sm:px-10 lg:px-16 lg:pt-10"
-  >
-    <VmbLogo class="h-10 sm:h-11" />
-    <div class="flex items-center gap-4 sm:gap-6">
-      <p
-        class="text-muted-foreground hidden text-xs font-medium tracking-[0.2em] uppercase sm:block"
-      >
-        Warehouse · Trucking · Expense
-      </p>
-      <ThemeToggle class="-mr-2" />
-    </div>
-  </header>
+  <SiteHeader />
 
   <main
     class="relative z-10 mx-auto grid w-full max-w-7xl flex-1 content-start gap-8 px-6 pt-8 pb-6 sm:px-10 sm:pt-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:gap-16 lg:px-16 lg:pt-16"
@@ -71,7 +47,10 @@
     </div>
 
     <div class="relative w-full lg:justify-self-end">
-      <section aria-labelledby="auth-heading" class="{PAPER_CARD_CLASS} w-full">
+      <section
+        aria-labelledby="auth-heading"
+        class="bg-card text-card-foreground w-full rounded-md border p-6 shadow-[0_0_0_5px_var(--card),0_0_0_6px_var(--border),0_24px_48px_-32px_color-mix(in_oklch,var(--etching)_40%,transparent)] sm:p-8"
+      >
         <h1 id="auth-heading" class="font-display text-3xl font-medium tracking-tight">
           {heading}
         </h1>
@@ -96,42 +75,6 @@
   >
     <EtchedScene class="-mt-6 lg:absolute lg:inset-x-0 lg:bottom-full lg:mt-0" />
 
-    <footer
-      class="mx-auto w-full max-w-7xl px-6 sm:px-10 lg:min-h-(--etched-scene-reserve) lg:px-16"
-    >
-      <div
-        class="text-muted-foreground flex items-center justify-between gap-x-3 pt-10 pb-4 text-xs sm:gap-x-6 lg:pt-5 lg:pb-0"
-      >
-        <p class="sm:whitespace-nowrap">© {copyrightYear} PT. Vifiera Minova Bersaudara</p>
-        <p class="flex shrink-0 flex-wrap items-center justify-center gap-x-1 gap-y-1 lg:gap-x-5">
-          <a
-            class={footerIconClass}
-            href="mailto:support@vmblogistics.id"
-            aria-label="Email the support team, support@vmblogistics.id"
-          >
-            <Mail class="size-5" aria-hidden="true" />
-          </a>
-          <a
-            class={footerIconClass}
-            href="https://github.com/ubeann"
-            aria-label="Built by ubeann, on GitHub"
-          >
-            <GitHubMark class="size-5" />
-          </a>
-          <span class="hidden items-center gap-1.5 lg:inline-flex">
-            <Mail class="size-3.5 shrink-0" aria-hidden="true" />
-            Support team:
-            <a class={footerLinkClass} href="mailto:support@vmblogistics.id"
-              >support@vmblogistics.id</a
-            >
-          </span>
-          <span class="hidden items-center gap-1.5 lg:inline-flex">
-            <GitHubMark class="size-3.5 shrink-0" />
-            Built by
-            <a class={footerLinkClass} href="https://github.com/ubeann">ubeann</a>
-          </span>
-        </p>
-      </div>
-    </footer>
+    <SiteFooter class="lg:min-h-(--etched-scene-reserve) lg:pt-5 lg:pb-0" />
   </div>
 </div>

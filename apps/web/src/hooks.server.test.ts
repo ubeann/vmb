@@ -22,7 +22,7 @@ vi.mock("$lib/session.js", () => ({
 // resolvable alias here — re-export the real module by its path.
 vi.mock("$lib/public-routes.js", () => import("./lib/public-routes.js"));
 
-const { handle } = await import("./hooks.server.js");
+const { handle, handleError } = await import("./hooks.server.js");
 
 function fakeEvent(pathname = "/", routeId: string | null = pathname, cookie?: string) {
   const headers = new Headers();
@@ -130,5 +130,40 @@ describe("handle", () => {
     await handle({ event, resolve } as never);
 
     expect(resolve).toHaveBeenCalledWith(event);
+  });
+});
+
+describe("handleError", () => {
+  const event = fakeEvent("/warehouse/items", "/warehouse/items");
+
+  it("gives an unexpected failure a reference and logs it", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = handleError({
+      error: new Error("boom"),
+      event,
+      status: 500,
+      message: "Internal Error"
+    } as never);
+
+    expect(result).toEqual({
+      message: "Internal Error",
+      errorId: expect.stringMatching(/^[0-9a-f]{8}$/),
+      occurredAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)
+    });
+    const errorId = (result as { errorId: string }).errorId;
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(errorId), expect.any(Error));
+    log.mockRestore();
+  });
+
+  it("leaves a missing page without a reference", () => {
+    const result = handleError({
+      error: new Error("Not found: /nowhere"),
+      event,
+      status: 404,
+      message: "Not Found"
+    } as never);
+
+    expect(result).toEqual({ message: "Not Found" });
   });
 });
