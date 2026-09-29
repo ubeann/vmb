@@ -114,4 +114,22 @@ describe("login page", () => {
       .element(screen.getByLabelText("Password", { exact: true }))
       .toHaveAttribute("aria-invalid", "true");
   });
+
+  // #206: unticked by default, as in the legacy Filament login. The action
+  // reads the field's presence, so what matters is what the form submits.
+  it("offers Remember me, unticked by default and submitted only once ticked", async () => {
+    mockPage.url = new URL("http://localhost/login");
+
+    const screen = await render(Page, { form: null });
+    const rememberMe = screen.getByRole("checkbox", { name: "Remember me" });
+    const form = screen.container.querySelector("form")!;
+
+    await expect.element(rememberMe).not.toBeChecked();
+    expect(new FormData(form).has("rememberMe")).toBe(false);
+
+    await screen.getByText("Remember me").click();
+
+    await expect.element(rememberMe).toBeChecked();
+    expect(new FormData(form).has("rememberMe")).toBe(true);
+  });
 });

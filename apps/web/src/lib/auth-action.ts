@@ -18,9 +18,21 @@ export interface AuthCallResult {
   error?: (AuthErrorLike & { message?: string }) | null;
 }
 
-export interface AuthActionConfig<Field extends string> {
+// The validated form: each required field as its string, each checkbox as a
+// boolean.
+type AuthActionValues<Field extends string, CheckboxField extends string = never> = Record<
+  Field,
+  string
+> &
+  Record<CheckboxField, boolean>;
+
+export interface AuthActionConfig<Field extends string, CheckboxField extends string = never> {
   // The form fields this action reads. Each must be a present, non-empty string.
   fields: readonly Field[];
+  // Optional checkboxes this action reads. A ticked box is `true`; an unticked
+  // one is left out of the submitted form entirely, so it reads as `false` and
+  // is never a missing field (issue #206).
+  checkboxes?: readonly CheckboxField[];
   // Returned when any field is missing, naming the fields the user must supply.
   missingFieldsMessage: string;
   // Fallback for a Better Auth error that carries no message of its own.
@@ -31,13 +43,13 @@ export interface AuthActionConfig<Field extends string> {
   // and the request event (for values not in the form, such as a callback URL).
   run: (
     client: AuthApiClient,
-    values: Record<Field, string>,
+    values: AuthActionValues<Field, CheckboxField>,
     event: RequestEvent
   ) => Promise<AuthCallResult>;
   // What a successful call should do: redirect, or hand back the action data
   // the page expects. Receives the validated values so a multi-step route can
   // carry a value (an email, say) into the next step.
-  onSuccess: (values: Record<Field, string>) => MaybePromise<Data>;
+  onSuccess: (values: AuthActionValues<Field, CheckboxField>) => MaybePromise<Data>;
   // Extra action data to merge into a failure response, for a multi-step route
   // that must render the same step again after an error.
   failureData?: (values: Partial<Record<Field, string>>) => Data;
@@ -47,10 +59,13 @@ export interface AuthActionConfig<Field extends string> {
 // auth client, call a Better Auth method, map `error` to a failure (issue #85).
 // This is that one flow. Each route declares only what differs — its fields, its
 // messages, its Better Auth call, and what success means.
-export function createAuthAction<const Field extends string>(config: AuthActionConfig<Field>) {
+export function createAuthAction<
+  const Field extends string,
+  const CheckboxField extends string = never
+>(config: AuthActionConfig<Field, CheckboxField>) {
   return async (event: RequestEvent) => {
     const form = await event.request.formData();
-    const values = {} as Record<Field, string>;
+    const fieldValues = {} as Record<Field, string>;
     const fieldErrors: Partial<Record<Field, string>> = {};
 
     for (const field of config.fields) {
@@ -59,17 +74,21 @@ export function createAuthAction<const Field extends string>(config: AuthActionC
         fieldErrors[field] =
           `${field === "otp" ? "Code" : field.charAt(0).toUpperCase() + field.slice(1)} is required.`;
       } else {
-        values[field] = value;
+        fieldValues[field] = value;
       }
     }
 
     if (Object.keys(fieldErrors).length) {
       return fail(400, {
-        ...config.failureData?.(values),
+        ...config.failureData?.(fieldValues),
         error: config.missingFieldsMessage,
         fieldErrors
       });
     }
+
+    const checkboxValues = {} as Record<CheckboxField, boolean>;
+    for (const checkbox of config.checkboxes ?? []) checkboxValues[checkbox] = form.has(checkbox);
+    const values: AuthActionValues<Field, CheckboxField> = { ...fieldValues, ...checkboxValues };
 
     const access = await withAuthApiClient(event, (client) => config.run(client, values, event));
 

@@ -43,12 +43,28 @@ describe("login action", () => {
     expect(signInEmail).not.toHaveBeenCalled();
   });
 
-  it("signs in with the submitted email and password", async () => {
+  it("signs in with the submitted email and password, not remembered when unticked", async () => {
     await expect(
       action(fakeAuthEvent({ email: "a@example.com", password: "secret" }))
     ).rejects.toMatchObject({ status: 303 });
 
-    expect(signInEmail).toHaveBeenCalledWith({ email: "a@example.com", password: "secret" });
+    expect(signInEmail).toHaveBeenCalledWith({
+      email: "a@example.com",
+      password: "secret",
+      rememberMe: false
+    });
+  });
+
+  it("asks Better Auth to remember the session when Remember me is ticked", async () => {
+    await expect(
+      action(fakeAuthEvent({ email: "a@example.com", password: "secret", rememberMe: "on" }))
+    ).rejects.toMatchObject({ status: 303 });
+
+    expect(signInEmail).toHaveBeenCalledWith({
+      email: "a@example.com",
+      password: "secret",
+      rememberMe: true
+    });
   });
 
   it("fails with mapped VMB copy for a known error code, never Better Auth's raw message", async () => {
