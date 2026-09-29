@@ -12,7 +12,7 @@ export const load: PageServerLoad = ({ locals }) => {
 // in the first time. Two steps because the code proves the inbox before a
 // password is set: request the code, then submit it with the new password.
 export const actions: Actions = {
-  default: createAuthAction({
+  request: createAuthAction({
     fields: ["email"],
     missingFieldsMessage: "Email is required.",
     fallbackErrorMessage: "Could not send the code. Please try again.",

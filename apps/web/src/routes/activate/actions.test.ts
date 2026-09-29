@@ -34,14 +34,14 @@ beforeEach(() => {
 
 describe("activate actions", () => {
   it("sends a code and advances to the code step with the email carried forward", async () => {
-    const result = await actions.default!(fakeAuthEvent({ email: "a@example.com" }));
+    const result = await actions.request!(fakeAuthEvent({ email: "a@example.com" }));
 
     expect(requestMock).toHaveBeenCalledWith({ email: "a@example.com" });
     expect(result).toEqual({ step: "reset", email: "a@example.com" });
   });
 
   it("rejects a request without an email", async () => {
-    const result = await actions.default!(fakeAuthEvent({}));
+    const result = await actions.request!(fakeAuthEvent({}));
 
     expect(result).toMatchObject({ status: 400, data: { error: "Email is required." } });
     expect(requestMock).not.toHaveBeenCalled();
@@ -79,5 +79,16 @@ describe("activate actions", () => {
         error: "That code isn't right. Check it and try again."
       }
     });
+  });
+
+  // SvelteKit rejects a route that exports both a "default" action and named
+  // actions: every POST 500s, not just the one hitting default. The tests
+  // above call actions.request/reset directly, so they'd never catch a
+  // regression back to a "default" key without this shape check (see #228).
+  it("does not mix a default action with named actions", () => {
+    const keys = Object.keys(actions);
+
+    expect(keys.length).toBeGreaterThan(1);
+    expect(keys).not.toContain("default");
   });
 });

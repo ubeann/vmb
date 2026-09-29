@@ -121,7 +121,7 @@
         </Button>
       </form>
 
-      <form method="POST" use:enhance={track}>
+      <form method="POST" action="?/request" use:enhance={track}>
         <input type="hidden" name="email" value={email} />
         <Button
           type="submit"
@@ -132,7 +132,7 @@
         >
       </form>
     {:else}
-      <form method="POST" use:enhance={track} class="space-y-5">
+      <form method="POST" action="?/request" use:enhance={track} class="space-y-5">
         <div class="space-y-2">
           <Label for="email">Email</Label>
           <div class="relative">
