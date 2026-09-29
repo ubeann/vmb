@@ -5,6 +5,12 @@ export type FieldErrors<Schema extends z.ZodObject<Shape>> = Partial<
   Record<keyof Schema["shape"] & string, string>
 >;
 
+// The enhanced action has updated the page by the time this runs, so the
+// rendered error state identifies the visible field to focus.
+export function focusFirstInvalidField(form: HTMLFormElement) {
+  form.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus();
+}
+
 // In-page checks for an auth form, in place of the browser's own validation
 // bubbles (issue #231). The form carries `novalidate`; this runs the same
 // schema `createAuthAction` runs on the server, so both say the same thing.

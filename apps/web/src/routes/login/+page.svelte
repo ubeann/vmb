@@ -13,7 +13,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
-  import { createFieldValidation } from "$lib/field-validation.svelte.js";
+  import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import type { ActionData } from "./$types.js";
 
   let { form }: { form: ActionData } = $props();
@@ -72,9 +72,10 @@
     use:enhance={({ formElement, cancel }) => {
       if (!validation.validate(formElement)) return cancel();
       submitting = true;
-      return async ({ update }) => {
+      return async ({ result, update }) => {
         await update();
         submitting = false;
+        if (result.type === "failure") focusFirstInvalidField(formElement);
       };
     }}
     class="space-y-5"

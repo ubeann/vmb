@@ -10,7 +10,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
-  import { createFieldValidation } from "$lib/field-validation.svelte.js";
+  import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import type { ActionData } from "./$types.js";
 
   let { form }: { form: ActionData } = $props();
@@ -18,11 +18,18 @@
   let submitting = $state(false);
 
   // Shared by every form here: the button reports progress until the action settles.
-  const track = () => {
+  const track = ({ formElement }: { formElement: HTMLFormElement }) => {
     submitting = true;
-    return async ({ update }: { update: () => Promise<void> }) => {
+    return async ({
+      result,
+      update
+    }: {
+      result: { type: string };
+      update: () => Promise<void>;
+    }) => {
       await update();
       submitting = false;
+      if (result.type === "failure") focusFirstInvalidField(formElement);
     };
   };
 
@@ -30,7 +37,7 @@
   const checked =
     (validation: { validate: (form: HTMLFormElement) => boolean }) =>
     ({ formElement, cancel }: { formElement: HTMLFormElement; cancel: () => void }) =>
-      validation.validate(formElement) ? track() : cancel();
+      validation.validate(formElement) ? track({ formElement }) : cancel();
 
   const linkClass =
     "text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";

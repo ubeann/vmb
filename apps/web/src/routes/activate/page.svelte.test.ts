@@ -4,16 +4,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // callback runs first and `cancel()` stops the request. What would have been
 // sent is recorded instead of fetched.
 const submissions = vi.hoisted(() => [] as FormData[]);
+const completions = vi.hoisted(
+  () =>
+    [] as Array<
+      (options: { result: { type: "failure" }; update: () => Promise<void> }) => Promise<void>
+    >
+);
 vi.mock("$app/forms", () => ({
   enhance: (
     form: HTMLFormElement,
-    submit?: (input: { formElement: HTMLFormElement; cancel: () => void }) => unknown
+    submit?: (input: {
+      formElement: HTMLFormElement;
+      cancel: () => void;
+    }) =>
+      | void
+      | ((options: { result: { type: "failure" }; update: () => Promise<void> }) => Promise<void>)
   ) => {
     const onSubmit = (event: SubmitEvent) => {
       event.preventDefault();
       let cancelled = false;
-      submit?.({ formElement: form, cancel: () => (cancelled = true) });
-      if (!cancelled) submissions.push(new FormData(form));
+      const complete = submit?.({ formElement: form, cancel: () => (cancelled = true) });
+      if (!cancelled) {
+        submissions.push(new FormData(form));
+        if (complete) completions.push(complete);
+      }
     };
     form.addEventListener("submit", onSubmit);
     return { destroy: () => form.removeEventListener("submit", onSubmit) };
@@ -31,6 +45,7 @@ const { default: Page } = await import("./+page.svelte");
 
 beforeEach(() => {
   submissions.length = 0;
+  completions.length = 0;
 });
 
 describe("activate page", () => {
@@ -83,14 +98,14 @@ describe("activate page", () => {
       form: {
         step: "reset",
         email: "",
-        error: "We lost track of your email. Reload the page and request a new code",
+        error: "Reload this page, enter your email, and request a new code",
         fieldErrors: { email: "Enter your email" }
       }
     });
 
     await expect
       .element(screen.getByRole("alert"))
-      .toHaveTextContent("We lost track of your email. Reload the page and request a new code");
+      .toHaveTextContent("Reload this page, enter your email, and request a new code");
   });
 
   describe("inline validation (#231)", () => {
@@ -256,6 +271,26 @@ describe("activate page", () => {
         .toBeVisible();
       await expect.element(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
       expect(screen.getByRole("alert").elements()).toHaveLength(1);
+    });
+
+    it("focuses the email when the server rejects it after the enhanced submit", async () => {
+      const screen = await render(Page, { form: null });
+      await screen.getByLabelText("Email").fill("a@example.com");
+      await screen.getByRole("button", { name: "Send code" }).click();
+
+      expect(submissions).toHaveLength(1);
+      await completions[0]!({
+        result: { type: "failure" },
+        update: () =>
+          screen.rerender({
+            form: {
+              error: "Enter a valid email, like name@company.com",
+              fieldErrors: { email: "Enter a valid email, like name@company.com" }
+            }
+          })
+      });
+
+      await expect.element(screen.getByLabelText("Email")).toHaveFocus();
     });
   });
 });

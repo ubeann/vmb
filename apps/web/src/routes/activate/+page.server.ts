@@ -23,7 +23,7 @@ export const actions: Actions = {
   }),
   reset: createAuthAction({
     schema: ActivateResetInputSchema,
-    invalidFieldsMessage: "We lost track of your email. Reload the page and request a new code",
+    invalidFieldsMessage: "Reload this page, enter your email, and request a new code",
     fallbackErrorMessage: "Could not set your password. Check the code and try again.",
     logLabel: "activate reset action",
     // A failed reset re-renders the code step, so the user's entered code and
