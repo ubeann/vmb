@@ -2,7 +2,7 @@
   What a signed-out page puts on AuthShell's sheet: the heading, an optional
   description, the page's body and an optional footer. The heading takes focus
   after a client-side move between pages, so a screen reader starts at the new
-  page's title.
+  page's title. It is not a control, so it draws no focus ring.
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
@@ -23,7 +23,7 @@
 <h1
   id="auth-heading"
   tabindex="-1"
-  class="font-display focus:outline-ring text-3xl font-medium tracking-tight focus:rounded-sm focus:outline-2 focus:outline-offset-4"
+  class="font-display text-3xl font-medium tracking-tight outline-none"
 >
   {heading}
 </h1>
