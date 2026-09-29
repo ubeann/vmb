@@ -156,7 +156,7 @@ Rather than adding tRPC as a separate RPC layer, the frontend consumes the backe
 ## 8. Auth
 
 - **Decided: Better Auth**, self-hosted, mounted directly in the `apps/api` Hono Worker and backed by `packages/db` — see ADR-0012. No external auth vendor or MAU ceiling; trades that for owning the login/activation UI and a known, accepted risk around Workers free-tier CPU time for password hashing (measure-then-migrate plan in ADR-0012).
-- Session/token strategy: database-backed sessions gated at creation and bridged to `apps/web` — see ADR-0034. Public sign-up is disabled; users are provisioned by admins and migrated accounts activate by email OTP (ADR-0033).
+- Session/token strategy: database-backed sessions gated at creation and bridged to `apps/web` — see ADR-0034. "Remember me" on `/login`, unticked by default, picks between a 7-day refreshed session and a browser-session cookie capped at 24 hours (ADR-0034's amendment). Public sign-up is disabled; users are provisioned by admins and migrated accounts activate by email OTP (ADR-0033).
 
 ## 9. Deployment & CI/CD
 
@@ -202,4 +202,4 @@ See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-09-28 (§7.4: the navy and green palette, per ADR-0036; §2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
+_Last updated: 2026-09-29 (§8: the two session lifetimes behind "Remember me", per ADR-0034's amendment; §7.4: the navy and green palette, per ADR-0036; §2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
