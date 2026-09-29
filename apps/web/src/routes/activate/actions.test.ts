@@ -43,9 +43,75 @@ describe("activate actions", () => {
   it("rejects a request without an email", async () => {
     const result = await actions.request!(fakeAuthEvent({}));
 
-    expect(result).toMatchObject({ status: 400, data: { error: "Email is required." } });
+    expect(result).toMatchObject({
+      status: 400,
+      data: { fieldErrors: { email: "Enter your email" } }
+    });
     expect(requestMock).not.toHaveBeenCalled();
   });
+
+  it("rejects a malformed email on the request step", async () => {
+    const result = await actions.request!(fakeAuthEvent({ email: "a@" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { fieldErrors: { email: "Enter a valid email, like name@company.com" } }
+    });
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it("shows Better Auth's INVALID_EMAIL on the email field", async () => {
+    requestMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: "INVALID_EMAIL", message: "Invalid email" } as never
+    });
+
+    const result = await actions.request!(fakeAuthEvent({ email: "a@example.com" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { fieldErrors: { email: "Enter a valid email, like name@company.com" } }
+    });
+  });
+
+  it.each([
+    ["", "Enter the code from your email"],
+    ["12345", "Enter the 6-digit code from your email"],
+    ["1234567", "Enter the 6-digit code from your email"],
+    ["12a456", "Enter the 6-digit code from your email"]
+  ])("rejects the code %j on the code step", async (otp, message) => {
+    const result = await actions.reset!(
+      fakeAuthEvent({ email: "a@example.com", otp, password: "new-secret" })
+    );
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { step: "reset", email: "a@example.com", fieldErrors: { otp: message } }
+    });
+    expect(resetMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["", "Enter a new password"],
+    ["short", "Use at least 8 characters"],
+    ["x".repeat(129), "Use 128 characters or fewer"]
+  ])("rejects the new password %#: %s", async (password, message) => {
+    const result = await actions.reset!(
+      fakeAuthEvent({ email: "a@example.com", otp: "123456", password })
+    );
+
+    expect(result).toMatchObject({ status: 400, data: { fieldErrors: { password: message } } });
+    expect(resetMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["x".repeat(8), "x".repeat(128)])(
+    "accepts a new password at the length bounds (%#)",
+    async (password) => {
+      await expect(
+        actions.reset!(fakeAuthEvent({ email: "a@example.com", otp: "123456", password }))
+      ).rejects.toMatchObject({ status: 303 });
+    }
+  );
 
   it("sets the new password with the code and redirects to login", async () => {
     await expect(

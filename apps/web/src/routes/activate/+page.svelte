@@ -3,12 +3,14 @@
   import { resolve } from "$app/paths";
   import CircleAlert from "@lucide/svelte/icons/circle-alert";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import { ActivateRequestInputSchema, ActivateResetInputSchema } from "@vmb/types";
   import AuthShell from "$lib/components/AuthShell.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import { createFieldValidation } from "$lib/field-validation.svelte.js";
   import type { ActionData } from "./$types.js";
 
   let { form }: { form: ActionData } = $props();
@@ -24,15 +26,32 @@
     };
   };
 
+  // Stops a form whose fields fail the rules before anything is sent (issue #231).
+  const checked =
+    (validation: { validate: (form: HTMLFormElement) => boolean }) =>
+    ({ formElement, cancel }: { formElement: HTMLFormElement; cancel: () => void }) =>
+      validation.validate(formElement) ? track() : cancel();
+
   const linkClass =
     "text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
 
   let step = $derived(form && "step" in form && form.step === "reset" ? "reset" : "request");
   let email = $derived(form && "email" in form ? form.email : "");
-  let fieldErrors = $derived(
-    form && "fieldErrors" in form
-      ? (form.fieldErrors as Partial<Record<"email" | "otp" | "password", string>>)
-      : undefined
+  type FieldErrors = Partial<Record<"email" | "otp" | "password", string>>;
+
+  let serverErrors = $derived(
+    form && "fieldErrors" in form ? (form.fieldErrors as FieldErrors) : undefined
+  );
+  // One validation per visible form. The code step's email is a hidden field
+  // carried from the request step, so only the server checks it again. "Send a
+  // new code" has no visible field to mark, so it has no validation of its own.
+  const requestValidation = createFieldValidation(ActivateRequestInputSchema, () => serverErrors);
+  const resetValidation = createFieldValidation(
+    ActivateResetInputSchema.pick({ otp: true, password: true }),
+    () => serverErrors
+  );
+  let fieldErrors: FieldErrors | undefined = $derived(
+    step === "reset" ? resetValidation.errors : requestValidation.errors
   );
 </script>
 
@@ -67,7 +86,14 @@
     {/if}
 
     {#if step === "reset"}
-      <form method="POST" action="?/reset" use:enhance={track} class="space-y-5">
+      <form
+        method="POST"
+        action="?/reset"
+        novalidate
+        oninput={resetValidation.oninput}
+        use:enhance={checked(resetValidation)}
+        class="space-y-5"
+      >
         <input type="hidden" name="email" value={email} />
 
         <div class="space-y-2">
@@ -121,7 +147,7 @@
         </Button>
       </form>
 
-      <form method="POST" action="?/request" use:enhance={track}>
+      <form method="POST" action="?/request" novalidate use:enhance={track}>
         <input type="hidden" name="email" value={email} />
         <Button
           type="submit"
@@ -132,7 +158,14 @@
         >
       </form>
     {:else}
-      <form method="POST" action="?/request" use:enhance={track} class="space-y-5">
+      <form
+        method="POST"
+        action="?/request"
+        novalidate
+        oninput={requestValidation.oninput}
+        use:enhance={checked(requestValidation)}
+        class="space-y-5"
+      >
         <div class="space-y-2">
           <Label for="email">Email</Label>
           <div class="relative">

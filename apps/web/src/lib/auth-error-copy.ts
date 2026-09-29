@@ -1,3 +1,5 @@
+import { EMAIL_INVALID_MESSAGE } from "@vmb/types";
+
 // Better Auth's `error.message` is written for developers and varies in tone
 // across codes, so `createAuthAction` never shows it. This maps the stable
 // `error.code` — never message text — to VMB copy. Rate limiting (429) has no
@@ -14,7 +16,7 @@ export interface AuthErrorLike {
 
 const AUTH_ERROR_COPY: Record<string, string> = {
   INVALID_EMAIL_OR_PASSWORD: "Invalid email or password.",
-  INVALID_EMAIL: "Enter a valid email address.",
+  INVALID_EMAIL: EMAIL_INVALID_MESSAGE,
   EMAIL_NOT_VERIFIED: "Verify your email to sign in. Check your inbox for the verification link.",
   FAILED_TO_CREATE_SESSION: "Unable to sign you in right now. Try again in a moment.",
   ACCOUNT_UNAVAILABLE: "This account is unavailable. Contact an administrator.",

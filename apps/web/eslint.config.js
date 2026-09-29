@@ -7,7 +7,9 @@ export default [
   ...baseConfig,
   ...svelte.configs.recommended,
   {
-    files: ["**/*.svelte"],
+    // `.svelte.ts` modules (runes outside a component) go through the Svelte
+    // parser too, so they need the TypeScript parser handed down as well.
+    files: ["**/*.svelte", "**/*.svelte.ts"],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser
