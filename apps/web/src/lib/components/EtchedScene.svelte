@@ -27,9 +27,13 @@
   }
 
   .etched-scene {
-    /* Width ÷ height of the plate (vmb-etching-*.webp), and of its middle, where the scene is. */
+    /*
+     * Width ÷ height of the plate (vmb-etching-*.webp), of the art inside its
+     * padding, and of the ink itself (the art minus its faded edges).
+     */
     --plate-ratio: 5;
     --plate-core-ratio: 4;
+    --plate-ink-ratio: 3.85;
     --etching-image: var(--etching-small);
     height: clamp(7rem, calc(100vw / var(--plate-core-ratio)), 22vh);
     /*
@@ -88,6 +92,30 @@
         calc(100vw / var(--plate-ratio)),
         calc(44vh - var(--etched-scene-reserve, 0px)),
         calc(100vw / var(--plate-core-ratio))
+      );
+    }
+  }
+
+  /*
+   * Where the flock sits (from 80rem wide and 56rem tall), the room between it
+   * and the plate is known: `--etched-scene-headroom` is the flock's bottom edge
+   * plus its 2.5rem clear zone, measured from the top of the viewport. The band
+   * grows into that room until its ink spans the viewport, and never past it.
+   * Without the variable the extra term is negative and the band keeps the
+   * height set above.
+   */
+  @media (min-width: 80rem) and (min-height: 56rem) {
+    .etched-scene {
+      height: clamp(
+        calc(100vw / var(--plate-ratio)),
+        max(
+          calc(min(calc(100vw / var(--plate-core-ratio)), 44vh) - var(--etched-scene-reserve, 0px)),
+          min(
+            calc(100vw / var(--plate-ink-ratio)),
+            calc(100vh - var(--etched-scene-reserve, 0px) - var(--etched-scene-headroom, 100vh))
+          )
+        ),
+        calc(100vw / var(--plate-ink-ratio))
       );
     }
   }
