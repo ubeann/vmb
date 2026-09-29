@@ -12,12 +12,38 @@
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import SiteHeader from "$lib/components/SiteHeader.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import { errorPageContent } from "$lib/error-page.js";
-  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import { errorPageContent, SUPPORT_EMAIL, supportMailtoQuery } from "$lib/error-page.js";
+  import Check from "@lucide/svelte/icons/check";
+  import Copy from "@lucide/svelte/icons/copy";
+  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
+  import LogIn from "@lucide/svelte/icons/log-in";
   import RotateCw from "@lucide/svelte/icons/rotate-cw";
+  import { onMount } from "svelte";
 
   let content = $derived(errorPageContent(page.status));
   let errorId = $derived(page.error?.errorId);
+
+  // The copy button needs the Clipboard API, so it appears only once the page
+  // has hydrated in a browser that has one; the reference stays selectable text.
+  let canCopy = $state(false);
+  let copied = $state(false);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  onMount(() => {
+    canCopy = typeof navigator.clipboard?.writeText === "function";
+    return () => clearTimeout(copiedTimer);
+  });
+
+  async function copyReference(reference: string) {
+    try {
+      await navigator.clipboard.writeText(reference);
+    } catch {
+      return;
+    }
+    copied = true;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copied = false), 2000);
+  }
 
   const supportLinkClass =
     "text-foreground decoration-muted-foreground hover:decoration-foreground focus-visible:ring-ring rounded-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none";
@@ -60,26 +86,63 @@
             Try again
           </Button>
         {/if}
-        <Button
-          href={page.data.user ? resolve("/") : resolve("/login")}
-          variant={content.canRetry ? "outline" : "default"}
-          class="min-h-11 px-4"
-        >
-          <ArrowLeft aria-hidden="true" />
-          {page.data.user ? "Back to VMB" : "Go to login"}
-        </Button>
+        {#if page.data.user}
+          <Button
+            href={resolve("/")}
+            variant={content.canRetry ? "outline" : "default"}
+            class="min-h-11 px-4"
+          >
+            <LayoutDashboard aria-hidden="true" />
+            Go to dashboard
+          </Button>
+        {:else}
+          <Button
+            href={resolve("/login")}
+            variant={content.canRetry ? "outline" : "default"}
+            class="min-h-11 px-4"
+          >
+            <LogIn aria-hidden="true" />
+            Log in
+          </Button>
+        {/if}
       </div>
 
       {#if errorId}
-        <p class="text-muted-foreground mt-8 max-w-md text-sm text-pretty">
-          If this keeps happening, email
-          <a
-            class={supportLinkClass}
-            href={`mailto:support@vmblogistics.id?subject=${encodeURIComponent(`VMB error ${errorId}`)}`}
-            >support@vmblogistics.id</a
-          >
-          with reference <code class="text-foreground font-mono">{errorId}</code>.
-        </p>
+        <div class="border-border mt-6 max-w-md border-t pt-5">
+          <div class="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span class="text-muted-foreground">Reference</span>
+            <code class="text-foreground font-mono select-all">{errorId}</code>
+            {#if canCopy}
+              <Button
+                variant="ghost"
+                size="sm"
+                class="text-muted-foreground -ml-1 pointer-coarse:min-h-11"
+                onclick={() => copyReference(errorId)}
+              >
+                {#if copied}
+                  <Check aria-hidden="true" />
+                  Copied
+                {:else}
+                  <Copy aria-hidden="true" />
+                  Copy reference
+                {/if}
+              </Button>
+            {/if}
+          </div>
+          <p class="sr-only" aria-live="polite">{copied ? "Reference copied" : ""}</p>
+          <p class="text-muted-foreground mt-2 text-sm text-pretty">
+            If this keeps happening, email the support team at
+            <a
+              class={supportLinkClass}
+              href={`mailto:${SUPPORT_EMAIL}?${supportMailtoQuery({
+                errorId,
+                path: page.url.pathname,
+                occurredAt: page.error?.occurredAt
+              })}`}>{SUPPORT_EMAIL}</a
+            >
+            and include this reference.
+          </p>
+        </div>
       {/if}
     </div>
   </main>

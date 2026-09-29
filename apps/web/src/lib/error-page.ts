@@ -43,16 +43,50 @@ export function errorPageContent(status: number): ErrorPageContent {
   if (status === 401 || status === 403) {
     return {
       title: "No access to this page",
-      body: "Your account can't open this page. Ask an administrator if you need access.",
+      body: "Your account doesn't have access to this page. Ask an administrator for access.",
       scene: ERROR_SCENES.gate,
       canRetry: false
     };
   }
 
+  const canRetry = status >= 500;
   return {
-    title: "Something went wrong",
-    body: "Try refreshing the page, or come back in a few minutes.",
+    title: "Unable to load this page",
+    // The 5xx body names the "Try again" button beside it; other statuses have none.
+    body: canRetry
+      ? "Try again, or come back in a few minutes."
+      : "Check the link you followed, or come back in a few minutes.",
     scene: ERROR_SCENES.crates,
-    canRetry: status >= 500
+    canRetry
   };
+}
+
+export const SUPPORT_EMAIL = "support@vmblogistics.id";
+
+/**
+ * The query of a `mailto:` link to the support team for an unexpected failure:
+ * the reference in the subject, and the reference, page and time in the body, so
+ * support can find the log line without asking. `occurredAt` is the server's
+ * ISO time, shown in UTC so the server and the browser render the same link.
+ */
+export function supportMailtoQuery({
+  errorId,
+  path,
+  occurredAt
+}: {
+  errorId: string;
+  path: string;
+  occurredAt?: string;
+}): string {
+  const time = occurredAt ? `${occurredAt.slice(0, 10)} ${occurredAt.slice(11, 16)} UTC` : "";
+  const body = [
+    `Reference: ${errorId}`,
+    `Page: ${path}`,
+    ...(time ? [`Time: ${time}`] : []),
+    "",
+    "What were you doing when this happened?",
+    ""
+  ].join("\r\n");
+  const subject = `VMB error ${errorId}`;
+  return `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

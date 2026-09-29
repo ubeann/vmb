@@ -15,10 +15,12 @@ declare global {
   }
 
   namespace App {
-    // `errorId` is set by `handleError` for unexpected failures (hooks.server.ts).
+    // `errorId` and `occurredAt` (ISO) are set by `handleError` for unexpected
+    // failures (hooks.server.ts).
     interface Error {
       message: string;
       errorId?: string;
+      occurredAt?: string;
     }
     interface Locals {
       session: AuthSession | null;

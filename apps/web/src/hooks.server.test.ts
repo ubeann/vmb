@@ -148,7 +148,8 @@ describe("handleError", () => {
 
     expect(result).toEqual({
       message: "Internal Error",
-      errorId: expect.stringMatching(/^[0-9a-f]{8}$/)
+      errorId: expect.stringMatching(/^[0-9a-f]{8}$/),
+      occurredAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)
     });
     const errorId = (result as { errorId: string }).errorId;
     expect(log).toHaveBeenCalledWith(expect.stringContaining(errorId), expect.any(Error));

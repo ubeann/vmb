@@ -30,13 +30,17 @@ export const handle: Handle = async ({ event, resolve }) => {
   return resolve(event);
 };
 
-// An unexpected failure gets a short reference, logged with the error and shown
-// on the error page, so a support email can be matched to its log line. A
+// An unexpected failure gets a short reference and its time, logged with the
+// error and shown on the error page, so a support email can be matched to its log line. A
 // missing page is no failure: it gets neither.
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
   if (status === 404) return { message };
 
   const errorId = crypto.randomUUID().slice(0, 8);
-  console.error(`handleError: ${errorId} ${event.request.method} ${event.url.pathname}`, error);
-  return { message, errorId };
+  const occurredAt = new Date().toISOString();
+  console.error(
+    `handleError: ${errorId} ${occurredAt} ${event.request.method} ${event.url.pathname}`,
+    error
+  );
+  return { message, errorId, occurredAt };
 };

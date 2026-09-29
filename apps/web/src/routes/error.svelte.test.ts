@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const mockPage: {
   url: URL;
   status: number;
-  error: { message: string; errorId?: string } | null;
+  error: { message: string; errorId?: string; occurredAt?: string } | null;
   data: { user: { id: string } | null };
 } = {
   url: new URL("http://localhost/nowhere"),
@@ -32,7 +32,7 @@ describe("error page", () => {
 
     await expect.element(screen.getByRole("heading", { name: "Page not found" })).toBeVisible();
     await expect.element(screen.getByText("This page doesn't exist or has moved.")).toBeVisible();
-    await expect.element(screen.getByRole("link", { name: "Go to login" })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: "Log in" })).toBeVisible();
     await expect.poll(() => document.title).toBe("Page not found — VMB");
     expect(screen.getByText("Not Found").elements()).toHaveLength(0);
     expect(screen.getByRole("link", { name: "Try again" }).elements()).toHaveLength(0);
@@ -40,26 +40,51 @@ describe("error page", () => {
 
   it("gives a 500 its own copy, never the raw error message", async () => {
     mockPage.status = 500;
-    mockPage.error = { message: "Internal Error", errorId: "3f9a1c2e" };
+    mockPage.error = {
+      message: "Internal Error",
+      errorId: "3f9a1c2e",
+      occurredAt: "2026-09-29T09:22:41.000Z"
+    };
     mockPage.data = { user: null };
 
     const screen = await render(ErrorPage);
 
     await expect
-      .element(screen.getByRole("heading", { name: "Something went wrong" }))
+      .element(screen.getByRole("heading", { name: "Unable to load this page" }))
       .toBeVisible();
     await expect
-      .element(screen.getByText("Try refreshing the page, or come back in a few minutes."))
+      .element(screen.getByText("Try again, or come back in a few minutes."))
       .toBeVisible();
-    await expect.poll(() => document.title).toBe("Something went wrong — VMB");
+    await expect.poll(() => document.title).toBe("Unable to load this page — VMB");
     expect(screen.getByText("Internal Error").elements()).toHaveLength(0);
     await expect
       .element(screen.getByRole("link", { name: "Try again" }))
       .toHaveAttribute("href", "/nowhere");
     await expect.element(screen.getByText("3f9a1c2e")).toBeVisible();
-    await expect
-      .element(screen.getByRole("main").getByRole("link", { name: "support@vmblogistics.id" }))
-      .toHaveAttribute("href", "mailto:support@vmblogistics.id?subject=VMB%20error%203f9a1c2e");
+    const mailto = screen
+      .getByRole("main")
+      .getByRole("link", { name: "support@vmblogistics.id" })
+      .element()
+      .getAttribute("href");
+    expect(mailto).toMatch(
+      /^mailto:support@vmblogistics\.id\?subject=VMB%20error%203f9a1c2e&body=/
+    );
+    expect(decodeURIComponent(mailto?.split("&body=")[1] ?? "")).toContain("Page: /nowhere");
+  });
+
+  it("copies the reference and announces it", async () => {
+    mockPage.status = 500;
+    mockPage.error = { message: "Internal Error", errorId: "3f9a1c2e" };
+    mockPage.data = { user: null };
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+
+    const screen = await render(ErrorPage);
+    await screen.getByRole("button", { name: "Copy reference" }).click();
+
+    expect(writeText).toHaveBeenCalledWith("3f9a1c2e");
+    await expect.element(screen.getByRole("button", { name: "Copied" })).toBeVisible();
+    await expect.element(screen.getByText("Reference copied")).toBeInTheDocument();
+    writeText.mockRestore();
   });
 
   it("names a locked page and points to an administrator", async () => {
@@ -73,7 +98,7 @@ describe("error page", () => {
       .element(screen.getByRole("heading", { name: "No access to this page" }))
       .toBeVisible();
     await expect
-      .element(screen.getByText("Ask an administrator if you need access.", { exact: false }))
+      .element(screen.getByText("Ask an administrator for access.", { exact: false }))
       .toBeVisible();
     expect(screen.getByText("Forbidden").elements()).toHaveLength(0);
   });
@@ -89,13 +114,14 @@ describe("error page", () => {
     expect(vignette?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("offers home instead of login when the visitor has a session", async () => {
+  it("offers the dashboard instead of logging in when the visitor has a session", async () => {
     mockPage.status = 500;
     mockPage.error = { message: "Internal Error" };
     mockPage.data = { user: { id: "user-1" } };
 
     const screen = await render(ErrorPage);
 
-    await expect.element(screen.getByRole("link", { name: "Back to VMB" })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: "Go to dashboard" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Log in" }).elements()).toHaveLength(0);
   });
 });
