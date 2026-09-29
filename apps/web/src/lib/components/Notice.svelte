@@ -22,7 +22,7 @@
     default: {
       icon: Info,
       role: "status",
-      class: "border-border bg-muted text-foreground"
+      class: "border-foreground/30 bg-foreground/10 text-foreground"
     }
   } as const;
 </script>
