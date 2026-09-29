@@ -9,6 +9,7 @@
   import EtchedScene from "$lib/components/EtchedScene.svelte";
   import EtchedSky from "$lib/components/EtchedSky.svelte";
   import GitHubMark from "$lib/components/GitHubMark.svelte";
+  import ThemeToggle from "$lib/components/ThemeToggle.svelte";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
   import Mail from "@lucide/svelte/icons/mail";
   import type { Snippet } from "svelte";
@@ -38,9 +39,14 @@
     class="mx-auto flex w-full max-w-7xl items-center justify-between gap-6 px-6 pt-6 sm:px-10 lg:px-16 lg:pt-10"
   >
     <VmbLogo class="h-10 sm:h-11" />
-    <p class="text-muted-foreground hidden text-xs font-medium tracking-[0.2em] uppercase sm:block">
-      Warehouse · Trucking · Expense
-    </p>
+    <div class="flex items-center gap-4 sm:gap-6">
+      <p
+        class="text-muted-foreground hidden text-xs font-medium tracking-[0.2em] uppercase sm:block"
+      >
+        Warehouse · Trucking · Expense
+      </p>
+      <ThemeToggle class="-mr-2" />
+    </div>
   </header>
 
   <main
