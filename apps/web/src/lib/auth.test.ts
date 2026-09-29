@@ -17,6 +17,7 @@ vi.mock("$app/server", () => ({
 
 const { createAuthApiClient } = await import("./auth.js");
 const { loadSession } = await import("./session.js");
+const { withAuthApiClient } = await import("./api-access.js");
 
 function stubFetch(setCookieHeader: string | null, body: unknown) {
   return vi.fn(async () => {
@@ -72,20 +73,41 @@ describe("remember me through the cookie bridge", () => {
   const credentials = { email: "a@example.com", password: "correct-horse-battery" };
 
   // apps/api's session settings: Better Auth's defaults, an https base URL (so
-  // `__Secure-` names), and no cookie cache (ADR-0034).
+  // `__Secure-` names), apps/web as the one trusted origin, and no cookie cache
+  // (ADR-0034). apps/web sits on another registrable domain, as in production.
   async function setUp() {
     const auth = betterAuth({
       database: memoryAdapter({ user: [], session: [], account: [], verification: [] }),
       secret: "test-secret-that-is-long-enough-for-better-auth",
       baseURL: "https://api.test",
-      emailAndPassword: { enabled: true }
+      trustedOrigins: ["https://web.test"],
+      emailAndPassword: { enabled: true },
+      // Better Auth skips its origin/CSRF check when NODE_ENV is "test"; keep
+      // it on, as in production, so logout's cookie-carrying POST must pass it.
+      advanced: { disableOriginCheck: false }
     });
     await auth.api.signUpEmail({ body: { ...credentials, name: "A" } });
 
     const fetchFn = (input: RequestInfo | URL, init?: RequestInit) =>
       auth.handler(new Request(input, init));
     const client = createAuthApiClient("https://api.test", fetchFn as typeof fetch);
-    return { client };
+    return { client, fetchFn };
+  }
+
+  // A form POST to apps/web's /logout, as the access seam sees it. Its fetch
+  // goes straight to Better Auth, adding only what SvelteKit's `event.fetch`
+  // adds on its own for an API on another domain: apps/web's origin, never the
+  // browser's cookies. Those the seam must forward itself (#226).
+  function logoutEvent(fetchFn: typeof fetch, cookie: string) {
+    return {
+      platform: undefined,
+      request: new Request("https://web.test/logout", { method: "POST", headers: { cookie } }),
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        if (!headers.has("origin")) headers.set("origin", "https://web.test");
+        return fetchFn(input, { ...init, headers });
+      }
+    };
   }
 
   // What the browser holds: each cookie apps/web set, dropped when set with
@@ -203,16 +225,48 @@ describe("remember me through the cookie bridge", () => {
     expect(lastCookieOptions(SESSION)?.maxAge).toBe(604800);
   });
 
-  // Logout calls signOut without forwarding the browser's cookies; Better Auth
-  // expires its cookies regardless, so a later remembered sign-in never
-  // inherits a stale dont_remember.
+  // Better Auth expires its cookies on sign-out, so a later remembered sign-in
+  // never inherits a stale dont_remember.
   it("expires both cookies on sign-out", async () => {
-    const { client } = await setUp();
+    const { client, fetchFn } = await setUp();
     await client.signIn.email({ ...credentials, rememberMe: false });
 
-    await client.signOut();
+    await withAuthApiClient(logoutEvent(fetchFn as typeof fetch, cookieHeader()), (c) =>
+      c.signOut()
+    );
 
     expect(jar.has(SESSION)).toBe(false);
     expect(jar.has(DONT_REMEMBER)).toBe(false);
+  });
+
+  it("revokes the session on logout, so the old cookie no longer authenticates", async () => {
+    const { client, fetchFn } = await setUp();
+    await client.signIn.email({ ...credentials, rememberMe: true });
+    const browserCookie = cookieHeader();
+
+    const access = await withAuthApiClient(
+      logoutEvent(fetchFn as typeof fetch, browserCookie),
+      (c) => c.signOut()
+    );
+
+    expect(access).toMatchObject({ ok: true, value: { error: null } });
+    const { user } = await loadSession(client, browserCookie);
+    expect(user).toBeNull();
+  });
+
+  // Why the Origin matters: with the cookie but no Origin, Better Auth's CSRF
+  // check refuses the sign-out. `event.fetch` supplies apps/web's origin, and
+  // apps/api must keep trusting it (`trustedOrigins: [WEB_URL]`).
+  it("would refuse a sign-out that carries the cookie but no Origin", async () => {
+    const { client } = await setUp();
+    await client.signIn.email({ ...credentials, rememberMe: true });
+    const browserCookie = cookieHeader();
+
+    const { error } = await client.signOut({
+      fetchOptions: { headers: { cookie: browserCookie } }
+    });
+
+    expect(error?.status).toBe(403);
+    expect((await loadSession(client, browserCookie)).user?.email).toBe(credentials.email);
   });
 });
