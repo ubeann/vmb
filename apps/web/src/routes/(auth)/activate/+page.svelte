@@ -3,13 +3,14 @@
   import { resolve } from "$app/paths";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import { ActivateRequestInputSchema, ActivateResetInputSchema } from "@vmb/types";
-  import AuthShell from "$lib/components/AuthShell.svelte";
+  import AuthCard from "$lib/components/AuthCard.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
+  import { transitionUpdate } from "$lib/card-transition.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import type { ActionData } from "./$types.js";
 
@@ -27,7 +28,9 @@
       result: { type: string };
       update: () => Promise<void>;
     }) => {
-      await update();
+      // A sent code swaps the email step for the code step in the same sheet, so
+      // it moves the way a change of page does.
+      await (result.type === "success" && step === "request" ? transitionUpdate(update) : update());
       submitting = false;
       if (result.type === "failure") focusFirstInvalidField(formElement);
     };
@@ -67,7 +70,7 @@
   description="First time on VMB or forgot your password? Get a one-time code by email and set a new one."
 />
 
-<AuthShell heading="Set your password">
+<AuthCard heading="Set your password">
   {#snippet description()}
     First time here or forgot your password? We will email you a one-time code to set a new one.
   {/snippet}
@@ -202,4 +205,4 @@
   {#snippet footer()}
     <a href={resolve("/login")} class={linkClass}>Back to log in</a>
   {/snippet}
-</AuthShell>
+</AuthCard>

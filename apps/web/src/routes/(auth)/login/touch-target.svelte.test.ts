@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // Isolated renders don't load the global stylesheet. This file measures real
 // layout, so it needs Tailwind's classes applied; it lives apart from
 // page.svelte.test.ts so that file's renders stay unstyled.
-import "../../app.css";
+import "../../../app.css";
 
 vi.mock("$app/forms", () => ({
   enhance: () => ({ destroy() {} })

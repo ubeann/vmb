@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cdp } from "vitest/browser";
 
 // A stand-in for SvelteKit's `enhance` that keeps its contract: the submit
 // callback runs first and `cancel()` stops the request. What would have been
@@ -7,7 +8,10 @@ const submissions = vi.hoisted(() => [] as FormData[]);
 const completions = vi.hoisted(
   () =>
     [] as Array<
-      (options: { result: { type: "failure" }; update: () => Promise<void> }) => Promise<void>
+      (options: {
+        result: { type: "failure" | "success" };
+        update: () => Promise<void>;
+      }) => Promise<void>
     >
 );
 vi.mock("$app/forms", () => ({
@@ -18,7 +22,10 @@ vi.mock("$app/forms", () => ({
       cancel: () => void;
     }) =>
       | void
-      | ((options: { result: { type: "failure" }; update: () => Promise<void> }) => Promise<void>)
+      | ((options: {
+          result: { type: "failure" | "success" };
+          update: () => Promise<void>;
+        }) => Promise<void>)
   ) => {
     const onSubmit = (event: SubmitEvent) => {
       event.preventDefault();
@@ -46,6 +53,13 @@ const { default: Page } = await import("./+page.svelte");
 beforeEach(() => {
   submissions.length = 0;
   completions.length = 0;
+});
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await cdp().send("Emulation.setEmulatedMedia", {
+    features: [{ name: "prefers-reduced-motion", value: "no-preference" }]
+  });
 });
 
 describe("activate page", () => {
@@ -79,18 +93,6 @@ describe("activate page", () => {
 
     await expect.element(screen.getByText(/first time/i)).toBeVisible();
     await expect.element(screen.getByText(/forgot your password/i)).toBeVisible();
-  });
-
-  it("shows a copyright footer with the current year", async () => {
-    const screen = await render(Page, { form: null });
-
-    await expect
-      .element(
-        screen
-          .getByRole("contentinfo")
-          .getByText(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`)
-      )
-      .toBeVisible();
   });
 
   it("shows a visible error when the hidden email is missing on the code step", async () => {
@@ -291,6 +293,60 @@ describe("activate page", () => {
       });
 
       await expect.element(screen.getByLabelText("Email")).toHaveFocus();
+    });
+  });
+
+  describe("moving to the code step", () => {
+    // The change is applied inside the callback the browser calls once it has
+    // captured the old card, as a real view transition does.
+    function stubTransition() {
+      const settled = Promise.resolve();
+      return vi.spyOn(document, "startViewTransition").mockImplementation(((
+        update: () => Promise<void>
+      ) => ({
+        ready: settled,
+        finished: settled,
+        updateCallbackDone: update()
+      })) as never);
+    }
+
+    async function sendCode(type: "success" | "failure") {
+      const screen = await render(Page, { form: null });
+      await screen.getByLabelText("Email").fill("a@example.com");
+      await screen.getByRole("button", { name: "Send code" }).click();
+      const update = vi.fn(async () => {});
+      await completions[0]!({ result: { type }, update });
+      return update;
+    }
+
+    it("swaps the steps inside a view transition", async () => {
+      const transition = stubTransition();
+
+      const update = await sendCode("success");
+
+      expect(transition).toHaveBeenCalledOnce();
+      expect(update).toHaveBeenCalledOnce();
+    });
+
+    it("swaps the steps at once when the user prefers reduced motion", async () => {
+      await cdp().send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "reduce" }]
+      });
+      const transition = stubTransition();
+
+      const update = await sendCode("success");
+
+      expect(transition).not.toHaveBeenCalled();
+      expect(update).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the step in place, with no transition, when the code is refused", async () => {
+      const transition = stubTransition();
+
+      const update = await sendCode("failure");
+
+      expect(transition).not.toHaveBeenCalled();
+      expect(update).toHaveBeenCalledOnce();
     });
   });
 });

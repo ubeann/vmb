@@ -5,15 +5,15 @@ const withAuthApiClientMock = vi.fn();
 // The unit project runs without SvelteKit's Vite plugin, so `$lib` isn't a
 // resolvable alias here — re-export the helper by its real path and mock the
 // access seam the helper calls.
-vi.mock("$lib/auth-action.js", () => import("../../lib/auth-action.js"));
+vi.mock("$lib/auth-action.js", () => import("../../../lib/auth-action.js"));
 
-vi.mock("../../lib/api-access.js", () => ({
+vi.mock("../../../lib/api-access.js", () => ({
   withAuthApiClient: (event: unknown, run: (client: unknown) => Promise<unknown>) =>
     withAuthApiClientMock(event, run)
 }));
 
 const { actions } = await import("./+page.server.js");
-const { fakeAuthEvent } = await import("../../lib/test-support.js");
+const { fakeAuthEvent } = await import("../../../lib/test-support.js");
 const action = actions.default!;
 
 const signInEmail = vi.fn<
