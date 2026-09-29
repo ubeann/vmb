@@ -21,8 +21,7 @@ async function emulateReducedMotion(value: "reduce" | "no-preference") {
   });
 }
 
-function transitionDurationMs(element: Element) {
-  const duration = getComputedStyle(element).transitionDuration;
+function durationMs(duration: string) {
   const value = Number.parseFloat(duration);
   return duration.trim().endsWith("ms") ? value : value * 1000;
 }
@@ -67,7 +66,7 @@ describe.each(icons)("movingicons/$name", ({ Component, selector }) => {
     const screen = await render(Component, { animate: true });
 
     const el = screen.container.querySelector(selector);
-    expect(transitionDurationMs(el!)).toBeGreaterThanOrEqual(100);
+    expect(durationMs(getComputedStyle(el!).transitionDuration)).toBeGreaterThanOrEqual(100);
   });
 
   it("collapses its CSS transition under prefers-reduced-motion: reduce", async () => {
@@ -75,6 +74,17 @@ describe.each(icons)("movingicons/$name", ({ Component, selector }) => {
     const screen = await render(Component, { animate: true });
 
     const el = screen.container.querySelector(selector);
-    expect(transitionDurationMs(el!)).toBeLessThanOrEqual(0.02);
+    expect(durationMs(getComputedStyle(el!).transitionDuration)).toBeLessThanOrEqual(0.02);
   });
+});
+
+it("collapses Check's keyframe animation under prefers-reduced-motion: reduce", async () => {
+  const screen = await render(Check, { animate: true });
+  const path = screen.container.querySelector(".check-path");
+
+  expect(path).not.toBeNull();
+  expect(durationMs(getComputedStyle(path!).animationDuration)).toBeGreaterThanOrEqual(100);
+
+  await emulateReducedMotion("reduce");
+  expect(durationMs(getComputedStyle(path!).animationDuration)).toBeLessThanOrEqual(0.02);
 });
