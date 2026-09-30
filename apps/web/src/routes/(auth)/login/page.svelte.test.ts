@@ -292,4 +292,53 @@ describe("login page", () => {
       await expect.element(screen.getByLabelText("Email")).toHaveFocus();
     });
   });
+
+  describe("field icons and hints (#234)", () => {
+    const decorativeIcons = (element: Element) =>
+      [...element.querySelectorAll("svg")].filter(
+        (icon) => icon.getAttribute("aria-hidden") === "true"
+      );
+
+    it("shows the email format as a hint, and gives the password none", async () => {
+      mockPage.url = new URL("http://localhost/login");
+
+      const screen = await render(Page, { form: null });
+
+      await expect
+        .element(screen.getByLabelText("Email"))
+        .toHaveAttribute("placeholder", "name@company.com");
+      expect(
+        screen.getByLabelText("Password", { exact: true }).element().hasAttribute("placeholder")
+      ).toBe(false);
+    });
+
+    it("draws a decorative icon in each field and on the button", async () => {
+      mockPage.url = new URL("http://localhost/login");
+
+      const screen = await render(Page, { form: null });
+
+      for (const field of [
+        screen.getByLabelText("Email").element(),
+        screen.getByLabelText("Password", { exact: true }).element()
+      ]) {
+        expect(decorativeIcons(field.parentElement!)).not.toHaveLength(0);
+      }
+      expect(
+        decorativeIcons(screen.getByRole("button", { name: "Log in" }).element())
+      ).toHaveLength(1);
+    });
+
+    it("keeps the words on the button while signing in", async () => {
+      mockPage.url = new URL("http://localhost/login");
+
+      const screen = await render(Page, { form: null });
+      await screen.getByLabelText("Email").fill("a@example.com");
+      await screen.getByLabelText("Password", { exact: true }).fill("longenough");
+      await screen.getByRole("button", { name: "Log in" }).click();
+
+      await expect
+        .element(screen.getByRole("button", { name: "Signing in…" }))
+        .toHaveAttribute("aria-busy", "true");
+    });
+  });
 });

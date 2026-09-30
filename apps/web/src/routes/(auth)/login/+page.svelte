@@ -3,14 +3,16 @@
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import LogIn from "@lucide/svelte/icons/log-in";
+  import Mail from "@lucide/svelte/icons/mail";
   import { LoginInputSchema } from "@vmb/types";
   import AuthCard from "$lib/components/AuthCard.svelte";
+  import IconInput from "$lib/components/IconInput.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
-  import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import type { ActionData } from "./$types.js";
@@ -72,19 +74,17 @@
   >
     <div class="space-y-2">
       <Label for="email">Email</Label>
-      <!-- Own wrapper: password-manager extensions insert elements after the input, which would pick up the field's spacing. -->
-      <div class="relative">
-        <Input
-          class="min-h-11"
-          id="email"
-          type="email"
-          name="email"
-          autocomplete="email"
-          aria-invalid={fieldErrors?.email ? "true" : undefined}
-          aria-describedby={fieldErrors?.email ? "email-error" : undefined}
-          required
-        />
-      </div>
+      <IconInput
+        icon={Mail}
+        id="email"
+        type="email"
+        name="email"
+        autocomplete="email"
+        placeholder="name@company.com"
+        aria-invalid={fieldErrors?.email ? "true" : undefined}
+        aria-describedby={fieldErrors?.email ? "email-error" : undefined}
+        required
+      />
       {#if fieldErrors?.email}
         <p id="email-error" role="alert" class="text-destructive text-sm">
           {fieldErrors.email}
@@ -123,6 +123,7 @@
         <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
         Signing in…
       {:else}
+        <LogIn class="size-4" aria-hidden="true" />
         Log in
       {/if}
     </Button>

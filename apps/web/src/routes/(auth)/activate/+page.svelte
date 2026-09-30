@@ -1,14 +1,18 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
+  import Check from "@lucide/svelte/icons/check";
+  import KeyRound from "@lucide/svelte/icons/key-round";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import Mail from "@lucide/svelte/icons/mail";
+  import Send from "@lucide/svelte/icons/send";
   import { ActivateRequestInputSchema, ActivateResetInputSchema } from "@vmb/types";
   import AuthCard from "$lib/components/AuthCard.svelte";
+  import IconInput from "$lib/components/IconInput.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
-  import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { transitionUpdate } from "$lib/card-transition.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
@@ -102,20 +106,19 @@
 
         <div class="space-y-2">
           <Label for="otp">Code</Label>
-          <!-- Own wrapper: password-manager extensions insert elements after the input, which would pick up the field's spacing. -->
-          <div class="relative">
-            <Input
-              class="min-h-11 font-mono tracking-[0.3em]"
-              id="otp"
-              type="text"
-              name="otp"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              aria-invalid={fieldErrors?.otp ? "true" : undefined}
-              aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
-              required
-            />
-          </div>
+          <IconInput
+            icon={KeyRound}
+            class="font-mono tracking-[0.3em] placeholder:tracking-[0.3em]"
+            id="otp"
+            type="text"
+            name="otp"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="123456"
+            aria-invalid={fieldErrors?.otp ? "true" : undefined}
+            aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
+            required
+          />
           <p id="otp-hint" class="text-muted-foreground text-sm">Use the code from your email.</p>
           {#if fieldErrors?.otp}
             <p id="otp-error" role="alert" class="text-destructive text-sm">
@@ -146,6 +149,7 @@
             <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
             Saving…
           {:else}
+            <Check class="size-4" aria-hidden="true" />
             Set password
           {/if}
         </Button>
@@ -172,18 +176,17 @@
       >
         <div class="space-y-2">
           <Label for="email">Email</Label>
-          <div class="relative">
-            <Input
-              class="min-h-11"
-              id="email"
-              type="email"
-              name="email"
-              autocomplete="email"
-              aria-invalid={fieldErrors?.email ? "true" : undefined}
-              aria-describedby={fieldErrors?.email ? "email-error" : undefined}
-              required
-            />
-          </div>
+          <IconInput
+            icon={Mail}
+            id="email"
+            type="email"
+            name="email"
+            autocomplete="email"
+            placeholder="name@company.com"
+            aria-invalid={fieldErrors?.email ? "true" : undefined}
+            aria-describedby={fieldErrors?.email ? "email-error" : undefined}
+            required
+          />
           {#if fieldErrors?.email}
             <p id="email-error" role="alert" class="text-destructive text-sm">
               {fieldErrors.email}
@@ -195,6 +198,7 @@
             <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
             Sending…
           {:else}
+            <Send class="size-4" aria-hidden="true" />
             Send code
           {/if}
         </Button>
