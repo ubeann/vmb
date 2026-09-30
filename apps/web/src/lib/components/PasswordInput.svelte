@@ -24,14 +24,14 @@
   icon={LockKeyhole}
   {id}
   type={visible ? "text" : "password"}
-  class={cn("pr-24", className)}
+  class={cn("pr-12", className)}
   {...restProps}
 >
   {#snippet trailing()}
     <button
       type="button"
       data-slot="password-toggle"
-      class="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute inset-y-0 right-12 flex w-11 items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-none"
+      class="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg transition-colors focus-visible:ring-2 focus-visible:outline-none"
       aria-label="Show password"
       aria-controls={id}
       aria-pressed={visible}
