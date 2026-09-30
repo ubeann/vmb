@@ -117,35 +117,6 @@ describe("login page", () => {
     await expect.element(screen.getByText(/logged out/i)).toBeVisible();
   });
 
-  it("shows a copyright footer with the current year", async () => {
-    mockPage.url = new URL("http://localhost/login");
-
-    const screen = await render(Page, { form: null });
-
-    await expect
-      .element(
-        screen
-          .getByRole("contentinfo")
-          .getByText(`© ${new Date().getFullYear()} PT. Vifiera Minova Bersaudara`)
-      )
-      .toBeVisible();
-  });
-
-  it("offers the support team's address and the developer credit in the footer", async () => {
-    mockPage.url = new URL("http://localhost/login");
-
-    const screen = await render(Page, { form: null });
-    const footer = screen.getByRole("contentinfo");
-
-    await expect
-      .element(footer.getByRole("link", { name: "support@vmblogistics.id", exact: true }))
-      .toHaveAttribute("href", "mailto:support@vmblogistics.id");
-    await expect
-      .element(footer.getByRole("link", { name: "ubeann", exact: true }))
-      .toHaveAttribute("href", "https://github.com/ubeann");
-    expect(footer.element().textContent).toMatch(/Support team:\s+support@vmblogistics\.id/);
-  });
-
   it("renders missing-field errors beside the relevant input", async () => {
     mockPage.url = new URL("http://localhost/login");
 

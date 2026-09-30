@@ -77,5 +77,3 @@ export function createAuth(env: Bindings) {
   cached ??= buildAuth(env);
   return cached;
 }
-
-export type Auth = ReturnType<typeof createAuth>;

@@ -35,7 +35,7 @@ type KeyComparison = {
  * (a boolean, a timestamp with a time zone) would compare unequal for reasons
  * that have nothing to do with parity.
  */
-export const businessKeys: Record<string, string[]> = {
+const businessKeys: Record<string, string[]> = {
   "master.divisions": ["code"],
   "master.users": ["email"],
   "trucking.clients": ["code"],

@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const withAuthApiClientMock = vi.fn();
 
-vi.mock("$lib/auth-action.js", () => import("../../lib/auth-action.js"));
+vi.mock("$lib/auth-action.js", () => import("../../../lib/auth-action.js"));
 
-vi.mock("../../lib/api-access.js", () => ({
+vi.mock("../../../lib/api-access.js", () => ({
   withAuthApiClient: (event: unknown, run: (client: unknown) => Promise<unknown>) =>
     withAuthApiClientMock(event, run)
 }));
 
 const { actions } = await import("./+page.server.js");
-const { fakeAuthEvent } = await import("../../lib/test-support.js");
+const { fakeAuthEvent } = await import("../../../lib/test-support.js");
 
 const requestMock = vi.fn<() => Promise<{ data: null; error: { message?: string } | null }>>(
   async () => ({ data: null, error: null })

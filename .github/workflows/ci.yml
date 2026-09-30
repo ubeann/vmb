@@ -166,6 +166,13 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
+      # Unused files, dependencies and exports (ADR-0037). Its own step for the
+      # same reason as Format, and secret-free, so it runs for every actor,
+      # Dependabot included. Always repo-wide (ADR-0023). The github-actions
+      # reporter annotates each finding inline on the PR diff.
+      - name: Knip
+        run: pnpm knip --reporter github-actions
+
       # apps/web's component tests render .svelte files in a real browser
       # (vitest-browser-svelte + @vitest/browser-playwright). CI drives the
       # runner image's preinstalled Chrome (`channel: "chrome"` in the web vite

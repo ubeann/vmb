@@ -5,7 +5,7 @@ import { table, type SeedTable, type SqlLiteral } from "../sql.js";
  * same nine columns — distinct concepts that share a name (CONTEXT.md), but
  * one shape. Sharing the column list keeps the three inserts from drifting.
  */
-export const approvalColumns = [
+const approvalColumns = [
   "id",
   "approvable_type",
   "approvable_id",
