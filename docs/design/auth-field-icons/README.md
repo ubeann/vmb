@@ -18,7 +18,7 @@ A short round on the login and activate forms (issue #234), run by the steps of 
 
 Icons are static Lucide, decorative and `aria-hidden` (ADR-0035 rule 3). The loading state swaps the icon for the spinner and keeps its text, so the button never relies on motion (rule 6).
 
-`IconInput` (`$lib/components/IconInput.svelte`) is the one place that draws a leading icon: the field's own `relative` wrapper, the icon `pointer-events-none` at `left-3`, and `pl-9` on the input, which leaves 8px between the icon and the text. It also takes a `trailing` snippet drawn inside the same wrapper, which `PasswordInput` uses for the eye toggle, so the password fields share the geometry and there is one wrapper, not two.
+`IconInput` (`$lib/components/IconInput.svelte`) is the one place that draws a leading icon: the field's own `relative` wrapper, the icon `pointer-events-none` at `left-3`, and `pl-9` on the input, which leaves 8px between the icon and the text. It also takes a `trailing` snippet drawn inside the same wrapper, which `PasswordInput` uses for the eye toggle, so the password fields share the geometry and there is one wrapper, not two. The password input reserves 96px on the right: a 44px eye target sits 48px from the edge, leaving the edge for a password-manager badge.
 
 ## Decisions
 
@@ -41,11 +41,11 @@ All three use `--muted-foreground` (the existing `placeholder:text-muted-foregro
 
 **Layout shift, the regression #197 caught.** On the login form and on both activate steps (email; code and new password), at 1440 × 900 and 390 × 844, I appended a zero-height in-flow element and a 24px absolutely positioned "badge" after each input, as a password manager does. The form heights, every input, every leading icon and the eye toggle kept exactly the same rectangles. The badge never touched a leading icon. The code step was reached by stubbing the action's response in the browser, since the real one needs the API.
 
-**Open item for owner review:** a synthetic badge pinned to the right edge of a password field does overlap the eye toggle, because both live at the field's right edge. That was already so before this ticket (the toggle and its `pr-12` are unchanged), and a headless probe can't tell where 1Password or Bitwarden actually put their button. The check that matters is in the owner's browser (below); if a real badge covers the eye, the fix is a wider `pr-*` on `PasswordInput` or moving the toggle, not anything in the leading icon.
+**Eye toggle and badge slot.** The first review found that a synthetic badge at the right edge covered the eye toggle. The eye now sits 48px from the edge, and the text padding is 96px. A 32 × 24px badge inset 8px from the right has an 8px gap from the eye's 44px target. The browser component test verifies that gap and unchanged wrapper dimensions; the local preview confirmed them at 1280 × 800 and 390 × 844, with no horizontal overflow on mobile. These are synthetic badges; the owner's extension check below is still needed.
 
 ## Viewports
 
-The login page and the activate code step were captured at all six review viewports, light and dark, and every one of the 24 was looked at as a contact sheet. The icons hold at every width; the fields keep their 44px height, so no page grew: 1366 × 768 and 390 × 844 scroll (773px and 960px on login), and the page height is identical with and without the icons. The captures themselves aren't committed, except the side-by-side sheets that decided the open questions: `captures/` has login at 1440 × 900 and 390 × 844, and activate at 1440 × 900, light and dark, each without icons, with icons and with the heading icon, plus the error states.
+The login page and the activate code step were captured at all six review viewports, light and dark, and every one of the 24 was looked at as a contact sheet. The icons hold at every width; the fields keep their 44px height, so no page grew: 1366 × 768 and 390 × 844 scroll (773px and 960px on login), and the page height is identical with and without the icons. The captures themselves aren't committed, except the side-by-side sheets that decided the open questions: `captures/` has login at 1440 × 900 and 390 × 844, and activate at 1440 × 900, light and dark, each without icons, with icons and with the heading icon, plus the error states. Those comparison sheets predate the eye-toggle spacing fix above; the final spacing was checked in the local preview and its browser test.
 
 ## Owner review
 
