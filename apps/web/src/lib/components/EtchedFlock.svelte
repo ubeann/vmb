@@ -27,7 +27,8 @@
     mask-image: var(--flock-image);
     mask-size: 100% 100%;
     mask-repeat: no-repeat;
-    animation: flock-settle 2400ms cubic-bezier(0.22, 1, 0.36, 1) 1300ms both;
+    animation: flock-settle var(--duration-etch-settle) var(--easing-settle) var(--delay-etch-flock)
+      both;
   }
 
   @media (min-width: 64rem) and (min-height: 56rem) {

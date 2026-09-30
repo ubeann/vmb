@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button/index.js";
+  import { duration } from "$lib/motion.js";
   import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
   import { prefersReducedMotion } from "svelte/motion";
   import { slide } from "svelte/transition";
@@ -23,7 +24,7 @@
         id="motion-panel"
         data-testid="motion-panel"
         class="rounded-lg border p-4 text-sm"
-        transition:slide={{ duration: prefersReducedMotion.current ? 0 : 200 }}
+        transition:slide={{ duration: prefersReducedMotion.current ? 0 : duration.panel }}
       >
         Svelte transitions run on the Web Animations API, which the global CSS rule can't reach, so
         this one reads <code class="font-mono">prefersReducedMotion</code> and drops to 0 ms.
