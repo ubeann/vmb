@@ -24,6 +24,12 @@ describe("mapAuthErrorToCopy", () => {
   });
 
   it("falls back to the route's copy for an unlisted code", () => {
+    expect(mapAuthErrorToCopy({ code: "SOME_OTHER_CODE" }, "fallback")).toBe("fallback");
+  });
+
+  // Copy of its own would tell an unregistered email from a registered one:
+  // the account-enumeration leak #205 and #232 keep closed.
+  it("never gives USER_NOT_FOUND copy of its own", () => {
     expect(mapAuthErrorToCopy({ code: "USER_NOT_FOUND" }, "fallback")).toBe("fallback");
   });
 

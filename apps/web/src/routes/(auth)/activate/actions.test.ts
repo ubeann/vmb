@@ -74,6 +74,34 @@ describe("activate actions", () => {
     });
   });
 
+  it("keeps rate limiting on the request step, with the 429 copy", async () => {
+    requestMock.mockResolvedValueOnce({
+      data: null,
+      error: { status: 429, message: "Too many requests" } as never
+    });
+
+    const result = await actions.request!(fakeAuthEvent({ email: "a@example.com" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { error: "Too many attempts. Wait a moment and try again." }
+    });
+  });
+
+  // The API gives every email the same reply (#232), so the only difference
+  // this step could ever show is one it adds itself. It adds none.
+  it("gives the same reply for every email, naming only the email typed", async () => {
+    const replies = [
+      await actions.request!(fakeAuthEvent({ email: "staff@vmblogistics.id" })),
+      await actions.request!(fakeAuthEvent({ email: "nobody@vmblogistics.id" }))
+    ];
+
+    expect(replies).toEqual([
+      { step: "reset", email: "staff@vmblogistics.id" },
+      { step: "reset", email: "nobody@vmblogistics.id" }
+    ]);
+  });
+
   it.each([
     ["", "Enter the code from your email"],
     ["12345", "Enter the 6-digit code from your email"],
