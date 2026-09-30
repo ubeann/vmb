@@ -42,7 +42,8 @@
       100% 100%;
     mask-repeat: no-repeat;
     mask-composite: intersect;
-    animation: vignette-reveal 1600ms cubic-bezier(0.65, 0, 0.35, 1) 150ms both;
+    animation: vignette-reveal var(--duration-etch-reveal) var(--easing-reveal)
+      var(--delay-etch-plate) both;
   }
 
   @media (prefers-reduced-motion: reduce) {

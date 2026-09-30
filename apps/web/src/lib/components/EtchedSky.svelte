@@ -45,7 +45,8 @@
     mask-position: right 60%;
     mask-repeat: no-repeat;
     mask-composite: intersect;
-    animation: sky-settle 2400ms cubic-bezier(0.22, 1, 0.36, 1) 900ms both;
+    animation: sky-settle var(--duration-etch-settle) var(--easing-settle) var(--delay-etch-sky)
+      both;
   }
 
   @media (min-width: 64rem) {

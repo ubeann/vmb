@@ -80,7 +80,7 @@
      outgoing one never blinks and a choice that changes nothing stays still. */
   .glyph[data-turns-to="dark"] :global(.moon),
   .glyph[data-turns-to="light"] :global(.sun) {
-    animation: glyph-in 0.3s cubic-bezier(0.2, 0, 0, 1);
+    animation: glyph-in var(--duration-icon) var(--easing-standard);
   }
 
   @keyframes glyph-in {

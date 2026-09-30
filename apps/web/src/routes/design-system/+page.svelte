@@ -15,6 +15,7 @@
   import AnimatedIconsDemo from "./AnimatedIconsDemo.svelte";
   import DemoForm from "./DemoForm.svelte";
   import MotionDemo from "./MotionDemo.svelte";
+  import MotionTokens from "./MotionTokens.svelte";
   import type { PageData } from "./$types.js";
 
   let { data }: { data: PageData } = $props();
@@ -298,6 +299,15 @@
       >
       <Button variant="outline" onclick={() => toast.info("3 users imported")}>Info toast</Button>
     </div>
+  </section>
+
+  <section class="space-y-4" aria-labelledby="motion-tokens">
+    {@render section(
+      "motion-tokens",
+      "Motion tokens",
+      "Durations and easings come from these tokens in app.css, never literals (ADR-0040)."
+    )}
+    <MotionTokens />
   </section>
 
   <section class="space-y-4" aria-labelledby="motion">

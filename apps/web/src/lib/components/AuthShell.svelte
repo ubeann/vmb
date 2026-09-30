@@ -77,7 +77,7 @@
   }
 
   :global(::view-transition-group(auth-card)) {
-    animation-duration: 220ms;
-    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-duration: var(--duration-panel);
+    animation-timing-function: var(--easing-settle);
   }
 </style>

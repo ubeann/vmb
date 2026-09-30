@@ -93,6 +93,58 @@
   --sidebar-ring: oklch(0.75 0.165 146.3);
 }
 
+/*
+ * Motion tokens (ADR-0040). Components take durations and easings from here,
+ * not literals. `$lib/motion.ts` mirrors the UI durations in milliseconds for
+ * Svelte transitions and Tween/Spring, which can't read custom properties.
+ */
+:root {
+  /* UI feedback: a press, a toggled state, a copied value. */
+  --duration-feedback: 120ms;
+  /* A panel, a toast or the auth card changing contents. */
+  --duration-panel: 220ms;
+  /* An icon swapping for another, such as the theme toggle's glyph. */
+  --duration-icon: 300ms;
+
+  /* The etched entrance: the plate reveals, then the sky and flock settle. */
+  --duration-etch-reveal: 1600ms;
+  --duration-etch-settle: 2400ms;
+  --delay-etch-plate: 150ms;
+  --delay-etch-sky: 900ms;
+  --delay-etch-flock: 1300ms;
+
+  /* Decelerates into place: most UI motion. */
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* A long, soft stop for things drifting into place. */
+  --easing-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Starts and ends slowly: a reveal across the whole plate. */
+  --easing-reveal: cubic-bezier(0.65, 0, 0.35, 1);
+  /* A damped spring (ζ 0.7) that overshoots about 5% and settles by the end. */
+  --easing-spring: linear(
+    0,
+    0.098,
+    0.306,
+    0.531,
+    0.726,
+    0.871,
+    0.965,
+    1.018,
+    1.042,
+    1.046,
+    1.04,
+    1.03,
+    1.02,
+    1.011,
+    1.005,
+    1.001,
+    0.999,
+    0.998,
+    0.998,
+    0.998,
+    1
+  );
+}
+
 @theme inline {
   --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Newsreader Variable", Georgia, "Times New Roman", serif;
@@ -136,6 +188,11 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* `ease-standard` and so on, beside Tailwind's own `ease-in`/`ease-out`. */
+  --ease-standard: var(--easing-standard);
+  --ease-settle: var(--easing-settle);
+  --ease-reveal: var(--easing-reveal);
+  --ease-spring: var(--easing-spring);
 }
 
 @layer base {
