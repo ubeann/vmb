@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createAuth } from "../auth.js";
 import type { Bindings } from "../bindings.js";
+import { withTrustedClientIp } from "../client-ip.js";
 
 // A function origin (rather than passing `c.env.WEB_URL` as the `origin`
 // string directly) lets this middleware be built once at module scope while
@@ -14,4 +15,8 @@ const authCors = cors({
 
 export const authRoute = new Hono<{ Bindings: Bindings }>()
   .use("*", authCors)
-  .all("*", (c) => createAuth(c.env).handler(c.req.raw));
+  // Better Auth keys rate limits on the client IP the request carries, so
+  // the request is handed on with that IP settled first (#250).
+  .all("*", async (c) =>
+    createAuth(c.env).handler(await withTrustedClientIp(c.req.raw, c.env.CLIENT_IP_SECRET))
+  );

@@ -1,4 +1,5 @@
 import { account, createDb, session, user, verification } from "@vmb/db";
+import { CLIENT_IP_HEADER } from "@vmb/types";
 import { betterAuth } from "better-auth";
 import { waitUntil } from "cloudflare:workers";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -25,7 +26,11 @@ function buildAuth(env: Bindings) {
       // awaited Resend call made a registered email reply noticeably slower
       // than an unregistered one (#232). Handing sends to the Worker's
       // `waitUntil` returns the reply first; a failed send is still logged.
-      backgroundTasks: { handler: waitUntil }
+      backgroundTasks: { handler: waitUntil },
+      // The browser's address, as the auth route vouches for it: apps/web's
+      // header when its secret matches, else `cf-connecting-ip` (#250,
+      // ADR-0042). No other header is read, since a caller could set it.
+      ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] }
     },
     emailAndPassword: {
       enabled: true,

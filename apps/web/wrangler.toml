@@ -6,6 +6,16 @@ compatibility_flags = ["nodejs_compat"]
 # API_URL points at the deployed vmb-api Worker; set per-environment in the
 # Cloudflare Pages dashboard (and locally via fnox for `wrangler pages dev`).
 #
+# CLIENT_IP_SECRET is shared with vmb-api: apps/web sends it with the browser's
+# address on every API call, so vmb-api can trust that address as the client
+# IP for auth rate limits (#250, ADR-0042). Generate it with
+# `openssl rand -base64 32` and set it as a secret on both sides: the Pages
+# Production environment with vmb-api's production value, and the Pages
+# Preview environment (shared by every preview) with fnox's value, which the
+# preview workflow gives each vmb-api preview version. Local `vite dev` reads
+# it from the `.dev.vars` that `predev` exports from fnox. Unset, nothing is
+# sent and vmb-api falls back to `cf-connecting-ip`.
+#
 # No [env.staging] block: Cloudflare Pages supports only the named
 # environments "preview" and "production", and wrangler rejects any other
 # environment name — an [env.staging] block fails every `wrangler pages

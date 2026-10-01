@@ -1,3 +1,4 @@
+import { CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } from "@vmb/types";
 import { describe, expect, it, vi } from "vitest";
 
 const handlerMock = vi.fn();
@@ -46,6 +47,76 @@ describe("ALL /api/auth/*", () => {
 
     expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
     expect(res.headers.get("access-control-allow-credentials")).toBe("true");
+  });
+
+  // Better Auth keys its rate limits on the address the forwarded request
+  // carries (ADR-0042). Only apps/web, holding the secret, may name it.
+  describe("client IP", () => {
+    const withSecret = { ...bindings, CLIENT_IP_SECRET: "s3cret" };
+
+    async function forwardedHeaders(headers: Record<string, string>, env: object = withSecret) {
+      handlerMock.mockClear();
+      handlerMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await app.request("/api/auth/sign-in/email", { method: "POST", headers }, env);
+      return (handlerMock.mock.calls[0]?.[0] as Request).headers;
+    }
+
+    it("trusts apps/web's client-IP header when the secret matches", async () => {
+      const headers = await forwardedHeaders({
+        "cf-connecting-ip": "198.51.100.7",
+        [CLIENT_IP_HEADER]: "203.0.113.5",
+        [CLIENT_IP_SECRET_HEADER]: "s3cret"
+      });
+
+      expect(headers.get(CLIENT_IP_HEADER)).toBe("203.0.113.5");
+    });
+
+    it("keys on cf-connecting-ip when the header comes without the secret", async () => {
+      const headers = await forwardedHeaders({
+        "cf-connecting-ip": "198.51.100.7",
+        [CLIENT_IP_HEADER]: "203.0.113.5"
+      });
+
+      expect(headers.get(CLIENT_IP_HEADER)).toBe("198.51.100.7");
+    });
+
+    it("keys on cf-connecting-ip when the secret is wrong", async () => {
+      const headers = await forwardedHeaders({
+        "cf-connecting-ip": "198.51.100.7",
+        [CLIENT_IP_HEADER]: "203.0.113.5",
+        [CLIENT_IP_SECRET_HEADER]: "guess"
+      });
+
+      expect(headers.get(CLIENT_IP_HEADER)).toBe("198.51.100.7");
+    });
+
+    it("trusts nothing when apps/api has no secret set, even an empty one sent", async () => {
+      const headers = await forwardedHeaders(
+        {
+          "cf-connecting-ip": "198.51.100.7",
+          [CLIENT_IP_HEADER]: "203.0.113.5",
+          [CLIENT_IP_SECRET_HEADER]: ""
+        },
+        bindings
+      );
+
+      expect(headers.get(CLIENT_IP_HEADER)).toBe("198.51.100.7");
+    });
+
+    it("sends no client IP when there is neither a trusted header nor cf-connecting-ip", async () => {
+      const headers = await forwardedHeaders({ [CLIENT_IP_HEADER]: "203.0.113.5" });
+
+      expect(headers.has(CLIENT_IP_HEADER)).toBe(false);
+    });
+
+    it("never hands the secret on to Better Auth", async () => {
+      const headers = await forwardedHeaders({
+        [CLIENT_IP_HEADER]: "203.0.113.5",
+        [CLIENT_IP_SECRET_HEADER]: "s3cret"
+      });
+
+      expect(headers.has(CLIENT_IP_SECRET_HEADER)).toBe(false);
+    });
   });
 
   it("does not allow a different origin", async () => {

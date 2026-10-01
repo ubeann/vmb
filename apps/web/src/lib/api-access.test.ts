@@ -27,13 +27,24 @@ vi.mock("./env.js", () => ({
 }));
 
 const { withApiClient, withAuthApiClient } = await import("./api-access.js");
+const { CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } = await import("@vmb/types");
 
-function fakeEvent(fetchFn = vi.fn(), cookie?: string) {
+function fakeEvent(
+  fetchFn = vi.fn(),
+  cookie?: string,
+  { secret, getClientAddress = () => "203.0.113.5" }: FakeEventOptions = {}
+) {
   return {
-    platform: undefined,
+    platform: secret === undefined ? undefined : { env: { API_URL: "", CLIENT_IP_SECRET: secret } },
     request: new Request("https://web.test/page", { headers: cookie ? { cookie } : {} }),
-    fetch: fetchFn
+    fetch: fetchFn,
+    getClientAddress
   };
+}
+
+interface FakeEventOptions {
+  secret?: string;
+  getClientAddress?: () => string;
 }
 
 // The fetch a client was built with, called the way a client calls it; returns
@@ -207,5 +218,49 @@ describe("withAuthApiClient", () => {
     });
 
     expect(result).toEqual({ ok: false, error });
+  });
+});
+
+// apps/api keys auth rate limits on the browser's address only when the
+// shared secret comes with it (#250, ADR-0042). Every API call carries both.
+describe.each([
+  { name: "withApiClient", access: withApiClient, createMock: createApiClientMock },
+  { name: "withAuthApiClient", access: withAuthApiClient, createMock: createAuthApiClientMock }
+])("$name client IP", ({ access, createMock }) => {
+  it("sends the browser's address and the shared secret", async () => {
+    const fetchFn = vi.fn(async () => new Response());
+    await access(fakeEvent(fetchFn, "session=abc", { secret: "s3cret" }), async () => null);
+
+    const request = await sendThroughBuiltFetch(createMock, fetchFn);
+
+    expect(request.headers.get(CLIENT_IP_HEADER)).toBe("203.0.113.5");
+    expect(request.headers.get(CLIENT_IP_SECRET_HEADER)).toBe("s3cret");
+    expect(request.headers.get("cookie")).toBe("session=abc");
+  });
+
+  it("sends neither header when no secret is configured", async () => {
+    const fetchFn = vi.fn(async () => new Response());
+    await access(fakeEvent(fetchFn), async () => null);
+
+    const request = await sendThroughBuiltFetch(createMock, fetchFn);
+
+    expect(request.headers.has(CLIENT_IP_HEADER)).toBe(false);
+    expect(request.headers.has(CLIENT_IP_SECRET_HEADER)).toBe(false);
+  });
+
+  it("still makes the call, without either header, when the browser's address is unknown", async () => {
+    const fetchFn = vi.fn(async () => new Response());
+    const getClientAddress = () => {
+      throw new Error("no address");
+    };
+    await access(
+      fakeEvent(fetchFn, undefined, { secret: "s3cret", getClientAddress }),
+      async () => null
+    );
+
+    const request = await sendThroughBuiltFetch(createMock, fetchFn);
+
+    expect(request.headers.has(CLIENT_IP_HEADER)).toBe(false);
+    expect(request.headers.has(CLIENT_IP_SECRET_HEADER)).toBe(false);
   });
 });
