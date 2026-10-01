@@ -1,13 +1,30 @@
-import crates from "./assets/errors/vmb-error-crates.webp";
-import gate from "./assets/errors/vmb-error-gate.webp";
-import road from "./assets/errors/vmb-error-road.webp";
+import crates from "./assets/errors/vmb-error-crates-840.webp";
+import cratesParts from "./assets/errors/vmb-error-crates-parts.json";
+import gate from "./assets/errors/vmb-error-gate-840.webp";
+import gateParts from "./assets/errors/vmb-error-gate-parts.json";
+import road from "./assets/errors/vmb-error-road-840.webp";
+import roadParts from "./assets/errors/vmb-error-road-parts.json";
+import type { EtchedPart } from "./etched-parts.js";
 
-/** An engraved vignette: an ink mask and its width ÷ height. */
+/** A part of a vignette that moves once (#244). An opaque part hides the plate behind it. */
+type ErrorScenePart = EtchedPart & { opaque: boolean };
+
+/** An engraved vignette: an ink mask and its width ÷ height, and the parts that move on it. */
 export interface ErrorScene {
   name: "road" | "gate" | "crates";
   image: string;
   ratio: number;
+  parts: Record<string, ErrorScenePart>;
 }
+
+// The manifests are prepare-etching.py's: each part's box at rest, in the plate's percentages.
+const markOpaque = (manifest: { parts: Record<string, EtchedPart> }, opaque: string[]) =>
+  Object.fromEntries(
+    Object.entries(manifest.parts).map(([name, part]) => [
+      name,
+      { ...part, opaque: opaque.includes(name) }
+    ])
+  );
 
 export interface ErrorPageContent {
   title: string;
@@ -21,9 +38,14 @@ export interface ErrorPageContent {
 // follows the status, never chance, so the server and the browser draw the
 // same picture and a refresh doesn't swap it.
 export const ERROR_SCENES = {
-  road: { name: "road", image: road, ratio: 1.261 },
-  gate: { name: "gate", image: gate, ratio: 2.111 },
-  crates: { name: "crates", image: crates, ratio: 0.876 }
+  road: { name: "road", image: road, ratio: 1.261, parts: markOpaque(roadParts, ["truck"]) },
+  gate: { name: "gate", image: gate, ratio: 2.111, parts: markOpaque(gateParts, []) },
+  crates: {
+    name: "crates",
+    image: crates,
+    ratio: 0.876,
+    parts: markOpaque(cratesParts, ["stack", "crate"])
+  }
 } as const satisfies Record<ErrorScene["name"], ErrorScene>;
 
 /**
