@@ -82,6 +82,59 @@ describe("activate page", () => {
     await expect.element(screen.getByRole("button", { name: "Set password" })).toBeVisible();
   });
 
+  describe("the code step's reply (#232)", () => {
+    const resetStep = { step: "reset", email: "a@exmaple.com" } as const;
+
+    it("says a code was sent only if the email has VMB access", async () => {
+      const screen = await render(Page, { form: resetStep });
+
+      await expect
+        .element(screen.getByText(/has VMB access/))
+        .toHaveTextContent(
+          "If a@exmaple.com has VMB access, we sent a code to it. It expires in 5 minutes."
+        );
+      expect(screen.getByText(/^We sent a code/).elements()).toHaveLength(0);
+    });
+
+    it("says what to do when no email arrives, with a link to support", async () => {
+      const screen = await render(Page, { form: resetStep });
+
+      await expect
+        .element(screen.getByText(/No email after a minute\?/))
+        .toHaveTextContent(
+          "No email after a minute? Check spam, check the address, or contact support@vmblogistics.id"
+        );
+      await expect
+        .element(screen.getByRole("link", { name: "support@vmblogistics.id" }))
+        .toHaveAttribute("href", "mailto:support@vmblogistics.id");
+    });
+
+    it("goes back to the email step with the email kept for fixing", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const link = screen.getByRole("link", { name: "Use a different email" });
+      // Without JavaScript the link still reaches a fresh email step.
+      await expect.element(link).toHaveAttribute("href", "/activate");
+
+      await link.click();
+
+      await expect.element(screen.getByRole("button", { name: "Send code" })).toBeVisible();
+      await expect.element(screen.getByLabelText("Email")).toHaveValue("a@exmaple.com");
+      await expect.element(screen.getByLabelText("Email")).toHaveFocus();
+      expect(screen.getByLabelText("Code").elements()).toHaveLength(0);
+      expect(submissions).toHaveLength(0);
+    });
+
+    it("sends the fixed email from the email step", async () => {
+      const screen = await render(Page, { form: resetStep });
+      await screen.getByRole("link", { name: "Use a different email" }).click();
+
+      await screen.getByLabelText("Email").fill("a@example.com");
+      await screen.getByRole("button", { name: "Send code" }).click();
+
+      expect(submissions.map((data) => data.get("email"))).toEqual(["a@example.com"]);
+    });
+  });
+
   it("shows the server action's error message", async () => {
     const screen = await render(Page, { form: { error: "Invalid code" } });
 

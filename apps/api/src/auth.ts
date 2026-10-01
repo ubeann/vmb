@@ -1,5 +1,6 @@
 import { account, createDb, session, user, verification } from "@vmb/db";
 import { betterAuth } from "better-auth";
+import { waitUntil } from "cloudflare:workers";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import type { Bindings } from "./bindings.js";
@@ -19,6 +20,13 @@ function buildAuth(env: Bindings) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_URL],
+    advanced: {
+      // Better Auth awaits an email send only when the user exists, so an
+      // awaited Resend call made a registered email reply noticeably slower
+      // than an unregistered one (#232). Handing sends to the Worker's
+      // `waitUntil` returns the reply first; a failed send is still logged.
+      backgroundTasks: { handler: waitUntil }
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,

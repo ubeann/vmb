@@ -14,7 +14,8 @@
     "apps/api": {
       // Never imported here: pinned so drizzle-orm's types resolve to the
       // same copy @vmb/db uses (commit 6a4aa9b, and the pnpm override).
-      "ignoreDependencies": ["@neondatabase/serverless"]
+      // `cloudflare:workers` is a Workers runtime module, not an npm package.
+      "ignoreDependencies": ["@neondatabase/serverless", "cloudflare"]
     }
   },
   // Installed by mise (.mise.toml), not npm.
