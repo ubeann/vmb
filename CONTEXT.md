@@ -163,6 +163,10 @@ Legacy tables deliberately not ported: Laravel runtime, Laravel auth, and the Sp
 **Activation**:
 A migrated User's first access: proving inbox control with an email OTP and setting a first password, because legacy passwords are not carried (ADR-0033).
 
+**Password reset**:
+The same `/activate` flow for a User who already has a password: an emailed code, then a new password (ADR-0033, ADR-0041).
+_Avoid_: Forgot password (as a separate flow)
+
 **Replay**:
 Bringing a database to the current shape by applying the ordered migration chain over a legacy snapshot.
 
