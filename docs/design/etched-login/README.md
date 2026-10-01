@@ -53,6 +53,8 @@ The script writes 2400px and 1200px WebPs (landscape 163 KB and 43 KB, sky 54 KB
 | `--fade-bottom 0.30` | Thin the bottom 30% of the height into bare paper, so the plate meets the footer without an edge.                                                                      |
 | `--pad-to 5`         | Add blank paper at both sides to reach 5:1 (5090 × 1018), so the CSS can bleed the plate off narrow screens without cutting the scene.                                 |
 
+Since #243 the shipped plates have their moving parts cut out and the holes filled, and the commands that rebuild them are in [etched scenes](../etched-scenes/README.md#rebuilding).
+
 `EtchedScene` fits the plate to the band's height (`mask-size: auto 100%`) and sizes the band from two ratios: `--plate-ratio` (5, the whole plate) and `--plate-core-ratio` (4, the art without its padding). Update both whenever the plate changes; `etched-scene.test.ts` fails when `--plate-ratio` no longer matches the shipped mask.
 
 The logo is `VmbLogo.svelte`, an inline SVG of the legacy mark, vectorized by Recraft from a crisp upscale of the 229px PNG (#219): navy swoosh on `--brand-mark`, green stripes on `--primary`. `vmb-logo.svg` is the same mark in fixed brand colours for use outside the app.
