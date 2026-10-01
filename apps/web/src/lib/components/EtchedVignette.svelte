@@ -80,10 +80,15 @@
   }
 
   /* The gate's leaves swing about their hinges, so the frame gives them depth. */
+  /* The parts wait for the plate, as in EtchedScene (#260). */
   .frame {
     position: absolute;
     inset: 0;
     perspective: 90cqw;
+    mask-image: var(--vignette-image), linear-gradient(#000 0 0);
+    mask-size: 100% 100%;
+    mask-repeat: no-repeat;
+    mask-composite: add;
   }
 
   .part {

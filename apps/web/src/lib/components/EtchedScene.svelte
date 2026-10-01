@@ -112,6 +112,13 @@
   }
 
   /* The plate's own box, where the parts are placed: as tall as the band, centred on it. */
+  /*
+   * The parts wait for the plate (#260). The plate is the biggest file, so on a slow
+   * connection it landed after them and they hung on bare paper. The frame is masked
+   * by the plate plus a solid layer: a browser that waits for a pending mask paints
+   * nothing until the plate is there, and the solid layer then shows every part in
+   * full. Chromium and Firefox wait; WebKit paints the parts regardless.
+   */
   .frame {
     position: absolute;
     inset-block: 0;
@@ -119,6 +126,15 @@
     aspect-ratio: var(--plate-ratio);
     translate: -50% 0;
     container-type: inline-size;
+    mask-image: var(--etching-image), linear-gradient(#000 0 0);
+    mask-size:
+      auto 100%,
+      100% 100%;
+    mask-position:
+      center bottom,
+      0 0;
+    mask-repeat: no-repeat;
+    mask-composite: add;
   }
 
   .part {

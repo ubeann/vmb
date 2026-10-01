@@ -35,6 +35,15 @@ describe.each(Object.values(ERROR_SCENES))("EtchedVignette $name", (scene) => {
     expect(root.getAttribute("aria-hidden")).toBe("true");
   });
 
+  it("masks the parts' box with the plate and a solid layer, so no part shows before it (#260)", async () => {
+    const { plate } = await renderScene(scene);
+    const style = getComputedStyle(plate);
+
+    expect(style.maskImage).toContain(scene.image);
+    expect(style.maskImage).toContain("linear-gradient(");
+    expect(style.maskComposite).toBe("add, add");
+  });
+
   it("brings each part to rest at its place on the plate", async () => {
     const { root, parts, plate } = await renderScene(scene);
     for (const animation of root.getAnimations({ subtree: true })) animation.finish();

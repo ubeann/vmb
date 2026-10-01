@@ -39,6 +39,21 @@ async function renderScene(scene: Component) {
 
 afterEach(() => emulateReducedMotion("no-preference"));
 
+// On a slow connection the plate, the biggest file, used to land after the parts,
+// which then hung on bare paper (#260). The parts' box is masked by the plate
+// plus a solid layer: a browser that waits for a pending mask paints nothing
+// until the plate is there, and the solid layer keeps every part fully visible
+// after it. (Chromium and Firefox wait; WebKit paints the parts regardless.)
+describe("EtchedScene plate gate", () => {
+  it("masks the parts' box with the plate and a solid layer", async () => {
+    const { plate } = await renderScene(EtchedScene);
+    const style = getComputedStyle(plate);
+
+    expect(style.maskImage).toMatch(/^url\(.*vmb-etching-\d+\.webp.*\), linear-gradient\(/);
+    expect(style.maskComposite).toBe("add, add");
+  });
+});
+
 describe.each(scenes)("%s moving parts", (_, scene, manifest) => {
   it("draws every part in the manifest", async () => {
     const { parts } = await renderScene(scene);
