@@ -536,10 +536,11 @@ jobs:
         run: pnpm --filter @vmb/db db:seed
 
       # Shared secrets (BETTER_AUTH_SECRET, RESEND_API_KEY, EMAIL_FROM,
-      # CLIENT_IP_SECRET) come from the committed fnox store, same as build-and-test in ci.yml. ADR-0011
-      # keeps fnox to local/CI secrets and out of Worker runtime, so this is the
-      # narrow exception ADR-0019 records: fnox feeds only this ephemeral
-      # preview version, never the production deployment.
+      # CLIENT_IP_SECRET) come from the committed fnox store, same as
+      # build-and-test in ci.yml. ADR-0011 keeps fnox to local/CI secrets and out
+      # of Worker runtime, so this is the narrow exception ADR-0019 records: fnox
+      # feeds only this ephemeral preview version, never the production
+      # deployment.
       #
       # The three per-PR values — DATABASE_URL, BETTER_AUTH_URL, WEB_URL — are
       # overridden so the preview Worker talks only to this PR's database and

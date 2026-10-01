@@ -48,13 +48,14 @@ async function withClient<C, T>(
 }
 
 // The event's fetch, with the browser's Cookie header added unless the caller
-// set one, and the browser's address with the shared secret when one is set. Better Auth refuses a cookie-carrying POST without a trusted Origin;
+// set one, and the browser's address with the shared secret when one is set.
+// Better Auth refuses a cookie-carrying POST without a trusted Origin;
 // `event.fetch` already sends apps/web's own origin, which apps/api trusts
 // (`trustedOrigins: [WEB_URL]`). The call stays `(input, init)` rather than a
 // Request, since SvelteKit reads `mode` off a Request and Cloudflare can throw.
 function forwardingBrowser(event: ApiRequestEvent): typeof fetch {
   const cookie = event.request.headers.get("cookie");
-  const clientIp = trustedClientIp(event);
+  const clientIp = clientIpProof(event);
   if (!cookie && !clientIp) return event.fetch;
 
   return (input, init) => {
@@ -71,7 +72,7 @@ function forwardingBrowser(event: ApiRequestEvent): typeof fetch {
 // Nothing to send without the secret, since apps/api would not trust the
 // address. `getClientAddress` can throw where SvelteKit has no address to
 // give; the call then goes without, and apps/api uses `cf-connecting-ip`.
-function trustedClientIp(event: ApiRequestEvent): { address: string; secret: string } | null {
+function clientIpProof(event: ApiRequestEvent): { address: string; secret: string } | null {
   const secret = event.platform?.env.CLIENT_IP_SECRET;
   if (!secret) return null;
 
