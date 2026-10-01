@@ -18,7 +18,7 @@ export interface ErrorScene {
 }
 
 // The manifests are prepare-etching.py's: each part's box at rest, in the plate's percentages.
-const withOpacity = (manifest: { parts: Record<string, EtchedPart> }, opaque: string[]) =>
+const markOpaque = (manifest: { parts: Record<string, EtchedPart> }, opaque: string[]) =>
   Object.fromEntries(
     Object.entries(manifest.parts).map(([name, part]) => [
       name,
@@ -38,13 +38,13 @@ export interface ErrorPageContent {
 // follows the status, never chance, so the server and the browser draw the
 // same picture and a refresh doesn't swap it.
 export const ERROR_SCENES = {
-  road: { name: "road", image: road, ratio: 1.261, parts: withOpacity(roadParts, ["truck"]) },
-  gate: { name: "gate", image: gate, ratio: 2.111, parts: withOpacity(gateParts, []) },
+  road: { name: "road", image: road, ratio: 1.261, parts: markOpaque(roadParts, ["truck"]) },
+  gate: { name: "gate", image: gate, ratio: 2.111, parts: markOpaque(gateParts, []) },
   crates: {
     name: "crates",
     image: crates,
     ratio: 0.876,
-    parts: withOpacity(cratesParts, ["stack", "crate"])
+    parts: markOpaque(cratesParts, ["stack", "crate"])
   }
 } as const satisfies Record<ErrorScene["name"], ErrorScene>;
 

@@ -45,7 +45,7 @@ An unexpected server failure also gets a short reference and its time from `hand
 
 ### Parts that move (#244)
 
-Each part is a single iteration that ends at its natural style, which is its resting place; timings are motion tokens in `app.css`. Everything is at rest by 3.8 s. The vignette clips at its edge, so a part that leaves is cut there.
+Each part is a single iteration that ends at its natural style, which is its resting place; timings are motion tokens in `app.css`. Everything is at rest by 3.8 s. The vignette clips at its edge, so a leaf that swings or a crate that turns out of the plate is cut there; the truck fades out before it gets near it.
 
 | Scene  | Part        | Motion                                                                                                                                            | Delay → end |
 | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
@@ -99,7 +99,7 @@ Road 836 × 663, gate 838 × 397, crates 538 × 614 (the source's ink, before sc
 
 The parts are new Recraft art in the vignette style, set where the old part stood, and Recraft fills the holes the old parts leave. Opaque parts (truck, stack, crate) hide the plate behind them, as in `etched-scenes`: a `--background` backing through the mask's alpha, `--etching` through its luminance. The gate's leaves and lock are plain ink over the yard.
 
-### Generation (1 Oct, 16 credits)
+### Generation (1 Oct, 16 credits; 19 with the fills)
 
 `recraftv4_1`, two images per prompt, 2 credits each (4 credits a prompt; balance 967 → 951). The shared frame is the vignettes' (above) with the scene sentence swapped in and "Nothing else: no ground, no shadow, no scenery, no people" so each part is alone on white paper.
 
@@ -125,17 +125,21 @@ The parts are new Recraft art in the vignette style, set where the old part stoo
 - The truck is scaled to 205 source pixels wide and stood on the road where the stopped truck was. The leaves are stretched to the leaf boxes between the pillars (the right leaf mirrored; their posts overlap at the middle, so the two read as one). The stack and crate are scaled and then turned about a pivot at their foot by the lean of the toppled art (stack 9°, crate −16°), and CSS turns them back about the same pivot (`origin` in the manifest) to start them upright.
 - An opaque part's silhouette is the convex hull of its ink. The gate's lock (chain and padlock) is not generated: it is cut from the source where it hangs, as the leaves' ink alone would have left the gate unlocked.
 
-### Filling the holes
+### Filling the holes (1 Oct, 3 credits)
 
-`motion.py patches` crops a 512 × 512 patch of each source around its holes and draws the mask: the old parts' outlines (traced by hand on the source), grown by 4px. Recraft's `erase_region` fills them (content-aware, no prompt, 1 credit a call, 3 calls) and `motion.py paste` sets each result back inside the mask Recraft was sent.
+`motion.py patches` crops a 512 × 512 patch of each source around its holes and draws the mask: the old parts' outlines (traced by hand on the source), grown by 4px. Recraft's `erase_region` fills them (content-aware, no prompt, 1 credit a call) and `motion.py paste` sets each result back inside the mask Recraft was sent. Only the masks and results are kept (`sources/motion/fill/`); the patches and the filled sources are rebuilt from the sources. The balance went 951 → 948.
 
-| Scene  | Patch                 | Hole                                 |
-| ------ | --------------------- | ------------------------------------ |
-| Road   | (300, 360)–(812, 872) | The stopped truck                    |
-| Gate   | (330, 230)–(842, 742) | Both leaves and the lock             |
-| Crates | (360, 250)–(872, 762) | The leaning stack and the left crate |
+| Scene  | Patch                 | Hole                                 | Result                                                                                                                                                    |
+| ------ | --------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Road   | (300, 360)–(812, 872) | The stopped truck                    | **Used.** The hills, the left bush and the road's hatching carry through where the truck stood.                                                           |
+| Gate   | (330, 230)–(842, 742) | Both leaves and the lock             | **Used.** An open yard between the pillars with the ground fading out; the containers drawn behind the bars are gone, the fences either side keep theirs. |
+| Crates | (360, 250)–(872, 762) | The leaning stack and the left crate | **Used.** The pile and the doorway are redrawn. The doorway's left half is a pale drape rather than the dark opening, which the stack hides at rest.      |
 
-**Not done yet:** these three `erase_region` calls. Their masks must be at a public URL and the repo is private; the secret-gist route from #243 was refused in this session, so until the fills come back the holes are bare paper (`motion.py paste` writes them that way, and says so). The hole in the road's left bush and hills, the gate's interior and the doorway behind the stack all show as white boxes until then. Expected cost: 3 credits.
+An attempt to thin the gate's mask to just the bars and rails failed: the bars are drawn as outlined double lines, so a stroke-width threshold caught only fragments. The mask is the whole leaf outline instead.
+
+### Getting the masks to Recraft
+
+As in #243, `request_upload_url` stores every upload as an RGB WebP, so a mask uploaded there is refused. The three mask PNGs went up as a secret GitHub gist (pushed with git, with `gh` as the credential helper for that one push), `erase_region` read them from their `gist.githubusercontent.com` raw URLs, and the gist was deleted straight after (its URLs answer 404). The patches went through `request_upload_url`; each upload took about two minutes from the office network, and the Recraft MCP session expired once in between and reconnected.
 
 ### Weight
 
@@ -143,11 +147,11 @@ Budget: at most 60 kB of moving-part art per page at each breakpoint (ADR-0040).
 
 | Page   | Moving parts                             | Plate (before → after) |
 | ------ | ---------------------------------------- | ---------------------- |
-| Road   | **4.0 KiB**: truck 4.0                   | 60 → 52                |
-| Gate   | **11.7 KiB**: leaves 5.4 + 5.2, lock 1.1 | 62 → 31                |
-| Crates | **22.5 KiB**: stack 15.5, crate 7.0      | 107 → 76               |
+| Road   | **4.1 KiB**: truck 4.1                   | 60 → 55                |
+| Gate   | **16.5 KiB**: leaves 7.8 + 7.6, lock 1.1 | 62 → 34                |
+| Crates | **22.6 KiB**: stack 15.4, crate 7.2      | 107 → 89               |
 
-The plates' sizes before are the single masks the first round shipped. **JS:** none. The parts are CSS keyframes on the motion tokens, and the masks are imported with `?no-inline`, so the build emits each as a file.
+The plates' sizes before are the single masks the first round shipped. **JS:** no motion code: the parts are CSS keyframes on the motion tokens, and the masks are imported with `?no-inline`, so the build emits each as a file. The three manifests, the mask-URL map and `partMask` do add a little to the error route's chunk, which is not measured here.
 
 ## Checked
 
@@ -156,15 +160,14 @@ The plates' sizes before are the single masks the first round shipped. **JS:** n
 - `AuthShell` after the header and footer moved into `SiteHeader` and `SiteFooter`: `/login` is pixel-identical to before at 1440 × 900, 1024 × 923 and 390 × 844 (reduced motion).
 - `pnpm typecheck`, `pnpm lint` and `pnpm test` in `apps/web`.
 - After the copy review (`interfaces:better-writing`) and the copy field: the 500 page at 1440 × 900 (light, and dark after a real copy in Chromium, which put the reference on the clipboard) and 390 × 844 (light), looked at by eye. It measures 844, 768, 923 and 900px tall at 390 × 844, 1366 × 768, 1024 × 923 and 1440 × 900, so it still fits; the field's extra row was paid for on mobile with a 10rem vignette and 2rem page padding. The signed-in "Go to dashboard" button and the blocked-clipboard hint are covered by component tests only.
-
 - Motion (#244): frames of every scene at 0–4.2 s every 0.6 s, at 1440 × 900 (light, dark) and 390 × 844, by pausing every animation at set times. `error-page.test.ts` checks every part's box, mask size, ratio and pivot against its manifest; `etched-vignette.svelte.test.ts` renders each scene in Chromium and checks that every part is drawn and comes to rest at its box, that every inked layer is drawn through its art, that every part plays once and ends within 4 s (3.8 s at most), that reduced motion leaves no running animation, that the road's truck is gone from the finished frame, and that the lock drops after the leaves are shut.
 
 ## Not yet checked
 
-- **The three `erase_region` fills (see _Filling the holes_)**, and with them the finished plates: until they land the holes in the plates are bare paper, so the captures show white boxes where the old truck, leaves and stack stood.
-- Captures at every review viewport (only 1440 × 900 and 390 × 844 were taken, and before the fills).
+- Captures at every review viewport, light and dark (only 1440 × 900 and 390 × 844 were taken, the first fills only at 1440 × 900 light).
 - Clear zones against the copy, and the page fitting at 390 × 844 and 1366 × 768 with the parts moving (the vignette's box is unchanged, so it should).
 - `mask-mode: luminance` on Safari and Firefox (only Chromium was rendered), as in the auth round.
-- Owner review in a real browser (step 7).
+- **For owner review:** the generated truck, leaves, stack and crate are drawn in a cleaner, more regular hand than the approved plates, since Recraft draws each one alone; and whether the gate's lost container backdrop and the crates' pale drape in the doorway matter.
 - A real 500 on Cloudflare Pages, and that its reference shows up in the Pages logs.
 - Screen readers, 200% zoom.
+- Owner review in a real browser (step 7).

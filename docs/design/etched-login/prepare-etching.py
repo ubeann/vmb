@@ -56,10 +56,11 @@ parser.add_argument("--fade-sides", type=float, default=0, help="fraction of wid
 parser.add_argument("--fade-bottom", type=float, default=0, help="fraction of height to fade out at the bottom")
 parser.add_argument("--pad-to", type=float, default=0, help="add blank paper at both sides to reach this width:height ratio")
 parser.add_argument("--widths", type=int, nargs="+", default=[2400, 1200], help="widths to write, in pixels")
-parser.add_argument("--parts", help="JSON of moving parts: {name: {polygon: [[x, y], ...], opaque?, rest?, overlay?}}")
+parser.add_argument("--parts", help="JSON of moving parts: {name: {polygon: [[x, y], ...], opaque?, rest?, overlay?, art?, origin?}}")
 parser.add_argument("--manifest", help="where to write the parts' boxes in plate percentages")
 parser.add_argument("--plate-source", help="draw the plate from this image (the source with the parts' holes filled)")
 args = parser.parse_args()
+
 
 def ink_alpha(path):
     gray = Image.open(path).convert("L")

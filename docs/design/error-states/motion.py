@@ -88,9 +88,9 @@ GROW = 4  # px the holes are grown by
 
 # The generated art, set on the source's canvas. `target` is where it goes, in the
 # source's pixels: `box` stretches the art's ink to a box, `bottom` scales it to
-# `width` and stands it on that point. `pivot` (the ink's bottom centre unless
-# given) is the point it is rotated about by `angle` degrees clockwise, and the
-# point CSS rotates about when the part moves.
+# `width` and stands it on that point. the ink's bottom centre is the point it is
+# rotated about by `angle` degrees clockwise, and the point CSS rotates about
+# when the part moves.
 ART = {
     "road": {
         "truck": {"art": "truck-2.png", "opaque": True, "width": 205, "bottom": (532, 601)},
@@ -132,17 +132,12 @@ def patches():
 
 
 def paste():
-    """Set Recraft's fills back, or, where there is none yet, bare paper (a stand-in that ships nowhere)."""
+    """Set Recraft's fills back into the sources, and write the filled sources prepare-etching.py takes."""
     for scene, config in HOLES.items():
         x0, y0, x1, y1 = config["patch"]
         filled = Image.open(SOURCES / SCENES[scene]["source"]).convert("L")
         sent = Image.open(FILL / f"{scene}-mask.png").convert("L").filter(ImageFilter.GaussianBlur(1))
-        result_path = FILL / f"{scene}-result.png"
-        if result_path.exists():
-            result = Image.open(result_path).convert("L").resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
-        else:
-            print(f"{scene}: no Recraft result yet, filling with paper")
-            result = Image.new("L", (x1 - x0, y1 - y0), 255)
+        result = Image.open(FILL / f"{scene}-result.png").convert("L").resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
         filled.paste(result, (x0, y0), sent)
         target = SOURCES / f"{scene}-filled.png"
         filled.save(target, optimize=True)

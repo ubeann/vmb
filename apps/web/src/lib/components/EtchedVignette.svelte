@@ -14,10 +14,7 @@
   import { partMask, partStyle } from "$lib/etched-parts.js";
   import { cn } from "$lib/utils.js";
 
-  let {
-    scene,
-    class: className
-  }: { scene: Pick<ErrorScene, "name" | "image" | "ratio" | "parts">; class?: string } = $props();
+  let { scene, class: className }: { scene: ErrorScene; class?: string } = $props();
 
   // `no-inline` keeps the small masks as files, out of the JS bundle.
   const urls = import.meta.glob<string>("$lib/assets/errors/vmb-error-*-840.webp", {
@@ -37,7 +34,6 @@
 <div
   aria-hidden="true"
   class={cn("etched-vignette pointer-events-none relative select-none", className)}
-  data-scene={scene.name}
   style="--vignette-image: url({scene.image}); --vignette-ratio: {scene.ratio}"
 >
   <div class="plate bg-etching"></div>
@@ -147,16 +143,18 @@
   }
 
   /* The gate's leaves swing shut from open, each about the hinge at its pillar. */
+  [data-part^="leaf-"] {
+    animation: leaf-shut var(--duration-etch-part) var(--easing-settle) var(--delay-etch-gate) both;
+  }
+
   [data-part="leaf-left"] {
     --open: 78deg;
     transform-origin: 0 50%;
-    animation: leaf-shut var(--duration-etch-part) var(--easing-settle) var(--delay-etch-gate) both;
   }
 
   [data-part="leaf-right"] {
     --open: -78deg;
     transform-origin: 100% 50%;
-    animation: leaf-shut var(--duration-etch-part) var(--easing-settle) var(--delay-etch-gate) both;
   }
 
   /* Then the chain and padlock drop onto the shut gate. */
