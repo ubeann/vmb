@@ -7,7 +7,7 @@ import roadParts from "./assets/errors/vmb-error-road-parts.json";
 import type { EtchedPart } from "./etched-parts.js";
 
 /** A part of a vignette that moves once (#244). An opaque part hides the plate behind it. */
-export type ErrorScenePart = EtchedPart & { opaque: boolean };
+type ErrorScenePart = EtchedPart & { opaque: boolean };
 
 /** An engraved vignette: an ink mask and its width ÷ height, and the parts that move on it. */
 export interface ErrorScene {
