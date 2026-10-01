@@ -3,8 +3,9 @@
 
 `patches` crops each patch of the master and draws its mask (the parts'
 polygons, grown by a few pixels; white is filled) for Recraft's `erase_region`.
-`paste` sets each filled patch back into the master inside its mask, softened
-at the edge, and writes the filled master that prepare-etching.py takes as
+`paste` sets each filled patch back into the master inside the mask Recraft
+was sent (the saved file, so a later change to a part's cut can't move it),
+softened at the edge, and writes the filled master that prepare-etching.py takes as
 `--plate-source`. Everything outside the masks keeps the master's pixels.
 
 Usage: fill-holes.py patches
@@ -53,7 +54,8 @@ elif sys.argv[1:] == ["paste"]:
     for name, patch in PATCHES.items():
         x0, y0, x1, y1 = patch["box"]
         result = Image.open(FILL / f"{name}-result.png").convert("L").resize((x1 - x0, y1 - y0), Image.Resampling.LANCZOS)
-        filled.paste(result, (x0, y0), mask(patch).filter(ImageFilter.GaussianBlur(2)))
+        sent = Image.open(FILL / f"{name}-mask.png").convert("L")
+        filled.paste(result, (x0, y0), sent.filter(ImageFilter.GaussianBlur(2)))
     filled.save(FILLED, optimize=True)
     print(FILLED, f"{FILLED.stat().st_size / 1024:.0f} KB")
 else:

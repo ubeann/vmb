@@ -3,10 +3,11 @@
   ink density in alpha, built by docs/design/etched-login/prepare-etching.py)
   filled with the `--etching` token, so one file serves both colour schemes.
   It draws in once, left to right like a press roller. Then its parts move
-  once and rest (#243): the trucks roll onto the bridge, the crane lowers its
-  container, and light crosses the water under the bridge. Each part is its
-  own mask, placed on the plate from the manifest the script writes, and the
-  plate behind it was filled in, so nothing shows through while it moves.
+  once and rest (#243): the trucks roll onto the bridge, the crane lowers a
+  container on its ropes, and light crosses the water under the bridge. Each
+  part is its own mask, placed on the plate from the manifest the script
+  writes, and the plate behind it was filled in, so nothing shows through
+  while it moves.
   Reduced motion shows the finished plate immediately. Purely decorative — the
   form never waits on it.
 -->
@@ -30,11 +31,10 @@
     partStyle(parts[name], partMasks(urls, "vmb-etching", name));
   // The lead truck, on the right, moves off first.
   const trucks = ["truck-3", "truck-2", "truck-1"] as const;
-  // The cables hang from the boom, where the container's bottom was, and are
-  // uncovered down to its top as it lowers: hidden at first by the part of
-  // the drop the container itself still fills.
-  const lift = partLift(parts.container);
-  const cablesStyle = `${style("container")}; --cables-hidden: ${(lift / (lift - parts.container.box[3]!)) * 100}%`;
+  // The ropes hang from the boom to the container's resting top, and are
+  // uncovered down to its top as it lowers: at first, more than their whole
+  // length is still above the container.
+  const ropesStyle = `${style("ropes")}; --ropes-hidden: ${(partLift(parts.container) / parts.ropes.box[3]!) * 100}%`;
 </script>
 
 <div
@@ -48,7 +48,7 @@
     {#each trucks as name, order (name)}
       <div class="part opaque truck" data-part={name} style="{style(name)}; --order: {order}"></div>
     {/each}
-    <div class="part cables" style={cablesStyle}></div>
+    <div class="part ropes" data-part="ropes" style={ropesStyle}></div>
     <div class="part opaque container" data-part="container" style={style("container")}></div>
   </div>
 </div>
@@ -162,27 +162,21 @@
   }
 
   /*
-   * The crane lowers the container from its boom onto the yard. The cables
-   * run from the boom to the container's resting top, and are uncovered from
-   * the boom down on the same timing, so their ends stay on the container.
+   * The crane lowers the container from its boom onto the yard. The ropes run
+   * from the boom to the container's resting top, and are uncovered from the
+   * boom down on the same timing, so their ends stay on the container.
    */
   .container {
     animation: container-lower var(--duration-etch-part) var(--easing-settle)
       var(--delay-etch-crane) both;
   }
 
-  .cables {
-    top: calc(var(--y) - var(--lift) + var(--h));
-    height: calc(var(--lift) - var(--h));
-    background-image: linear-gradient(
-      to right,
-      transparent 25%,
-      var(--etching) 25% calc(25% + 1px),
-      transparent calc(25% + 1px) 75%,
-      var(--etching) 75% calc(75% + 1px),
-      transparent calc(75% + 1px)
-    );
-    animation: cables-lower var(--duration-etch-part) var(--easing-settle) var(--delay-etch-crane)
+  .ropes {
+    background-color: var(--etching);
+    mask-image: var(--mask);
+    mask-size: 100% 100%;
+    mask-repeat: no-repeat;
+    animation: ropes-lower var(--duration-etch-part) var(--easing-settle) var(--delay-etch-crane)
       both;
   }
 
@@ -276,7 +270,7 @@
     .plate,
     .truck,
     .container,
-    .cables,
+    .ropes,
     .water {
       animation: none;
     }
@@ -311,10 +305,10 @@
     }
   }
 
-  @keyframes cables-lower {
+  @keyframes ropes-lower {
     from {
       opacity: 0;
-      clip-path: inset(0 0 var(--cables-hidden) 0);
+      clip-path: inset(0 0 var(--ropes-hidden) 0);
     }
     15% {
       opacity: 1;

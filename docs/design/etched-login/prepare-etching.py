@@ -23,7 +23,9 @@ pixels) comes to rest that far from where it was cut. The plate is drawn from
 `--plate-source` (the source with the parts' holes filled, same size); without
 it, the parts are cut out of the plate, which suits parts on bare paper. An
 "overlay" part (a highlight over the plate) is never cut out, and keeps its
-ink at full strength through the plate's fades.
+ink at full strength through the plate's fades. A part with "art" (a path
+from the parts file, an image the source's size) takes its ink from that
+image instead of the source: new art set where it belongs on the master.
 """
 
 import argparse
@@ -196,8 +198,11 @@ for width in WIDTHS:
 manifest = {"plate": [alpha.width, alpha.height], "parts": {}}
 for name, part in parts.items():
     region = polygon_mask(source.size, part["polygon"])
+    ink = ink_alpha(Path(args.parts).parent / part["art"]) if "art" in part else source
+    if ink.size != source.size:
+        parser.error(f"{name}'s art must be the same size as the source")
     # An overlay keeps its full ink, so it still shows where the plate has faded.
-    part_ink = replay(ImageChops.multiply(source, region), steps, fades=not part.get("overlay"))
+    part_ink = replay(ImageChops.multiply(ink, region), steps, fades=not part.get("overlay"))
     silhouette = replay(region, steps)
     left, top, right, bottom = silhouette.getbbox()
     part_ink, silhouette = (layer.crop((left, top, right, bottom)) for layer in (part_ink, silhouette))
