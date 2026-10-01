@@ -39,6 +39,27 @@ async function renderScene(scene: Component) {
 
 afterEach(() => emulateReducedMotion("no-preference"));
 
+// On a slow connection the plate, the biggest file, used to land after the parts,
+// which then hung on bare paper (#260). It is asked for first, at high priority.
+describe("EtchedScene plate preload", () => {
+  it("preloads the plate for each breakpoint, high priority, as a CSS mask is fetched", async () => {
+    const { root } = await renderScene(EtchedScene);
+    const plate = (name: string) =>
+      root.style.getPropertyValue(name).replace(/^url\(["']?|["']?\)$/g, "");
+
+    const links = [...document.head.querySelectorAll<HTMLLinkElement>('link[rel="preload"]')];
+    expect(links.map((link) => [link.getAttribute("href"), link.media])).toEqual([
+      [plate("--etching-small"), "(max-width: 63.999rem)"],
+      [plate("--etching-large"), "(min-width: 64rem)"]
+    ]);
+    for (const link of links) {
+      expect(link.as).toBe("image");
+      expect(link.getAttribute("fetchpriority")).toBe("high");
+      expect(link.crossOrigin).toBe("anonymous");
+    }
+  });
+});
+
 describe.each(scenes)("%s moving parts", (_, scene, manifest) => {
   it("draws every part in the manifest", async () => {
     const { parts } = await renderScene(scene);

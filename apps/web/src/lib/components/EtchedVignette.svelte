@@ -31,6 +31,11 @@
   );
 </script>
 
+<svelte:head>
+  <!-- As in EtchedScene: the plate first, so the parts never wait on bare paper (#260). -->
+  <link rel="preload" as="image" crossorigin="anonymous" href={scene.image} fetchpriority="high" />
+</svelte:head>
+
 <div
   aria-hidden="true"
   class={cn("etched-vignette pointer-events-none relative select-none", className)}
