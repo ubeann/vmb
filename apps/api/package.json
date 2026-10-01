@@ -29,7 +29,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "@vmb/config": "workspace:*",
     "eslint": "^10.11.0",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.2",
     "wrangler": "^4.142.0"
   }
