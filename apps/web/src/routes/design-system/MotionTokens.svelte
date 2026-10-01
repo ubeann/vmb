@@ -7,18 +7,26 @@
     { name: "--duration-feedback", use: "A press, a toggled state, a copied value" },
     { name: "--duration-panel", use: "A panel, a toast, the auth card changing contents" },
     { name: "--duration-icon", use: "An icon swapping for another" },
-    { name: "--duration-etch-reveal", use: "The etched plate revealing" },
+    { name: "--duration-etch-reveal", use: "The etched plate revealing, light crossing the water" },
     { name: "--duration-etch-settle", use: "The sky and flock drifting into place" },
     { name: "--delay-etch-plate", use: "Before the plate reveals" },
     { name: "--delay-etch-sky", use: "Before the sky settles" },
-    { name: "--delay-etch-flock", use: "Before the flock settles" }
+    { name: "--delay-etch-flock", use: "Before the flock settles" },
+    { name: "--duration-etch-part", use: "A plate's part rolling or lowering into place" },
+    { name: "--delay-etch-trucks", use: "Before the trucks roll onto the bridge" },
+    { name: "--delay-etch-crane", use: "Before the crane lowers its container" },
+    { name: "--delay-etch-clouds", use: "Before the cloud bank drifts in" },
+    { name: "--delay-etch-birds", use: "Before the seabirds arc in" },
+    { name: "--delay-etch-water", use: "Before light crosses the water" },
+    { name: "--stagger-etch", use: "Between parts of one group, such as the trucks" }
   ];
 
   const EASINGS = [
     { name: "--easing-standard", utility: "ease-standard", use: "Most UI motion" },
     { name: "--easing-settle", utility: "ease-settle", use: "A long, soft stop" },
     { name: "--easing-reveal", utility: "ease-reveal", use: "A reveal across the plate" },
-    { name: "--easing-spring", utility: "ease-spring", use: "A small overshoot, then rest" }
+    { name: "--easing-spring", utility: "ease-spring", use: "A small overshoot, then rest" },
+    { name: "--easing-arc", utility: "ease-arc", use: "Rises past its place, then sinks back" }
   ];
 
   // Read from the live stylesheet, so this page can't drift from app.css. A

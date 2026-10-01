@@ -112,6 +112,19 @@
   --delay-etch-plate: 150ms;
   --delay-etch-sky: 900ms;
   --delay-etch-flock: 1300ms;
+  /*
+   * The plates' moving parts (#243), each once and at rest by about 4 s: the
+   * trucks roll onto the bridge, the crane lowers its container, the clouds
+   * drift in, the birds arc in from the right, then light crosses the water.
+   */
+  --duration-etch-part: 2200ms;
+  --delay-etch-trucks: 800ms;
+  --delay-etch-crane: 1200ms;
+  --delay-etch-clouds: 900ms;
+  --delay-etch-birds: 1100ms;
+  --delay-etch-water: 2200ms;
+  /* Between parts of one group, such as the trucks in convoy. */
+  --stagger-etch: 120ms;
 
   /* Decelerates into place: most UI motion. */
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -119,6 +132,8 @@
   --easing-settle: cubic-bezier(0.22, 1, 0.36, 1);
   /* Starts and ends slowly: a reveal across the whole plate. */
   --easing-reveal: cubic-bezier(0.65, 0, 0.35, 1);
+  /* Overshoots by about a fifth, then sinks back: the rise and fall of a bird's arc. */
+  --easing-arc: cubic-bezier(0.3, 1.6, 0.5, 1);
   /* A damped spring (ζ 0.7) that overshoots about 5% and settles by the end. */
   --easing-spring: linear(
     0,
@@ -192,6 +207,7 @@
   --ease-standard: var(--easing-standard);
   --ease-settle: var(--easing-settle);
   --ease-reveal: var(--easing-reveal);
+  --ease-arc: var(--easing-arc);
   --ease-spring: var(--easing-spring);
 }
 
