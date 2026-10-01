@@ -162,12 +162,19 @@ The plates' sizes before are the single masks the first round shipped. **JS:** n
 - After the copy review (`interfaces:better-writing`) and the copy field: the 500 page at 1440 × 900 (light, and dark after a real copy in Chromium, which put the reference on the clipboard) and 390 × 844 (light), looked at by eye. It measures 844, 768, 923 and 900px tall at 390 × 844, 1366 × 768, 1024 × 923 and 1440 × 900, so it still fits; the field's extra row was paid for on mobile with a 10rem vignette and 2rem page padding. The signed-in "Go to dashboard" button and the blocked-clipboard hint are covered by component tests only.
 - Motion (#244): frames of every scene at 0–4.2 s every 0.6 s, at 1440 × 900 (light, dark) and 390 × 844, by pausing every animation at set times. `error-page.test.ts` checks every part's box, mask size, ratio and pivot against its manifest; `etched-vignette.svelte.test.ts` renders each scene in Chromium and checks that every part is drawn and comes to rest at its box, that every inked layer is drawn through its art, that every part plays once and ends within 4 s (3.8 s at most), that reduced motion leaves no running animation, that the road's truck is gone from the finished frame, and that the lock drops after the leaves are shut.
 
+## Review (#260, 1 Oct)
+
+Playwright's Chromium, Firefox and WebKit against `vite dev` and a production build on `wrangler pages dev`. 403 and 500 came through a local route that threw them (not committed).
+
+- **Captures:** `design-screenshots.mjs` at all six review viewports, light and dark, for 404, 403 and 500 in Chromium (`sources/review-260-404.jpg`, `-403.jpg`, `-500.jpg`; rows are light and dark, columns 1920 × 1080 to 390 × 844). Firefox and WebKit were captured the same way and compared with Chromium: 0.2–1.3% of pixels differ by more than 60 levels at the 403 and 404, and 0.3–2.1% at the 500, where the reference is random and wraps differently.
+- **Fit:** every page fits without scrolling at all six viewports, light and dark, including 390 × 844 and 1366 × 768.
+- **Clear zones with the parts moving:** the part boxes and the copy's boxes, sampled every 50 ms for 4.6 s. The nearest approach is 48 px at 390 × 844 (the gate's left leaf, at 0.8 s; the zone is 2.5rem = 40px) and 74 px or more at 1366 × 768 and 1440 × 900 (the zone is 4rem = 64px). These are box gaps, so they under-state the clearance of the ink.
+- **`mask-mode: luminance` in Firefox and WebKit: works.** All three vignettes settle at the same boxes, with the same animations finishing in each engine (2, 4 and 3 for 404, 403 and 500). Real Safari is still to be looked at.
+- **200% zoom:** at 720 × 450 and 683 × 384 (200% of 1440 × 900 and 1366 × 768) and at 320 × 256 (400%), no page scrolls sideways; the copy reflows under the vignette. The accessibility tree reads: banner, the `alert` with the level-1 heading and the line, the actions, the reference field with a labelled Copy button, the support link, and the footer. The vignette is not in it.
+
 ## Not yet checked
 
-- Captures at every review viewport, light and dark (only 1440 × 900 and 390 × 844 were taken, the first fills only at 1440 × 900 light).
-- Clear zones against the copy, and the page fitting at 390 × 844 and 1366 × 768 with the parts moving (the vignette's box is unchanged, so it should).
-- `mask-mode: luminance` on Safari and Firefox (only Chromium was rendered), as in the auth round.
 - **For owner review:** the generated truck, leaves, stack and crate are drawn in a cleaner, more regular hand than the approved plates, since Recraft draws each one alone; and whether the gate's lost container backdrop and the crates' pale drape in the doorway matter.
 - A real 500 on Cloudflare Pages, and that its reference shows up in the Pages logs.
-- Screen readers, 200% zoom.
-- Owner review in a real browser (step 7).
+- A screen reader (VoiceOver, NVDA) reading the page. The accessibility tree above looks right, but nobody has listened to it.
+- Owner review in a real browser (step 7), and a real Safari.

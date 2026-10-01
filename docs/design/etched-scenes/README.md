@@ -107,9 +107,15 @@ The plates got lighter because the filled holes and the cut sky parts hold less 
 
 The birds keep well clear of the text. The right-hand sky, though, mostly lies behind the form sheet on desktops narrower than about 1500px, so parts move behind the sheet and close to its edge, as the whole sky's settle already did. The cloud bank's faint left wisps are within the headline's glyph box by up to 23px at rest; they were there before this round, and the bank drifts in from the right, away from the text. **For owner review:** whether motion behind and beside the sheet meets "nothing moves near the form".
 
+## Review (#260, 1 Oct)
+
+Run against `vite dev` and a production build served by `wrangler pages dev`, with Playwright's Chromium, Firefox and WebKit builds. `design-screenshots.mjs` now takes `--browser chromium|firefox|webkit` and sets the page's colour scheme, as a few dark captures had come out light when hydration reset the class.
+
+- **`mask-mode: luminance` in Firefox and WebKit: works.** `/login` and `/activate` settled in all three engines at every review viewport, light and dark. Against Chromium, 0.3–1.0% of pixels differ by more than 60 levels (text anti-aliasing). The opaque trucks and container, the backing and the ink all draw, and the same 19 animations run and finish within 4.4 s in each engine. `sources/browsers-260.jpg` shows 1440 × 900. Playwright's WebKit is the engine Safari uses, not Safari: a real Safari (macOS and iOS) is still to be looked at.
+- **`/activate` matches `/login`.** At 1920 × 1080, 1440 × 900 and 1024 × 923 the scene band is pixel-identical in Chromium and Firefox. At 1366 × 768 and 390 × 844 the pages differ in height (the activate form is taller), so the bands sit at different offsets. Moving between them by link keeps the same scene nodes, and every scene animation stays `finished`. The only animations that run are the auth card's view transition.
+- **Slow connection: the plate does not paint first.** On the live site (HTTP/2) throttled to Slow 4G (1.6 Mbit/s, 150 ms), the parts arrive between 1.8 and 2.5 s and the 159 kB plate at 3.4 s. On Fast 3G the plate lands at 4.7 s, after the parts. In between, the trucks, the container and the sky's birds and clouds hang on bare paper (`sources/throttle-260.jpg`). On mobile the gap is smaller (parts 1.4 s, plate 2.1 s). The form is unaffected: it is usable from the first paint. The requests are separate files as designed (12 at desktop, 6 below), but the browser finds the plate no earlier than the parts, and the biggest file finishes last. A `<link rel="preload" as="image" crossorigin>` for the plate downloads it once, but on the local HTTP/1.1 server it still finished after the parts, which says nothing about Cloudflare's HTTP/2, so it was not kept. **Open:** decide how to order the art (see the ticket).
+
 ## Not yet checked
 
-- Owner review in their own browser (step 7).
-- The activate page; it shares `AuthShell`, so it should match `/login`.
-- Real-device timing on a slow connection: the parts are separate requests (12 at desktop, 6 below).
-- `mask-mode: luminance` on Safari and Firefox. Both list support, but only Chromium was rendered.
+- Owner review in their own browser (step 7), including whether motion behind and beside the form sheet below ~1500px is acceptable.
+- A real Safari, on macOS and iOS (Playwright's WebKit passed).
