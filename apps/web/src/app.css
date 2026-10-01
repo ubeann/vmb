@@ -125,6 +125,17 @@
   --delay-etch-water: 2200ms;
   /* Between parts of one group, such as the trucks in convoy. */
   --stagger-etch: 120ms;
+  /*
+   * The error vignettes' parts (#244), each once and at rest by about 4 s: the
+   * truck pulls away down the lost road, the yard gate swings shut and is
+   * locked, the stack of crates topples and one crate tumbles after it.
+   */
+  --duration-etch-drive: 3200ms;
+  --delay-etch-drive: 600ms;
+  --delay-etch-gate: 800ms;
+  --delay-etch-lock: 3000ms;
+  --delay-etch-topple: 900ms;
+  --delay-etch-tumble: 1500ms;
 
   /* Decelerates into place: most UI motion. */
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -132,6 +143,8 @@
   --easing-settle: cubic-bezier(0.22, 1, 0.36, 1);
   /* Starts and ends slowly: a reveal across the whole plate. */
   --easing-reveal: cubic-bezier(0.65, 0, 0.35, 1);
+  /* Starts slowly and speeds up: something pulling away. */
+  --easing-depart: cubic-bezier(0.55, 0, 0.9, 0.5);
   /* Overshoots by about a fifth, then sinks back: the rise and fall of a bird's arc. */
   --easing-arc: cubic-bezier(0.3, 1.6, 0.5, 1);
   /* A damped spring (ζ 0.7) that overshoots about 5% and settles by the end. */
@@ -207,6 +220,7 @@
   --ease-standard: var(--easing-standard);
   --ease-settle: var(--easing-settle);
   --ease-reveal: var(--easing-reveal);
+  --ease-depart: var(--easing-depart);
   --ease-arc: var(--easing-arc);
   --ease-spring: var(--easing-spring);
 }

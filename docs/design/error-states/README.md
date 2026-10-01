@@ -39,9 +39,21 @@ An unexpected server failure also gets a short reference and its time from `hand
 
 | State          | Behaviour                                                                                                                                                                |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Arrival        | The copy and actions are ready at once. The vignette draws in once, left to right, like the login plate (1.6 s, after 150 ms).                                           |
-| Reduced motion | The vignette is shown finished.                                                                                                                                          |
+| Arrival        | The copy and actions are ready at once. The vignette draws in once, left to right, like the login plate (1.6 s, after 150 ms). Then its parts move once and rest (#244). |
+| Reduced motion | The vignette is shown finished: the truck gone, the gate shut and locked, the crates fallen.                                                                             |
 | Dark           | The same masks filled with the dark `--etching`: the scene reads as a blueprint. Dense ink (the crates' doorway) turns into a pale block, as the landscape's shadows do. |
+
+### Parts that move (#244)
+
+Each part is a single iteration that ends at its natural style, which is its resting place; timings are motion tokens in `app.css`. Everything is at rest by 3.8 s. The vignette clips at its edge, so a part that leaves is cut there.
+
+| Scene  | Part        | Motion                                                                                                                                            | Delay → end |
+| ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Road   | Truck       | Appears where it stood, waits a moment, then accelerates away to the left, fading as it goes. Gone at rest: the finished frame is the empty road. | 0.6 → 3.8 s |
+| Gate   | Leaves      | Swing shut from open, each about its own hinge (`rotateY` from 78°, with `perspective` on the frame), settling softly.                            | 0.8 → 3.0 s |
+| Gate   | Chain, lock | Drop onto the shut gate after the leaves have closed.                                                                                             | 3.0 → 3.3 s |
+| Crates | Stack       | Stands upright and tips to its lean about its foot, overshooting a little (`--easing-arc`) before it settles.                                     | 0.9 → 3.1 s |
+| Crates | Crate       | Falls from above the pile, turning about its base, and lands on the pile left of the stack.                                                       | 1.5 → 3.7 s |
 
 ## Recraft round (29 Sep, 12 credits)
 
@@ -63,12 +75,79 @@ An unexpected server failure also gets a short reference and its time from `hand
 
 ## Asset pipeline
 
+The plates are `prepare-etching.py` masks of the 1216px sources, trimmed (`--trim --trim-x`) and written at one width, 840px (`--widths 840`): the vignettes draw at most about 30rem wide, so one size ships. `error-page.test.ts` fails when a ratio in `ERROR_SCENES` no longer matches its file. A page loads only its own scene's masks.
+
+Each moving part is its own mask, placed on the plate from a manifest (`vmb-error-<scene>-parts.json`, each part's box in plate percentages; a turning part also has its `origin`). `motion.py` does the work around Recraft; see _Moving parts_ below.
+
 ```sh
-python3 docs/design/etched-login/prepare-etching.py docs/design/error-states/sources/road-1-1216.jpg apps/web/src/lib/assets/errors --name vmb-error-road --trim --trim-x
-# the same for crates-1 (vmb-error-crates) and gate-2 (vmb-error-gate)
+python3 docs/design/error-states/motion.py patches   # only to resend a patch to Recraft
+python3 docs/design/error-states/motion.py paste     # the filled sources, from Recraft's results
+python3 docs/design/error-states/motion.py art       # the generated art, set on source-sized canvases
+for scene in road:road-1 gate:gate-2 crates:crates-1; do
+  python3 docs/design/etched-login/prepare-etching.py docs/design/error-states/sources/${scene#*:}-1216.jpg apps/web/src/lib/assets/errors \
+    --name vmb-error-${scene%%:*} --trim --trim-x --widths 840 \
+    --plate-source docs/design/error-states/sources/${scene%%:*}-filled.png \
+    --parts docs/design/error-states/${scene%%:*}-parts.json \
+    --manifest apps/web/src/lib/assets/errors/vmb-error-${scene%%:*}-parts.json
+done
+pnpm --dir apps/web exec prettier --write 'src/lib/assets/errors/*-parts.json'
 ```
 
-The script writes 2400px and 1200px files, which upscale these ~840px masks, so only one size ships: the 1200px output, resized to 840px wide and re-encoded with `cwebp -q 60 -alpha_q 50` (the script's settings). Road 840 × 666 (60 KB), crates 840 × 959 (107 KB), gate 840 × 398 (62 KB). A page loads only its own scene's mask. `error-page.test.ts` fails when a ratio in `ERROR_SCENES` no longer matches its file.
+Road 836 × 663, gate 838 × 397, crates 538 × 614 (the source's ink, before scaling to 840 wide).
+
+## Moving parts (#244)
+
+The parts are new Recraft art in the vignette style, set where the old part stood, and Recraft fills the holes the old parts leave. Opaque parts (truck, stack, crate) hide the plate behind them, as in `etched-scenes`: a `--background` backing through the mask's alpha, `--etching` through its luminance. The gate's leaves and lock are plain ink over the yard.
+
+### Generation (1 Oct, 16 credits)
+
+`recraftv4_1`, two images per prompt, 2 credits each (4 credits a prompt; balance 967 → 951). The shared frame is the vignettes' (above) with the scene sentence swapped in and "Nothing else: no ground, no shadow, no scenery, no people" so each part is alone on white paper.
+
+| Part        | Aspect | Pick  | Why                                                                                                                                                     |
+| ----------- | ------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Truck       | 4:3    | **2** | The flat-nosed cab and the container behind it, seen front-left, are the approved truck's view. 1 is a rounded toy truck.                               |
+| Gate leaf   | 1:2    | **1** | Two arched top rails that rise toward the meeting post, as the approved gate. 2 has one rail and a smaller finial. The right leaf is this one mirrored. |
+| Crate stack | 2:3    | **1** | Slatted crates, as the source's. 2 is 22 flat trays with a cast shadow.                                                                                 |
+| Crate       | 4:3    | **1** | Light, sparse slats that match the plate's line weight. 2 is darker, with a dense mesh that turns to a block at this size.                              |
+
+`sources/motion/candidates-motion.jpg` shows all eight; the four picks are kept beside it. Prompts, with the shared frame (_Delicate 19th-century steel engraving, … No text, lettering, numbers, logos, signatures, borders or frames._) around them:
+
+- **Truck:** A single heavy truck with a flat-nosed cab carrying one corrugated shipping container, seen from the front-left three-quarter view with the cab on the left and the container behind it on the right, three axles, rolling on wheels.
+- **Gate leaf:** A single leaf of a tall wrought-iron yard gate, seen exactly straight-on from the front, hinged on its left edge: slim evenly spaced vertical iron bars topped with arrow-shaped spear finials, two gently curved horizontal rails along the top that rise from the left edge toward the right, a plain horizontal rail near the bottom, and a thicker upright meeting post along the right edge topped by a larger finial. Nothing else: no stone pillar, no fence, no chain, no padlock, no ground, no shadow, no yard or scenery behind it.
+- **Crate stack:** A tall stack of about sixteen slatted wooden shipping crates piled neatly one on top of another, standing straight upright, seen from slightly above and from the front-left so the top crate's lid and the crates' side slats show. Nothing else: no warehouse, no ground, no shadow, no other crates, no pallet, no people.
+- **Crate:** A single open-topped wooden shipping crate made of slats, empty, with a hand-hold cut-out in its side, seen from slightly above and from the front-left. Nothing else: no ground, no shadow, no other crates, no straw, no people.
+
+### Placing the art
+
+`motion.py art` sets each pick on a canvas the size of its source, and writes `<scene>-parts.json` for `prepare-etching.py --parts`:
+
+- The art's ink is boxed ignoring Recraft's stray specks (a speck at the edge had made the first boxes too big and the art too small).
+- The truck is scaled to 205 source pixels wide and stood on the road where the stopped truck was. The leaves are stretched to the leaf boxes between the pillars (the right leaf mirrored; their posts overlap at the middle, so the two read as one). The stack and crate are scaled and then turned about a pivot at their foot by the lean of the toppled art (stack 9°, crate −16°), and CSS turns them back about the same pivot (`origin` in the manifest) to start them upright.
+- An opaque part's silhouette is the convex hull of its ink. The gate's lock (chain and padlock) is not generated: it is cut from the source where it hangs, as the leaves' ink alone would have left the gate unlocked.
+
+### Filling the holes
+
+`motion.py patches` crops a 512 × 512 patch of each source around its holes and draws the mask: the old parts' outlines (traced by hand on the source), grown by 4px. Recraft's `erase_region` fills them (content-aware, no prompt, 1 credit a call, 3 calls) and `motion.py paste` sets each result back inside the mask Recraft was sent.
+
+| Scene  | Patch                 | Hole                                 |
+| ------ | --------------------- | ------------------------------------ |
+| Road   | (300, 360)–(812, 872) | The stopped truck                    |
+| Gate   | (330, 230)–(842, 742) | Both leaves and the lock             |
+| Crates | (360, 250)–(872, 762) | The leaning stack and the left crate |
+
+**Not done yet:** these three `erase_region` calls. Their masks must be at a public URL and the repo is private; the secret-gist route from #243 was refused in this session, so until the fills come back the holes are bare paper (`motion.py paste` writes them that way, and says so). The hole in the road's left bush and hills, the gate's interior and the doorway behind the stack all show as white boxes until then. Expected cost: 3 credits.
+
+### Weight
+
+Budget: at most 60 kB of moving-part art per page at each breakpoint (ADR-0040). One mask size ships, so a page's parts weigh the same at every breakpoint. Sizes are KiB, as `prepare-etching.py` prints them.
+
+| Page   | Moving parts                             | Plate (before → after) |
+| ------ | ---------------------------------------- | ---------------------- |
+| Road   | **4.0 KiB**: truck 4.0                   | 60 → 52                |
+| Gate   | **11.7 KiB**: leaves 5.4 + 5.2, lock 1.1 | 62 → 31                |
+| Crates | **22.5 KiB**: stack 15.5, crate 7.0      | 107 → 76               |
+
+The plates' sizes before are the single masks the first round shipped. **JS:** none. The parts are CSS keyframes on the motion tokens, and the masks are imported with `?no-inline`, so the build emits each as a file.
 
 ## Checked
 
@@ -78,8 +157,14 @@ The script writes 2400px and 1200px files, which upscale these ~840px masks, so 
 - `pnpm typecheck`, `pnpm lint` and `pnpm test` in `apps/web`.
 - After the copy review (`interfaces:better-writing`) and the copy field: the 500 page at 1440 × 900 (light, and dark after a real copy in Chromium, which put the reference on the clipboard) and 390 × 844 (light), looked at by eye. It measures 844, 768, 923 and 900px tall at 390 × 844, 1366 × 768, 1024 × 923 and 1440 × 900, so it still fits; the field's extra row was paid for on mobile with a 10rem vignette and 2rem page padding. The signed-in "Go to dashboard" button and the blocked-clipboard hint are covered by component tests only.
 
+- Motion (#244): frames of every scene at 0–4.2 s every 0.6 s, at 1440 × 900 (light, dark) and 390 × 844, by pausing every animation at set times. `error-page.test.ts` checks every part's box, mask size, ratio and pivot against its manifest; `etched-vignette.svelte.test.ts` renders each scene in Chromium and checks that every part is drawn and comes to rest at its box, that every inked layer is drawn through its art, that every part plays once and ends within 4 s (3.8 s at most), that reduced motion leaves no running animation, that the road's truck is gone from the finished frame, and that the lock drops after the leaves are shut.
+
 ## Not yet checked
 
+- **The three `erase_region` fills (see _Filling the holes_)**, and with them the finished plates: until they land the holes in the plates are bare paper, so the captures show white boxes where the old truck, leaves and stack stood.
+- Captures at every review viewport (only 1440 × 900 and 390 × 844 were taken, and before the fills).
+- Clear zones against the copy, and the page fitting at 390 × 844 and 1366 × 768 with the parts moving (the vignette's box is unchanged, so it should).
+- `mask-mode: luminance` on Safari and Firefox (only Chromium was rendered), as in the auth round.
 - Owner review in a real browser (step 7).
 - A real 500 on Cloudflare Pages, and that its reference shows up in the Pages logs.
 - Screen readers, 200% zoom.

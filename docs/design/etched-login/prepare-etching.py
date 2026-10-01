@@ -8,9 +8,10 @@ same file works on the light paper and the dark navy scheme.
 
 Usage: prepare-etching.py <source.png> <out-dir> [--name vmb-etching] [--trim] [--trim-x]
                           [--crop-top 0.1] [--crop-bottom 0.1] [--flip] [--fade-sides 0.06] [--fade-bottom 0.3] [--pad-to 5] [--white 212] [--black 40]
-                          [--parts parts.json --manifest out.json] [--plate-source filled.png]
+                          [--parts parts.json --manifest out.json] [--plate-source filled.png] [--widths 2400 1200]
 
-Writes <name>-2400.webp and <name>-1200.webp (needs `cwebp`).
+Writes <name>-<width>.webp for each width, 2400 and 1200 unless `--widths` says
+otherwise (needs `cwebp`).
 
 Moving parts (#243): `--parts` names polygons in the source's pixels. Each part
 goes through the same crops, flip, fades and padding as the plate, so it lines
@@ -25,7 +26,9 @@ it, the parts are cut out of the plate, which suits parts on bare paper. An
 "overlay" part (a highlight over the plate) is never cut out, and keeps its
 ink at full strength through the plate's fades. A part with "art" (a path
 from the parts file, an image the source's size) takes its ink from that
-image instead of the source: new art set where it belongs on the master.
+image instead of the source: new art set where it belongs on the master. A
+part's "origin" ([x, y], % of its own box: where CSS rotates it about) is
+copied to the manifest as it is.
 """
 
 import argparse
@@ -52,13 +55,11 @@ parser.add_argument("--flip", action="store_true", help="mirror the art left to 
 parser.add_argument("--fade-sides", type=float, default=0, help="fraction of width to fade out at each side")
 parser.add_argument("--fade-bottom", type=float, default=0, help="fraction of height to fade out at the bottom")
 parser.add_argument("--pad-to", type=float, default=0, help="add blank paper at both sides to reach this width:height ratio")
+parser.add_argument("--widths", type=int, nargs="+", default=[2400, 1200], help="widths to write, in pixels")
 parser.add_argument("--parts", help="JSON of moving parts: {name: {polygon: [[x, y], ...], opaque?, rest?, overlay?}}")
 parser.add_argument("--manifest", help="where to write the parts' boxes in plate percentages")
 parser.add_argument("--plate-source", help="draw the plate from this image (the source with the parts' holes filled)")
 args = parser.parse_args()
-
-WIDTHS = (2400, 1200)
-
 
 def ink_alpha(path):
     gray = Image.open(path).convert("L")
@@ -189,7 +190,7 @@ print(f"mask {alpha.width}x{alpha.height} (ratio {alpha.width / alpha.height:.3f
 
 out = Path(args.out_dir)
 out.mkdir(parents=True, exist_ok=True)
-for width in WIDTHS:
+for width in args.widths:
     height = round(alpha.height * width / alpha.width)
     ink = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     ink.putalpha(alpha.resize((width, height), Image.Resampling.LANCZOS))
@@ -216,12 +217,14 @@ for name, part in parts.items():
     # Left, top, width and height at rest, in % of the plate's width and height.
     entry = {"box": [round(box[0] / alpha.width * 100, 3), round(box[1] / alpha.height * 100, 3),
                      round(box[2] / alpha.width * 100, 3), round(box[3] / alpha.height * 100, 3)]}
+    if "origin" in part:
+        entry["origin"] = part["origin"]
     if rest_x or rest_y:
         # Where it was cut, from its rest, in % of its own width and height (a CSS `translate`).
         entry["from"] = [round(-rest_x / box[2] * 100, 2), round(-rest_y / box[3] * 100, 2)]
     manifest["parts"][name] = entry
 
-    for width in WIDTHS:
+    for width in args.widths:
         scale = width / alpha.width
         size = (max(round(box[2] * scale), 1), max(round(box[3] * scale), 1))
         if part.get("opaque"):
