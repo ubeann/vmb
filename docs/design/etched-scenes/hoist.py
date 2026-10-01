@@ -26,8 +26,10 @@ MASTER_SIZE = (4096, 2048)
 
 # The generated image: the container body's box, and the ropes above it.
 BODY = (92, 1291, 680, 1493)
-# The landscape master: the boom's underside, where the ropes hang from.
-BOOM = 1084
+# The landscape master: the boom's underside, where the ropes hang from. The
+# boom ends at x 3167, so the container polygon sits inside it, with its outer
+# rope dropping from the boom's tip.
+BOOM = 1090
 
 art = Image.open(ART).convert("L")
 xs = [x for x, _ in PARTS["container"]["polygon"]]
