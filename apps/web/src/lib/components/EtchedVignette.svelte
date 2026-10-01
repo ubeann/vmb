@@ -31,11 +31,6 @@
   );
 </script>
 
-<svelte:head>
-  <!-- As in EtchedScene: the plate first, so the parts never wait on bare paper (#260). -->
-  <link rel="preload" as="image" crossorigin="anonymous" href={scene.image} fetchpriority="high" />
-</svelte:head>
-
 <div
   aria-hidden="true"
   class={cn("etched-vignette pointer-events-none relative select-none", className)}
@@ -85,10 +80,15 @@
   }
 
   /* The gate's leaves swing about their hinges, so the frame gives them depth. */
+  /* The parts wait for the plate, as in EtchedScene (#260). */
   .frame {
     position: absolute;
     inset: 0;
     perspective: 90cqw;
+    mask-image: var(--vignette-image), linear-gradient(#000 0 0);
+    mask-size: 100% 100%;
+    mask-repeat: no-repeat;
+    mask-composite: add;
   }
 
   .part {

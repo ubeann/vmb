@@ -40,23 +40,17 @@ async function renderScene(scene: Component) {
 afterEach(() => emulateReducedMotion("no-preference"));
 
 // On a slow connection the plate, the biggest file, used to land after the parts,
-// which then hung on bare paper (#260). It is asked for first, at high priority.
-describe("EtchedScene plate preload", () => {
-  it("preloads the plate for each breakpoint, high priority, as a CSS mask is fetched", async () => {
-    const { root } = await renderScene(EtchedScene);
-    const plate = (name: string) =>
-      root.style.getPropertyValue(name).replace(/^url\(["']?|["']?\)$/g, "");
+// which then hung on bare paper (#260). The parts' box is masked by the plate
+// plus a solid layer: a browser that waits for a pending mask paints nothing
+// until the plate is there, and the solid layer keeps every part fully visible
+// after it. (Chromium and Firefox wait; WebKit paints the parts regardless.)
+describe("EtchedScene plate gate", () => {
+  it("masks the parts' box with the plate and a solid layer", async () => {
+    const { plate } = await renderScene(EtchedScene);
+    const style = getComputedStyle(plate);
 
-    const links = [...document.head.querySelectorAll<HTMLLinkElement>('link[rel="preload"]')];
-    expect(links.map((link) => [link.getAttribute("href"), link.media])).toEqual([
-      [plate("--etching-small"), "(max-width: 63.999rem)"],
-      [plate("--etching-large"), "(min-width: 64rem)"]
-    ]);
-    for (const link of links) {
-      expect(link.as).toBe("image");
-      expect(link.getAttribute("fetchpriority")).toBe("high");
-      expect(link.crossOrigin).toBe("anonymous");
-    }
+    expect(style.maskImage).toMatch(/^url\(.*vmb-etching-\d+\.webp.*\), linear-gradient\(/);
+    expect(style.maskComposite).toBe("add, add");
   });
 });
 

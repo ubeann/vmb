@@ -37,31 +37,6 @@
   const ropesStyle = `${style("ropes")}; --ropes-hidden: ${(partLift(parts.container) / parts.ropes.box[3]!) * 100}%`;
 </script>
 
-<svelte:head>
-  <!--
-    The plate is the scene's biggest file, and the browser finds it no earlier than
-    the parts, so on a slow connection the parts arrived first and hung on bare paper
-    (#260). Asking for it first, at high priority, lets it paint before them. It is
-    fetched as the CSS fetches a mask image, so the preload is reused, not repeated.
-  -->
-  <link
-    rel="preload"
-    as="image"
-    crossorigin="anonymous"
-    href={etchingSmall}
-    media="(max-width: 63.999rem)"
-    fetchpriority="high"
-  />
-  <link
-    rel="preload"
-    as="image"
-    crossorigin="anonymous"
-    href={etchingLarge}
-    media="(min-width: 64rem)"
-    fetchpriority="high"
-  />
-</svelte:head>
-
 <div
   aria-hidden="true"
   class={cn("etched-scene pointer-events-none relative w-full select-none", className)}
@@ -137,6 +112,13 @@
   }
 
   /* The plate's own box, where the parts are placed: as tall as the band, centred on it. */
+  /*
+   * The parts wait for the plate (#260). The plate is the biggest file, so on a slow
+   * connection it landed after them and they hung on bare paper. The frame is masked
+   * by the plate plus a solid layer: a browser that waits for a pending mask paints
+   * nothing until the plate is there, and the solid layer then shows every part in
+   * full. Chromium and Firefox wait; WebKit paints the parts regardless.
+   */
   .frame {
     position: absolute;
     inset-block: 0;
@@ -144,6 +126,15 @@
     aspect-ratio: var(--plate-ratio);
     translate: -50% 0;
     container-type: inline-size;
+    mask-image: var(--etching-image), linear-gradient(#000 0 0);
+    mask-size:
+      auto 100%,
+      100% 100%;
+    mask-position:
+      center bottom,
+      0 0;
+    mask-repeat: no-repeat;
+    mask-composite: add;
   }
 
   .part {

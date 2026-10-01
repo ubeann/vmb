@@ -35,14 +35,13 @@ describe.each(Object.values(ERROR_SCENES))("EtchedVignette $name", (scene) => {
     expect(root.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("preloads the plate first, high priority, as a CSS mask is fetched (#260)", async () => {
-    await renderScene(scene);
+  it("masks the parts' box with the plate and a solid layer, so no part shows before it (#260)", async () => {
+    const { plate } = await renderScene(scene);
+    const style = getComputedStyle(plate);
 
-    const links = [...document.head.querySelectorAll<HTMLLinkElement>('link[rel="preload"]')];
-    expect(links.map((link) => link.getAttribute("href"))).toEqual([scene.image]);
-    expect(links[0]!.as).toBe("image");
-    expect(links[0]!.getAttribute("fetchpriority")).toBe("high");
-    expect(links[0]!.crossOrigin).toBe("anonymous");
+    expect(style.maskImage).toContain(scene.image);
+    expect(style.maskImage).toContain("linear-gradient(");
+    expect(style.maskComposite).toBe("add, add");
   });
 
   it("brings each part to rest at its place on the plate", async () => {
