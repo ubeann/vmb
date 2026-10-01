@@ -21,19 +21,19 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@vmb/types": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260921.1",
+    "@cloudflare/workers-types": "^5.20260928.1",
     "@electric-sql/pglite": "^0.5.8",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/pg": "^8.23.1",
     "@vmb/config": "workspace:*",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^10.11.0",
     "pg": "^8.23.0",
     "tsx": "^4.23.15",
     "typescript": "^5.7.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.2"
   }
 }
