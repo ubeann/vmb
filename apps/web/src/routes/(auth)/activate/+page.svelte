@@ -15,6 +15,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { transitionUpdate } from "$lib/card-transition.js";
+  import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import type { ActionData } from "./$types.js";
 
@@ -46,11 +47,26 @@
     ({ formElement, cancel }: { formElement: HTMLFormElement; cancel: () => void }) =>
       validation.validate(formElement) ? track({ formElement }) : cancel();
 
-  const linkClass =
-    "text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
+  // A link inside a sentence keeps the line's height; one on its own line gets
+  // a full touch target.
+  const inlineLinkClass =
+    "text-primary focus-visible:ring-ring rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
+  const linkClass = `${inlineLinkClass} inline-flex min-h-11 items-center`;
 
+  // "Use a different email" overrides this until the next action result.
   let step = $derived(form && "step" in form && form.step === "reset" ? "reset" : "request");
   let email = $derived(form && "email" in form ? form.email : "");
+
+  // Back to the email step to fix a typo, keeping what was typed. The link's
+  // own href does the same, without the email, when JavaScript is off.
+  async function useDifferentEmail(event: MouseEvent) {
+    event.preventDefault();
+    await transitionUpdate(async () => {
+      step = "request";
+    });
+    document.getElementById("email")?.focus();
+  }
+
   type FieldErrors = Partial<Record<"email" | "otp" | "password", string>>;
 
   let serverErrors = $derived(
@@ -80,13 +96,21 @@
   {/snippet}
 
   <h2 class="text-base font-semibold">{step === "reset" ? "Enter your code" : "Get a code"}</h2>
+  <!-- The same words whether or not the email belongs to a user: a reply that
+       differed would show which emails are registered (#232). -->
   <p class="text-muted-foreground mt-1 text-sm">
     {#if step === "reset"}
-      We sent a code to <strong class="text-foreground">{email}</strong>. It expires in 5 minutes.
+      If <strong class="text-foreground">{email}</strong> has VMB access, we sent a code to it. It expires
+      in 5 minutes.
     {:else}
       Enter the email associated with your VMB access.
     {/if}
   </p>
+  {#if step === "reset"}
+    <a href={resolve("/activate")} class="{linkClass} text-sm" onclick={useDifferentEmail}
+      >Use a different email</a
+    >
+  {/if}
 
   <div class="mt-5 space-y-5">
     {#if form?.error && (!fieldErrors || (step === "reset" && fieldErrors.email))}
@@ -165,6 +189,11 @@
           aria-busy={submitting}>Send a new code</Button
         >
       </form>
+
+      <p class="text-muted-foreground text-sm text-pretty">
+        No email after a minute? Check spam, check the address, or contact
+        <a href="mailto:{SUPPORT_EMAIL}" class={inlineLinkClass}>{SUPPORT_EMAIL}</a>
+      </p>
     {:else}
       <form
         method="POST"
@@ -181,6 +210,7 @@
             id="email"
             type="email"
             name="email"
+            value={email}
             autocomplete="email"
             placeholder="name@company.com"
             aria-invalid={fieldErrors?.email ? "true" : undefined}

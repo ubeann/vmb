@@ -112,6 +112,19 @@ describe("createAuth", () => {
     );
   });
 
+  it("hands background tasks, such as email sends, to the Worker's waitUntil (#232)", async () => {
+    const { createAuth } = await import("./auth.js");
+    const { waitUntil } = await import("cloudflare:workers");
+
+    createAuth(env);
+
+    const options = betterAuthMock.mock.calls[0]?.[0] as {
+      advanced: { backgroundTasks: { handler: unknown } };
+    };
+
+    expect(options.advanced.backgroundTasks.handler).toBe(waitUntil);
+  });
+
   it("reuses a single instance across calls, so in-memory rate-limit state survives across requests", async () => {
     const { createAuth } = await import("./auth.js");
 
