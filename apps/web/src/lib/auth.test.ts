@@ -106,7 +106,8 @@ describe("remember me through the cookie bridge", () => {
         const headers = new Headers(init?.headers);
         if (!headers.has("origin")) headers.set("origin", "https://web.test");
         return fetchFn(input, { ...init, headers });
-      }
+      },
+      getClientAddress: () => "203.0.113.5"
     };
   }
 

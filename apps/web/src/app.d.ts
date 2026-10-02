@@ -35,6 +35,9 @@ declare global {
     interface Platform {
       env: {
         API_URL: string;
+        // Shared with apps/api; sent with the browser's address so apps/api
+        // can trust it as the client IP (ADR-0042). Unset, neither is sent.
+        CLIENT_IP_SECRET?: string;
       };
     }
   }

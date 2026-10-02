@@ -535,11 +535,12 @@ jobs:
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}
         run: pnpm --filter @vmb/db db:seed
 
-      # Shared secrets (BETTER_AUTH_SECRET, RESEND_API_KEY, EMAIL_FROM) come from
-      # the committed fnox store, same as build-and-test in ci.yml. ADR-0011
-      # keeps fnox to local/CI secrets and out of Worker runtime, so this is the
-      # narrow exception ADR-0019 records: fnox feeds only this ephemeral
-      # preview version, never the production deployment.
+      # Shared secrets (BETTER_AUTH_SECRET, RESEND_API_KEY, EMAIL_FROM,
+      # CLIENT_IP_SECRET) come from the committed fnox store, same as
+      # build-and-test in ci.yml. ADR-0011 keeps fnox to local/CI secrets and out
+      # of Worker runtime, so this is the narrow exception ADR-0019 records: fnox
+      # feeds only this ephemeral preview version, never the production
+      # deployment.
       #
       # The three per-PR values — DATABASE_URL, BETTER_AUTH_URL, WEB_URL — are
       # overridden so the preview Worker talks only to this PR's database and
@@ -551,6 +552,11 @@ jobs:
       # the API logs the message instead of handing it to Resend, so a stranger
       # who finds the unlisted-but-public preview URL cannot send from the
       # production sender. Production leaves the flag unset and sends for real.
+      #
+      # CLIENT_IP_SECRET lets the API trust the browser address the web preview
+      # forwards (#250, ADR-0042). The web side reads it from the vmb-web Pages
+      # Preview environment, which every preview shares, so that value is set
+      # once by hand to fnox's and must change with it.
       #
       # Written as JSON so Neon's connection string and any special characters
       # survive intact; `--secrets-file` keeps them out of argv/logs.
@@ -573,6 +579,7 @@ jobs:
           better_auth_secret=$(fnox get BETTER_AUTH_SECRET)
           resend_api_key=$(fnox get RESEND_API_KEY)
           email_from=$(fnox get EMAIL_FROM)
+          client_ip_secret=$(fnox get CLIENT_IP_SECRET)
 
           jq -n \
             --arg DATABASE_URL "$NEON_DB_URL" \
@@ -582,6 +589,7 @@ jobs:
             --arg RESEND_API_KEY "$resend_api_key" \
             --arg EMAIL_FROM "$email_from" \
             --arg EMAIL_TRANSPORT "log" \
+            --arg CLIENT_IP_SECRET "$client_ip_secret" \
             '{
               DATABASE_URL: $DATABASE_URL,
               BETTER_AUTH_SECRET: $BETTER_AUTH_SECRET,
@@ -589,10 +597,11 @@ jobs:
               WEB_URL: $WEB_URL,
               RESEND_API_KEY: $RESEND_API_KEY,
               EMAIL_FROM: $EMAIL_FROM,
-              EMAIL_TRANSPORT: $EMAIL_TRANSPORT
+              EMAIL_TRANSPORT: $EMAIL_TRANSPORT,
+              CLIENT_IP_SECRET: $CLIENT_IP_SECRET
             }' > "$RUNNER_TEMP/api-preview-secrets.json"
 
-          for key in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL WEB_URL RESEND_API_KEY EMAIL_FROM EMAIL_TRANSPORT; do
+          for key in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL WEB_URL RESEND_API_KEY EMAIL_FROM EMAIL_TRANSPORT CLIENT_IP_SECRET; do
             value=$(jq -r --arg key "$key" '.[$key]' "$RUNNER_TEMP/api-preview-secrets.json")
             if [ -z "$value" ] || [ "$value" = "null" ]; then
               echo "::error::$key resolved to an empty value — check the fnox store / create-branch output."

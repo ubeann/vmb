@@ -1,3 +1,4 @@
+import { CLIENT_IP_HEADER } from "@vmb/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const userStatusMock = vi.fn(async (_userId: string) => null as unknown);
@@ -123,6 +124,21 @@ describe("createAuth", () => {
     };
 
     expect(options.advanced.backgroundTasks.handler).toBe(waitUntil);
+  });
+
+  // The auth route sets this header to the address it trusts (#250), so it is
+  // the only one Better Auth may read: any other, such as `x-forwarded-for`,
+  // a caller could set to anything.
+  it("reads the client IP only from the header the auth route vouches for", async () => {
+    const { createAuth } = await import("./auth.js");
+
+    createAuth(env);
+
+    const options = betterAuthMock.mock.calls[0]?.[0] as {
+      advanced: { ipAddress: { ipAddressHeaders: string[] } };
+    };
+
+    expect(options.advanced.ipAddress.ipAddressHeaders).toEqual([CLIENT_IP_HEADER]);
   });
 
   it("reuses a single instance across calls, so in-memory rate-limit state survives across requests", async () => {

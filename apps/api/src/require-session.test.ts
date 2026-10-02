@@ -1,3 +1,4 @@
+import { CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } from "@vmb/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
@@ -42,6 +43,28 @@ describe("the session guard", () => {
 
     expect(res.status).toBe(200);
     expect(listDivisionsMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Better Auth reads the client IP here too, so it gets the same vouched-for
+  // address as on the auth routes, and never the secret (#250).
+  it("hands Better Auth only a client IP the shared secret vouches for", async () => {
+    getSessionMock.mockResolvedValueOnce(null);
+
+    await app.request(
+      "/api/master/divisions",
+      {
+        headers: {
+          "cf-connecting-ip": "198.51.100.7",
+          [CLIENT_IP_HEADER]: "203.0.113.5",
+          [CLIENT_IP_SECRET_HEADER]: "guess"
+        }
+      },
+      { ...bindings, CLIENT_IP_SECRET: "s3cret" }
+    );
+
+    const { headers } = getSessionMock.mock.calls[0]?.[0] as { headers: Headers };
+    expect(headers.get(CLIENT_IP_HEADER)).toBe("198.51.100.7");
+    expect(headers.has(CLIENT_IP_SECRET_HEADER)).toBe(false);
   });
 
   it("leaves the auth routes open", async () => {

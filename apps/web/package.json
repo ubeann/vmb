@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "printf 'CLIENT_IP_SECRET=%s\\n' \"$(fnox get CLIENT_IP_SECRET)\" > .dev.vars",
     "dev": "vite dev",
     "build": "vite build",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

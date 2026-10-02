@@ -1,6 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { createAuth } from "./auth.js";
 import type { Bindings } from "./bindings.js";
+import { trustedClientIpHeaders } from "./client-ip.js";
 
 /**
  * Rejects a request whose Better Auth session does not resolve — the API's
@@ -11,7 +12,9 @@ import type { Bindings } from "./bindings.js";
  * session creation (`./sign-in-gate.ts`).
  */
 export const requireSession = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
-  const session = await createAuth(c.env).api.getSession({ headers: c.req.raw.headers });
+  // The same vouched-for client IP the auth routes give Better Auth (#250).
+  const headers = await trustedClientIpHeaders(c.req.raw.headers, c.env.CLIENT_IP_SECRET);
+  const session = await createAuth(c.env).api.getSession({ headers });
 
   if (!session) {
     return c.json({ error: "Authentication required." }, 401);

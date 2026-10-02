@@ -9,4 +9,9 @@ export type Bindings = {
   // non-empty value suppresses, so a mis-set value can't leak real mail.
   // Production and local dev leave it unset and send via Resend (ADR-0019).
   EMAIL_TRANSPORT?: string;
+  // Shared with apps/web, which sends it with the browser's address so that
+  // address can be trusted as the client IP (ADR-0042). Optional on purpose:
+  // while it is unset no forwarded address is trusted, and limits key on
+  // `cf-connecting-ip` instead.
+  CLIENT_IP_SECRET?: string;
 };
