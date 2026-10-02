@@ -1,4 +1,4 @@
-import { account, createDb, session, user, verification } from "@vmb/db";
+import { account, createDb, rateLimit, session, user, verification } from "@vmb/db";
 import { CLIENT_IP_HEADER } from "@vmb/types";
 import { betterAuth } from "better-auth";
 import { waitUntil } from "cloudflare:workers";
@@ -16,11 +16,20 @@ function buildAuth(env: Bindings) {
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
-      schema: { user, session, account, verification }
+      schema: { user, session, account, verification, rateLimit }
     }),
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_URL],
+    // On explicitly: Better Auth's default is on only when NODE_ENV is
+    // "production", which the Worker never sets. Counted in Postgres so every
+    // isolate sees the same count, and a preview's own Neon branch holds its
+    // own (ADR-0042). Reading the session is exempt, so it costs no query.
+    rateLimit: {
+      enabled: true,
+      storage: "database",
+      customRules: { "/get-session": false }
+    },
     advanced: {
       // Better Auth awaits an email send only when the user exists, so an
       // awaited Resend call made a registered email reply noticeably slower
@@ -80,10 +89,10 @@ function buildAuth(env: Bindings) {
 }
 
 // Cached per Worker isolate: env bindings are constant for the isolate's
-// lifetime, and Better Auth keeps in-memory state (rate limiting, one-time
-// verification-token locks) that only works if the same instance handles
-// every request — building a fresh one per request would silently reset
-// that state (and the Drizzle adapter/route table) on every call.
+// lifetime, and Better Auth keeps in-memory state (one-time verification-token
+// locks) that only works if the same instance handles every request — building
+// a fresh one per request would silently reset that state (and the Drizzle
+// adapter/route table) on every call.
 let cached: ReturnType<typeof buildAuth> | undefined;
 
 export function createAuth(env: Bindings) {

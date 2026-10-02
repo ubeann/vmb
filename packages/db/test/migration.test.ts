@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
 import { readdirSync, readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { rateLimit } from "../src/schema/index.js";
 import type { SqlClient } from "../src/sql-client.js";
 import { count, createDatabase, rejects, scalar, type TestDatabase } from "./harness.js";
 
@@ -940,5 +942,46 @@ describe("the index operator classes after the instant conversion", () => {
         order by indexname`
     );
     expect(present.map((row) => row.indexname)).toEqual(redeclared);
+  });
+});
+
+describe("the rate-limit table", () => {
+  // Better Auth's database store (#251, ADR-0042) finds its counter by key and
+  // writes the time of the last request as epoch milliseconds.
+  let database: TestDatabase;
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    await database.migrate();
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("keeps a millisecond timestamp past the integer range, as a number", async () => {
+    const now = Date.now();
+    await database.db
+      .insert(rateLimit)
+      .values({ id: "rl-1", key: "203.0.113.1|/sign-in/email", count: 1, lastRequest: now });
+
+    const [row] = await database.db.select().from(rateLimit).where(eq(rateLimit.id, "rl-1"));
+    expect(now).toBeGreaterThan(2 ** 31);
+    expect(row).toEqual({
+      id: "rl-1",
+      key: "203.0.113.1|/sign-in/email",
+      count: 1,
+      lastRequest: now
+    });
+  });
+
+  it("holds one counter per key", async () => {
+    await rejects(
+      database.client,
+      `insert into public.rate_limit (id, key, count, last_request)
+       values ('rl-2', '203.0.113.2|/sign-in/email', 1, 0),
+              ('rl-3', '203.0.113.2|/sign-in/email', 1, 0)`,
+      /rate_limit_key_unique/
+    );
   });
 });

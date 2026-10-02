@@ -13,7 +13,8 @@ vi.mock("@vmb/db", () => ({
   user: "user-table",
   session: "session-table",
   account: "account-table",
-  verification: "verification-table"
+  verification: "verification-table",
+  rateLimit: "rate-limit-table"
 }));
 
 vi.mock("./master.js", () => ({
@@ -68,7 +69,8 @@ describe("createAuth", () => {
         user: "user-table",
         session: "session-table",
         account: "account-table",
-        verification: "verification-table"
+        verification: "verification-table",
+        rateLimit: "rate-limit-table"
       }
     });
     expect(betterAuthMock).toHaveBeenCalledWith(
@@ -141,7 +143,24 @@ describe("createAuth", () => {
     expect(options.advanced.ipAddress.ipAddressHeaders).toEqual([CLIENT_IP_HEADER]);
   });
 
-  it("reuses a single instance across calls, so in-memory rate-limit state survives across requests", async () => {
+  // Better Auth turns limits on only when NODE_ENV is "production", which the
+  // Worker never sets, and keeps counts per isolate unless told otherwise
+  // (ADR-0042). Reading the session is exempt, so it costs no extra query.
+  it("turns rate limits on, counts them in the database, and exempts reading the session", async () => {
+    const { createAuth } = await import("./auth.js");
+
+    createAuth(env);
+
+    const options = betterAuthMock.mock.calls[0]?.[0] as { rateLimit: unknown };
+
+    expect(options.rateLimit).toEqual({
+      enabled: true,
+      storage: "database",
+      customRules: { "/get-session": false }
+    });
+  });
+
+  it("reuses a single instance across calls, so Better Auth's per-instance state survives across requests", async () => {
     const { createAuth } = await import("./auth.js");
 
     const first = createAuth(env);

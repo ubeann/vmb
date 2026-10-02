@@ -102,6 +102,48 @@ describe("activate actions", () => {
     ]);
   });
 
+  it('sends a new code from the code step and stays on it, for "Send a new code"', async () => {
+    const result = await actions.resend!(fakeAuthEvent({ email: "a@example.com" }));
+
+    expect(requestMock).toHaveBeenCalledWith({ email: "a@example.com" });
+    expect(result).toEqual({ step: "reset", email: "a@example.com" });
+  });
+
+  // The code step stays, so the entered code and email are kept and the banner
+  // shows where the user pressed "Send a new code" (#251).
+  it("keeps rate limiting on the code step, with the 429 copy", async () => {
+    requestMock.mockResolvedValueOnce({
+      data: null,
+      error: { status: 429, message: "Too many requests" } as never
+    });
+
+    const result = await actions.resend!(fakeAuthEvent({ email: "a@example.com" }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        step: "reset",
+        email: "a@example.com",
+        error: "Too many attempts. Wait a moment and try again."
+      }
+    });
+  });
+
+  it("keeps the code step when the hidden email is missing on a resend", async () => {
+    const result = await actions.resend!(fakeAuthEvent({}));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        step: "reset",
+        email: "",
+        error: "Reload this page, enter your email, and request a new code",
+        fieldErrors: { email: "Enter your email" }
+      }
+    });
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["", "Enter the code from your email"],
     ["12345", "Enter the 6-digit code from your email"],
