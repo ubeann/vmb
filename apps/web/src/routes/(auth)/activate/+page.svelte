@@ -179,7 +179,7 @@
         </Button>
       </form>
 
-      <form method="POST" action="?/request" novalidate use:enhance={track}>
+      <form method="POST" action="?/resend" novalidate use:enhance={track}>
         <input type="hidden" name="email" value={email} />
         <Button
           type="submit"

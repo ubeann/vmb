@@ -141,6 +141,28 @@ describe("activate page", () => {
     await expect.element(screen.getByRole("alert")).toHaveTextContent("Invalid code");
   });
 
+  // Both places a code is requested: the email step, and "Send a new code",
+  // which keeps the user on the code step (#251).
+  it.each([
+    ["the email step", { error: "Too many attempts. Wait a moment and try again." }, "Get a code"],
+    [
+      "the code step",
+      {
+        step: "reset",
+        email: "a@example.com",
+        error: "Too many attempts. Wait a moment and try again."
+      },
+      "Enter your code"
+    ]
+  ])("shows the rate-limit copy on %s", async (_step, form, heading) => {
+    const screen = await render(Page, { form });
+
+    await expect.element(screen.getByRole("heading", { name: heading })).toBeVisible();
+    await expect
+      .element(screen.getByRole("alert"))
+      .toHaveTextContent("Too many attempts. Wait a moment and try again.");
+  });
+
   it("explains both first access and password reset", async () => {
     const screen = await render(Page, { form: null });
 
@@ -293,6 +315,13 @@ describe("activate page", () => {
       await screen.getByRole("button", { name: "Send a new code" }).click();
 
       expect(submissions.map((data) => data.get("email"))).toEqual(["a@example.com"]);
+    });
+
+    it('sends "Send a new code" to the action that stays on the code step', async () => {
+      const screen = await render(Page, { form: resetStep });
+
+      const button = screen.getByRole("button", { name: "Send a new code" }).element();
+      expect(button.closest("form")?.getAttribute("action")).toBe("?/resend");
     });
 
     it("marks the field a server response names", async () => {
