@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 // A stand-in for SvelteKit's `enhance` that keeps its contract: the submit
 // callback runs first and `cancel()` stops the request. What would have been
@@ -255,7 +255,6 @@ describe("activate page", () => {
 
     it.each([
       ["12345", "Enter the 6-digit code from your email"],
-      ["1234567", "Enter the 6-digit code from your email"],
       ["12a456", "Enter the 6-digit code from your email"]
     ])("rejects the code %j", async (code, message) => {
       const screen = await render(Page, { form: resetStep });
@@ -378,6 +377,208 @@ describe("activate page", () => {
     });
   });
 
+  describe("six-box code input (#253)", () => {
+    const resetStep = { step: "reset", email: "a@example.com" } as const;
+
+    // What the browser does when a code is pasted into the focused field.
+    function paste(input: HTMLInputElement, text: string) {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      input.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true })
+      );
+    }
+
+    const boxes = (container: Element) =>
+      [...container.querySelectorAll("[data-slot=input-otp-slot]")].map(
+        (box) => box.textContent?.trim() ?? ""
+      );
+
+    it("draws six boxes for one field named Code", async () => {
+      const screen = await render(Page, { form: resetStep });
+
+      await expect.element(screen.getByLabelText("Code")).toBeVisible();
+      expect(screen.getByLabelText("Code").elements()).toHaveLength(1);
+      expect(boxes(screen.container)).toHaveLength(6);
+      const code = screen.getByLabelText("Code").element();
+      expect(code.getAttribute("autocomplete")).toBe("one-time-code");
+      expect(code.getAttribute("inputmode")).toBe("numeric");
+      expect(code.getAttribute("name")).toBe("otp");
+    });
+
+    it("fills a box per digit and takes no seventh", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+
+      await code.click();
+      await userEvent.keyboard("1234567");
+
+      await expect.element(code).toHaveValue("123456");
+      expect(boxes(screen.container)).toEqual(["1", "2", "3", "4", "5", "6"]);
+    });
+
+    it("refuses anything but digits", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+
+      await code.click();
+      await userEvent.keyboard("1a2-3");
+
+      await expect.element(code).toHaveValue("123");
+    });
+
+    it("clears the last digit on backspace", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+
+      await code.click();
+      await userEvent.keyboard("123{Backspace}");
+
+      await expect.element(code).toHaveValue("12");
+      expect(boxes(screen.container)).toEqual(["1", "2", "", "", "", ""]);
+    });
+
+    it("moves between boxes with the arrow keys", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+
+      await code.click();
+      await userEvent.keyboard("123");
+      await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+      const active = () =>
+        [...screen.container.querySelectorAll("[data-slot=input-otp-slot]")].findIndex((box) =>
+          box.hasAttribute("data-active")
+        );
+      await expect.poll(active).toBe(1);
+
+      await userEvent.keyboard("{ArrowRight}");
+      await expect.poll(active).toBe(2);
+    });
+
+    it("fills every box from a pasted code", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+      await code.click();
+
+      paste(code.element() as HTMLInputElement, "246810");
+
+      await expect.element(code).toHaveValue("246810");
+      expect(boxes(screen.container)).toEqual(["2", "4", "6", "8", "1", "0"]);
+    });
+
+    it.each([
+      ["123 456", "123456"],
+      ["123-456", "123456"],
+      [" 1 2 3 – 4 5 6 ", "123456"]
+    ])("keeps only the digits of a pasted %j", async (text, digits) => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+      await code.click();
+
+      paste(code.element() as HTMLInputElement, text);
+
+      await expect.element(code).toHaveValue(digits);
+    });
+
+    it("sends the form on the sixth digit once there is a password", async () => {
+      const screen = await render(Page, { form: resetStep });
+      await screen.getByLabelText("New password").fill("long-enough");
+      await screen.getByLabelText("Code").click();
+
+      await userEvent.keyboard("12345");
+      expect(submissions).toHaveLength(0);
+      await userEvent.keyboard("6");
+
+      await expect.poll(() => submissions.length).toBe(1);
+      expect(submissions[0]!.get("otp")).toBe("123456");
+    });
+
+    it("moves to the password on the sixth digit when it is still empty", async () => {
+      const screen = await render(Page, { form: resetStep });
+      await screen.getByLabelText("Code").click();
+
+      await userEvent.keyboard("123456");
+
+      await expect.element(screen.getByLabelText("New password")).toHaveFocus();
+      expect(submissions).toHaveLength(0);
+      expect(screen.getByRole("alert").elements()).toHaveLength(0);
+    });
+
+    it("still has the button for anyone who does not type the last digit", async () => {
+      const screen = await render(Page, { form: resetStep });
+      await screen.getByLabelText("Code").fill("123456");
+      await screen.getByLabelText("New password").fill("long-enough");
+      expect(submissions).toHaveLength(0);
+
+      await screen.getByRole("button", { name: "Set password" }).click();
+
+      expect(submissions).toHaveLength(1);
+    });
+
+    it("clears the boxes and focuses the first when the code is refused", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+      await screen.getByLabelText("New password").fill("long-enough");
+      await code.click();
+      await userEvent.keyboard("123456");
+      await expect.poll(() => completions.length).toBe(1);
+
+      await completions[0]!({
+        result: { type: "failure" },
+        update: () => screen.rerender({ form: { ...resetStep, error: "Invalid code" } })
+      });
+
+      await expect.element(screen.getByRole("alert")).toHaveTextContent("Invalid code");
+      await expect.element(code).toHaveValue("");
+      expect(boxes(screen.container)).toEqual(["", "", "", "", "", ""]);
+      await expect.element(code).toHaveFocus();
+    });
+
+    it("does not send twice while the first send is under way", async () => {
+      const screen = await render(Page, { form: resetStep });
+      await screen.getByLabelText("New password").fill("long-enough");
+      await screen.getByLabelText("Code").click();
+      await userEvent.keyboard("123456");
+      await expect.poll(() => submissions.length).toBe(1);
+
+      await userEvent.keyboard("{Backspace}6");
+
+      expect(submissions).toHaveLength(1);
+    });
+
+    it("empties the boxes once a new code has been sent", async () => {
+      const screen = await render(Page, { form: resetStep });
+      const code = screen.getByLabelText("Code");
+      await code.fill("123456");
+
+      await screen.getByRole("button", { name: "Send a new code" }).click();
+      await completions[0]!({
+        result: { type: "success" },
+        update: () => screen.rerender({ form: resetStep })
+      });
+
+      await expect.element(code).toHaveValue("");
+    });
+
+    it("marks the field and wires the hint and error to it", async () => {
+      const screen = await render(Page, {
+        form: { ...resetStep, error: "Invalid", fieldErrors: { otp: "Enter the code" } }
+      });
+      const code = screen.getByLabelText("Code");
+
+      await expect.element(code).toHaveAttribute("aria-invalid", "true");
+      await expect.element(code).toHaveAttribute("aria-describedby", "otp-hint otp-error");
+      // Boxes are not fields: only the input carries the state.
+      expect(
+        screen.container.querySelectorAll("[data-slot=input-otp-slot][aria-invalid]")
+      ).toHaveLength(0);
+      const box = screen.container.querySelector("[data-slot=input-otp-slot]")!;
+      expect(getComputedStyle(box).borderColor).not.toBe(
+        getComputedStyle(screen.container.querySelector("[data-slot=input-otp]")!).borderColor
+      );
+    });
+  });
+
   describe("field icons and hints (#234)", () => {
     const decorativeIcons = (element: Element) =>
       [...element.querySelectorAll("svg")].filter(
@@ -395,14 +596,13 @@ describe("activate page", () => {
       ).toHaveLength(1);
     });
 
-    it("hints the six digits, with icons in both fields and on Set password", async () => {
+    it("has an icon in the password field and on Set password, and none in the code boxes", async () => {
       const screen = await render(Page, { form: { step: "reset", email: "a@example.com" } });
       const code = screen.getByLabelText("Code").element();
       const password = screen.getByLabelText("New password").element();
 
-      expect(code.getAttribute("placeholder")).toBe("123456");
+      expect(decorativeIcons(code.closest("[data-slot=input-otp]")!)).toHaveLength(0);
       expect(password.hasAttribute("placeholder")).toBe(false);
-      expect(decorativeIcons(code.parentElement!)).not.toHaveLength(0);
       expect(decorativeIcons(password.parentElement!)).not.toHaveLength(0);
       expect(
         decorativeIcons(screen.getByRole("button", { name: "Set password" }).element())

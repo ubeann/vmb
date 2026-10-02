@@ -16,7 +16,7 @@ const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
 
 // The length of the code Better Auth's email OTP plugin sends by default.
-const OTP_LENGTH = 6;
+export const OTP_LENGTH = 6;
 
 const emailSchema = z
   .string()
