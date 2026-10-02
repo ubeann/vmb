@@ -1,7 +1,18 @@
-// Better Auth's default schema (ADR-0012), pulled from the database and
-// kept as the canonical shape `better-auth/adapters/drizzle` expects:
+// Better Auth's default schema (ADR-0012), kept as the canonical shape
+// `better-auth/adapters/drizzle` expects. The first four tables were pulled
+// from the database; `rateLimit` was added later, after Better Auth's model:
 // https://www.better-auth.com/docs/adapters/drizzle
-import { pgTable, index, text, timestamp, unique, boolean, foreignKey } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  index,
+  text,
+  timestamp,
+  unique,
+  boolean,
+  foreignKey,
+  integer,
+  bigint
+} from "drizzle-orm/pg-core";
 
 export const verification = pgTable(
   "verification",
@@ -89,4 +100,18 @@ export const session = pgTable(
     }).onDelete("cascade"),
     unique("session_token_unique").on(table.token)
   ]
+);
+
+// Better Auth's rate-limit counters (ADR-0042), as its 1.7 schema defines
+// them: one row per client IP and path. `last_request` is epoch
+// milliseconds, which outgrows an integer.
+export const rateLimit = pgTable(
+  "rate_limit",
+  {
+    id: text().primaryKey().notNull(),
+    key: text().notNull(),
+    count: integer().notNull(),
+    lastRequest: bigint("last_request", { mode: "number" }).notNull()
+  },
+  (table) => [unique("rate_limit_key_unique").on(table.key)]
 );

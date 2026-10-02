@@ -62,16 +62,17 @@ export async function importSnapshot(
 /**
  * Return the target to an empty database.
  *
- * The four legacy schemas, the journal, and the auth tables migration 0000
- * creates — and nothing else. Anything the pipeline did not create is left
- * alone, so pointing it at a database with other data will not delete it.
+ * The four legacy schemas, the journal, and the auth tables migrations 0000
+ * and 0027 create — and nothing else. Anything the pipeline did not create is
+ * left alone, so pointing it at a database with other data will not delete it.
  */
 async function reset(client: SqlClient): Promise<void> {
   for (const schema of ["master", "warehouse", "trucking", "expense", "drizzle"]) {
     await client.exec(`drop schema if exists ${schema} cascade`);
   }
   await client.exec(
-    `drop table if exists public."user", public."session", public."account", public."verification" cascade`
+    `drop table if exists public."user", public."session", public."account", public."verification",
+       public."rate_limit" cascade`
   );
 }
 
