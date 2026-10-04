@@ -67,7 +67,11 @@ async function requestCode(email: string, clientIp = "203.0.113.10") {
     },
     bindings
   );
-  return { status: res.status, body: await res.text() };
+  return {
+    status: res.status,
+    body: await res.text(),
+    retryAfter: res.headers.get("X-Retry-After")
+  };
 }
 
 beforeAll(async () => {
@@ -229,6 +233,7 @@ describe("per-email code request limit (#252)", () => {
     expect(registered.status).toBe(429);
     expect(registered).toEqual(unregistered);
     expect(registered).toEqual(ipLimited);
+    expect(registered.retryAfter).toBeNull();
     expect(sendOtpEmailMock).toHaveBeenCalledTimes(5);
   });
 

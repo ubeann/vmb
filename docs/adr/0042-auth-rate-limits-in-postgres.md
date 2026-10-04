@@ -11,7 +11,7 @@
 
 **Decision:**
 
-- **Store and switch:** `rateLimit: { enabled: true, storage: "database" }` in every deployed environment and in local dev. The `rateLimit` table is defined in `packages/db` with a migration. Tests keep the in-memory store.
+- **Store and switch:** `rateLimit: { enabled: true, storage: "database" }` in every deployed environment and in local dev. The `rateLimit` table is defined in `packages/db` with a migration. Request-step integration tests use the real Drizzle adapter and the database test harness (in-memory PGlite by default, Postgres when `TEST_DATABASE_URL` is set), so they exercise atomic counters and pruning.
 - **`/get-session` is exempt** (`customRules`), so reading a session costs no extra query.
 - **Real client IP:** `apps/web` sends the browser's address from `event.getClientAddress()` in a header, together with a shared secret. `apps/api` uses that header as the client IP only when the secret matches, and otherwise uses `cf-connecting-ip`.
 - **Per-email cap:** code requests (`/email-otp/request-password-reset`) are also counted per email, at most 5 an hour. The count is keyed on the email as typed, so registered and unregistered emails hit the same limit (#232).
