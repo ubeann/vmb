@@ -6,14 +6,18 @@ A follow-up to [activate-mark](../activate-mark/README.md) (#273), for the new-p
 
 The password step takes the code step's layout: the card's heading is the step's own ("Choose a new password"), the page intro and the second heading are left out, and an etched mark sits in its own band above the field.
 
-| Part         | Before                                                             | After                                                                       |
-| ------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| Page heading | "Set your password" with a second "Choose a new password" under it | "Choose a new password"; "Code confirmed…" stays as the description line    |
-| Intro        | "First time here or forgot your password? …"                       | Left out: it explains the email step                                        |
-| Art          | none                                                               | `ACTIVATE_ART.padlock`, a closed padlock with a key beside it, 5rem wide    |
-| Rules        | "At least 12 characters" (icon swapped instantly), passphrase hint | The check's icons cross-fade; a length reading (Okay / Good / Strong) below |
+| Part         | Before                                                             | After                                                                             |
+| ------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Page heading | "Set your password" with a second "Choose a new password" under it | "Choose a new password"; "Code confirmed…" stays as the description line          |
+| Intro        | "First time here or forgot your password? …"                       | Left out: it explains the email step                                              |
+| Art          | none                                                               | `ACTIVATE_ART.padlock`, a closed padlock with a key beside it, 5rem wide          |
+| Rules        | "At least 12 characters" (icon swapped instantly), passphrase hint | One length bar: a tick at 12, text beside it; the hint moved into the description |
 
-The length reading is advice, not a gate (ADR-0041): 12–15 Okay, 16–19 Good, 20+ Strong. It reads length alone, so it cannot call `Password1!` strong the way a composition meter does. Its row is always on the page, so it appearing at 12 characters moves nothing.
+The length bar is one meter for the rule and the advice (ADR-0041). It fills to 20 characters with a tick at 12, grey below the minimum and `--primary` from it, so an acceptable password never reads as red or orange. Text says the same: "At least 12 characters", then "7 more characters", then Okay (12–15), Good (16–19) and Strong (20+). It reads length alone, so it cannot call `Password1!` strong the way a composition meter does, and it is a `role="meter"` so a screen reader gets the value and the words.
+
+A password built from the email name or "VMB" is named as it is typed ("Leave "rina.wijaya" out of your password") and stops the form in the browser; the server refuses it too. The line's space is always on the page, so nothing moves when it appears.
+
+The owner's reference was a bar with a "Must contain" list. The list is the composition rules ADR-0041 leaves out, so only the bar was taken.
 
 ## Recraft (4 Oct, 4 credits)
 

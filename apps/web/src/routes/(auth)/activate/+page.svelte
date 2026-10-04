@@ -2,7 +2,6 @@
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
   import Check from "@lucide/svelte/icons/check";
-  import Circle from "@lucide/svelte/icons/circle";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mail from "@lucide/svelte/icons/mail";
   import Send from "@lucide/svelte/icons/send";
@@ -12,7 +11,7 @@
     ActivateRequestInputSchema,
     ActivateVerifyInputSchema,
     OTP_LENGTH,
-    PASSWORD_MIN_LENGTH
+    passwordContextWords
   } from "@vmb/types";
   import { ACTIVATE_ART } from "$lib/activate-art.js";
   import AuthCard from "$lib/components/AuthCard.svelte";
@@ -28,7 +27,13 @@
   import { Countdown, formatClock } from "$lib/countdown.svelte.js";
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
-  import { PASSWORD_STRENGTH_LABELS, passwordStrength } from "$lib/password-strength.js";
+  import {
+    PASSWORD_BAR_FULL_AT,
+    PASSWORD_MIN_MARK,
+    passwordBarFill,
+    passwordReading,
+    passwordStrength
+  } from "$lib/password-strength.js";
   import type { ActionData, PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -159,22 +164,34 @@
     () => serverErrors
   );
   const passwordValidation = createFieldValidation(ActivatePasswordInputSchema, () => serverErrors);
-  // The length check under the new-password field ticks as the user types
-  // (ADR-0041). It only reads the field; the schema still decides on submit.
-  let passwordLength = $state(0);
-  let passwordLongEnough = $derived(passwordLength >= PASSWORD_MIN_LENGTH);
+  // The reading under the new-password field follows what is typed (ADR-0041).
+  // It only reads the field; the schema still decides on submit, and so does
+  // the server for the words about the account.
+  let password = $state("");
+  let passwordLength = $derived(password.length);
   let strength = $derived(passwordStrength(passwordLength));
-  const STRENGTH_BARS = { okay: 1, good: 2, strong: 3 } as const;
-  // The check's two icons, stacked: the one that is not showing is scaled down,
-  // clear and blurred.
-  const iconBase =
-    "absolute inset-0 size-4 transition-[opacity,scale,filter] duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
-  const iconIn = "scale-100 opacity-100 blur-0";
-  const iconOut = "scale-[0.25] opacity-0 blur-[4px]";
+  // The email is the user's own, so naming the word to leave out reveals nothing.
+  let contextWords = $derived(passwordContextWords(password, email));
+  // A word to leave out stops the form in the browser, with the field marked
+  // and focused; the server refuses it too (ADR-0041).
+  function checkedPassword({
+    formElement,
+    cancel
+  }: {
+    formElement: HTMLFormElement;
+    cancel: () => void;
+  }) {
+    if (contextWords.length) {
+      cancel();
+      document.getElementById("new-password")?.focus();
+      return;
+    }
+    return checked(passwordValidation)({ formElement, cancel });
+  }
   function onPasswordFormInput(event: Event) {
     passwordValidation.oninput(event);
     if (event.target instanceof HTMLInputElement && event.target.name === "password") {
-      passwordLength = event.target.value.length;
+      password = event.target.value;
     }
   }
   // A refused code with no field to blame: the error goes under the boxes
@@ -222,7 +239,8 @@
        differed would show which emails are registered (#232). -->
   <p class="text-muted-foreground mt-1 text-sm text-pretty">
     {#if step === "password"}
-      Code confirmed. Choose a password for <strong class="text-foreground">{email}</strong>.
+      Code confirmed for <strong class="text-foreground">{email}</strong>. Choose a password you'll
+      remember. Three or four words work well, and spaces are fine.
     {:else if step === "code"}
       If <strong class="text-foreground">{email}</strong> has VMB access, we sent a code to it. It expires
       in 5 minutes.
@@ -257,7 +275,7 @@
         action="?/reset"
         novalidate
         oninput={onPasswordFormInput}
-        use:enhance={checked(passwordValidation)}
+        use:enhance={checkedPassword}
         class="space-y-5"
       >
         <!-- Tells a password manager which email the new password is saved
@@ -274,10 +292,10 @@
             id="new-password"
             name="password"
             autocomplete="new-password"
-            aria-invalid={fieldErrors?.password ? "true" : undefined}
+            aria-invalid={fieldErrors?.password || contextWords.length ? "true" : undefined}
             aria-describedby={fieldErrors?.password
-              ? "password-error password-rules"
-              : "password-rules"}
+              ? "password-error password-rules password-context"
+              : "password-rules password-context"}
             required
           />
           {#if fieldErrors?.password}
@@ -285,32 +303,42 @@
               {fieldErrors.password}
             </p>
           {/if}
-          <div id="password-rules" class="text-muted-foreground space-y-1 text-sm">
-            <p class={["flex items-center gap-2", passwordLongEnough && "text-foreground"]}>
-              <!-- Both icons stay in the DOM and cross-fade, so the change is
-                   interruptible and not a pop. -->
-              <span class="relative size-4 shrink-0" aria-hidden="true">
-                <Circle class={[iconBase, passwordLongEnough ? iconOut : iconIn]} />
-                <Check class={[iconBase, "text-primary", passwordLongEnough ? iconIn : iconOut]} />
-              </span>
-              <span class="sr-only">{passwordLongEnough ? "Done:" : "Not yet:"}</span>
-              <span>At least {PASSWORD_MIN_LENGTH} characters</span>
+          <div id="password-rules" class="space-y-2 pt-1 text-sm">
+            <!-- One bar for the length rule and the advice: the tick is the
+                 minimum, and past it the fill goes on to the full mark. Text
+                 says the same, so colour is not the only cue. Advice only: the
+                 schema is what blocks. -->
+            <div
+              role="meter"
+              aria-label="Password length"
+              aria-valuemin={0}
+              aria-valuemax={PASSWORD_BAR_FULL_AT}
+              aria-valuenow={Math.min(passwordLength, PASSWORD_BAR_FULL_AT)}
+              aria-valuetext={passwordReading(passwordLength)}
+              data-password-strength={strength ?? "none"}
+              class="bg-border relative h-1.5 overflow-hidden rounded-full"
+            >
+              <div
+                class={[
+                  "h-full rounded-full transition-[width,background-color] duration-150 motion-reduce:transition-none",
+                  strength ? "bg-primary" : "bg-muted-foreground"
+                ]}
+                style="width: {passwordBarFill(passwordLength) * 100}%"
+              ></div>
+              <div
+                class="bg-card absolute inset-y-0 w-0.5"
+                style="left: {PASSWORD_MIN_MARK * 100}%"
+              ></div>
+            </div>
+            <p class={strength ? "text-foreground" : "text-muted-foreground"}>
+              {passwordReading(passwordLength)}
             </p>
-            <p>Try three or four words you'll remember. Spaces are fine.</p>
-            <!-- Advice only: the length rule above is the one that blocks. The
-                 row is always there, so it appearing moves nothing. -->
-            <p class="flex items-center gap-2" data-password-strength={strength ?? "none"}>
-              <span class="flex gap-1" aria-hidden="true">
-                {#each [1, 2, 3] as bar (bar)}
-                  <span
-                    class={[
-                      "h-1.5 w-6 rounded-full transition-colors duration-150 motion-reduce:transition-none",
-                      strength && bar <= STRENGTH_BARS[strength] ? "bg-primary" : "bg-border"
-                    ]}
-                  ></span>
-                {/each}
-              </span>
-              <span>Length{strength ? `: ${PASSWORD_STRENGTH_LABELS[strength]}` : ""}</span>
+            <!-- Always on the page, so a word to leave out appearing moves
+                 nothing under it. -->
+            <p id="password-context" class="text-destructive min-h-5" aria-live="polite">
+              {#if contextWords.length}
+                Leave {contextWords.map((word) => `"${word}"`).join(" and ")} out of your password
+              {/if}
             </p>
           </div>
         </div>

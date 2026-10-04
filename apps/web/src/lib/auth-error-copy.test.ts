@@ -16,7 +16,7 @@ describe("mapAuthErrorToCopy", () => {
 
   it("maps a password built from the email or VMB to its own copy", () => {
     expect(mapAuthErrorToCopy({ code: "PASSWORD_CONTAINS_CONTEXT" }, "fallback")).toBe(
-      'Your password can\'t contain your email name or "VMB". Choose a different one.'
+      'Leave your email name and "VMB" out of your password.'
     );
   });
 

@@ -25,16 +25,27 @@ export const passwordSchema = z
 // context-specific words, and these are the first things a guess tries
 // (ADR-0041). Not a composition rule: it refuses nothing about the shape.
 export const PASSWORD_CONTEXT_CODE = "PASSWORD_CONTAINS_CONTEXT";
-export const PASSWORD_CONTEXT_MESSAGE =
-  'Your password can\'t contain your email name or "VMB". Choose a different one.';
+export const PASSWORD_CONTEXT_MESSAGE = 'Leave your email name and "VMB" out of your password.';
 
 const PRODUCT_WORDS = ["vmb", "vmblogistics"];
 // A shorter name would match by chance inside a long passphrase.
 const MIN_EMAIL_NAME_LENGTH = 4;
 
-export function passwordContainsContext(password: string, email: string): boolean {
+/**
+ * The context words the password is built from, as the user typed them in the
+ * email, so a form can name them. Empty when it is clear of them.
+ */
+export function passwordContextWords(password: string, email: string): string[] {
   const lowered = password.toLowerCase();
-  const name = email.split("@")[0]?.trim().toLowerCase() ?? "";
+  const name = email.split("@")[0]?.trim() ?? "";
   const words = name.length >= MIN_EMAIL_NAME_LENGTH ? [...PRODUCT_WORDS, name] : PRODUCT_WORDS;
-  return words.some((word) => lowered.includes(word));
+  const found = words.filter((word) => lowered.includes(word.toLowerCase()));
+  // "vmblogistics" already holds "vmb": naming both says the same thing twice.
+  return found.some((word) => word.toLowerCase() === "vmblogistics")
+    ? found.filter((word) => word.toLowerCase() !== "vmb")
+    : found;
+}
+
+export function passwordContainsContext(password: string, email: string): boolean {
+  return passwordContextWords(password, email).length > 0;
 }
