@@ -59,6 +59,14 @@ afterEach(async () => {
 const noCheckedCode = { user: null, step: undefined, email: undefined };
 const emailStep = { data: noCheckedCode, form: null };
 const codeStep = { data: noCheckedCode, form: { step: "code", email: "a@example.com" } } as const;
+// The load's code step, as a reload during the countdown gets it (#255).
+// `sentAt` is when the code was sent: a new one makes a new load, even when the
+// seconds left are the same as the load before.
+const reloadedCodeStep = (resendIn: number, sentAt = 1_000) =>
+  ({
+    data: { user: null, step: "code", email: "a@example.com", resendIn, sentAt },
+    form: null
+  }) as const;
 const passwordStep = {
   data: { user: null, step: "password", email: "a@example.com" },
   form: null
@@ -109,9 +117,44 @@ describe("activate page", () => {
       await expect.element(screen.getByRole("button", { name: "Verify code" })).toBeVisible();
       await expect.element(screen.getByRole("button", { name: "Send a new code" })).toBeVisible();
       await expect
-        .element(screen.getByRole("link", { name: "Use a different email" }))
+        .element(screen.getByRole("button", { name: "Use a different email" }))
         .toBeVisible();
       expect(screen.getByLabelText("New password").elements()).toHaveLength(0);
+    });
+
+    it("is headed by its own step, with the page's intro left out (#273)", async () => {
+      const screen = await render(Page, codeStep);
+
+      const headings = screen.getByRole("heading", { name: "Enter your code" });
+      expect(headings.elements()).toHaveLength(1);
+      expect(headings.element().tagName).toBe("H1");
+      expect(screen.getByRole("heading", { name: "Set your password" }).elements()).toHaveLength(0);
+      expect(screen.container.textContent).not.toContain("First time here or forgot");
+    });
+
+    it("draws the etched slip above the boxes as decorative art, and the padlock on the password step only (#273, #256)", async () => {
+      const marks = (root: Element) => [...root.querySelectorAll("[data-etched-mark]")];
+
+      const code = await render(Page, codeStep);
+      const [mark] = marks(code.container);
+      expect(marks(code.container)).toHaveLength(1);
+      expect(mark!.getAttribute("aria-hidden")).toBe("true");
+      const boxes = code.getByLabelText("Code").element();
+      expect(mark!.compareDocumentPosition(boxes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      code.unmount();
+
+      const email = await render(Page, emailStep);
+      expect(marks(email.container)).toHaveLength(0);
+      email.unmount();
+
+      const password = await render(Page, passwordStep);
+      const [padlock] = marks(password.container);
+      expect(marks(password.container)).toHaveLength(1);
+      expect(padlock!.getAttribute("aria-hidden")).toBe("true");
+      const field = password.getByLabelText("New password").element();
+      expect(
+        padlock!.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
     });
 
     it("sends the code with the email it was sent to, to Verify", async () => {
@@ -153,29 +196,37 @@ describe("activate page", () => {
         .toHaveAttribute("href", "mailto:support@vmblogistics.id");
     });
 
-    it("goes back to the email step with the email kept for fixing", async () => {
+    // A form, as on the password step: the code step is kept in a cookie so a
+    // reload keeps it (#255), and only the server can drop it.
+    it("starts over from a form, so the sent code is dropped on the server", async () => {
       const screen = await render(Page, codeStep);
-      const link = screen.getByRole("link", { name: "Use a different email" });
-      // Without JavaScript the link still reaches a fresh email step.
-      await expect.element(link).toHaveAttribute("href", "/activate");
+      const button = screen.getByRole("button", { name: "Use a different email" });
 
-      await link.click();
+      await button.click();
 
+      expect(submissions).toHaveLength(1);
+      expect(button.element().closest("form")?.getAttribute("action")).toBe("?/restart");
+      // For a page left open past the cookie's life.
+      expect(submissions[0]!.get("email")).toBe("a@example.com");
+    });
+
+    it("goes back to the email step with the email kept for fixing", async () => {
+      const transition = stubTransition();
+      const reply = { step: "request", email: "a@example.com" };
+      const screen = await render(Page, codeStep);
+
+      await screen.getByRole("button", { name: "Use a different email" }).click();
+      await expect.poll(() => completions.length).toBe(1);
+      await completions[0]!({
+        result: { type: "success", data: reply },
+        update: () => screen.rerender({ data: noCheckedCode, form: reply })
+      });
+
+      expect(transition).toHaveBeenCalledOnce();
       await expect.element(screen.getByRole("button", { name: "Send code" })).toBeVisible();
       await expect.element(screen.getByLabelText("Email")).toHaveValue("a@example.com");
       await expect.element(screen.getByLabelText("Email")).toHaveFocus();
       expect(screen.getByLabelText("Code").elements()).toHaveLength(0);
-      expect(submissions).toHaveLength(0);
-    });
-
-    it("sends the fixed email from the email step", async () => {
-      const screen = await render(Page, codeStep);
-      await screen.getByRole("link", { name: "Use a different email" }).click();
-
-      await screen.getByLabelText("Email").fill("b@example.com");
-      await screen.getByRole("button", { name: "Send code" }).click();
-
-      expect(submissions.map((data) => data.get("email"))).toEqual(["b@example.com"]);
     });
 
     it("shows a refused code's error under the boxes and describes the code field with it", async () => {
@@ -237,7 +288,181 @@ describe("activate page", () => {
     });
   });
 
+  describe("the resend countdown (#255)", () => {
+    // Only the clock is faked: the assertions' own polling keeps real timers.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "performance"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const resendButton = (screen: Awaited<ReturnType<typeof render>>) =>
+      screen.getByRole("button", { name: "Send a new code" });
+    const status = (screen: Awaited<ReturnType<typeof render>>) =>
+      screen.getByRole("status").element().textContent;
+
+    it("disables the resend button for a minute after a code is sent, with the time left in its label", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      await expect.element(resendButton(screen)).toBeDisabled();
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 1:00");
+    });
+
+    it("counts down each second", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      vi.advanceTimersByTime(18_000);
+
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 0:42");
+    });
+
+    it("brings the button back when the time is up", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      vi.advanceTimersByTime(60_000);
+
+      await expect.element(resendButton(screen)).toBeEnabled();
+      expect(resendButton(screen).element().textContent?.trim()).toBe("Send a new code");
+    });
+
+    // The time left is the load's, worked out from the send time the server kept.
+    it("keeps the time left across a reload", async () => {
+      const screen = await render(Page, reloadedCodeStep(42));
+
+      await expect.element(resendButton(screen)).toBeDisabled();
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 0:42");
+    });
+
+    it("has the button ready on a reload after the minute", async () => {
+      const screen = await render(Page, reloadedCodeStep(0));
+
+      await expect.element(resendButton(screen)).toBeEnabled();
+    });
+
+    it("starts again for each new code sent", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+      vi.advanceTimersByTime(60_000);
+      await expect.element(resendButton(screen)).toBeEnabled();
+
+      await screen.rerender(reloadedCodeStep(60, 2_000));
+
+      await expect.element(resendButton(screen)).toBeDisabled();
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 1:00");
+    });
+
+    it("stops the clock when the page goes", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      screen.unmount();
+
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("does not send while the countdown runs", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      await resendButton(screen).click({ force: true });
+
+      expect(submissions).toHaveLength(0);
+    });
+
+    it("leaves Verify and the way back alone", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      await expect.element(screen.getByRole("button", { name: "Verify code" })).toBeEnabled();
+      await expect
+        .element(screen.getByRole("button", { name: "Use a different email" }))
+        .toBeEnabled();
+    });
+
+    it("keeps the label's time out of the button's name, so only the status speaks", async () => {
+      const screen = await render(Page, reloadedCodeStep(42));
+
+      await expect.element(resendButton(screen)).toBeVisible();
+      expect(resendButton(screen).element().querySelector("[aria-hidden='true']")).not.toBeNull();
+    });
+
+    it("tells screen readers politely when the wait starts, not on every second", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+      const region = screen.getByRole("status").element();
+      expect(region.getAttribute("aria-live") ?? "polite").toBe("polite");
+      await expect.poll(() => status(screen)).toBe("You can send a new code in 60 seconds.");
+
+      const changes: string[] = [];
+      const watch = new MutationObserver(() => changes.push(region.textContent ?? ""));
+      watch.observe(region, { childList: true, characterData: true, subtree: true });
+      vi.advanceTimersByTime(30_000);
+      await Promise.resolve();
+
+      expect(changes).toEqual([]);
+      expect(status(screen)).toBe("You can send a new code in 60 seconds.");
+      watch.disconnect();
+    });
+
+    it("says one second, not 1 seconds, for a reload with a second left", async () => {
+      const screen = await render(Page, reloadedCodeStep(1));
+
+      await expect.poll(() => status(screen)).toBe("You can send a new code in 1 second.");
+    });
+
+    it("tells them again when the wait ends", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      vi.advanceTimersByTime(60_000);
+
+      await expect.poll(() => status(screen)).toBe("You can send a new code now.");
+    });
+
+    it("says nothing when no wait was started", async () => {
+      const screen = await render(Page, reloadedCodeStep(0));
+
+      expect(status(screen)).toBe("");
+    });
+
+    // The countdown is a hint: the server's limit is the gate (ADR-0042).
+    it("still shows the rate-limit copy when the server turns a resend down after the minute", async () => {
+      const refused = {
+        step: "code",
+        email: "a@example.com",
+        error: "Too many attempts. Wait a moment and try again."
+      };
+      const screen = await render(Page, reloadedCodeStep(60));
+      vi.advanceTimersByTime(60_000);
+      await expect.element(resendButton(screen)).toBeEnabled();
+
+      await resendButton(screen).click();
+      await expect.poll(() => completions.length).toBe(1);
+      await completions[0]!({
+        result: { type: "failure", data: refused },
+        update: () => screen.rerender({ ...reloadedCodeStep(0), form: refused })
+      });
+
+      await expect
+        .element(screen.getByRole("alert"))
+        .toHaveTextContent("Too many attempts. Wait a moment and try again.");
+      await expect.element(resendButton(screen)).toBeEnabled();
+    });
+
+    it("shows no countdown on the email step", async () => {
+      const screen = await render(Page, emailStep);
+
+      expect(screen.getByRole("button", { name: /Send a new code/ }).elements()).toHaveLength(0);
+    });
+  });
+
   describe("the password step", () => {
+    it("is headed by its own step, with the page's intro left out (#256)", async () => {
+      const screen = await render(Page, passwordStep);
+
+      const headings = screen.getByRole("heading", { name: "Choose a new password" });
+      expect(headings.elements()).toHaveLength(1);
+      expect(headings.element().tagName).toBe("H1");
+      expect(screen.getByRole("heading", { name: "Set your password" }).elements()).toHaveLength(0);
+      expect(screen.container.textContent).not.toContain("First time here or forgot");
+      await expect.element(screen.getByText(/Code confirmed/)).toBeVisible();
+    });
+
     it("only sets the password, for the email whose code was checked", async () => {
       const screen = await render(Page, passwordStep);
 
@@ -256,11 +481,11 @@ describe("activate page", () => {
 
       const button = screen.getByRole("button", { name: "Set password" }).element();
 
-      await screen.getByLabelText("New password").fill("long-enough");
+      await screen.getByLabelText("New password").fill("long-enough-password");
       await screen.getByRole("button", { name: "Set password" }).click();
 
       expect(submissions).toHaveLength(1);
-      expect([...submissions[0]!.entries()]).toEqual([["password", "long-enough"]]);
+      expect([...submissions[0]!.entries()]).toEqual([["password", "long-enough-password"]]);
       expect(button.closest("form")?.getAttribute("action")).toBe("?/reset");
     });
 
@@ -425,7 +650,8 @@ describe("activate page", () => {
 
     it.each([
       ["", "Enter a new password"],
-      ["short", "Use at least 8 characters"],
+      ["short", "Use at least 12 characters"],
+      ["x".repeat(11), "Use at least 12 characters"],
       ["x".repeat(129), "Use 128 characters or fewer"]
     ])("rejects the new password %#", async (password, message) => {
       const screen = await render(Page, passwordStep);
@@ -436,9 +662,90 @@ describe("activate page", () => {
       await expect.element(screen.getByText(message)).toBeVisible();
       await expect
         .element(screen.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-error");
+        .toHaveAttribute("aria-describedby", "password-error password-rules password-context");
       await expect.element(screen.getByLabelText("New password")).toHaveFocus();
       expect(submissions).toHaveLength(0);
+    });
+
+    it("reads the length as one bar: the rule before 12, then advice only (#256)", async () => {
+      const screen = await render(Page, passwordStep);
+      const password = screen.getByLabelText("New password");
+      const bar = () => screen.container.querySelector<HTMLElement>("[data-password-strength]")!;
+
+      // Always there, so it appearing moves nothing.
+      expect(bar().getAttribute("data-password-strength")).toBe("none");
+      expect(bar().getAttribute("role")).toBe("meter");
+      expect(bar().getAttribute("aria-valuetext")).toBe("At least 12 characters");
+      await expect.element(screen.getByText("At least 12 characters")).toBeVisible();
+
+      await password.fill("x".repeat(5));
+      await expect.element(screen.getByText("7 more characters")).toBeVisible();
+
+      await password.fill("x".repeat(11));
+      await expect.element(screen.getByText("1 more character")).toBeVisible();
+
+      for (const [length, label, level] of [
+        [12, "Length: Okay", "okay"],
+        [16, "Length: Good", "good"],
+        [20, "Length: Strong", "strong"]
+      ] as const) {
+        await password.fill("x".repeat(length));
+        await expect.element(screen.getByText(label)).toBeVisible();
+        expect(bar().getAttribute("data-password-strength")).toBe(level);
+      }
+      // Not a gate: the form still submits at any passing length.
+      await expect.element(screen.getByRole("button", { name: "Set password" })).toBeEnabled();
+    });
+
+    describe("a word about the account", () => {
+      const rina = {
+        data: { user: null, step: "password", email: "rina.wijaya@vmblogistics.id" },
+        form: null
+      } as const;
+
+      it("is named as the password is typed, and stops the form before it is sent (#256)", async () => {
+        const screen = await render(Page, rina);
+        const password = screen.getByLabelText("New password");
+
+        await password.fill("my rina.wijaya passphrase");
+        await expect
+          .element(screen.getByText('Leave "rina.wijaya" out of your password'))
+          .toBeVisible();
+        await expect.element(password).toHaveAttribute("aria-invalid", "true");
+
+        await screen.getByRole("button", { name: "Set password" }).click();
+        expect(submissions).toHaveLength(0);
+        await expect.element(password).toHaveFocus();
+
+        await password.fill("a passphrase with nothing in it");
+        expect(screen.getByText(/Leave .* out of your password/).elements()).toHaveLength(0);
+        await expect.element(password).not.toHaveAttribute("aria-invalid");
+      });
+
+      it("forgets what was typed when the step is left, so a blank field is not read as the old one", async () => {
+        const screen = await render(Page, rina);
+        await screen.getByLabelText("New password").fill("my rina.wijaya passphrase");
+        await expect.element(screen.getByText(/Leave .* out of your password/)).toBeVisible();
+
+        // A code that expired sends the user back to the code step, then on again.
+        await screen.rerender(codeStep);
+        await screen.rerender(rina);
+
+        const bar = screen.container.querySelector("[data-password-strength]")!;
+        expect(bar.getAttribute("data-password-strength")).toBe("none");
+        expect(screen.getByText(/Leave .* out of your password/).elements()).toHaveLength(0);
+        await expect.element(screen.getByText("At least 12 characters")).toBeVisible();
+      });
+
+      it("names VMB once, not VMB and the company name both", async () => {
+        const screen = await render(Page, rina);
+
+        await screen.getByLabelText("New password").fill("go to vmblogistics today");
+
+        await expect
+          .element(screen.getByText('Leave "vmblogistics" out of your password'))
+          .toBeVisible();
+      });
     });
 
     it("clears the password message as soon as the password is long enough", async () => {
@@ -446,11 +753,11 @@ describe("activate page", () => {
       const password = screen.getByLabelText("New password");
       await password.fill("short");
       await screen.getByRole("button", { name: "Set password" }).click();
-      await expect.element(screen.getByText("Use at least 8 characters")).toBeVisible();
+      await expect.element(screen.getByText("Use at least 12 characters")).toBeVisible();
 
-      await password.fill("long-enough");
+      await password.fill("long-enough-password");
 
-      expect(screen.getByText("Use at least 8 characters").elements()).toHaveLength(0);
+      expect(screen.getByText("Use at least 12 characters").elements()).toHaveLength(0);
       await expect.element(password).not.toHaveAttribute("aria-invalid");
     });
 
@@ -744,10 +1051,13 @@ describe("activate page", () => {
       await code.unmount();
 
       const password = await render(Page, passwordStep);
-      await expect.element(password.getByText("Use at least 8 characters.")).toBeVisible();
+      await expect.element(password.getByText("At least 12 characters")).toBeVisible();
+      await expect
+        .element(password.getByText(/Three or four words work well, and spaces are fine\./))
+        .toBeVisible();
       await expect
         .element(password.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-hint");
+        .toHaveAttribute("aria-describedby", "password-rules password-context");
     });
   });
 
@@ -817,7 +1127,7 @@ describe("activate page", () => {
       const screen = await submitAndReply(
         passwordStep,
         async (screen) => {
-          await screen.getByLabelText("New password").fill("long-enough");
+          await screen.getByLabelText("New password").fill("long-enough-password");
           await screen.getByRole("button", { name: "Set password" }).click();
         },
         { type: "failure", data: expired },

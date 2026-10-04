@@ -1,12 +1,23 @@
 import {
+  PASSWORD_BREACHED_MESSAGE,
   UserCreateInputSchema,
   UserListQuerySchema,
   UserListResponseSchema,
   UserSchema,
   UserUpdateInputSchema
 } from "@vmb/types";
-import { Hono } from "hono";
-import { jsonBody, pathId, queryParams, type MasterEnv } from "./http.js";
+import { Hono, type Context } from "hono";
+import { HttpError, jsonBody, pathId, queryParams, type MasterEnv } from "./http.js";
+
+// The Master CRUD hashes the password itself, so Better Auth's own check never
+// sees it (ADR-0041). An empty password means "leave the credential alone".
+async function refuseBreachedPassword(c: Context<MasterEnv>, password: string) {
+  if (password !== "" && (await c.get("isPasswordBreached")(password))) {
+    throw new HttpError(400, PASSWORD_BREACHED_MESSAGE, [
+      { path: "password", message: PASSWORD_BREACHED_MESSAGE }
+    ]);
+  }
+}
 
 export const userRoutes = new Hono<MasterEnv>()
   .get("/", async (c) => {
@@ -15,7 +26,9 @@ export const userRoutes = new Hono<MasterEnv>()
     return c.json(UserListResponseSchema.parse(page));
   })
   .post("/", jsonBody(UserCreateInputSchema), async (c) => {
-    const user = await c.get("store").createUser(c.req.valid("json"));
+    const input = c.req.valid("json");
+    await refuseBreachedPassword(c, input.password);
+    const user = await c.get("store").createUser(input);
     return c.json(UserSchema.parse(user), 201);
   })
   .get("/:id", async (c) => {
@@ -23,7 +36,10 @@ export const userRoutes = new Hono<MasterEnv>()
     return c.json(UserSchema.parse(user));
   })
   .patch("/:id", jsonBody(UserUpdateInputSchema), async (c) => {
-    const user = await c.get("store").updateUser(pathId(c), c.req.valid("json"));
+    const id = pathId(c);
+    const input = c.req.valid("json");
+    await refuseBreachedPassword(c, input.password);
+    const user = await c.get("store").updateUser(id, input);
     return c.json(UserSchema.parse(user));
   })
   .delete("/:id", async (c) => {

@@ -4,6 +4,7 @@ const withAuthApiClientMock = vi.fn();
 
 vi.mock("$lib/auth-action.js", () => import("../../../lib/auth-action.js"));
 vi.mock("$lib/server/checked-code.js", () => import("../../../lib/server/checked-code.js"));
+vi.mock("$lib/server/sent-code.js", () => import("../../../lib/server/sent-code.js"));
 
 vi.mock("../../../lib/api-access.js", () => ({
   withAuthApiClient: (event: unknown, run: (client: unknown) => Promise<unknown>) =>
@@ -13,6 +14,7 @@ vi.mock("../../../lib/api-access.js", () => ({
 const { actions, load } = await import("./+page.server.js");
 const { fakeAuthEvent, fakeCookies } = await import("../../../lib/test-support.js");
 const { keepCheckedCode, readCheckedCode } = await import("../../../lib/server/checked-code.js");
+const { keepSentCode, readSentCode } = await import("../../../lib/server/sent-code.js");
 
 type AuthReply = { data: null; error: { message?: string; code?: string; status?: number } | null };
 const ok = async (): Promise<AuthReply> => ({ data: null, error: null });
@@ -34,6 +36,13 @@ const refusal = (code: string) => ({ data: null, error: { code, message: code } 
 function checkedJar(checked = { email: "a@example.com", otp: "123456" }) {
   const cookies = fakeCookies();
   keepCheckedCode({ cookies, url: new URL("https://vmb.example/activate") }, checked);
+  return cookies;
+}
+
+// A cookie jar holding a code that was sent a moment ago, as a reload sees it.
+function sentJar(email = "a@example.com", sentAt = Date.now()) {
+  const cookies = fakeCookies();
+  keepSentCode({ cookies, url: new URL("https://vmb.example/activate") }, email, sentAt);
   return cookies;
 }
 
@@ -67,6 +76,38 @@ describe("activate load", () => {
   it("picks the password step from a checked code, handing the page only its email", () => {
     expect(loadWith(checkedJar())).toEqual({ step: "password", email: "a@example.com" });
   });
+
+  // A reload keeps the code step too, with the time left before "Send a new
+  // code" is back (#255).
+  it("picks the code step from a code sent a moment ago, with the time left to wait", () => {
+    const sentAt = Date.now() - 18_000;
+
+    expect(loadWith(sentJar("a@example.com", sentAt))).toEqual({
+      step: "code",
+      email: "a@example.com",
+      resendIn: 42,
+      sentAt
+    });
+  });
+
+  it("has nothing left to wait for once the minute is up", () => {
+    const sentAt = Date.now() - 61_000;
+
+    expect(loadWith(sentJar("a@example.com", sentAt))).toMatchObject({ step: "code", resendIn: 0 });
+  });
+
+  it("starts on the email step once the code itself has expired", () => {
+    const sentAt = Date.now() - 301_000;
+
+    expect(loadWith(sentJar("a@example.com", sentAt))).toEqual({});
+  });
+
+  it("prefers the password step when a code has been checked as well", () => {
+    const cookies = checkedJar();
+    keepSentCode({ cookies, url: new URL("https://vmb.example/activate") }, "a@example.com");
+
+    expect(loadWith(cookies)).toEqual({ step: "password", email: "a@example.com" });
+  });
 });
 
 describe("activate request", () => {
@@ -75,6 +116,23 @@ describe("activate request", () => {
 
     expect(requestMock).toHaveBeenCalledWith({ email: "a@example.com" });
     expect(result).toEqual({ step: "code", email: "a@example.com" });
+  });
+
+  it("keeps when the code was sent, for the resend countdown", async () => {
+    const cookies = fakeCookies();
+
+    await actions.request!(fakeAuthEvent({ email: "a@example.com" }, { cookies }));
+
+    expect(readSentCode(cookies)).toMatchObject({ email: "a@example.com", resendIn: 60 });
+  });
+
+  it("forgets a code sent earlier when the new request fails", async () => {
+    requestMock.mockResolvedValueOnce({ data: null, error: { status: 429 } });
+    const cookies = sentJar();
+
+    await actions.request!(fakeAuthEvent({ email: "b@example.com" }, { cookies }));
+
+    expect(readSentCode(cookies)).toBeUndefined();
   });
 
   it("starts over, dropping a code checked earlier", async () => {
@@ -192,6 +250,62 @@ describe('activate resend ("Send a new code")', () => {
   });
 });
 
+describe("the resend countdown's send time (#255)", () => {
+  it("is renewed by a new code, so the minute starts again", async () => {
+    const cookies = sentJar("a@example.com", Date.now() - 50_000);
+
+    await actions.resend!(fakeAuthEvent({ email: "a@example.com" }, { cookies }));
+
+    expect(readSentCode(cookies)).toMatchObject({ email: "a@example.com", resendIn: 60 });
+  });
+
+  // No code went out, so the minute that was running still is.
+  it("is kept when a new code is turned down", async () => {
+    requestMock.mockResolvedValueOnce({ data: null, error: { status: 429 } });
+    const cookies = sentJar("a@example.com", Date.now() - 50_000);
+
+    await actions.resend!(fakeAuthEvent({ email: "a@example.com" }, { cookies }));
+
+    expect(readSentCode(cookies)).toMatchObject({ email: "a@example.com", resendIn: 10 });
+  });
+
+  it("is the same for a registered and an unregistered email (#232)", async () => {
+    const registered = fakeCookies();
+    const unregistered = fakeCookies();
+
+    await actions.request!(
+      fakeAuthEvent({ email: "staff@vmblogistics.id" }, { cookies: registered })
+    );
+    await actions.request!(
+      fakeAuthEvent({ email: "nobody@vmblogistics.id" }, { cookies: unregistered })
+    );
+
+    expect(readSentCode(registered)?.resendIn).toBe(readSentCode(unregistered)?.resendIn);
+  });
+
+  it("outlasts Verify, so a refused code leaves the countdown running", async () => {
+    checkMock.mockResolvedValueOnce(refusal("INVALID_OTP"));
+    const cookies = sentJar();
+
+    await actions.verify!(fakeAuthEvent({ email: "a@example.com", otp: "000000" }, { cookies }));
+
+    expect(readSentCode(cookies)).toBeDefined();
+  });
+
+  it("is dropped with the password set, and when the user starts over", async () => {
+    const reset = checkedJar();
+    keepSentCode({ cookies: reset, url: new URL("https://vmb.example/activate") }, "a@example.com");
+    await expect(
+      actions.reset!(fakeAuthEvent({ password: "new-secret-password" }, { cookies: reset }))
+    ).rejects.toMatchObject({ status: 303 });
+    const restarted = sentJar();
+    await actions.restart!(fakeAuthEvent({}, { cookies: restarted }));
+
+    expect(readSentCode(reset)).toBeUndefined();
+    expect(readSentCode(restarted)).toBeUndefined();
+  });
+});
+
 describe("activate verify (the code step)", () => {
   it.each([
     ["", "Enter the code from your email"],
@@ -285,13 +399,13 @@ describe("activate reset (the password step)", () => {
     const cookies = checkedJar();
 
     await expect(
-      actions.reset!(fakeAuthEvent({ password: "new-secret" }, { cookies }))
+      actions.reset!(fakeAuthEvent({ password: "new-secret-password" }, { cookies }))
     ).rejects.toMatchObject({ status: 303, location: "/login?activated=true" });
 
     expect(resetMock).toHaveBeenCalledWith({
       email: "a@example.com",
       otp: "123456",
-      password: "new-secret"
+      password: "new-secret-password"
     });
     expect(readCheckedCode(cookies)).toBeUndefined();
   });
@@ -302,7 +416,7 @@ describe("activate reset (the password step)", () => {
     await expect(
       actions.reset!(
         fakeAuthEvent(
-          { email: "other@example.com", otp: "999999", password: "new-secret" },
+          { email: "other@example.com", otp: "999999", password: "new-secret-password" },
           { cookies }
         )
       )
@@ -314,7 +428,7 @@ describe("activate reset (the password step)", () => {
   });
 
   it("is out of reach without a checked code, sending the user back to the email step", async () => {
-    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret" }));
+    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret-password" }));
 
     expect(result).toMatchObject({
       status: 400,
@@ -325,7 +439,8 @@ describe("activate reset (the password step)", () => {
 
   it.each([
     ["", "Enter a new password"],
-    ["short", "Use at least 8 characters"],
+    ["short", "Use at least 12 characters"],
+    ["x".repeat(11), "Use at least 12 characters"],
     ["x".repeat(129), "Use 128 characters or fewer"]
   ])("rejects the new password %#: %s", async (password, message) => {
     const result = await actions.reset!(fakeAuthEvent({ password }, { cookies: checkedJar() }));
@@ -337,7 +452,7 @@ describe("activate reset (the password step)", () => {
     expect(resetMock).not.toHaveBeenCalled();
   });
 
-  it.each(["x".repeat(8), "x".repeat(128)])(
+  it.each(["x".repeat(12), "x".repeat(128)])(
     "accepts a new password at the length bounds (%#)",
     async (password) => {
       await expect(
@@ -354,7 +469,9 @@ describe("activate reset (the password step)", () => {
     resetMock.mockResolvedValueOnce(refusal(code));
     const cookies = checkedJar();
 
-    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret" }, { cookies }));
+    const result = await actions.reset!(
+      fakeAuthEvent({ password: "new-secret-password" }, { cookies })
+    );
 
     expect(result).toMatchObject({
       status: 400,
@@ -363,11 +480,32 @@ describe("activate reset (the password step)", () => {
     expect(readCheckedCode(cookies)).toBeUndefined();
   });
 
+  it("stays on the password step for a breached password, keeping the checked code (#256)", async () => {
+    resetMock.mockResolvedValueOnce(refusal("PASSWORD_BREACHED"));
+    const cookies = checkedJar();
+
+    const result = await actions.reset!(
+      fakeAuthEvent({ password: "new-secret-password" }, { cookies })
+    );
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        step: "password",
+        email: "a@example.com",
+        error: "This password appeared in a data leak. Choose a different one."
+      }
+    });
+    expect(readCheckedCode(cookies)).toBeDefined();
+  });
+
   it("stays on the password step for a rate limit, keeping the checked code", async () => {
     resetMock.mockResolvedValueOnce({ data: null, error: { status: 429 } });
     const cookies = checkedJar();
 
-    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret" }, { cookies }));
+    const result = await actions.reset!(
+      fakeAuthEvent({ password: "new-secret-password" }, { cookies })
+    );
 
     expect(result).toMatchObject({
       status: 400,
@@ -381,7 +519,7 @@ describe("activate reset (the password step)", () => {
   });
 });
 
-describe('activate restart ("Use a different email" on the password step)', () => {
+describe('activate restart ("Use a different email")', () => {
   it("drops the checked code and returns to the email step with the email to fix", async () => {
     const cookies = checkedJar();
 
@@ -389,6 +527,39 @@ describe('activate restart ("Use a different email" on the password step)', () =
 
     expect(result).toEqual({ step: "request", email: "a@example.com" });
     expect(readCheckedCode(cookies)).toBeUndefined();
+  });
+
+  // On the code step, with nothing checked yet, the email is the one the code
+  // was sent to.
+  it("returns from the code step to the email step with the email the code was sent to", async () => {
+    const cookies = sentJar("a@example.com");
+
+    const result = await actions.restart!(fakeAuthEvent({}, { cookies }));
+
+    expect(result).toEqual({ step: "request", email: "a@example.com" });
+    expect(readSentCode(cookies)).toBeUndefined();
+  });
+
+  // The cookies last as long as the code does; a page left open longer still
+  // knows the email, and posts it with the form.
+  it("keeps the email the page posts once both cookies have gone", async () => {
+    const result = await actions.restart!(fakeAuthEvent({ email: "a@example.com" }));
+
+    expect(result).toEqual({ step: "request", email: "a@example.com" });
+  });
+
+  it("prefers the email the code was sent to over the one posted", async () => {
+    const result = await actions.restart!(
+      fakeAuthEvent({ email: "other@example.com" }, { cookies: sentJar("a@example.com") })
+    );
+
+    expect(result).toEqual({ step: "request", email: "a@example.com" });
+  });
+
+  it("does not put a malformed posted email in the field", async () => {
+    const result = await actions.restart!(fakeAuthEvent({ email: "<b>x" }));
+
+    expect(result).toEqual({ step: "request", email: "" });
   });
 
   it("returns to an empty email step when the checked code has already gone", async () => {

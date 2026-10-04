@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { indonesianPhoneSchema, optionalText } from "./inputs.js";
+import { PASSWORD_CONTEXT_MESSAGE, passwordContainsContext, passwordSchema } from "./password.js";
 import {
   PageSchema,
   PerPageSchema,
@@ -37,11 +38,6 @@ export const UserSchema = z.object({
 
 export type User = z.infer<typeof UserSchema>;
 
-const passwordSchema = z
-  .string()
-  .min(8, "Password must be at least 8 characters.")
-  .max(255, "Password must be 255 characters or fewer.");
-
 const userFields = {
   name: z
     .string()
@@ -60,11 +56,16 @@ const userFields = {
  * empty password means "leave the credential alone" on the edit form and is
  * rejected on create, so the two schemas share everything else.
  */
-const UserFormSchema = z.object({
-  ...userFields,
-  password: z.union([z.literal(""), passwordSchema]).default(""),
-  passwordConfirmation: z.string().default("")
-});
+const UserFormSchema = z
+  .object({
+    ...userFields,
+    password: z.union([z.literal(""), passwordSchema]).default(""),
+    passwordConfirmation: z.string().default("")
+  })
+  .refine((data) => data.password === "" || !passwordContainsContext(data.password, data.email), {
+    message: PASSWORD_CONTEXT_MESSAGE,
+    path: ["password"]
+  });
 
 export const UserCreateInputSchema = UserFormSchema.refine((data) => data.password !== "", {
   message: "Password is required.",

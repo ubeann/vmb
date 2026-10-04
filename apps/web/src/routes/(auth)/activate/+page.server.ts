@@ -6,6 +6,7 @@ import {
   readCheckedCode,
   type CheckedCode
 } from "$lib/server/checked-code.js";
+import { clearSentCode, keepSentCode, readSentCode } from "$lib/server/sent-code.js";
 import { fail, redirect, type RequestEvent } from "@sveltejs/kit";
 import {
   ActivatePasswordInputSchema,
@@ -19,16 +20,20 @@ import type { Actions, PageServerLoad } from "./$types.js";
 // code it was sent (checked, not yet used up), then the new password. The
 // code proves the inbox before a password is set.
 //
-// The email and code steps are carried in each action's reply. The password
-// step is not: it is reached only through a checked code, kept in a cookie
-// (`$lib/server/checked-code.js`), so this load picks it, and a reload keeps it.
+// The email step is carried in each action's reply. The other two are kept in
+// cookies, so this load picks them and a reload keeps them: the password step
+// is reached only through a checked code (`$lib/server/checked-code.js`), and
+// the code step lasts while the code does, with the time left before "Send a
+// new code" is back (`$lib/server/sent-code.js`, #255).
 export const load: PageServerLoad = ({ locals, cookies }) => {
   if (locals.user) {
     redirect(303, "/");
   }
   const checked = readCheckedCode(cookies);
   // The email only: the code stays on the server.
-  return { step: checked ? ("password" as const) : undefined, email: checked?.email };
+  if (checked) return { step: "password" as const, email: checked.email };
+  const sent = readSentCode(cookies);
+  return sent ? { step: "code" as const, ...sent } : {};
 };
 
 // The code request shared by the email step and "Send a new code".
@@ -36,7 +41,10 @@ const requestCodeConfig = {
   schema: ActivateRequestInputSchema,
   fallbackErrorMessage: "Unable to send the code. Try again.",
   run: (client, values) => client.emailOtp.requestPasswordReset({ email: values.email }),
-  onSuccess: (values) => ({ step: "code" as const, email: values.email })
+  onSuccess: (values, event) => {
+    keepSentCode(event, values.email);
+    return { step: "code" as const, email: values.email };
+  }
 } satisfies Partial<AuthActionConfig<typeof ActivateRequestInputSchema>>;
 
 // Requesting a code starts over, so a code checked earlier is dropped first,
@@ -78,21 +86,34 @@ const setPassword = (checked: CheckedCode) =>
       client.emailOtp.resetPassword({ ...checked, password: values.password }),
     onSuccess: (_values, event) => {
       clearCheckedCode(event.cookies);
+      clearSentCode(event.cookies);
       redirect(303, "/login?activated=true");
     }
   });
 
+// The email step's request is a new start, so the send time of an earlier code
+// goes too, whatever then becomes of the request.
+function forgettingSentCode<Reply>(action: (event: RequestEvent) => Reply) {
+  return (event: RequestEvent) => {
+    clearSentCode(event.cookies);
+    return action(event);
+  };
+}
+
 export const actions: Actions = {
-  request: startingOver(
-    createAuthAction({
-      ...requestCodeConfig,
-      invalidFieldsMessage: "Enter your email",
-      logLabel: "activate request action"
-    })
+  request: forgettingSentCode(
+    startingOver(
+      createAuthAction({
+        ...requestCodeConfig,
+        invalidFieldsMessage: "Enter your email",
+        logLabel: "activate request action"
+      })
+    )
   ),
   // "Send a new code" requests the same code from the code step, and stays
   // there when it fails, such as on a rate limit (#251), so the error shows
-  // where the user pressed it.
+  // where the user pressed it. The send time is renewed only when a code went
+  // out: a refused request leaves the minute that was running.
   resend: startingOver(
     createAuthAction({
       ...requestCodeConfig,
@@ -137,11 +158,19 @@ export const actions: Actions = {
     }
     return setPassword(checked)(event);
   },
-  // "Use a different email" on the password step: starts over, with the email
-  // in the field to fix.
-  restart: ({ cookies }) => {
-    const email = readCheckedCode(cookies)?.email ?? "";
+  // "Use a different email" on the code or password step: starts over, with the
+  // email in the field to fix. The cookies last as long as the code does, so a
+  // page left open longer falls back on the email its form posts.
+  restart: async ({ cookies, request }) => {
+    const posted = ActivateRequestInputSchema.safeParse({
+      email: (await request.formData()).get("email")
+    });
+    const email =
+      readCheckedCode(cookies)?.email ??
+      readSentCode(cookies)?.email ??
+      (posted.success ? posted.data.email : "");
     clearCheckedCode(cookies);
+    clearSentCode(cookies);
     return { step: "request" as const, email };
   }
 };

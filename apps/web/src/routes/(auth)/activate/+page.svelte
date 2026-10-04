@@ -11,10 +11,12 @@
     ActivateRequestInputSchema,
     ActivateVerifyInputSchema,
     OTP_LENGTH,
-    PASSWORD_MIN_LENGTH
+    passwordContextWords
   } from "@vmb/types";
+  import { ACTIVATE_ART } from "$lib/activate-art.js";
   import AuthCard from "$lib/components/AuthCard.svelte";
   import CodeInput from "$lib/components/CodeInput.svelte";
+  import EtchedMark from "$lib/components/EtchedMark.svelte";
   import IconInput from "$lib/components/IconInput.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
@@ -22,8 +24,16 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { transitionUpdate } from "$lib/card-transition.js";
+  import { Countdown, formatClock } from "$lib/countdown.svelte.js";
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
+  import {
+    PASSWORD_BAR_FULL_AT,
+    PASSWORD_MIN_MARK,
+    passwordBarFill,
+    passwordReading,
+    passwordStrength
+  } from "$lib/password-strength.js";
   import type { ActionData, PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -33,9 +43,8 @@
   type Step = (typeof STEPS)[number];
 
   // An action's reply names the step it leaves the page on. Without one, the
-  // load's step stands: the password step, while a checked code is kept.
-  // "Use a different email" on the code step overrides this until the next
-  // reply.
+  // load's step stands: the password step while a checked code is kept, the
+  // code step while the code just sent is still good.
   let step: Step = $derived(
     STEPS.find((name) => form && "step" in form && form.step === name) ?? data.step ?? "request"
   );
@@ -108,22 +117,38 @@
     if (!submitting) codeInput?.form?.requestSubmit();
   }
 
+  // The wait before "Send a new code" is back (#255). The load works out the
+  // seconds left from the send time the server kept, so a reload keeps them.
+  // The send time also changes with each code sent, so a new code starts the
+  // count again even when the seconds left are the same as before. It runs in
+  // the browser only: the page is sent with the button ready, so without
+  // JavaScript it can still be pressed. The server's limits are the gate, not
+  // this (ADR-0042).
+  const resendWait = new Countdown();
+  $effect(() => {
+    void data.sentAt;
+    resendWait.start(data.resendIn ?? 0);
+    return () => resendWait.stop();
+  });
+  // Said to screen readers, politely, in a status region that is always on the
+  // page so a change is announced. It is built from the length of the wait,
+  // not the time left, so it changes when the wait starts and when it ends,
+  // not every second.
+  function resendMessage() {
+    if (step !== "code") return "";
+    if (resendWait.remaining === 0)
+      return resendWait.finished ? "You can send a new code now." : "";
+    return resendWait.total === 1
+      ? "You can send a new code in 1 second."
+      : `You can send a new code in ${resendWait.total} seconds.`;
+  }
+  let resendStatus = $derived(resendMessage());
+
   // A link inside a sentence keeps the line's height; one on its own line gets
   // a full touch target.
   const inlineLinkClass =
     "text-primary focus-visible:ring-ring rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
   const linkClass = `${inlineLinkClass} inline-flex min-h-11 items-center`;
-
-  // Back to the email step to fix a typo, keeping what was typed. The link's
-  // own href does the same, without the email, when JavaScript is off.
-  async function useDifferentEmail(event: MouseEvent) {
-    event.preventDefault();
-    await transitionUpdate(async () => {
-      step = "request";
-      code = "";
-    });
-    document.getElementById(firstField.request)?.focus();
-  }
 
   type FieldErrors = Partial<Record<"email" | "otp" | "password", string>>;
 
@@ -139,6 +164,42 @@
     () => serverErrors
   );
   const passwordValidation = createFieldValidation(ActivatePasswordInputSchema, () => serverErrors);
+  // The reading under the new-password field follows what is typed (ADR-0041).
+  // It only reads the field; the schema still decides on submit, and so does
+  // the server for the words about the account.
+  let password = $state("");
+  // The password form is mounted again, blank, each time the step is reached, so
+  // what was typed goes when the step is left: kept, it would describe a field
+  // that is empty (a code that expired sends the user back to the code step).
+  $effect(() => {
+    if (step !== "password") password = "";
+  });
+  let passwordLength = $derived(password.length);
+  let strength = $derived(passwordStrength(passwordLength));
+  // The email is the user's own, so naming the word to leave out reveals nothing.
+  let contextWords = $derived(passwordContextWords(password, email));
+  // A word to leave out stops the form in the browser, with the field marked
+  // and focused; the server refuses it too (ADR-0041).
+  function checkedPassword({
+    formElement,
+    cancel
+  }: {
+    formElement: HTMLFormElement;
+    cancel: () => void;
+  }) {
+    if (contextWords.length) {
+      cancel();
+      document.getElementById("new-password")?.focus();
+      return;
+    }
+    return checked(passwordValidation)({ formElement, cancel });
+  }
+  function onPasswordFormInput(event: Event) {
+    passwordValidation.oninput(event);
+    if (event.target instanceof HTMLInputElement && event.target.name === "password") {
+      password = event.target.value;
+    }
+  }
   // A refused code with no field to blame: the error goes under the boxes
   // instead of the banner.
   let codeError = $derived(
@@ -166,17 +227,26 @@
   description="First time on VMB or forgot your password? Get a one-time code by email and set a new one."
 />
 
-<AuthCard heading="Set your password">
-  {#snippet description()}
-    First time here or forgot your password? We will email you a one-time code to set a new one.
-  {/snippet}
+{#snippet intro()}
+  First time here or forgot your password? We will email you a one-time code to set a new one.
+{/snippet}
 
-  <h2 class="text-base font-semibold">{headings[step]}</h2>
+<!-- The code and password steps are each about one thing, so their heading is
+     the step's own and the page's intro, which explains the email step, steps
+     aside (#273, #256). -->
+<AuthCard
+  heading={step === "request" ? "Set your password" : headings[step]}
+  description={step === "request" ? intro : undefined}
+>
+  {#if step === "request"}
+    <h2 class="text-base font-semibold">{headings[step]}</h2>
+  {/if}
   <!-- The same words whether or not the email belongs to a user: a reply that
        differed would show which emails are registered (#232). -->
   <p class="text-muted-foreground mt-1 text-sm text-pretty">
     {#if step === "password"}
-      Code confirmed. Choose a password for <strong class="text-foreground">{email}</strong>.
+      Code confirmed for <strong class="text-foreground">{email}</strong>. Choose a password you'll
+      remember. Three or four words work well, and spaces are fine.
     {:else if step === "code"}
       If <strong class="text-foreground">{email}</strong> has VMB access, we sent a code to it. It expires
       in 5 minutes.
@@ -184,15 +254,14 @@
       Enter the email associated with your VMB access.
     {/if}
   </p>
-  {#if step === "code"}
-    <a href={resolve("/activate")} class="{linkClass} text-sm" onclick={useDifferentEmail}
-      >Use a different email</a
-    >
-  {:else if step === "password"}
-    <!-- A form, not a link: starting over drops the checked code, which only
-         the server can reach. It still looks like the code step's link; the
-         base layer's bordered button would read as a second Set password. -->
+  {#if step !== "request"}
+    <!-- A form, not a link: starting over drops the sent or checked code, which
+         only the server can reach, and it works without JavaScript. It still
+         looks like a link; the base layer's bordered button would read as a
+         second Set password. -->
     <form method="POST" action="?/restart" novalidate use:enhance={track}>
+      <!-- For a page left open past the cookies' life, which hold the email too. -->
+      <input type="hidden" name="email" value={email} />
       <button
         type="submit"
         class="{linkClass} border-0 bg-transparent p-0 text-sm"
@@ -211,13 +280,17 @@
         method="POST"
         action="?/reset"
         novalidate
-        oninput={passwordValidation.oninput}
-        use:enhance={checked(passwordValidation)}
+        oninput={onPasswordFormInput}
+        use:enhance={checkedPassword}
         class="space-y-5"
       >
         <!-- Tells a password manager which email the new password is saved
              under. It has no name, so it is not sent. -->
         <input type="email" autocomplete="username" value={email} hidden readonly />
+
+        <!-- Etched art, as on the code step: its own band, in the flow with a
+             fixed ratio. -->
+        <EtchedMark art={ACTIVATE_ART.padlock} class="mx-auto w-20" />
 
         <div class="space-y-2">
           <Label for="new-password">New password</Label>
@@ -225,19 +298,55 @@
             id="new-password"
             name="password"
             autocomplete="new-password"
-            aria-invalid={fieldErrors?.password ? "true" : undefined}
-            aria-describedby={fieldErrors?.password ? "password-error" : "password-hint"}
+            aria-invalid={fieldErrors?.password || contextWords.length ? "true" : undefined}
+            aria-describedby={fieldErrors?.password
+              ? "password-error password-rules password-context"
+              : "password-rules password-context"}
             required
           />
           {#if fieldErrors?.password}
             <p id="password-error" role="alert" class="text-destructive text-sm">
               {fieldErrors.password}
             </p>
-          {:else}
-            <p id="password-hint" class="text-muted-foreground text-sm">
-              Use at least {PASSWORD_MIN_LENGTH} characters.
-            </p>
           {/if}
+          <div id="password-rules" class="space-y-2 pt-1 text-sm">
+            <!-- One bar for the length rule and the advice: the tick is the
+                 minimum, and past it the fill goes on to the full mark. Text
+                 says the same, so colour is not the only cue. Advice only: the
+                 schema is what blocks. -->
+            <div
+              role="meter"
+              aria-label="Password length"
+              aria-valuemin={0}
+              aria-valuemax={PASSWORD_BAR_FULL_AT}
+              aria-valuenow={Math.min(passwordLength, PASSWORD_BAR_FULL_AT)}
+              aria-valuetext={passwordReading(passwordLength)}
+              data-password-strength={strength ?? "none"}
+              class="bg-border relative h-1.5 overflow-hidden rounded-full"
+            >
+              <div
+                class={[
+                  "h-full rounded-full transition-[width,background-color] duration-150 motion-reduce:transition-none",
+                  strength ? "bg-primary" : "bg-muted-foreground"
+                ]}
+                style="width: {passwordBarFill(passwordLength) * 100}%"
+              ></div>
+              <div
+                class="bg-card absolute inset-y-0 w-0.5"
+                style="left: {PASSWORD_MIN_MARK * 100}%"
+              ></div>
+            </div>
+            <p class={strength ? "text-foreground" : "text-muted-foreground"}>
+              {passwordReading(passwordLength)}
+            </p>
+            <!-- Always on the page, so a word to leave out appearing moves
+                 nothing under it. -->
+            <p id="password-context" class="text-destructive min-h-5" aria-live="polite">
+              {#if contextWords.length}
+                Leave {contextWords.map((word) => `"${word}"`).join(" and ")} out of your password
+              {/if}
+            </p>
+          </div>
         </div>
 
         <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
@@ -260,6 +369,10 @@
         class="space-y-5"
       >
         <input type="hidden" name="email" value={email} />
+
+        <!-- Etched art (#273): its own band above the boxes, in the flow with a
+             fixed ratio, so nothing moves when the mask loads. -->
+        <EtchedMark art={ACTIVATE_ART.slip} class="mx-auto w-28" />
 
         <div class="space-y-2">
           <Label for="otp">Code</Label>
@@ -306,9 +419,13 @@
           type="submit"
           variant="outline"
           class="min-h-11 w-full"
-          disabled={submitting}
-          aria-busy={submitting}>Send a new code</Button
+          disabled={submitting || resendWait.remaining > 0}
+          aria-busy={submitting}
         >
+          Send a new code{#if resendWait.remaining > 0}<span aria-hidden="true"
+              >&nbsp;in {formatClock(resendWait.remaining)}</span
+            >{/if}
+        </Button>
       </form>
 
       <p class="text-muted-foreground text-sm text-pretty">
@@ -355,6 +472,7 @@
         </Button>
       </form>
     {/if}
+    <p role="status" class="sr-only">{resendStatus}</p>
   </div>
 
   {#snippet footer()}
