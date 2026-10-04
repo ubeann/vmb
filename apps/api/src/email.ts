@@ -124,7 +124,7 @@ async function sendOnce(
   message: OutboundEmail & { from: string },
   idempotencyKey: string
 ): Promise<SendError | null> {
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<SendError>((resolve) => {
     timer = setTimeout(
       () =>
@@ -143,7 +143,7 @@ async function sendOnce(
       timeout
     ]);
   } finally {
-    clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 
