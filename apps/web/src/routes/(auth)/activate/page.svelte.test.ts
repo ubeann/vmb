@@ -59,6 +59,14 @@ afterEach(async () => {
 const noCheckedCode = { user: null, step: undefined, email: undefined };
 const emailStep = { data: noCheckedCode, form: null };
 const codeStep = { data: noCheckedCode, form: { step: "code", email: "a@example.com" } } as const;
+// The load's code step, as a reload during the countdown gets it (#255).
+// `sentAt` is when the code was sent: a new one makes a new load, even when the
+// seconds left are the same as the load before.
+const reloadedCodeStep = (resendIn: number, sentAt = 1_000) =>
+  ({
+    data: { user: null, step: "code", email: "a@example.com", resendIn, sentAt },
+    form: null
+  }) as const;
 const passwordStep = {
   data: { user: null, step: "password", email: "a@example.com" },
   form: null
@@ -109,7 +117,7 @@ describe("activate page", () => {
       await expect.element(screen.getByRole("button", { name: "Verify code" })).toBeVisible();
       await expect.element(screen.getByRole("button", { name: "Send a new code" })).toBeVisible();
       await expect
-        .element(screen.getByRole("link", { name: "Use a different email" }))
+        .element(screen.getByRole("button", { name: "Use a different email" }))
         .toBeVisible();
       expect(screen.getByLabelText("New password").elements()).toHaveLength(0);
     });
@@ -153,29 +161,37 @@ describe("activate page", () => {
         .toHaveAttribute("href", "mailto:support@vmblogistics.id");
     });
 
-    it("goes back to the email step with the email kept for fixing", async () => {
+    // A form, as on the password step: the code step is kept in a cookie so a
+    // reload keeps it (#255), and only the server can drop it.
+    it("starts over from a form, so the sent code is dropped on the server", async () => {
       const screen = await render(Page, codeStep);
-      const link = screen.getByRole("link", { name: "Use a different email" });
-      // Without JavaScript the link still reaches a fresh email step.
-      await expect.element(link).toHaveAttribute("href", "/activate");
+      const button = screen.getByRole("button", { name: "Use a different email" });
 
-      await link.click();
+      await button.click();
 
+      expect(submissions).toHaveLength(1);
+      expect(button.element().closest("form")?.getAttribute("action")).toBe("?/restart");
+      // For a page left open past the cookie's life.
+      expect(submissions[0]!.get("email")).toBe("a@example.com");
+    });
+
+    it("goes back to the email step with the email kept for fixing", async () => {
+      const transition = stubTransition();
+      const reply = { step: "request", email: "a@example.com" };
+      const screen = await render(Page, codeStep);
+
+      await screen.getByRole("button", { name: "Use a different email" }).click();
+      await expect.poll(() => completions.length).toBe(1);
+      await completions[0]!({
+        result: { type: "success", data: reply },
+        update: () => screen.rerender({ data: noCheckedCode, form: reply })
+      });
+
+      expect(transition).toHaveBeenCalledOnce();
       await expect.element(screen.getByRole("button", { name: "Send code" })).toBeVisible();
       await expect.element(screen.getByLabelText("Email")).toHaveValue("a@example.com");
       await expect.element(screen.getByLabelText("Email")).toHaveFocus();
       expect(screen.getByLabelText("Code").elements()).toHaveLength(0);
-      expect(submissions).toHaveLength(0);
-    });
-
-    it("sends the fixed email from the email step", async () => {
-      const screen = await render(Page, codeStep);
-      await screen.getByRole("link", { name: "Use a different email" }).click();
-
-      await screen.getByLabelText("Email").fill("b@example.com");
-      await screen.getByRole("button", { name: "Send code" }).click();
-
-      expect(submissions.map((data) => data.get("email"))).toEqual(["b@example.com"]);
     });
 
     it("shows a refused code's error under the boxes and describes the code field with it", async () => {
@@ -234,6 +250,169 @@ describe("activate page", () => {
       expect(screen.getByText("Enter the 6-digit code from your email.").elements()).toHaveLength(
         0
       );
+    });
+  });
+
+  describe("the resend countdown (#255)", () => {
+    // Only the clock is faked: the assertions' own polling keeps real timers.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "performance"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const resendButton = (screen: Awaited<ReturnType<typeof render>>) =>
+      screen.getByRole("button", { name: "Send a new code" });
+    const status = (screen: Awaited<ReturnType<typeof render>>) =>
+      screen.getByRole("status").element().textContent;
+
+    it("disables the resend button for a minute after a code is sent, with the time left in its label", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      await expect.element(resendButton(screen)).toBeDisabled();
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 1:00");
+    });
+
+    it("counts down each second", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      vi.advanceTimersByTime(18_000);
+
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 0:42");
+    });
+
+    it("brings the button back when the time is up", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      vi.advanceTimersByTime(60_000);
+
+      await expect.element(resendButton(screen)).toBeEnabled();
+      expect(resendButton(screen).element().textContent?.trim()).toBe("Send a new code");
+    });
+
+    // The time left is the load's, worked out from the send time the server kept.
+    it("keeps the time left across a reload", async () => {
+      const screen = await render(Page, reloadedCodeStep(42));
+
+      await expect.element(resendButton(screen)).toBeDisabled();
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 0:42");
+    });
+
+    it("has the button ready on a reload after the minute", async () => {
+      const screen = await render(Page, reloadedCodeStep(0));
+
+      await expect.element(resendButton(screen)).toBeEnabled();
+    });
+
+    it("starts again for each new code sent", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+      vi.advanceTimersByTime(60_000);
+      await expect.element(resendButton(screen)).toBeEnabled();
+
+      await screen.rerender(reloadedCodeStep(60, 2_000));
+
+      await expect.element(resendButton(screen)).toBeDisabled();
+      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 1:00");
+    });
+
+    it("stops the clock when the page goes", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      screen.unmount();
+
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("does not send while the countdown runs", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      await resendButton(screen).click({ force: true });
+
+      expect(submissions).toHaveLength(0);
+    });
+
+    it("leaves Verify and the way back alone", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      await expect.element(screen.getByRole("button", { name: "Verify code" })).toBeEnabled();
+      await expect
+        .element(screen.getByRole("button", { name: "Use a different email" }))
+        .toBeEnabled();
+    });
+
+    it("keeps the label's time out of the button's name, so only the status speaks", async () => {
+      const screen = await render(Page, reloadedCodeStep(42));
+
+      await expect.element(resendButton(screen)).toBeVisible();
+      expect(resendButton(screen).element().querySelector("[aria-hidden='true']")).not.toBeNull();
+    });
+
+    it("tells screen readers politely when the wait starts, not on every second", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+      const region = screen.getByRole("status").element();
+      expect(region.getAttribute("aria-live") ?? "polite").toBe("polite");
+      await expect.poll(() => status(screen)).toBe("You can send a new code in 60 seconds.");
+
+      const changes: string[] = [];
+      const watch = new MutationObserver(() => changes.push(region.textContent ?? ""));
+      watch.observe(region, { childList: true, characterData: true, subtree: true });
+      vi.advanceTimersByTime(30_000);
+      await Promise.resolve();
+
+      expect(changes).toEqual([]);
+      expect(status(screen)).toBe("You can send a new code in 60 seconds.");
+      watch.disconnect();
+    });
+
+    it("says one second, not 1 seconds, for a reload with a second left", async () => {
+      const screen = await render(Page, reloadedCodeStep(1));
+
+      await expect.poll(() => status(screen)).toBe("You can send a new code in 1 second.");
+    });
+
+    it("tells them again when the wait ends", async () => {
+      const screen = await render(Page, reloadedCodeStep(60));
+
+      vi.advanceTimersByTime(60_000);
+
+      await expect.poll(() => status(screen)).toBe("You can send a new code now.");
+    });
+
+    it("says nothing when no wait was started", async () => {
+      const screen = await render(Page, reloadedCodeStep(0));
+
+      expect(status(screen)).toBe("");
+    });
+
+    // The countdown is a hint: the server's limit is the gate (ADR-0042).
+    it("still shows the rate-limit copy when the server turns a resend down after the minute", async () => {
+      const refused = {
+        step: "code",
+        email: "a@example.com",
+        error: "Too many attempts. Wait a moment and try again."
+      };
+      const screen = await render(Page, reloadedCodeStep(60));
+      vi.advanceTimersByTime(60_000);
+      await expect.element(resendButton(screen)).toBeEnabled();
+
+      await resendButton(screen).click();
+      await expect.poll(() => completions.length).toBe(1);
+      await completions[0]!({
+        result: { type: "failure", data: refused },
+        update: () => screen.rerender({ ...reloadedCodeStep(0), form: refused })
+      });
+
+      await expect
+        .element(screen.getByRole("alert"))
+        .toHaveTextContent("Too many attempts. Wait a moment and try again.");
+      await expect.element(resendButton(screen)).toBeEnabled();
+    });
+
+    it("shows no countdown on the email step", async () => {
+      const screen = await render(Page, emailStep);
+
+      expect(screen.getByRole("button", { name: /Send a new code/ }).elements()).toHaveLength(0);
     });
   });
 
