@@ -22,6 +22,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { transitionUpdate } from "$lib/card-transition.js";
+  import { Countdown, formatClock } from "$lib/countdown.svelte.js";
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import type { ActionData, PageData } from "./$types.js";
@@ -33,9 +34,8 @@
   type Step = (typeof STEPS)[number];
 
   // An action's reply names the step it leaves the page on. Without one, the
-  // load's step stands: the password step, while a checked code is kept.
-  // "Use a different email" on the code step overrides this until the next
-  // reply.
+  // load's step stands: the password step while a checked code is kept, the
+  // code step while the code just sent is still good.
   let step: Step = $derived(
     STEPS.find((name) => form && "step" in form && form.step === name) ?? data.step ?? "request"
   );
@@ -108,22 +108,38 @@
     if (!submitting) codeInput?.form?.requestSubmit();
   }
 
+  // The wait before "Send a new code" is back (#255). The load works out the
+  // seconds left from the send time the server kept, so a reload keeps them.
+  // The send time also changes with each code sent, so a new code starts the
+  // count again even when the seconds left are the same as before. It runs in
+  // the browser only: the page is sent with the button ready, so without
+  // JavaScript it can still be pressed. The server's limits are the gate, not
+  // this (ADR-0042).
+  const resendWait = new Countdown();
+  $effect(() => {
+    void data.sentAt;
+    resendWait.start(data.resendIn ?? 0);
+    return () => resendWait.stop();
+  });
+  // Said to screen readers, politely, in a status region that is always on the
+  // page so a change is announced. It is built from the length of the wait,
+  // not the time left, so it changes when the wait starts and when it ends,
+  // not every second.
+  function resendMessage() {
+    if (step !== "code") return "";
+    if (resendWait.remaining === 0)
+      return resendWait.finished ? "You can send a new code now." : "";
+    return resendWait.total === 1
+      ? "You can send a new code in 1 second."
+      : `You can send a new code in ${resendWait.total} seconds.`;
+  }
+  let resendStatus = $derived(resendMessage());
+
   // A link inside a sentence keeps the line's height; one on its own line gets
   // a full touch target.
   const inlineLinkClass =
     "text-primary focus-visible:ring-ring rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
   const linkClass = `${inlineLinkClass} inline-flex min-h-11 items-center`;
-
-  // Back to the email step to fix a typo, keeping what was typed. The link's
-  // own href does the same, without the email, when JavaScript is off.
-  async function useDifferentEmail(event: MouseEvent) {
-    event.preventDefault();
-    await transitionUpdate(async () => {
-      step = "request";
-      code = "";
-    });
-    document.getElementById(firstField.request)?.focus();
-  }
 
   type FieldErrors = Partial<Record<"email" | "otp" | "password", string>>;
 
@@ -184,15 +200,14 @@
       Enter the email associated with your VMB access.
     {/if}
   </p>
-  {#if step === "code"}
-    <a href={resolve("/activate")} class="{linkClass} text-sm" onclick={useDifferentEmail}
-      >Use a different email</a
-    >
-  {:else if step === "password"}
-    <!-- A form, not a link: starting over drops the checked code, which only
-         the server can reach. It still looks like the code step's link; the
-         base layer's bordered button would read as a second Set password. -->
+  {#if step !== "request"}
+    <!-- A form, not a link: starting over drops the sent or checked code, which
+         only the server can reach, and it works without JavaScript. It still
+         looks like a link; the base layer's bordered button would read as a
+         second Set password. -->
     <form method="POST" action="?/restart" novalidate use:enhance={track}>
+      <!-- For a page left open past the cookies' life, which hold the email too. -->
+      <input type="hidden" name="email" value={email} />
       <button
         type="submit"
         class="{linkClass} border-0 bg-transparent p-0 text-sm"
@@ -306,9 +321,13 @@
           type="submit"
           variant="outline"
           class="min-h-11 w-full"
-          disabled={submitting}
-          aria-busy={submitting}>Send a new code</Button
+          disabled={submitting || resendWait.remaining > 0}
+          aria-busy={submitting}
         >
+          Send a new code{#if resendWait.remaining > 0}<span aria-hidden="true"
+              >&nbsp;in {formatClock(resendWait.remaining)}</span
+            >{/if}
+        </Button>
       </form>
 
       <p class="text-muted-foreground text-sm text-pretty">
@@ -355,6 +374,7 @@
         </Button>
       </form>
     {/if}
+    <p role="status" class="sr-only">{resendStatus}</p>
   </div>
 
   {#snippet footer()}
