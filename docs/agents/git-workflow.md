@@ -76,14 +76,12 @@ Pricing, benchmarks, and billing behind this table: `docs/research/llm-model-tie
 
 ### Which tier, by stage
 
-| Stage                                                                 | Tier                                                                                             |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Planning: `/grill-with-docs`, `/to-spec`, `/to-tickets`, `/wayfinder` | `frontier`, always — a weak spec degrades every ticket built from it                             |
-| Building: `/implement`, `/tdd`                                        | From the ticket's `complexity:*` label (below)                                                   |
-| Subagent legwork: searches, exploration, lookups, mechanical edits    | `fast`                                                                                           |
-| Review: `/code-review`                                                | The ticket's tier or higher, on a **different provider family** than the one that wrote the code |
-
-**Cross-provider review.** Claude writes → Codex reviews, and the other way round; a different model family has different blind spots. Gemini may add a free-form second-opinion review on top, since that needs no skills.
+| Stage                                                                 | Tier                                                                 |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Planning: `/grill-with-docs`, `/to-spec`, `/to-tickets`, `/wayfinder` | `frontier`, always — a weak spec degrades every ticket built from it |
+| Building: `/implement`, `/tdd`                                        | From the ticket's `complexity:*` label (below)                       |
+| Subagent legwork: searches, exploration, lookups, mechanical edits    | `fast`                                                               |
+| Review: `/code-review`, Macroscope                                    | From the ticket's `complexity:*` label — see [Review](#review)       |
 
 Skill-driven work (`/implement`, `/tdd`, `/code-review`, and the planning flows) goes only to a harness that has the skills — see `harnesses.md`.
 
@@ -98,6 +96,27 @@ Skill-driven work (`/implement`, `/tdd`, `/code-review`, and the planning flows)
 - **Set it once, at creation.** `/to-tickets` sets the label on each ticket it creates (and `/triage` on incoming issues); don't re-pick it by feel at pickup time. Apply it like any other label (`gh issue edit <n> --add-label "complexity:standard"` — see `issue-tracker.md`).
 - **`complex` names its reason** in the ticket body. No reason, no `complex` — it's `standard`.
 - **Escalate once, then re-plan.** A stalled `standard` ticket first gets checked for an unclear spec, then moves up to `complexity:complex` once; note the escalation in the PR's Testing section so the routing miss stays visible. If it fails again at `frontier`, the ticket goes back to `/grill-with-docs` — not to a bigger model.
+
+### Review
+
+Two reviewers do different jobs:
+
+- **`/code-review`** checks the diff against the ticket (Spec) and this repo's docs (Standards). It needs the skills and the ticket.
+- **Macroscope** hunts correctness bugs. It runs on Macroscope's own models, so it is independent of whichever model wrote the code and spends no Claude or Codex quota. It does not read the ticket.
+
+| Label                 | Before opening the PR                                                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complexity:trivial`  | CI only; Macroscope optional                                                                                                                       |
+| `complexity:standard` | The `/code-review` that `/implement` runs in the writing session, then Macroscope                                                                  |
+| `complexity:complex`  | Macroscope, then a **cross-provider** `/code-review` in a fresh session at `frontier` tier: Claude writes → Codex reviews, and the other way round |
+
+A cross-provider session re-reads the ticket and diff from scratch on a second provider's quota. On `standard` work Macroscope supplies the independent eyes without that cost; keep the extra session for `complex`, where a missed spec or security mistake costs most. If a bug Macroscope should have caught reaches `master` from a `standard` ticket, say so in the issue and bring the cross-provider session back for `standard`. Gemini may add a free-form second opinion on any ticket, since that needs no skills.
+
+**Running Macroscope.** Install once per machine from the [CLI docs](https://docs.macroscope.com/cli), then `macroscope setup`.
+
+- In a harness: `/macroscope:codereview` (Claude Code), `$macroscope:codereview` (Codex), `/macroscope-codereview` (OpenCode). It reviews the branch against its base, checks each issue against the code, and fixes the real ones.
+- From a terminal: `macroscope codereview --base master --raw`. Issues stream to stderr as `issue_event=<json>` lines; none means a clean review. `--mode budget` gives a cheaper pass.
+- CLI reviews spend the workspace's agent credits (1,000 free a month). Automatic PR review stays off: comment `@macroscope-app review` on a PR to request one. It bills per KB of diff from the prepaid balance, so save it for `complex` PRs.
 
 ### Auditing routing
 
