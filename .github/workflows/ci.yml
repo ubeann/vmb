@@ -109,8 +109,11 @@ jobs:
 
       # Toolchain, pnpm store cache, and a frozen-lockfile install: one
       # composite action so the cache key and install flags live in a single
-      # place (issue #79).
+      # place (issue #79). The full toolchain includes actionlint and
+      # shellcheck, which the workflow and script lints at the end of this job
+      # use.
       - uses: ./.github/actions/setup
+        id: setup
 
       # Restore turbo's local cache on the credential-free path (Dependabot
       # runs, and any run before TURBO_TOKEN/TURBO_TEAM are provisioned). With
@@ -223,39 +226,32 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-  # Kept as its own job so a broken workflow file reads as a workflow failure,
-  # not a test failure. This is also the only place the workflow YAML itself is
-  # validated before it runs: actionlint catches bad expressions and dangling
-  # `needs:` references that GitHub happily accepts until the run fails, and
-  # shellcheck (found on PATH below) lints every `run:` block — plus the
-  # `scripts/**/*.sh` wizards, which nothing else checked (issue #61).
-  # actionlint also checks the local composite action the workflows reference,
-  # so `.github/actions/setup/action.yml` is validated here too (issue #79).
-  lint-workflows-and-scripts:
-    name: Lint Workflows and Scripts
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-
-      # Both tools come from .mise.toml (ADR-0010), so their versions are
-      # pinned with the rest of the toolchain instead of a floating download.
-      # The composite action is the same one every other job bootstraps with;
-      # `install-args` narrows it to these two and `install-dependencies` opts
-      # out of the pnpm store and install this job has no use for, keeping it
-      # fast (issue #79).
-      - uses: ./.github/actions/setup
-        with:
-          install-args: actionlint shellcheck
-          install-dependencies: "false"
-
+      # Workflow and script lints. They were a job of their own (issues #61,
+      # #79), but that job ran for 14 s and GitHub bills every job rounded up
+      # to a whole minute, so it cost a billed minute on every run (ADR-0043).
+      # As named steps here they still read as a workflow failure rather than a
+      # test failure. `!cancelled()` runs them even when a step above failed,
+      # so a PR that breaks both a test and a workflow reports both, as the
+      # separate job did; the `setup` guard skips them when the toolchain they
+      # need never installed.
+      #
+      # This is the only place the workflow YAML itself is validated before it
+      # runs: actionlint catches bad expressions and dangling `needs:`
+      # references that GitHub happily accepts until the run fails, and
+      # shellcheck (on PATH from .mise.toml) lints every `run:` block. It also
+      # checks the local composite action the workflows reference, so
+      # `.github/actions/setup/action.yml` is validated here too (issue #79).
       # No arguments: actionlint walks .github/workflows on its own.
-      - run: actionlint
+      - name: Lint workflows
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: actionlint
 
-      # actionlint shellchecks only the shell inside workflow `run:` blocks.
-      # `find` (not a `**` glob) so this works whatever the shell's `globstar`
-      # setting is, and `-r` so an empty result is not an error.
+      # actionlint shellchecks only the shell inside workflow `run:` blocks;
+      # this covers the `scripts/**/*.sh` wizards (issue #61). `find` (not a
+      # `**` glob) so this works whatever the shell's `globstar` setting is,
+      # and `-r` so an empty result is not an error.
       - name: Shellcheck scripts
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: find scripts -name '*.sh' -print0 | xargs -0 -r shellcheck
 
       # The preview identifier scheme is shared by preview.yml and cleanup.yml,
@@ -263,6 +259,7 @@ jobs:
       # than a cosmetic bug. Shellcheck cannot check behaviour, so the module's
       # cases run here (issue #155).
       - name: Test preview identifiers
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bash scripts/preview-identifiers.test.sh
 
   # The same database suite, against a real server instead of embedded Postgres
@@ -271,9 +268,19 @@ jobs:
   # service; the reasoning, and how to run this locally, live in
   # `docs/migration/import-pipeline.md` rather than being repeated here.
   #
-  # No secrets: the service container is the whole environment. That keeps it
-  # runnable for Dependabot, whose runs receive no secrets (ADR-0020), so a bump
-  # that breaks the suite still turns this check red.
+  # The suite runs through turbo so it replays from the remote cache when
+  # nothing it depends on changed (ADR-0043): run bare, it billed two minutes on
+  # every run although `@vmb/db` is unchanged on most of them. The hash already
+  # covers the package, its dependencies and `TEST_DATABASE_URL` (so it never
+  # shares an entry with `Verify`'s embedded-Postgres run of the same task); the
+  # server is added below as `TEST_DATABASE_IMAGE`, so a new `postgres:18`
+  # release re-runs the suite even when no code changed.
+  #
+  # No secrets beyond the turbo cache pair, and the service container is the
+  # whole environment. That keeps it runnable for Dependabot, whose runs receive
+  # no secrets (ADR-0020): the pair resolves empty there, turbo falls back to
+  # its local cache and runs the suite, so a bump that breaks it still turns
+  # this check red.
   #
   # The image tracks Node's embedded version and Neon's, which is where these
   # migrations run in practice; a mismatch here would be a difference that
@@ -302,10 +309,24 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # The image ID, not the `postgres:18` tag: the tag stays the same across
+      # minor releases, the ID does not. A failed `docker inspect` fails the
+      # step rather than hashing an empty value that would replay forever.
+      - name: Identify the Postgres image
+        id: postgres-image
+        env:
+          CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          image=$(docker inspect --format '{{.Image}}' "$CONTAINER")
+          echo "id=$image" >> "$GITHUB_OUTPUT"
+
       - name: Run the database suite against Postgres
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
-        run: pnpm --filter @vmb/db test
+          TEST_DATABASE_IMAGE: ${{ steps.postgres-image.outputs.id }}
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+        run: pnpm turbo test --filter=@vmb/db
 
   deploy:
     name: Release
