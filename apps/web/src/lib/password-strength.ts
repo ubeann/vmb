@@ -6,7 +6,7 @@ import { PASSWORD_MIN_LENGTH } from "@vmb/types";
 // meter that counts uppercase, digits and symbols does.
 export type PasswordStrength = "okay" | "good" | "strong";
 
-export const PASSWORD_STRENGTH_LABELS: Record<PasswordStrength, string> = {
+const PASSWORD_STRENGTH_LABELS: Record<PasswordStrength, string> = {
   okay: "Okay",
   good: "Good",
   strong: "Strong"
