@@ -44,8 +44,8 @@
 #   env_name=$(preview_environment_name "$PR_NUMBER")            # preview/pr-<N>
 #
 # `scripts/preview-identifiers.test.sh` pins the cases; CI runs it in the
-# `lint-workflows-and-scripts` job. This file is also shellchecked by CI and
-# lefthook's pre-commit hook (issue #61).
+# `Verify` job. This file is also shellchecked by CI and lefthook's pre-commit
+# hook (issue #61).
 
 # The slug budget for `pr<N>-<slug>`: Cloudflare Pages truncates the branch
 # alias this becomes to 28 characters (`<alias>.vmb-web.pages.dev`), so a longer

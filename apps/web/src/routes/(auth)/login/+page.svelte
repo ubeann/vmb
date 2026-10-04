@@ -80,7 +80,7 @@
         type="email"
         name="email"
         autocomplete="email"
-        placeholder="name@company.com"
+        placeholder="name@example.com"
         aria-invalid={fieldErrors?.email ? "true" : undefined}
         aria-describedby={fieldErrors?.email ? "email-error" : undefined}
         required

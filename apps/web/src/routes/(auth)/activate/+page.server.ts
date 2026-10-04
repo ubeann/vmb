@@ -12,7 +12,7 @@ export const load: PageServerLoad = ({ locals }) => {
 // The code request shared by the email step and "Send a new code".
 const requestCodeConfig = {
   schema: ActivateRequestInputSchema,
-  fallbackErrorMessage: "Could not send the code. Please try again.",
+  fallbackErrorMessage: "Unable to send the code. Try again.",
   run: (client, values) => client.emailOtp.requestPasswordReset({ email: values.email }),
   onSuccess: (values) => ({ step: "reset" as const, email: values.email })
 } satisfies Partial<AuthActionConfig<typeof ActivateRequestInputSchema>>;
@@ -38,11 +38,16 @@ export const actions: Actions = {
   reset: createAuthAction({
     schema: ActivateResetInputSchema,
     invalidFieldsMessage: "Reload this page, enter your email, and request a new code",
-    fallbackErrorMessage: "Could not set your password. Check the code and try again.",
+    fallbackErrorMessage: "Unable to set your password. Try again.",
     logLabel: "activate reset action",
     // A failed reset re-renders the code step, so the user's entered code and
-    // email are not thrown away.
-    failureData: (values) => ({ step: "reset" as const, email: values.email ?? "" }),
+    // email are not thrown away. `errorAt` has the page show the error under the
+    // code, where the user is looking, not in the banner "Send a new code" uses.
+    failureData: (values) => ({
+      step: "reset" as const,
+      email: values.email ?? "",
+      errorAt: "code" as const
+    }),
     run: (client, values) =>
       client.emailOtp.resetPassword({
         email: values.email,

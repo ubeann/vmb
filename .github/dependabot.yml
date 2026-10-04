@@ -27,3 +27,9 @@ updates:
         update-types:
           - minor
           - patch
+    # TypeScript 7 ships no compiler API, and svelte-check and typescript-eslint
+    # need one, so its bump PR can only ever be red (ADR-0044). 6.x patches
+    # still arrive. Lift this when both tools support 7.
+    ignore:
+      - dependency-name: typescript
+        versions: [">=7"]

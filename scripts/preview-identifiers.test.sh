@@ -12,8 +12,8 @@
 # before any word is cut, and a hard cut only when no whole word fits.
 #
 # Run from anywhere: `bash scripts/preview-identifiers.test.sh`. CI runs it in
-# the `lint-workflows-and-scripts` job, and lefthook runs it on a commit that
-# touches this module or this file.
+# the `Verify` job, and lefthook runs it on a commit that touches this module or
+# this file.
 
 set -euo pipefail
 

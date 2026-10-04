@@ -21,3 +21,5 @@
 If a spike is wanted first, the smallest one is wrapping `sendEmail` with a retry, a timeout and a tagged `EmailSendError`, run through `Effect.runPromise` at the Better Auth callback. Zod, Hono RPC and the store stay as they are. Measure the bundle size and the CPU time per request on Workers before going further, since neither has been measured.
 
 **Trade-offs:** Domain errors stay out of the store's types, and retries stay hand-written where they are added. In return, the forms, the RPC contract and the database driver stay on decisions that are settled and measured, and no one has to learn a new programming model before a module needs it. Deciding Effect also gates Alchemy, which requires Effect 4 (ADR-0039).
+
+**Rechecked 2026-10-02:** the first condition holds — `effect@4.0.0` became npm `latest` on 2026-10-01. The other two do not: Superforms 2.31.0 still peers `effect ^3.21.0`, and no Promise-shaped pain has appeared in the code. The decision stands. Research: `docs/research/typescript-6-and-effect-recheck.md`.
