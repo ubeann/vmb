@@ -122,14 +122,25 @@ describe("activate page", () => {
       expect(screen.getByLabelText("New password").elements()).toHaveLength(0);
     });
 
-    it("draws the etched seal and post as decorative art, and no other step does (#273)", async () => {
-      const marks = (root: Element) =>
-        [...root.querySelectorAll("[data-etched-mark]")] as HTMLElement[];
+    it("is headed by its own step, with the page's intro left out (#273)", async () => {
+      const screen = await render(Page, codeStep);
+
+      const headings = screen.getByRole("heading", { name: "Enter your code" });
+      expect(headings.elements()).toHaveLength(1);
+      expect(headings.element().tagName).toBe("H1");
+      expect(screen.getByRole("heading", { name: "Set your password" }).elements()).toHaveLength(0);
+      expect(screen.container.textContent).not.toContain("First time here or forgot");
+    });
+
+    it("draws the etched slip above the boxes as decorative art, and no other step does (#273)", async () => {
+      const marks = (root: Element) => [...root.querySelectorAll("[data-etched-mark]")];
 
       const code = await render(Page, codeStep);
-      const art = marks(code.container);
-      expect(art).toHaveLength(2);
-      for (const mark of art) expect(mark.getAttribute("aria-hidden")).toBe("true");
+      const [mark] = marks(code.container);
+      expect(marks(code.container)).toHaveLength(1);
+      expect(mark!.getAttribute("aria-hidden")).toBe("true");
+      const boxes = code.getByLabelText("Code").element();
+      expect(mark!.compareDocumentPosition(boxes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       code.unmount();
 
       for (const step of [emailStep, passwordStep]) {

@@ -184,25 +184,19 @@
   description="First time on VMB or forgot your password? Get a one-time code by email and set a new one."
 />
 
-<AuthCard heading="Set your password">
-  {#snippet description()}
-    First time here or forgot your password? We will email you a one-time code to set a new one.
-  {/snippet}
+{#snippet intro()}
+  First time here or forgot your password? We will email you a one-time code to set a new one.
+{/snippet}
 
-  {#if step === "code"}
-    <!-- The code step's etched art (#273). Both are laid on the card's own box,
-         clear of every line of text, and only where the page has the room. -->
-    <EtchedMark
-      art={ACTIVATE_ART.seal}
-      class="absolute -top-[2.3rem] right-8 hidden w-[5.75rem] lg:block"
-    />
-    <EtchedMark
-      art={ACTIVATE_ART.post}
-      class="absolute top-64 right-full mr-10 hidden w-56 min-[80rem]:block"
-    />
+<!-- The code step is about one thing, so its heading is the step's own and the
+     page's intro, which explains the email step, steps aside (#273). -->
+<AuthCard
+  heading={step === "code" ? headings.code : "Set your password"}
+  description={step === "code" ? undefined : intro}
+>
+  {#if step !== "code"}
+    <h2 class="text-base font-semibold">{headings[step]}</h2>
   {/if}
-
-  <h2 class="text-base font-semibold">{headings[step]}</h2>
   <!-- The same words whether or not the email belongs to a user: a reply that
        differed would show which emails are registered (#232). -->
   <p class="text-muted-foreground mt-1 text-sm text-pretty">
@@ -290,6 +284,10 @@
         class="space-y-5"
       >
         <input type="hidden" name="email" value={email} />
+
+        <!-- Etched art (#273): its own band above the boxes, in the flow with a
+             fixed ratio, so nothing moves when the mask loads. -->
+        <EtchedMark art={ACTIVATE_ART.slip} class="mx-auto w-28" />
 
         <div class="space-y-2">
           <Label for="otp">Code</Label>
