@@ -33,6 +33,13 @@ vi.mock("better-auth/plugins/email-otp", () => ({
   emailOTP: (options: unknown) => emailOtpMock(options)
 }));
 
+const sessionEmailMock = vi.fn(async () => ({ user: { email: "signed.in@vmblogistics.id" } }));
+
+vi.mock("better-auth/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("better-auth/api")>()),
+  getSessionFromCtx: () => sessionEmailMock()
+}));
+
 const isPasswordBreachedMock = vi.fn(async (_password: string) => false);
 
 vi.mock("./breached-password.js", () => ({
@@ -155,6 +162,27 @@ describe("createAuth", () => {
       await runBefore("/email-otp/reset-password", { password: "short" });
       await runBefore("/email-otp/reset-password", { password: "x".repeat(129) });
 
+      expect(isPasswordBreachedMock).not.toHaveBeenCalled();
+    });
+
+    it("covers the other endpoints that set a password, by their own field (#256)", async () => {
+      isPasswordBreachedMock.mockResolvedValue(true);
+
+      for (const path of ["/change-password", "/reset-password"]) {
+        await expect(runBefore(path, { newPassword: password })).rejects.toMatchObject({
+          body: { code: "PASSWORD_BREACHED" }
+        });
+      }
+      // Not the field of another endpoint.
+      await expect(
+        runBefore("/change-password", { password, newPassword: "short" })
+      ).resolves.toBeUndefined();
+    });
+
+    it("refuses a changed password built from the signed-in user's own email name", async () => {
+      await expect(
+        runBefore("/change-password", { newPassword: "my signed.in passphrase" })
+      ).rejects.toMatchObject({ body: { code: "PASSWORD_CONTAINS_CONTEXT" } });
       expect(isPasswordBreachedMock).not.toHaveBeenCalled();
     });
 
