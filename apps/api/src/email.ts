@@ -71,12 +71,79 @@ async function sendEmail(env: Bindings, email: OutboundEmail) {
   }
 
   const resend = new Resend(env.RESEND_API_KEY);
+  const idempotencyKey = crypto.randomUUID();
 
-  const { error } = await resend.emails.send(message);
+  for (let attempt = 1; ; attempt++) {
+    const error = await sendOnce(resend, message, idempotencyKey);
+    if (!error) return;
 
-  if (error) {
-    console.error("sendEmail: Resend request failed", error);
-    throw new Error(`Failed to send email to ${email.to}: ${error.message}`);
+    if (!isRetryable(error) || attempt === sendAttempts) {
+      console.error("sendEmail: Resend request failed", error);
+      throw new Error(`Failed to send email to ${email.to}: ${error.message}`);
+    }
+
+    console.warn(`sendEmail: attempt ${attempt} failed, retrying`, error);
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
+  }
+}
+
+// Every send runs after the reply through `waitUntil` (ADR-0017's amendment),
+// so a failed send is only logged and the user never gets the email. A send
+// gets three tries, and only for failures a later try can fix: no response (a
+// network error, which Resend reports as `application_error` with no status,
+// or the timeout below), a rate limit, a 5xx, and a still-running try with the
+// same key. One idempotency key spans the tries, so a try that timed out here
+// but reached Resend is not delivered twice. That also means a first try still
+// running after every retry is logged as failed even if it delivers. The worst
+// case, three timeouts and two waits, stays well inside the 30 s `waitUntil`
+// allows after the reply.
+const sendAttempts = 3;
+const sendTimeoutMs = 5_000;
+const retryDelayMs = 500;
+const retryableNames = new Set([
+  "timeout",
+  "rate_limit_exceeded",
+  "concurrent_idempotent_requests"
+]);
+
+type SendError = { name: string; message: string; statusCode: number | null };
+
+// `application_error` is also what the SDK returns for any response it cannot
+// parse, a 4xx included, so it is retried only with no status or a 5xx.
+function isRetryable({ name, statusCode }: SendError) {
+  if (retryableNames.has(name)) return true;
+  return statusCode === null ? name === "application_error" : statusCode >= 500;
+}
+
+// Resend reports every failure, including a network error, as `error` rather
+// than throwing. A try that has not answered by the timeout is abandoned rather
+// than aborted, since the typed send options take no abort signal; the shared
+// idempotency key makes its late success harmless.
+async function sendOnce(
+  resend: Resend,
+  message: OutboundEmail & { from: string },
+  idempotencyKey: string
+): Promise<SendError | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<SendError>((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve({
+          name: "timeout",
+          message: `no reply within ${sendTimeoutMs} ms`,
+          statusCode: null
+        }),
+      sendTimeoutMs
+    );
+  });
+
+  try {
+    return await Promise.race([
+      resend.emails.send(message, { idempotencyKey }).then(({ error }) => error),
+      timeout
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

@@ -51,7 +51,8 @@ describe("sendVerificationEmail", () => {
         to: "user@example.com",
         subject: expect.any(String),
         html: expect.stringContaining("https://vmb-api.example.com/api/auth/verify-email?token=abc")
-      })
+      }),
+      { idempotencyKey: expect.any(String) }
     );
     const html = sendMock.mock.calls[0]?.[0]?.html as string;
     expect(html).toContain('style="');
@@ -107,6 +108,87 @@ describe("sendVerificationEmail", () => {
   });
 });
 
+describe("sendEmail retries", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    sendMock.mockReset();
+    vi.useFakeTimers();
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  const serverError = {
+    data: null,
+    error: { message: "Internal server error", statusCode: 500, name: "internal_server_error" }
+  };
+
+  it("retries a failure Resend may recover from, with one idempotency key across tries", async () => {
+    sendMock
+      .mockResolvedValueOnce(serverError)
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "Unable to fetch data", statusCode: null, name: "application_error" }
+      })
+      .mockResolvedValueOnce({ data: { id: "email_4" }, error: null });
+
+    const sending = sendOtpEmail(env, "user@example.com", "482913");
+    await vi.runAllTimersAsync();
+    await sending;
+
+    expect(sendMock).toHaveBeenCalledTimes(3);
+    const keys = sendMock.mock.calls.map((call) => call[1]?.idempotencyKey);
+    expect(keys[0]).toEqual(expect.any(String));
+    expect(new Set(keys).size).toBe(1);
+  });
+
+  it("gives a send that never answers a timeout, then retries it", async () => {
+    sendMock
+      .mockReturnValueOnce(new Promise(() => {}))
+      .mockResolvedValueOnce({ data: { id: "email_5" }, error: null });
+
+    const sending = sendOtpEmail(env, "user@example.com", "482913");
+    await vi.runAllTimersAsync();
+    await sending;
+
+    expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws the last error after three failed tries", async () => {
+    sendMock.mockResolvedValue(serverError);
+
+    const sending = sendOtpEmail(env, "user@example.com", "482913");
+    const outcome = expect(sending).rejects.toThrow("Internal server error");
+    await vi.runAllTimersAsync();
+    await outcome;
+
+    expect(sendMock).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    ["validation_error", 422],
+    ["daily_quota_exceeded", 429],
+    ["invalid_api_key", 403],
+    ["application_error", 413]
+  ])("does not retry %s (%i), which another try cannot fix", async (name, statusCode) => {
+    sendMock.mockResolvedValue({ data: null, error: { message: name, statusCode, name } });
+
+    const sending = sendOtpEmail(env, "user@example.com", "482913");
+    const outcome = expect(sending).rejects.toThrow(name);
+    await vi.runAllTimersAsync();
+    await outcome;
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("sendOtpEmail", () => {
   it("sends the one-time code via Resend with actionable copy", async () => {
     sendMock.mockResolvedValueOnce({ data: { id: "email_2" }, error: null });
@@ -119,7 +201,8 @@ describe("sendOtpEmail", () => {
         to: "user@example.com",
         subject: "Your VMB password code",
         html: expect.stringContaining("482913")
-      })
+      }),
+      { idempotencyKey: expect.any(String) }
     );
     const html = sendMock.mock.calls[0]?.[0]?.html as string;
     expect(html).toContain('style="');
