@@ -56,11 +56,22 @@ export interface AuthActionConfig<Schema extends AuthSchema, CheckboxField exten
   ) => Promise<AuthCallResult>;
   // What a successful call should do: redirect, or hand back the action data
   // the page expects. Receives the validated values so a multi-step route can
-  // carry a value (an email, say) into the next step.
-  onSuccess: (values: AuthActionValues<Schema, CheckboxField>) => MaybePromise<Data>;
+  // carry a value (an email, say) into the next step, and the request event
+  // for what the next step reads from it (a cookie, say).
+  onSuccess: (
+    values: AuthActionValues<Schema, CheckboxField>,
+    event: RequestEvent
+  ) => MaybePromise<Data>;
   // Extra action data to merge into a failure response, for a multi-step route
-  // that must render the same step again after an error.
-  failureData?: (values: Partial<Record<FieldOf<Schema>, string>>) => Data;
+  // that must render a step again after an error. `error` is Better Auth's,
+  // when it turned the call down, so the route can pick the step the error
+  // belongs to, and drop state the error makes stale (a cookie, say); a
+  // failed field check or an unreachable API has none.
+  failureData?: (
+    values: Partial<Record<FieldOf<Schema>, string>>,
+    event: RequestEvent,
+    error?: AuthErrorLike
+  ) => Data;
 }
 
 // The auth routes were near-identical: read fields, type-check them, build the
@@ -87,7 +98,7 @@ export function createAuthAction<
         fieldErrors[field] ??= issue.message;
       }
       return fail(400, {
-        ...config.failureData?.(submitted),
+        ...config.failureData?.(submitted, event),
         error: config.invalidFieldsMessage,
         fieldErrors
       });
@@ -102,7 +113,7 @@ export function createAuthAction<
     if (!access.ok) {
       console.error(`${config.logLabel}: request to API failed`, access.error);
       return fail(500, {
-        ...config.failureData?.(values),
+        ...config.failureData?.(values, event),
         error: "Unable to reach the server. Check your connection and try again."
       });
     }
@@ -112,18 +123,18 @@ export function createAuthAction<
       // the email field, like any other email mistake, not in the banner.
       if (access.value.error.code === "INVALID_EMAIL" && "email" in config.schema.shape) {
         return fail(400, {
-          ...config.failureData?.(values),
+          ...config.failureData?.(values, event, access.value.error),
           error: EMAIL_INVALID_MESSAGE,
           fieldErrors: { email: EMAIL_INVALID_MESSAGE }
         });
       }
 
       return fail(400, {
-        ...config.failureData?.(values),
+        ...config.failureData?.(values, event, access.value.error),
         error: mapAuthErrorToCopy(access.value.error, config.fallbackErrorMessage)
       });
     }
 
-    return config.onSuccess(values);
+    return config.onSuccess(values, event);
   };
 }

@@ -205,7 +205,20 @@ describe("createAuthAction", () => {
 
     await action(fakeAuthEvent({ email: "a@example.com", password: "secret" }));
 
-    expect(onSuccess).toHaveBeenCalledWith({ email: "a@example.com", password: "secret" });
+    expect(onSuccess).toHaveBeenCalledWith(
+      { email: "a@example.com", password: "secret" },
+      expect.anything()
+    );
+  });
+
+  it("passes the event to onSuccess, so a route can set a cookie", async () => {
+    const onSuccess = vi.fn((_values: unknown, _event: unknown) => ({ ok: true }));
+    const action = makeAction(undefined, onSuccess as never);
+    const event = fakeAuthEvent({ email: "a@example.com", password: "secret" });
+
+    await action(event);
+
+    expect(onSuccess).toHaveBeenCalledWith(expect.anything(), event);
   });
 
   describe("with a checkbox field", () => {
@@ -280,6 +293,50 @@ describe("createAuthAction", () => {
     expect(result).toMatchObject({
       status: 400,
       data: { error: "Invalid email or password.", email: "a@example.com" }
+    });
+  });
+
+  // A route can then send the user to the step the error belongs to.
+  describe("failureData's view of what went wrong", () => {
+    const failureData = vi.fn((_values: unknown, _event: unknown, _error?: unknown) => ({}));
+    const actionWith = (run: Run) =>
+      createAuthAction({
+        schema: LoginInputSchema,
+        invalidFieldsMessage: "Enter your email and password",
+        fallbackErrorMessage: "Invalid email or password.",
+        logLabel: "login action",
+        run: run as never,
+        onSuccess: (() => ({ ok: true })) as never,
+        failureData: failureData as never
+      });
+
+    beforeEach(() => failureData.mockClear());
+
+    it("is given the event and Better Auth's error when Better Auth turns the call down", async () => {
+      const error = { code: "OTP_EXPIRED", message: "OTP expired" };
+      const event = fakeAuthEvent({ email: "a@example.com", password: "nope" });
+
+      await actionWith(async () => ({ error }))(event);
+
+      expect(failureData).toHaveBeenCalledWith(
+        { email: "a@example.com", password: "nope" },
+        event,
+        error
+      );
+    });
+
+    it("is given no error for a failed field check or an unreachable API", async () => {
+      const event = fakeAuthEvent({ email: "a@example.com" });
+      await actionWith(async () => ({ error: null }))(event);
+      withAuthApiClientMock.mockResolvedValueOnce({ ok: false, error: new Error("down") });
+      vi.spyOn(console, "error").mockImplementationOnce(() => {});
+      const reachable = fakeAuthEvent({ email: "a@example.com", password: "nope" });
+      await actionWith(async () => ({ error: null }))(reachable);
+
+      expect(failureData.mock.calls).toEqual([
+        [{ email: "a@example.com", password: "" }, event],
+        [{ email: "a@example.com", password: "nope" }, reachable]
+      ]);
     });
   });
 });

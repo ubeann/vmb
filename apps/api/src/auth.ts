@@ -75,8 +75,9 @@ function buildAuth(env: Bindings) {
     },
     plugins: [
       // Activation (ADR-0033): a migrated user has no credential row, proves
-      // inbox control with a one-time code, and sets a fresh password on the
-      // same screen. `disableSignUp` keeps an unknown email from being
+      // inbox control with a one-time code, and sets a fresh password. /activate
+      // checks the code first (`check-verification-otp`, #254), then spends it
+      // with the password. `disableSignUp` keeps an unknown email from being
       // auto-registered by the OTP endpoints.
       emailOTP({
         disableSignUp: true,
