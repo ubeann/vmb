@@ -21,7 +21,7 @@ const AUTH_ERROR_COPY: Record<string, string> = {
   FAILED_TO_CREATE_SESSION: "Unable to sign you in right now. Try again in a moment.",
   ACCOUNT_UNAVAILABLE: "This account is unavailable. Contact an administrator.",
   OTP_EXPIRED: "This code expired. Send a new one.",
-  INVALID_OTP: "That code isn't right. Check it and try again.",
+  INVALID_OTP: "That code isn't right. Enter it again.",
   TOO_MANY_ATTEMPTS: "Too many attempts. Send a new code and try again.",
   PASSWORD_TOO_SHORT: "Choose a longer password.",
   PASSWORD_TOO_LONG: "Choose a shorter password."

@@ -205,7 +205,7 @@ describe("login page", () => {
       await screen.getByRole("button", { name: "Log in" }).click();
 
       await expect
-        .element(screen.getByText("Enter a valid email, like name@company.com"))
+        .element(screen.getByText("Enter a valid email, like name@example.com"))
         .toBeVisible();
       expect(submissions).toHaveLength(0);
     });
@@ -218,10 +218,10 @@ describe("login page", () => {
 
       await email.fill("name@");
       await expect
-        .element(screen.getByText("Enter a valid email, like name@company.com"))
+        .element(screen.getByText("Enter a valid email, like name@example.com"))
         .toBeVisible();
 
-      await email.fill("name@company.com");
+      await email.fill("name@example.com");
       expect(screen.getByText(/Enter (your|a valid) email/).elements()).toHaveLength(0);
       await expect.element(email).not.toHaveAttribute("aria-invalid");
       await expect.element(email).not.toHaveAttribute("aria-describedby");
@@ -257,7 +257,7 @@ describe("login page", () => {
       const screen = await render(Page, {
         form: {
           error: "Email and password are required.",
-          fieldErrors: { email: "Enter a valid email, like name@company.com" }
+          fieldErrors: { email: "Enter a valid email, like name@example.com" }
         }
       });
       const email = screen.getByLabelText("Email");
@@ -283,8 +283,8 @@ describe("login page", () => {
         update: () =>
           screen.rerender({
             form: {
-              error: "Enter a valid email, like name@company.com",
-              fieldErrors: { email: "Enter a valid email, like name@company.com" }
+              error: "Enter a valid email, like name@example.com",
+              fieldErrors: { email: "Enter a valid email, like name@example.com" }
             }
           })
       });
@@ -306,7 +306,7 @@ describe("login page", () => {
 
       await expect
         .element(screen.getByLabelText("Email"))
-        .toHaveAttribute("placeholder", "name@company.com");
+        .toHaveAttribute("placeholder", "name@example.com");
       expect(
         screen.getByLabelText("Password", { exact: true }).element().hasAttribute("placeholder")
       ).toBe(false);

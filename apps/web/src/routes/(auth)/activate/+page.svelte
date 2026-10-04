@@ -2,12 +2,17 @@
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
   import Check from "@lucide/svelte/icons/check";
-  import KeyRound from "@lucide/svelte/icons/key-round";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mail from "@lucide/svelte/icons/mail";
   import Send from "@lucide/svelte/icons/send";
-  import { ActivateRequestInputSchema, ActivateResetInputSchema } from "@vmb/types";
+  import {
+    ActivateRequestInputSchema,
+    ActivateResetInputSchema,
+    OTP_LENGTH,
+    PASSWORD_MIN_LENGTH
+  } from "@vmb/types";
   import AuthCard from "$lib/components/AuthCard.svelte";
+  import CodeInput from "$lib/components/CodeInput.svelte";
   import IconInput from "$lib/components/IconInput.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
@@ -23,29 +28,64 @@
 
   let submitting = $state(false);
 
-  // Shared by every form here: the button reports progress until the action settles.
-  const track = ({ formElement }: { formElement: HTMLFormElement }) => {
-    submitting = true;
-    return async ({
-      result,
-      update
-    }: {
-      result: { type: string };
-      update: () => Promise<void>;
-    }) => {
-      // A sent code swaps the email step for the code step in the same sheet, so
-      // it moves the way a change of page does.
-      await (result.type === "success" && step === "request" ? transitionUpdate(update) : update());
-      submitting = false;
-      if (result.type === "failure") focusFirstInvalidField(formElement);
+  // Shared by every form here: the button reports progress until the action
+  // settles. `afterFailure` is where focus goes when the server turns it down,
+  // `afterSuccess` what to reset once it has taken it.
+  const trackWith =
+    (afterFailure: (formElement: HTMLFormElement) => void, afterSuccess?: () => void) =>
+    ({ formElement }: { formElement: HTMLFormElement }) => {
+      submitting = true;
+      return async ({
+        result,
+        update
+      }: {
+        result: { type: string };
+        update: () => Promise<void>;
+      }) => {
+        // A sent code swaps the email step for the code step in the same sheet, so
+        // it moves the way a change of page does.
+        await (result.type === "success" && step === "request"
+          ? transitionUpdate(update)
+          : update());
+        submitting = false;
+        if (result.type === "failure") afterFailure(formElement);
+        else if (result.type === "success") afterSuccess?.();
+      };
     };
-  };
+  const track = trackWith(focusFirstInvalidField);
 
   // Stops a form whose fields fail the rules before anything is sent (issue #231).
   const checked =
-    (validation: { validate: (form: HTMLFormElement) => boolean }) =>
+    (validation: { validate: (form: HTMLFormElement) => boolean }, run = track) =>
     ({ formElement, cancel }: { formElement: HTMLFormElement; cancel: () => void }) =>
-      validation.validate(formElement) ? track({ formElement }) : cancel();
+      validation.validate(formElement) ? run({ formElement }) : cancel();
+
+  // The six boxes hold what was typed until the form is sent.
+  let code = $state("");
+  let codeInput = $state<HTMLInputElement | null>(null);
+
+  // Whatever the server turned down, the code is typed again: the boxes are
+  // emptied and the first one is ready. A mistake in another field goes first.
+  function afterCodeFailure(formElement: HTMLFormElement) {
+    const invalid = formElement.querySelector<HTMLInputElement>('input[aria-invalid="true"]');
+    if (invalid && invalid !== codeInput) {
+      invalid.focus();
+      return;
+    }
+    code = "";
+    codeInput?.focus();
+  }
+
+  // The last digit sends the form, as long as there is a password to send it
+  // with; otherwise the password is next. Not while a send is under way: a
+  // second one would use up the code.
+  function sendOnComplete() {
+    const form = codeInput?.form;
+    if (!form || submitting) return;
+    const password = form.elements.namedItem("password");
+    if (password instanceof HTMLInputElement && password.value === "") password.focus();
+    else form.requestSubmit();
+  }
 
   // A link inside a sentence keeps the line's height; one on its own line gets
   // a full touch target.
@@ -63,6 +103,7 @@
     event.preventDefault();
     await transitionUpdate(async () => {
       step = "request";
+      code = "";
     });
     document.getElementById("email")?.focus();
   }
@@ -79,6 +120,13 @@
   const resetValidation = createFieldValidation(
     ActivateResetInputSchema.pick({ otp: true, password: true }),
     () => serverErrors
+  );
+  // A refused code or reset with no field to blame: the error goes under the
+  // boxes instead of the banner.
+  let codeError = $derived(
+    step === "reset" && !serverErrors && form && "errorAt" in form && form.errorAt === "code"
+      ? form.error
+      : undefined
   );
   let fieldErrors: FieldErrors | undefined = $derived(
     step === "reset" ? resetValidation.errors : requestValidation.errors
@@ -113,7 +161,7 @@
   {/if}
 
   <div class="mt-5 space-y-5">
-    {#if form?.error && (!fieldErrors || (step === "reset" && fieldErrors.email))}
+    {#if form?.error && !codeError && (!fieldErrors || (step === "reset" && fieldErrors.email))}
       <Notice variant="destructive">{form.error}</Notice>
     {/if}
 
@@ -123,30 +171,28 @@
         action="?/reset"
         novalidate
         oninput={resetValidation.oninput}
-        use:enhance={checked(resetValidation)}
+        use:enhance={checked(resetValidation, trackWith(afterCodeFailure))}
         class="space-y-5"
       >
         <input type="hidden" name="email" value={email} />
 
         <div class="space-y-2">
           <Label for="otp">Code</Label>
-          <IconInput
-            icon={KeyRound}
-            class="font-mono tracking-[0.3em] placeholder:tracking-[0.3em]"
+          <CodeInput
             id="otp"
-            type="text"
             name="otp"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            placeholder="123456"
-            aria-invalid={fieldErrors?.otp ? "true" : undefined}
-            aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
-            required
+            bind:value={code}
+            bind:inputRef={codeInput}
+            invalid={!!fieldErrors?.otp}
+            aria-describedby={fieldErrors?.otp || codeError ? "otp-hint otp-error" : "otp-hint"}
+            onComplete={sendOnComplete}
           />
-          <p id="otp-hint" class="text-muted-foreground text-sm">Use the code from your email.</p>
-          {#if fieldErrors?.otp}
+          <p id="otp-hint" class="text-muted-foreground text-sm">
+            Enter the {OTP_LENGTH}-digit code from your email.
+          </p>
+          {#if fieldErrors?.otp || codeError}
             <p id="otp-error" role="alert" class="text-destructive text-sm">
-              {fieldErrors.otp}
+              {fieldErrors?.otp ?? codeError}
             </p>
           {/if}
         </div>
@@ -158,12 +204,16 @@
             name="password"
             autocomplete="new-password"
             aria-invalid={fieldErrors?.password ? "true" : undefined}
-            aria-describedby={fieldErrors?.password ? "password-error" : undefined}
+            aria-describedby={fieldErrors?.password ? "password-error" : "password-hint"}
             required
           />
           {#if fieldErrors?.password}
             <p id="password-error" role="alert" class="text-destructive text-sm">
               {fieldErrors.password}
+            </p>
+          {:else}
+            <p id="password-hint" class="text-muted-foreground text-sm">
+              Use at least {PASSWORD_MIN_LENGTH} characters.
             </p>
           {/if}
         </div>
@@ -179,7 +229,12 @@
         </Button>
       </form>
 
-      <form method="POST" action="?/resend" novalidate use:enhance={track}>
+      <form
+        method="POST"
+        action="?/resend"
+        novalidate
+        use:enhance={trackWith(focusFirstInvalidField, () => (code = ""))}
+      >
         <input type="hidden" name="email" value={email} />
         <Button
           type="submit"
@@ -191,8 +246,8 @@
       </form>
 
       <p class="text-muted-foreground text-sm text-pretty">
-        No email after a minute? Check spam, check the address, or contact
-        <a href="mailto:{SUPPORT_EMAIL}" class={inlineLinkClass}>{SUPPORT_EMAIL}</a>
+        No email after a minute? Check your spam folder and the address, or contact
+        <a href="mailto:{SUPPORT_EMAIL}" class={inlineLinkClass}>{SUPPORT_EMAIL}</a>.
       </p>
     {:else}
       <form
@@ -212,7 +267,7 @@
             name="email"
             value={email}
             autocomplete="email"
-            placeholder="name@company.com"
+            placeholder="name@example.com"
             aria-invalid={fieldErrors?.email ? "true" : undefined}
             aria-describedby={fieldErrors?.email ? "email-error" : undefined}
             required

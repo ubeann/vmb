@@ -6,9 +6,10 @@ export type FieldErrors<Schema extends z.ZodObject<Shape>> = Partial<
 >;
 
 // The enhanced action has updated the page by the time this runs, so the
-// rendered error state identifies the visible field to focus.
+// rendered error state identifies the visible field to focus. Only an `input`
+// counts: the code input's boxes are not focusable.
 export function focusFirstInvalidField(form: HTMLFormElement) {
-  form.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus();
+  form.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
 }
 
 // In-page checks for an auth form, in place of the browser's own validation
