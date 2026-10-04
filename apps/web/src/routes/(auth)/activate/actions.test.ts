@@ -55,7 +55,7 @@ describe("activate actions", () => {
 
     expect(result).toMatchObject({
       status: 400,
-      data: { fieldErrors: { email: "Enter a valid email, like name@company.com" } }
+      data: { fieldErrors: { email: "Enter a valid email, like name@example.com" } }
     });
     expect(requestMock).not.toHaveBeenCalled();
   });
@@ -70,7 +70,7 @@ describe("activate actions", () => {
 
     expect(result).toMatchObject({
       status: 400,
-      data: { fieldErrors: { email: "Enter a valid email, like name@company.com" } }
+      data: { fieldErrors: { email: "Enter a valid email, like name@example.com" } }
     });
   });
 

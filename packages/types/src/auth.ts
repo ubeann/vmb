@@ -8,11 +8,11 @@ import { z } from "zod";
 // trailing period, the way a form label would.
 
 export const EMAIL_REQUIRED_MESSAGE = "Enter your email";
-export const EMAIL_INVALID_MESSAGE = "Enter a valid email, like name@company.com";
+export const EMAIL_INVALID_MESSAGE = "Enter a valid email, like name@example.com";
 
 // Better Auth's own bounds for a password (its `minPasswordLength` and
 // `maxPasswordLength` defaults, which `apps/api/src/auth.ts` does not override).
-const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
 
 // The length of the code Better Auth's email OTP plugin sends by default.

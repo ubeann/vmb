@@ -102,7 +102,7 @@ describe("activate page", () => {
       await expect
         .element(screen.getByText(/No email after a minute\?/))
         .toHaveTextContent(
-          "No email after a minute? Check spam, check the address, or contact support@vmblogistics.id"
+          "No email after a minute? Check your spam folder and the address, or contact support@vmblogistics.id."
         );
       await expect
         .element(screen.getByRole("link", { name: "support@vmblogistics.id" }))
@@ -240,7 +240,7 @@ describe("activate page", () => {
       await screen.getByRole("button", { name: "Send code" }).click();
 
       await expect
-        .element(screen.getByText("Enter a valid email, like name@company.com"))
+        .element(screen.getByText("Enter a valid email, like name@example.com"))
         .toBeVisible();
       expect(submissions).toHaveLength(0);
     });
@@ -363,13 +363,13 @@ describe("activate page", () => {
     it("shows Better Auth's INVALID_EMAIL at the email field, with no banner", async () => {
       const screen = await render(Page, {
         form: {
-          error: "Enter a valid email, like name@company.com",
-          fieldErrors: { email: "Enter a valid email, like name@company.com" }
+          error: "Enter a valid email, like name@example.com",
+          fieldErrors: { email: "Enter a valid email, like name@example.com" }
         }
       });
 
       await expect
-        .element(screen.getByText("Enter a valid email, like name@company.com"))
+        .element(screen.getByText("Enter a valid email, like name@example.com"))
         .toBeVisible();
       await expect.element(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
       expect(screen.getByRole("alert").elements()).toHaveLength(1);
@@ -386,8 +386,8 @@ describe("activate page", () => {
         update: () =>
           screen.rerender({
             form: {
-              error: "Enter a valid email, like name@company.com",
-              fieldErrors: { email: "Enter a valid email, like name@company.com" }
+              error: "Enter a valid email, like name@example.com",
+              fieldErrors: { email: "Enter a valid email, like name@example.com" }
             }
           })
       });
@@ -610,7 +610,7 @@ describe("activate page", () => {
       const screen = await render(Page, { form: null });
       const email = screen.getByLabelText("Email").element();
 
-      expect(email.getAttribute("placeholder")).toBe("name@company.com");
+      expect(email.getAttribute("placeholder")).toBe("name@example.com");
       expect(decorativeIcons(email.parentElement!)).not.toHaveLength(0);
       expect(
         decorativeIcons(screen.getByRole("button", { name: "Send code" }).element())
@@ -628,6 +628,18 @@ describe("activate page", () => {
       expect(
         decorativeIcons(screen.getByRole("button", { name: "Set password" }).element())
       ).toHaveLength(1);
+    });
+
+    it("hints the code length and the password length before either is wrong", async () => {
+      const screen = await render(Page, { form: { step: "reset", email: "a@example.com" } });
+
+      await expect
+        .element(screen.getByText("Enter the 6-digit code from your email."))
+        .toBeVisible();
+      await expect.element(screen.getByText("Use at least 8 characters.")).toBeVisible();
+      await expect
+        .element(screen.getByLabelText("New password"))
+        .toHaveAttribute("aria-describedby", "password-hint");
     });
 
     it("leaves Send a new code as words only", async () => {

@@ -5,7 +5,12 @@
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mail from "@lucide/svelte/icons/mail";
   import Send from "@lucide/svelte/icons/send";
-  import { ActivateRequestInputSchema, ActivateResetInputSchema } from "@vmb/types";
+  import {
+    ActivateRequestInputSchema,
+    ActivateResetInputSchema,
+    OTP_LENGTH,
+    PASSWORD_MIN_LENGTH
+  } from "@vmb/types";
   import AuthCard from "$lib/components/AuthCard.svelte";
   import CodeInput from "$lib/components/CodeInput.svelte";
   import IconInput from "$lib/components/IconInput.svelte";
@@ -182,7 +187,9 @@
             aria-describedby={fieldErrors?.otp || codeError ? "otp-hint otp-error" : "otp-hint"}
             onComplete={sendOnComplete}
           />
-          <p id="otp-hint" class="text-muted-foreground text-sm">Use the code from your email.</p>
+          <p id="otp-hint" class="text-muted-foreground text-sm">
+            Enter the {OTP_LENGTH}-digit code from your email.
+          </p>
           {#if fieldErrors?.otp || codeError}
             <p id="otp-error" role="alert" class="text-destructive text-sm">
               {fieldErrors?.otp ?? codeError}
@@ -197,12 +204,16 @@
             name="password"
             autocomplete="new-password"
             aria-invalid={fieldErrors?.password ? "true" : undefined}
-            aria-describedby={fieldErrors?.password ? "password-error" : undefined}
+            aria-describedby={fieldErrors?.password ? "password-error" : "password-hint"}
             required
           />
           {#if fieldErrors?.password}
             <p id="password-error" role="alert" class="text-destructive text-sm">
               {fieldErrors.password}
+            </p>
+          {:else}
+            <p id="password-hint" class="text-muted-foreground text-sm">
+              Use at least {PASSWORD_MIN_LENGTH} characters.
             </p>
           {/if}
         </div>
@@ -235,8 +246,8 @@
       </form>
 
       <p class="text-muted-foreground text-sm text-pretty">
-        No email after a minute? Check spam, check the address, or contact
-        <a href="mailto:{SUPPORT_EMAIL}" class={inlineLinkClass}>{SUPPORT_EMAIL}</a>
+        No email after a minute? Check your spam folder and the address, or contact
+        <a href="mailto:{SUPPORT_EMAIL}" class={inlineLinkClass}>{SUPPORT_EMAIL}</a>.
       </p>
     {:else}
       <form
@@ -256,7 +267,7 @@
             name="email"
             value={email}
             autocomplete="email"
-            placeholder="name@company.com"
+            placeholder="name@example.com"
             aria-invalid={fieldErrors?.email ? "true" : undefined}
             aria-describedby={fieldErrors?.email ? "email-error" : undefined}
             required

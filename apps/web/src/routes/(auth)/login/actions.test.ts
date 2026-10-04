@@ -56,7 +56,7 @@ describe("login action", () => {
 
     expect(result).toMatchObject({
       status: 400,
-      data: { fieldErrors: { email: "Enter a valid email, like name@company.com" } }
+      data: { fieldErrors: { email: "Enter a valid email, like name@example.com" } }
     });
     expect(signInEmail).not.toHaveBeenCalled();
   });
