@@ -13,8 +13,10 @@
     OTP_LENGTH,
     PASSWORD_MIN_LENGTH
   } from "@vmb/types";
+  import { ACTIVATE_ART } from "$lib/activate-art.js";
   import AuthCard from "$lib/components/AuthCard.svelte";
   import CodeInput from "$lib/components/CodeInput.svelte";
+  import EtchedMark from "$lib/components/EtchedMark.svelte";
   import IconInput from "$lib/components/IconInput.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
@@ -186,6 +188,19 @@
   {#snippet description()}
     First time here or forgot your password? We will email you a one-time code to set a new one.
   {/snippet}
+
+  {#if step === "code"}
+    <!-- The code step's etched art (#273). Both are laid on the card's own box,
+         clear of every line of text, and only where the page has the room. -->
+    <EtchedMark
+      art={ACTIVATE_ART.seal}
+      class="absolute -top-[2.3rem] right-8 hidden w-[5.75rem] lg:block"
+    />
+    <EtchedMark
+      art={ACTIVATE_ART.post}
+      class="absolute top-64 right-full mr-10 hidden w-56 min-[80rem]:block"
+    />
+  {/if}
 
   <h2 class="text-base font-semibold">{headings[step]}</h2>
   <!-- The same words whether or not the email belongs to a user: a reply that

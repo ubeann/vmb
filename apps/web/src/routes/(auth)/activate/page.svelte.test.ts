@@ -122,6 +122,23 @@ describe("activate page", () => {
       expect(screen.getByLabelText("New password").elements()).toHaveLength(0);
     });
 
+    it("draws the etched seal and post as decorative art, and no other step does (#273)", async () => {
+      const marks = (root: Element) =>
+        [...root.querySelectorAll("[data-etched-mark]")] as HTMLElement[];
+
+      const code = await render(Page, codeStep);
+      const art = marks(code.container);
+      expect(art).toHaveLength(2);
+      for (const mark of art) expect(mark.getAttribute("aria-hidden")).toBe("true");
+      code.unmount();
+
+      for (const step of [emailStep, passwordStep]) {
+        const other = await render(Page, step);
+        expect(marks(other.container)).toHaveLength(0);
+        other.unmount();
+      }
+    });
+
     it("sends the code with the email it was sent to, to Verify", async () => {
       const screen = await render(Page, codeStep);
       const verify = screen.getByRole("button", { name: "Verify code" }).element();
