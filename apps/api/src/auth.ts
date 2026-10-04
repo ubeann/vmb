@@ -5,6 +5,7 @@ import { waitUntil } from "cloudflare:workers";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import type { Bindings } from "./bindings.js";
+import { CODE_REQUEST_PATH, codeRequestLimit } from "./code-request-limit.js";
 import { sendOtpEmail, sendVerificationEmail } from "./email.js";
 import { masterStore } from "./master.js";
 import { createSignInGate } from "./sign-in-gate.js";
@@ -28,7 +29,10 @@ function buildAuth(env: Bindings) {
     rateLimit: {
       enabled: true,
       storage: "database",
-      customRules: { "/get-session": false }
+      customRules: {
+        "/get-session": false,
+        [CODE_REQUEST_PATH]: { window: 60, max: 3 }
+      }
     },
     advanced: {
       // Better Auth awaits an email send only when the user exists, so an
@@ -74,6 +78,7 @@ function buildAuth(env: Bindings) {
       }
     },
     plugins: [
+      codeRequestLimit(db, env.BETTER_AUTH_SECRET),
       // Activation (ADR-0033): a migrated user has no credential row, proves
       // inbox control with a one-time code, and sets a fresh password. /activate
       // checks the code first (`check-verification-otp`, #254), then spends it
