@@ -28,6 +28,7 @@
   import { Countdown, formatClock } from "$lib/countdown.svelte.js";
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
+  import { PASSWORD_STRENGTH_LABELS, passwordStrength } from "$lib/password-strength.js";
   import type { ActionData, PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -162,6 +163,14 @@
   // (ADR-0041). It only reads the field; the schema still decides on submit.
   let passwordLength = $state(0);
   let passwordLongEnough = $derived(passwordLength >= PASSWORD_MIN_LENGTH);
+  let strength = $derived(passwordStrength(passwordLength));
+  const STRENGTH_BARS = { okay: 1, good: 2, strong: 3 } as const;
+  // The check's two icons, stacked: the one that is not showing is scaled down,
+  // clear and blurred.
+  const iconBase =
+    "absolute inset-0 size-4 transition-[opacity,scale,filter] duration-200 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none";
+  const iconIn = "scale-100 opacity-100 blur-0";
+  const iconOut = "scale-[0.25] opacity-0 blur-[4px]";
   function onPasswordFormInput(event: Event) {
     passwordValidation.oninput(event);
     if (event.target instanceof HTMLInputElement && event.target.name === "password") {
@@ -199,13 +208,14 @@
   First time here or forgot your password? We will email you a one-time code to set a new one.
 {/snippet}
 
-<!-- The code step is about one thing, so its heading is the step's own and the
-     page's intro, which explains the email step, steps aside (#273). -->
+<!-- The code and password steps are each about one thing, so their heading is
+     the step's own and the page's intro, which explains the email step, steps
+     aside (#273, #256). -->
 <AuthCard
-  heading={step === "code" ? headings.code : "Set your password"}
-  description={step === "code" ? undefined : intro}
+  heading={step === "request" ? "Set your password" : headings[step]}
+  description={step === "request" ? intro : undefined}
 >
-  {#if step !== "code"}
+  {#if step === "request"}
     <h2 class="text-base font-semibold">{headings[step]}</h2>
   {/if}
   <!-- The same words whether or not the email belongs to a user: a reply that
@@ -254,6 +264,10 @@
              under. It has no name, so it is not sent. -->
         <input type="email" autocomplete="username" value={email} hidden readonly />
 
+        <!-- Etched art, as on the code step: its own band, in the flow with a
+             fixed ratio. -->
+        <EtchedMark art={ACTIVATE_ART.padlock} class="mx-auto w-20" />
+
         <div class="space-y-2">
           <Label for="new-password">New password</Label>
           <PasswordInput
@@ -273,15 +287,31 @@
           {/if}
           <div id="password-rules" class="text-muted-foreground space-y-1 text-sm">
             <p class={["flex items-center gap-2", passwordLongEnough && "text-foreground"]}>
-              {#if passwordLongEnough}
-                <Check class="text-primary size-4 shrink-0" aria-hidden="true" />
-              {:else}
-                <Circle class="size-4 shrink-0" aria-hidden="true" />
-              {/if}
+              <!-- Both icons stay in the DOM and cross-fade, so the change is
+                   interruptible and not a pop. -->
+              <span class="relative size-4 shrink-0" aria-hidden="true">
+                <Circle class={[iconBase, passwordLongEnough ? iconOut : iconIn]} />
+                <Check class={[iconBase, "text-primary", passwordLongEnough ? iconIn : iconOut]} />
+              </span>
               <span class="sr-only">{passwordLongEnough ? "Done:" : "Not yet:"}</span>
               <span>At least {PASSWORD_MIN_LENGTH} characters</span>
             </p>
-            <p>Try three or four words you'll remember.</p>
+            <p>Try three or four words you'll remember. Spaces are fine.</p>
+            <!-- Advice only: the length rule above is the one that blocks. The
+                 row is always there, so it appearing moves nothing. -->
+            <p class="flex items-center gap-2" data-password-strength={strength ?? "none"}>
+              <span class="flex gap-1" aria-hidden="true">
+                {#each [1, 2, 3] as bar (bar)}
+                  <span
+                    class={[
+                      "h-1.5 w-6 rounded-full transition-colors duration-150 motion-reduce:transition-none",
+                      strength && bar <= STRENGTH_BARS[strength] ? "bg-primary" : "bg-border"
+                    ]}
+                  ></span>
+                {/each}
+              </span>
+              <span>Length{strength ? `: ${PASSWORD_STRENGTH_LABELS[strength]}` : ""}</span>
+            </p>
           </div>
         </div>
 

@@ -132,7 +132,7 @@ describe("activate page", () => {
       expect(screen.container.textContent).not.toContain("First time here or forgot");
     });
 
-    it("draws the etched slip above the boxes as decorative art, and no other step does (#273)", async () => {
+    it("draws the etched slip above the boxes as decorative art, and the padlock on the password step only (#273, #256)", async () => {
       const marks = (root: Element) => [...root.querySelectorAll("[data-etched-mark]")];
 
       const code = await render(Page, codeStep);
@@ -143,11 +143,18 @@ describe("activate page", () => {
       expect(mark!.compareDocumentPosition(boxes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       code.unmount();
 
-      for (const step of [emailStep, passwordStep]) {
-        const other = await render(Page, step);
-        expect(marks(other.container)).toHaveLength(0);
-        other.unmount();
-      }
+      const email = await render(Page, emailStep);
+      expect(marks(email.container)).toHaveLength(0);
+      email.unmount();
+
+      const password = await render(Page, passwordStep);
+      const [padlock] = marks(password.container);
+      expect(marks(password.container)).toHaveLength(1);
+      expect(padlock!.getAttribute("aria-hidden")).toBe("true");
+      const field = password.getByLabelText("New password").element();
+      expect(
+        padlock!.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
     });
 
     it("sends the code with the email it was sent to, to Verify", async () => {
@@ -445,6 +452,17 @@ describe("activate page", () => {
   });
 
   describe("the password step", () => {
+    it("is headed by its own step, with the page's intro left out (#256)", async () => {
+      const screen = await render(Page, passwordStep);
+
+      const headings = screen.getByRole("heading", { name: "Choose a new password" });
+      expect(headings.elements()).toHaveLength(1);
+      expect(headings.element().tagName).toBe("H1");
+      expect(screen.getByRole("heading", { name: "Set your password" }).elements()).toHaveLength(0);
+      expect(screen.container.textContent).not.toContain("First time here or forgot");
+      await expect.element(screen.getByText(/Code confirmed/)).toBeVisible();
+    });
+
     it("only sets the password, for the email whose code was checked", async () => {
       const screen = await render(Page, passwordStep);
 
@@ -662,6 +680,28 @@ describe("activate page", () => {
 
       await password.fill("x".repeat(5));
       expect(rules.textContent).toContain("Not yet:");
+    });
+
+    it("shows a length reading once the password is long enough, as advice only (#256)", async () => {
+      const screen = await render(Page, passwordStep);
+      const password = screen.getByLabelText("New password");
+      const reading = () => screen.container.querySelector("[data-password-strength]");
+
+      // The row is always there, empty, so its appearing moves nothing.
+      expect(reading()?.getAttribute("data-password-strength")).toBe("none");
+      await password.fill("x".repeat(11));
+      expect(reading()?.textContent).not.toContain("Length:");
+
+      await password.fill("x".repeat(12));
+      expect(reading()?.textContent).toContain("Length: Okay");
+
+      await password.fill("x".repeat(16));
+      expect(reading()?.textContent).toContain("Length: Good");
+
+      await password.fill("x".repeat(20));
+      expect(reading()?.textContent).toContain("Length: Strong");
+      // Not a gate: the form still submits at any passing length.
+      await expect.element(screen.getByRole("button", { name: "Set password" })).toBeEnabled();
     });
 
     it("clears the password message as soon as the password is long enough", async () => {
@@ -969,7 +1009,7 @@ describe("activate page", () => {
       const password = await render(Page, passwordStep);
       await expect.element(password.getByText("At least 12 characters")).toBeVisible();
       await expect
-        .element(password.getByText("Try three or four words you'll remember."))
+        .element(password.getByText("Try three or four words you'll remember. Spaces are fine."))
         .toBeVisible();
       await expect
         .element(password.getByLabelText("New password"))
