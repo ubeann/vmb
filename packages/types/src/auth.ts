@@ -50,8 +50,14 @@ export const ActivateRequestInputSchema = z.object({
   email: emailSchema
 });
 
-export const ActivateResetInputSchema = z.object({
+// The code step's Verify: the code is checked against the email it was sent to.
+export const ActivateVerifyInputSchema = z.object({
   email: emailSchema,
-  otp: otpSchema,
+  otp: otpSchema
+});
+
+// The password step. The email and the checked code wait on the server, so
+// only the new password is posted (#254).
+export const ActivatePasswordInputSchema = z.object({
   password: newPasswordSchema
 });

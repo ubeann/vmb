@@ -87,7 +87,7 @@
           <InputOTP.Slot
             {cell}
             class={cn(
-              "border-input size-auto h-11 max-w-11 min-w-0 flex-1 rounded-lg border text-base",
+              "border-input size-auto h-11 min-w-0 flex-1 rounded-lg border text-base",
               invalid && invalidSlotClass
             )}
           />

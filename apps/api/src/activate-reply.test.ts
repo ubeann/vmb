@@ -209,3 +209,63 @@ describe("rate limits on the request step (#251)", () => {
     expect(memoryDb.rateLimit).toEqual([]);
   });
 });
+
+// The code step's Verify (#254): it checks a code without using it up. An
+// unregistered email has no code to check, so it must read exactly like a
+// registered one with a wrong code (#232).
+async function checkCode(email: string, otp: string, clientIp = "192.0.2.10") {
+  const res = await app.request(
+    "/api/auth/email-otp/check-verification-otp",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: bindings.WEB_URL,
+        [CLIENT_IP_HEADER]: clientIp,
+        [CLIENT_IP_SECRET_HEADER]: bindings.CLIENT_IP_SECRET
+      },
+      body: JSON.stringify({ email, otp, type: "forget-password" })
+    },
+    bindings
+  );
+  return { status: res.status, body: await res.text() };
+}
+
+// The code emailed to REGISTERED by its latest request, and one that is not it.
+const sentCode = () => sendOtpEmailMock.mock.lastCall![2];
+const wrongCode = () => (sentCode() === "000000" ? "111111" : "000000");
+
+describe("POST /api/auth/email-otp/check-verification-otp", () => {
+  it("answers an unregistered email exactly like a registered one with a wrong code", async () => {
+    await requestCode(REGISTERED, "192.0.2.1");
+    await requestCode(UNREGISTERED, "192.0.2.2");
+    const registered = await checkCode(REGISTERED, wrongCode(), "192.0.2.3");
+    const unregistered = await checkCode(UNREGISTERED, wrongCode(), "192.0.2.4");
+
+    expect(registered.status).toBe(400);
+    expect(JSON.parse(registered.body)).toMatchObject({ code: "INVALID_OTP" });
+    expect(unregistered).toEqual(registered);
+  });
+
+  it("accepts the right code without using it up, so the password step can still spend it", async () => {
+    await requestCode(REGISTERED, "192.0.2.5");
+    const code = sentCode();
+
+    const first = await checkCode(REGISTERED, code, "192.0.2.6");
+    const again = await checkCode(REGISTERED, code, "192.0.2.7");
+
+    expect(first.status).toBe(200);
+    expect(again.status).toBe(200);
+  });
+
+  it("counts wrong tries toward the 3 attempts a code allows", async () => {
+    await requestCode(REGISTERED, "192.0.2.8");
+    // One client per try: the route allows 3 checks a minute from one IP.
+    for (let i = 0; i < 3; i++) await checkCode(REGISTERED, wrongCode(), `192.0.2.${20 + i}`);
+
+    const right = await checkCode(REGISTERED, sentCode(), "192.0.2.30");
+
+    expect(right.status).toBe(403);
+    expect(JSON.parse(right.body)).toMatchObject({ code: "TOO_MANY_ATTEMPTS" });
+  });
+});

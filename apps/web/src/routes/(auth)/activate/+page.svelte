@@ -5,9 +5,11 @@
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mail from "@lucide/svelte/icons/mail";
   import Send from "@lucide/svelte/icons/send";
+  import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import {
+    ActivatePasswordInputSchema,
     ActivateRequestInputSchema,
-    ActivateResetInputSchema,
+    ActivateVerifyInputSchema,
     OTP_LENGTH,
     PASSWORD_MIN_LENGTH
   } from "@vmb/types";
@@ -22,15 +24,40 @@
   import { transitionUpdate } from "$lib/card-transition.js";
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
-  import type { ActionData } from "./$types.js";
+  import type { ActionData, PageData } from "./$types.js";
 
-  let { form }: { form: ActionData } = $props();
+  let { data, form }: { data: PageData; form: ActionData } = $props();
+
+  // Three steps on one route (#254): the email, the code, the new password.
+  const STEPS = ["request", "code", "password"] as const;
+  type Step = (typeof STEPS)[number];
+
+  // An action's reply names the step it leaves the page on. Without one, the
+  // load's step stands: the password step, while a checked code is kept.
+  // "Use a different email" on the code step overrides this until the next
+  // reply.
+  let step: Step = $derived(
+    STEPS.find((name) => form && "step" in form && form.step === name) ?? data.step ?? "request"
+  );
+  let email = $derived(
+    form && "email" in form && typeof form.email === "string" ? form.email : (data.email ?? "")
+  );
+
+  // Where focus goes when a step comes in: its first field.
+  const firstField: Record<Step, string> = {
+    request: "email",
+    code: "otp",
+    password: "new-password"
+  };
 
   let submitting = $state(false);
 
   // Shared by every form here: the button reports progress until the action
-  // settles. `afterFailure` is where focus goes when the server turns it down,
-  // `afterSuccess` what to reset once it has taken it.
+  // settles. A reply that names another step swaps the steps in the same
+  // sheet, so it moves the way a change of page does, and focus goes to the
+  // new step's first field. Otherwise `afterFailure` is where focus goes when
+  // the server turns the form down, `afterSuccess` what to reset once it has
+  // taken it.
   const trackWith =
     (afterFailure: (formElement: HTMLFormElement) => void, afterSuccess?: () => void) =>
     ({ formElement }: { formElement: HTMLFormElement }) => {
@@ -39,16 +66,20 @@
         result,
         update
       }: {
-        result: { type: string };
+        result: { type: string; data?: Record<string, unknown> };
         update: () => Promise<void>;
       }) => {
-        // A sent code swaps the email step for the code step in the same sheet, so
-        // it moves the way a change of page does.
-        await (result.type === "success" && step === "request"
-          ? transitionUpdate(update)
+        const from = step;
+        const moves = result.data?.step !== undefined && result.data.step !== from;
+        await (moves
+          ? transitionUpdate(async () => {
+              await update();
+              code = "";
+            })
           : update());
         submitting = false;
-        if (result.type === "failure") afterFailure(formElement);
+        if (step !== from) document.getElementById(firstField[step])?.focus();
+        else if (result.type === "failure") afterFailure(formElement);
         else if (result.type === "success") afterSuccess?.();
       };
     };
@@ -65,26 +96,16 @@
   let codeInput = $state<HTMLInputElement | null>(null);
 
   // Whatever the server turned down, the code is typed again: the boxes are
-  // emptied and the first one is ready. A mistake in another field goes first.
-  function afterCodeFailure(formElement: HTMLFormElement) {
-    const invalid = formElement.querySelector<HTMLInputElement>('input[aria-invalid="true"]');
-    if (invalid && invalid !== codeInput) {
-      invalid.focus();
-      return;
-    }
+  // emptied and the first one is ready.
+  function afterCodeFailure() {
     code = "";
     codeInput?.focus();
   }
 
-  // The last digit sends the form, as long as there is a password to send it
-  // with; otherwise the password is next. Not while a send is under way: a
-  // second one would use up the code.
+  // The last digit sends Verify. Not while a send is under way: a second one
+  // would count as another try.
   function sendOnComplete() {
-    const form = codeInput?.form;
-    if (!form || submitting) return;
-    const password = form.elements.namedItem("password");
-    if (password instanceof HTMLInputElement && password.value === "") password.focus();
-    else form.requestSubmit();
+    if (!submitting) codeInput?.form?.requestSubmit();
   }
 
   // A link inside a sentence keeps the line's height; one on its own line gets
@@ -92,10 +113,6 @@
   const inlineLinkClass =
     "text-primary focus-visible:ring-ring rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
   const linkClass = `${inlineLinkClass} inline-flex min-h-11 items-center`;
-
-  // "Use a different email" overrides this until the next action result.
-  let step = $derived(form && "step" in form && form.step === "reset" ? "reset" : "request");
-  let email = $derived(form && "email" in form ? form.email : "");
 
   // Back to the email step to fix a typo, keeping what was typed. The link's
   // own href does the same, without the email, when JavaScript is off.
@@ -105,7 +122,7 @@
       step = "request";
       code = "";
     });
-    document.getElementById("email")?.focus();
+    document.getElementById(firstField.request)?.focus();
   }
 
   type FieldErrors = Partial<Record<"email" | "otp" | "password", string>>;
@@ -113,24 +130,35 @@
   let serverErrors = $derived(
     form && "fieldErrors" in form ? (form.fieldErrors as FieldErrors) : undefined
   );
-  // One validation per visible form. The code step's email is a hidden field
-  // carried from the request step, so only the server checks it again. "Send a
+  // One validation per step's form. The code step's email is a hidden field
+  // carried from the email step, so only the server checks it again. "Send a
   // new code" has no visible field to mark, so it has no validation of its own.
   const requestValidation = createFieldValidation(ActivateRequestInputSchema, () => serverErrors);
-  const resetValidation = createFieldValidation(
-    ActivateResetInputSchema.pick({ otp: true, password: true }),
+  const verifyValidation = createFieldValidation(
+    ActivateVerifyInputSchema.pick({ otp: true }),
     () => serverErrors
   );
-  // A refused code or reset with no field to blame: the error goes under the
-  // boxes instead of the banner.
+  const passwordValidation = createFieldValidation(ActivatePasswordInputSchema, () => serverErrors);
+  // A refused code with no field to blame: the error goes under the boxes
+  // instead of the banner.
   let codeError = $derived(
-    step === "reset" && !serverErrors && form && "errorAt" in form && form.errorAt === "code"
+    step === "code" && !serverErrors && form && "errorAt" in form && form.errorAt === "code"
       ? form.error
       : undefined
   );
   let fieldErrors: FieldErrors | undefined = $derived(
-    step === "reset" ? resetValidation.errors : requestValidation.errors
+    {
+      request: requestValidation.errors,
+      code: verifyValidation.errors,
+      password: passwordValidation.errors
+    }[step]
   );
+
+  const headings: Record<Step, string> = {
+    request: "Get a code",
+    code: "Enter your code",
+    password: "Choose a new password"
+  };
 </script>
 
 <PageMeta
@@ -143,59 +171,53 @@
     First time here or forgot your password? We will email you a one-time code to set a new one.
   {/snippet}
 
-  <h2 class="text-base font-semibold">{step === "reset" ? "Enter your code" : "Get a code"}</h2>
+  <h2 class="text-base font-semibold">{headings[step]}</h2>
   <!-- The same words whether or not the email belongs to a user: a reply that
        differed would show which emails are registered (#232). -->
-  <p class="text-muted-foreground mt-1 text-sm">
-    {#if step === "reset"}
+  <p class="text-muted-foreground mt-1 text-sm text-pretty">
+    {#if step === "password"}
+      Code confirmed. Choose a password for <strong class="text-foreground">{email}</strong>.
+    {:else if step === "code"}
       If <strong class="text-foreground">{email}</strong> has VMB access, we sent a code to it. It expires
       in 5 minutes.
     {:else}
       Enter the email associated with your VMB access.
     {/if}
   </p>
-  {#if step === "reset"}
+  {#if step === "code"}
     <a href={resolve("/activate")} class="{linkClass} text-sm" onclick={useDifferentEmail}
       >Use a different email</a
     >
+  {:else if step === "password"}
+    <!-- A form, not a link: starting over drops the checked code, which only
+         the server can reach. It still looks like the code step's link; the
+         base layer's bordered button would read as a second Set password. -->
+    <form method="POST" action="?/restart" novalidate use:enhance={track}>
+      <button
+        type="submit"
+        class="{linkClass} border-0 bg-transparent p-0 text-sm"
+        disabled={submitting}>Use a different email</button
+      >
+    </form>
   {/if}
 
   <div class="mt-5 space-y-5">
-    {#if form?.error && !codeError && (!fieldErrors || (step === "reset" && fieldErrors.email))}
+    {#if form?.error && !codeError && (!fieldErrors || (step === "code" && fieldErrors.email))}
       <Notice variant="destructive">{form.error}</Notice>
     {/if}
 
-    {#if step === "reset"}
+    {#if step === "password"}
       <form
         method="POST"
         action="?/reset"
         novalidate
-        oninput={resetValidation.oninput}
-        use:enhance={checked(resetValidation, trackWith(afterCodeFailure))}
+        oninput={passwordValidation.oninput}
+        use:enhance={checked(passwordValidation)}
         class="space-y-5"
       >
-        <input type="hidden" name="email" value={email} />
-
-        <div class="space-y-2">
-          <Label for="otp">Code</Label>
-          <CodeInput
-            id="otp"
-            name="otp"
-            bind:value={code}
-            bind:inputRef={codeInput}
-            invalid={!!fieldErrors?.otp}
-            aria-describedby={fieldErrors?.otp || codeError ? "otp-hint otp-error" : "otp-hint"}
-            onComplete={sendOnComplete}
-          />
-          <p id="otp-hint" class="text-muted-foreground text-sm">
-            Enter the {OTP_LENGTH}-digit code from your email.
-          </p>
-          {#if fieldErrors?.otp || codeError}
-            <p id="otp-error" role="alert" class="text-destructive text-sm">
-              {fieldErrors?.otp ?? codeError}
-            </p>
-          {/if}
-        </div>
+        <!-- Tells a password manager which email the new password is saved
+             under. It has no name, so it is not sent. -->
+        <input type="email" autocomplete="username" value={email} hidden readonly />
 
         <div class="space-y-2">
           <Label for="new-password">New password</Label>
@@ -225,6 +247,50 @@
           {:else}
             <Check class="size-4" aria-hidden="true" />
             Set password
+          {/if}
+        </Button>
+      </form>
+    {:else if step === "code"}
+      <form
+        method="POST"
+        action="?/verify"
+        novalidate
+        oninput={verifyValidation.oninput}
+        use:enhance={checked(verifyValidation, trackWith(afterCodeFailure))}
+        class="space-y-5"
+      >
+        <input type="hidden" name="email" value={email} />
+
+        <div class="space-y-2">
+          <Label for="otp">Code</Label>
+          <CodeInput
+            id="otp"
+            name="otp"
+            bind:value={code}
+            bind:inputRef={codeInput}
+            invalid={!!fieldErrors?.otp}
+            aria-describedby={fieldErrors?.otp || codeError ? "otp-error" : "otp-hint"}
+            onComplete={sendOnComplete}
+          />
+          <!-- An error takes the hint's place, as the password field's does. -->
+          {#if fieldErrors?.otp || codeError}
+            <p id="otp-error" role="alert" class="text-destructive text-sm">
+              {fieldErrors?.otp ?? codeError}
+            </p>
+          {:else}
+            <p id="otp-hint" class="text-muted-foreground text-sm">
+              Enter the {OTP_LENGTH}-digit code from your email.
+            </p>
+          {/if}
+        </div>
+
+        <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
+          {#if submitting}
+            <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
+            Verifying…
+          {:else}
+            <ShieldCheck class="size-4" aria-hidden="true" />
+            Verify code
           {/if}
         </Button>
       </form>
