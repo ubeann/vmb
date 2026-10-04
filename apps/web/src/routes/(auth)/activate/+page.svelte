@@ -168,6 +168,12 @@
   // It only reads the field; the schema still decides on submit, and so does
   // the server for the words about the account.
   let password = $state("");
+  // The password form is mounted again, blank, each time the step is reached, so
+  // what was typed goes when the step is left: kept, it would describe a field
+  // that is empty (a code that expired sends the user back to the code step).
+  $effect(() => {
+    if (step !== "password") password = "";
+  });
   let passwordLength = $derived(password.length);
   let strength = $derived(passwordStrength(passwordLength));
   // The email is the user's own, so naming the word to leave out reveals nothing.

@@ -722,6 +722,21 @@ describe("activate page", () => {
         await expect.element(password).not.toHaveAttribute("aria-invalid");
       });
 
+      it("forgets what was typed when the step is left, so a blank field is not read as the old one", async () => {
+        const screen = await render(Page, rina);
+        await screen.getByLabelText("New password").fill("my rina.wijaya passphrase");
+        await expect.element(screen.getByText(/Leave .* out of your password/)).toBeVisible();
+
+        // A code that expired sends the user back to the code step, then on again.
+        await screen.rerender(codeStep);
+        await screen.rerender(rina);
+
+        const bar = screen.container.querySelector("[data-password-strength]")!;
+        expect(bar.getAttribute("data-password-strength")).toBe("none");
+        expect(screen.getByText(/Leave .* out of your password/).elements()).toHaveLength(0);
+        await expect.element(screen.getByText("At least 12 characters")).toBeVisible();
+      });
+
       it("names VMB once, not VMB and the company name both", async () => {
         const screen = await render(Page, rina);
 
