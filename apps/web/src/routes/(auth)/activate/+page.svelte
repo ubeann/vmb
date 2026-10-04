@@ -11,7 +11,7 @@
     ActivateRequestInputSchema,
     ActivateVerifyInputSchema,
     OTP_LENGTH,
-    PASSWORD_MIN_LENGTH
+    passwordContextWords
   } from "@vmb/types";
   import { ACTIVATE_ART } from "$lib/activate-art.js";
   import AuthCard from "$lib/components/AuthCard.svelte";
@@ -27,6 +27,13 @@
   import { Countdown, formatClock } from "$lib/countdown.svelte.js";
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
+  import {
+    PASSWORD_BAR_FULL_AT,
+    PASSWORD_MIN_MARK,
+    passwordBarFill,
+    passwordReading,
+    passwordStrength
+  } from "$lib/password-strength.js";
   import type { ActionData, PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -157,6 +164,42 @@
     () => serverErrors
   );
   const passwordValidation = createFieldValidation(ActivatePasswordInputSchema, () => serverErrors);
+  // The reading under the new-password field follows what is typed (ADR-0041).
+  // It only reads the field; the schema still decides on submit, and so does
+  // the server for the words about the account.
+  let password = $state("");
+  // The password form is mounted again, blank, each time the step is reached, so
+  // what was typed goes when the step is left: kept, it would describe a field
+  // that is empty (a code that expired sends the user back to the code step).
+  $effect(() => {
+    if (step !== "password") password = "";
+  });
+  let passwordLength = $derived(password.length);
+  let strength = $derived(passwordStrength(passwordLength));
+  // The email is the user's own, so naming the word to leave out reveals nothing.
+  let contextWords = $derived(passwordContextWords(password, email));
+  // A word to leave out stops the form in the browser, with the field marked
+  // and focused; the server refuses it too (ADR-0041).
+  function checkedPassword({
+    formElement,
+    cancel
+  }: {
+    formElement: HTMLFormElement;
+    cancel: () => void;
+  }) {
+    if (contextWords.length) {
+      cancel();
+      document.getElementById("new-password")?.focus();
+      return;
+    }
+    return checked(passwordValidation)({ formElement, cancel });
+  }
+  function onPasswordFormInput(event: Event) {
+    passwordValidation.oninput(event);
+    if (event.target instanceof HTMLInputElement && event.target.name === "password") {
+      password = event.target.value;
+    }
+  }
   // A refused code with no field to blame: the error goes under the boxes
   // instead of the banner.
   let codeError = $derived(
@@ -188,20 +231,22 @@
   First time here or forgot your password? We will email you a one-time code to set a new one.
 {/snippet}
 
-<!-- The code step is about one thing, so its heading is the step's own and the
-     page's intro, which explains the email step, steps aside (#273). -->
+<!-- The code and password steps are each about one thing, so their heading is
+     the step's own and the page's intro, which explains the email step, steps
+     aside (#273, #256). -->
 <AuthCard
-  heading={step === "code" ? headings.code : "Set your password"}
-  description={step === "code" ? undefined : intro}
+  heading={step === "request" ? "Set your password" : headings[step]}
+  description={step === "request" ? intro : undefined}
 >
-  {#if step !== "code"}
+  {#if step === "request"}
     <h2 class="text-base font-semibold">{headings[step]}</h2>
   {/if}
   <!-- The same words whether or not the email belongs to a user: a reply that
        differed would show which emails are registered (#232). -->
   <p class="text-muted-foreground mt-1 text-sm text-pretty">
     {#if step === "password"}
-      Code confirmed. Choose a password for <strong class="text-foreground">{email}</strong>.
+      Code confirmed for <strong class="text-foreground">{email}</strong>. Choose a password you'll
+      remember. Three or four words work well, and spaces are fine.
     {:else if step === "code"}
       If <strong class="text-foreground">{email}</strong> has VMB access, we sent a code to it. It expires
       in 5 minutes.
@@ -235,13 +280,17 @@
         method="POST"
         action="?/reset"
         novalidate
-        oninput={passwordValidation.oninput}
-        use:enhance={checked(passwordValidation)}
+        oninput={onPasswordFormInput}
+        use:enhance={checkedPassword}
         class="space-y-5"
       >
         <!-- Tells a password manager which email the new password is saved
              under. It has no name, so it is not sent. -->
         <input type="email" autocomplete="username" value={email} hidden readonly />
+
+        <!-- Etched art, as on the code step: its own band, in the flow with a
+             fixed ratio. -->
+        <EtchedMark art={ACTIVATE_ART.padlock} class="mx-auto w-20" />
 
         <div class="space-y-2">
           <Label for="new-password">New password</Label>
@@ -249,19 +298,55 @@
             id="new-password"
             name="password"
             autocomplete="new-password"
-            aria-invalid={fieldErrors?.password ? "true" : undefined}
-            aria-describedby={fieldErrors?.password ? "password-error" : "password-hint"}
+            aria-invalid={fieldErrors?.password || contextWords.length ? "true" : undefined}
+            aria-describedby={fieldErrors?.password
+              ? "password-error password-rules password-context"
+              : "password-rules password-context"}
             required
           />
           {#if fieldErrors?.password}
             <p id="password-error" role="alert" class="text-destructive text-sm">
               {fieldErrors.password}
             </p>
-          {:else}
-            <p id="password-hint" class="text-muted-foreground text-sm">
-              Use at least {PASSWORD_MIN_LENGTH} characters.
-            </p>
           {/if}
+          <div id="password-rules" class="space-y-2 pt-1 text-sm">
+            <!-- One bar for the length rule and the advice: the tick is the
+                 minimum, and past it the fill goes on to the full mark. Text
+                 says the same, so colour is not the only cue. Advice only: the
+                 schema is what blocks. -->
+            <div
+              role="meter"
+              aria-label="Password length"
+              aria-valuemin={0}
+              aria-valuemax={PASSWORD_BAR_FULL_AT}
+              aria-valuenow={Math.min(passwordLength, PASSWORD_BAR_FULL_AT)}
+              aria-valuetext={passwordReading(passwordLength)}
+              data-password-strength={strength ?? "none"}
+              class="bg-border relative h-1.5 overflow-hidden rounded-full"
+            >
+              <div
+                class={[
+                  "h-full rounded-full transition-[width,background-color] duration-150 motion-reduce:transition-none",
+                  strength ? "bg-primary" : "bg-muted-foreground"
+                ]}
+                style="width: {passwordBarFill(passwordLength) * 100}%"
+              ></div>
+              <div
+                class="bg-card absolute inset-y-0 w-0.5"
+                style="left: {PASSWORD_MIN_MARK * 100}%"
+              ></div>
+            </div>
+            <p class={strength ? "text-foreground" : "text-muted-foreground"}>
+              {passwordReading(passwordLength)}
+            </p>
+            <!-- Always on the page, so a word to leave out appearing moves
+                 nothing under it. -->
+            <p id="password-context" class="text-destructive min-h-5" aria-live="polite">
+              {#if contextWords.length}
+                Leave {contextWords.map((word) => `"${word}"`).join(" and ")} out of your password
+              {/if}
+            </p>
+          </div>
         </div>
 
         <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>

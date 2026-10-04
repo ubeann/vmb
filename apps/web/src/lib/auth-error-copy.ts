@@ -1,4 +1,10 @@
-import { EMAIL_INVALID_MESSAGE } from "@vmb/types";
+import {
+  EMAIL_INVALID_MESSAGE,
+  PASSWORD_BREACHED_CODE,
+  PASSWORD_BREACHED_MESSAGE,
+  PASSWORD_CONTEXT_CODE,
+  PASSWORD_CONTEXT_MESSAGE
+} from "@vmb/types";
 
 // Better Auth's `error.message` is written for developers and varies in tone
 // across codes, so `createAuthAction` never shows it. This maps the stable
@@ -24,7 +30,9 @@ const AUTH_ERROR_COPY: Record<string, string> = {
   INVALID_OTP: "That code isn't right. Enter it again.",
   TOO_MANY_ATTEMPTS: "Too many attempts. Send a new code and try again.",
   PASSWORD_TOO_SHORT: "Choose a longer password.",
-  PASSWORD_TOO_LONG: "Choose a shorter password."
+  PASSWORD_TOO_LONG: "Choose a shorter password.",
+  [PASSWORD_BREACHED_CODE]: PASSWORD_BREACHED_MESSAGE,
+  [PASSWORD_CONTEXT_CODE]: PASSWORD_CONTEXT_MESSAGE
 };
 
 const RATE_LIMIT_MESSAGE = "Too many attempts. Wait a moment and try again.";

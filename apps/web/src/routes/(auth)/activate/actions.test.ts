@@ -296,7 +296,7 @@ describe("the resend countdown's send time (#255)", () => {
     const reset = checkedJar();
     keepSentCode({ cookies: reset, url: new URL("https://vmb.example/activate") }, "a@example.com");
     await expect(
-      actions.reset!(fakeAuthEvent({ password: "new-secret" }, { cookies: reset }))
+      actions.reset!(fakeAuthEvent({ password: "new-secret-password" }, { cookies: reset }))
     ).rejects.toMatchObject({ status: 303 });
     const restarted = sentJar();
     await actions.restart!(fakeAuthEvent({}, { cookies: restarted }));
@@ -399,13 +399,13 @@ describe("activate reset (the password step)", () => {
     const cookies = checkedJar();
 
     await expect(
-      actions.reset!(fakeAuthEvent({ password: "new-secret" }, { cookies }))
+      actions.reset!(fakeAuthEvent({ password: "new-secret-password" }, { cookies }))
     ).rejects.toMatchObject({ status: 303, location: "/login?activated=true" });
 
     expect(resetMock).toHaveBeenCalledWith({
       email: "a@example.com",
       otp: "123456",
-      password: "new-secret"
+      password: "new-secret-password"
     });
     expect(readCheckedCode(cookies)).toBeUndefined();
   });
@@ -416,7 +416,7 @@ describe("activate reset (the password step)", () => {
     await expect(
       actions.reset!(
         fakeAuthEvent(
-          { email: "other@example.com", otp: "999999", password: "new-secret" },
+          { email: "other@example.com", otp: "999999", password: "new-secret-password" },
           { cookies }
         )
       )
@@ -428,7 +428,7 @@ describe("activate reset (the password step)", () => {
   });
 
   it("is out of reach without a checked code, sending the user back to the email step", async () => {
-    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret" }));
+    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret-password" }));
 
     expect(result).toMatchObject({
       status: 400,
@@ -439,7 +439,8 @@ describe("activate reset (the password step)", () => {
 
   it.each([
     ["", "Enter a new password"],
-    ["short", "Use at least 8 characters"],
+    ["short", "Use at least 12 characters"],
+    ["x".repeat(11), "Use at least 12 characters"],
     ["x".repeat(129), "Use 128 characters or fewer"]
   ])("rejects the new password %#: %s", async (password, message) => {
     const result = await actions.reset!(fakeAuthEvent({ password }, { cookies: checkedJar() }));
@@ -451,7 +452,7 @@ describe("activate reset (the password step)", () => {
     expect(resetMock).not.toHaveBeenCalled();
   });
 
-  it.each(["x".repeat(8), "x".repeat(128)])(
+  it.each(["x".repeat(12), "x".repeat(128)])(
     "accepts a new password at the length bounds (%#)",
     async (password) => {
       await expect(
@@ -468,7 +469,9 @@ describe("activate reset (the password step)", () => {
     resetMock.mockResolvedValueOnce(refusal(code));
     const cookies = checkedJar();
 
-    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret" }, { cookies }));
+    const result = await actions.reset!(
+      fakeAuthEvent({ password: "new-secret-password" }, { cookies })
+    );
 
     expect(result).toMatchObject({
       status: 400,
@@ -477,11 +480,32 @@ describe("activate reset (the password step)", () => {
     expect(readCheckedCode(cookies)).toBeUndefined();
   });
 
+  it("stays on the password step for a breached password, keeping the checked code (#256)", async () => {
+    resetMock.mockResolvedValueOnce(refusal("PASSWORD_BREACHED"));
+    const cookies = checkedJar();
+
+    const result = await actions.reset!(
+      fakeAuthEvent({ password: "new-secret-password" }, { cookies })
+    );
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        step: "password",
+        email: "a@example.com",
+        error: "This password appeared in a data leak. Choose a different one."
+      }
+    });
+    expect(readCheckedCode(cookies)).toBeDefined();
+  });
+
   it("stays on the password step for a rate limit, keeping the checked code", async () => {
     resetMock.mockResolvedValueOnce({ data: null, error: { status: 429 } });
     const cookies = checkedJar();
 
-    const result = await actions.reset!(fakeAuthEvent({ password: "new-secret" }, { cookies }));
+    const result = await actions.reset!(
+      fakeAuthEvent({ password: "new-secret-password" }, { cookies })
+    );
 
     expect(result).toMatchObject({
       status: 400,

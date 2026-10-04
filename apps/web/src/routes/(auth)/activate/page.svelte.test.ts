@@ -132,7 +132,7 @@ describe("activate page", () => {
       expect(screen.container.textContent).not.toContain("First time here or forgot");
     });
 
-    it("draws the etched slip above the boxes as decorative art, and no other step does (#273)", async () => {
+    it("draws the etched slip above the boxes as decorative art, and the padlock on the password step only (#273, #256)", async () => {
       const marks = (root: Element) => [...root.querySelectorAll("[data-etched-mark]")];
 
       const code = await render(Page, codeStep);
@@ -143,11 +143,18 @@ describe("activate page", () => {
       expect(mark!.compareDocumentPosition(boxes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       code.unmount();
 
-      for (const step of [emailStep, passwordStep]) {
-        const other = await render(Page, step);
-        expect(marks(other.container)).toHaveLength(0);
-        other.unmount();
-      }
+      const email = await render(Page, emailStep);
+      expect(marks(email.container)).toHaveLength(0);
+      email.unmount();
+
+      const password = await render(Page, passwordStep);
+      const [padlock] = marks(password.container);
+      expect(marks(password.container)).toHaveLength(1);
+      expect(padlock!.getAttribute("aria-hidden")).toBe("true");
+      const field = password.getByLabelText("New password").element();
+      expect(
+        padlock!.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
     });
 
     it("sends the code with the email it was sent to, to Verify", async () => {
@@ -445,6 +452,17 @@ describe("activate page", () => {
   });
 
   describe("the password step", () => {
+    it("is headed by its own step, with the page's intro left out (#256)", async () => {
+      const screen = await render(Page, passwordStep);
+
+      const headings = screen.getByRole("heading", { name: "Choose a new password" });
+      expect(headings.elements()).toHaveLength(1);
+      expect(headings.element().tagName).toBe("H1");
+      expect(screen.getByRole("heading", { name: "Set your password" }).elements()).toHaveLength(0);
+      expect(screen.container.textContent).not.toContain("First time here or forgot");
+      await expect.element(screen.getByText(/Code confirmed/)).toBeVisible();
+    });
+
     it("only sets the password, for the email whose code was checked", async () => {
       const screen = await render(Page, passwordStep);
 
@@ -463,11 +481,11 @@ describe("activate page", () => {
 
       const button = screen.getByRole("button", { name: "Set password" }).element();
 
-      await screen.getByLabelText("New password").fill("long-enough");
+      await screen.getByLabelText("New password").fill("long-enough-password");
       await screen.getByRole("button", { name: "Set password" }).click();
 
       expect(submissions).toHaveLength(1);
-      expect([...submissions[0]!.entries()]).toEqual([["password", "long-enough"]]);
+      expect([...submissions[0]!.entries()]).toEqual([["password", "long-enough-password"]]);
       expect(button.closest("form")?.getAttribute("action")).toBe("?/reset");
     });
 
@@ -632,7 +650,8 @@ describe("activate page", () => {
 
     it.each([
       ["", "Enter a new password"],
-      ["short", "Use at least 8 characters"],
+      ["short", "Use at least 12 characters"],
+      ["x".repeat(11), "Use at least 12 characters"],
       ["x".repeat(129), "Use 128 characters or fewer"]
     ])("rejects the new password %#", async (password, message) => {
       const screen = await render(Page, passwordStep);
@@ -643,9 +662,90 @@ describe("activate page", () => {
       await expect.element(screen.getByText(message)).toBeVisible();
       await expect
         .element(screen.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-error");
+        .toHaveAttribute("aria-describedby", "password-error password-rules password-context");
       await expect.element(screen.getByLabelText("New password")).toHaveFocus();
       expect(submissions).toHaveLength(0);
+    });
+
+    it("reads the length as one bar: the rule before 12, then advice only (#256)", async () => {
+      const screen = await render(Page, passwordStep);
+      const password = screen.getByLabelText("New password");
+      const bar = () => screen.container.querySelector<HTMLElement>("[data-password-strength]")!;
+
+      // Always there, so it appearing moves nothing.
+      expect(bar().getAttribute("data-password-strength")).toBe("none");
+      expect(bar().getAttribute("role")).toBe("meter");
+      expect(bar().getAttribute("aria-valuetext")).toBe("At least 12 characters");
+      await expect.element(screen.getByText("At least 12 characters")).toBeVisible();
+
+      await password.fill("x".repeat(5));
+      await expect.element(screen.getByText("7 more characters")).toBeVisible();
+
+      await password.fill("x".repeat(11));
+      await expect.element(screen.getByText("1 more character")).toBeVisible();
+
+      for (const [length, label, level] of [
+        [12, "Length: Okay", "okay"],
+        [16, "Length: Good", "good"],
+        [20, "Length: Strong", "strong"]
+      ] as const) {
+        await password.fill("x".repeat(length));
+        await expect.element(screen.getByText(label)).toBeVisible();
+        expect(bar().getAttribute("data-password-strength")).toBe(level);
+      }
+      // Not a gate: the form still submits at any passing length.
+      await expect.element(screen.getByRole("button", { name: "Set password" })).toBeEnabled();
+    });
+
+    describe("a word about the account", () => {
+      const rina = {
+        data: { user: null, step: "password", email: "rina.wijaya@vmblogistics.id" },
+        form: null
+      } as const;
+
+      it("is named as the password is typed, and stops the form before it is sent (#256)", async () => {
+        const screen = await render(Page, rina);
+        const password = screen.getByLabelText("New password");
+
+        await password.fill("my rina.wijaya passphrase");
+        await expect
+          .element(screen.getByText('Leave "rina.wijaya" out of your password'))
+          .toBeVisible();
+        await expect.element(password).toHaveAttribute("aria-invalid", "true");
+
+        await screen.getByRole("button", { name: "Set password" }).click();
+        expect(submissions).toHaveLength(0);
+        await expect.element(password).toHaveFocus();
+
+        await password.fill("a passphrase with nothing in it");
+        expect(screen.getByText(/Leave .* out of your password/).elements()).toHaveLength(0);
+        await expect.element(password).not.toHaveAttribute("aria-invalid");
+      });
+
+      it("forgets what was typed when the step is left, so a blank field is not read as the old one", async () => {
+        const screen = await render(Page, rina);
+        await screen.getByLabelText("New password").fill("my rina.wijaya passphrase");
+        await expect.element(screen.getByText(/Leave .* out of your password/)).toBeVisible();
+
+        // A code that expired sends the user back to the code step, then on again.
+        await screen.rerender(codeStep);
+        await screen.rerender(rina);
+
+        const bar = screen.container.querySelector("[data-password-strength]")!;
+        expect(bar.getAttribute("data-password-strength")).toBe("none");
+        expect(screen.getByText(/Leave .* out of your password/).elements()).toHaveLength(0);
+        await expect.element(screen.getByText("At least 12 characters")).toBeVisible();
+      });
+
+      it("names VMB once, not VMB and the company name both", async () => {
+        const screen = await render(Page, rina);
+
+        await screen.getByLabelText("New password").fill("go to vmblogistics today");
+
+        await expect
+          .element(screen.getByText('Leave "vmblogistics" out of your password'))
+          .toBeVisible();
+      });
     });
 
     it("clears the password message as soon as the password is long enough", async () => {
@@ -653,11 +753,11 @@ describe("activate page", () => {
       const password = screen.getByLabelText("New password");
       await password.fill("short");
       await screen.getByRole("button", { name: "Set password" }).click();
-      await expect.element(screen.getByText("Use at least 8 characters")).toBeVisible();
+      await expect.element(screen.getByText("Use at least 12 characters")).toBeVisible();
 
-      await password.fill("long-enough");
+      await password.fill("long-enough-password");
 
-      expect(screen.getByText("Use at least 8 characters").elements()).toHaveLength(0);
+      expect(screen.getByText("Use at least 12 characters").elements()).toHaveLength(0);
       await expect.element(password).not.toHaveAttribute("aria-invalid");
     });
 
@@ -951,10 +1051,13 @@ describe("activate page", () => {
       await code.unmount();
 
       const password = await render(Page, passwordStep);
-      await expect.element(password.getByText("Use at least 8 characters.")).toBeVisible();
+      await expect.element(password.getByText("At least 12 characters")).toBeVisible();
+      await expect
+        .element(password.getByText(/Three or four words work well, and spaces are fine\./))
+        .toBeVisible();
       await expect
         .element(password.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-hint");
+        .toHaveAttribute("aria-describedby", "password-rules password-context");
     });
   });
 
@@ -1024,7 +1127,7 @@ describe("activate page", () => {
       const screen = await submitAndReply(
         passwordStep,
         async (screen) => {
-          await screen.getByLabelText("New password").fill("long-enough");
+          await screen.getByLabelText("New password").fill("long-enough-password");
           await screen.getByRole("button", { name: "Set password" }).click();
         },
         { type: "failure", data: expired },

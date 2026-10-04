@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passwordSchema } from "./password.js";
 
 // The rules for the auth forms (issue #231). The pages check them in the browser
 // before anything is sent, and `createAuthAction` checks them again on the
@@ -9,11 +10,6 @@ import { z } from "zod";
 
 export const EMAIL_REQUIRED_MESSAGE = "Enter your email";
 export const EMAIL_INVALID_MESSAGE = "Enter a valid email, like name@example.com";
-
-// Better Auth's own bounds for a password (its `minPasswordLength` and
-// `maxPasswordLength` defaults, which `apps/api/src/auth.ts` does not override).
-export const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_MAX_LENGTH = 128;
 
 // The length of the code Better Auth's email OTP plugin sends by default.
 export const OTP_LENGTH = 6;
@@ -34,12 +30,6 @@ const otpSchema = z
   .min(1, "Enter the code from your email")
   .regex(new RegExp(`^\\d{${OTP_LENGTH}}$`), `Enter the ${OTP_LENGTH}-digit code from your email`);
 
-const newPasswordSchema = z
-  .string()
-  .min(1, "Enter a new password")
-  .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters`)
-  .max(PASSWORD_MAX_LENGTH, `Use ${PASSWORD_MAX_LENGTH} characters or fewer`);
-
 export const LoginInputSchema = z.object({
   email: emailSchema,
   password: loginPasswordSchema
@@ -59,5 +49,5 @@ export const ActivateVerifyInputSchema = z.object({
 // The password step. The email and the checked code wait on the server, so
 // only the new password is posted (#254).
 export const ActivatePasswordInputSchema = z.object({
-  password: newPasswordSchema
+  password: passwordSchema
 });

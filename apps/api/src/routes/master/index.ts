@@ -7,6 +7,10 @@ import {
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { Bindings } from "../../bindings.js";
+import {
+  isPasswordBreached as defaultIsPasswordBreached,
+  type PasswordBreachCheck
+} from "../../breached-password.js";
 import { divisionRoutes } from "./divisions.js";
 import { HttpError, type MasterEnv } from "./http.js";
 import { roleRoutes } from "./roles.js";
@@ -21,10 +25,14 @@ import { userRoutes } from "./users.js";
  * route schema the RPC client infers from, leaving `AppType` with no master
  * paths at all.
  */
-export function createMasterRoutes(resolveStore: (env: Bindings) => MasterStore) {
+export function createMasterRoutes(
+  resolveStore: (env: Bindings) => MasterStore,
+  isPasswordBreached: PasswordBreachCheck = defaultIsPasswordBreached
+) {
   return new Hono<MasterEnv>()
     .use("*", async (c, next) => {
       c.set("store", resolveStore(c.env));
+      c.set("isPasswordBreached", isPasswordBreached);
       await next();
     })
     .route("/divisions", divisionRoutes)

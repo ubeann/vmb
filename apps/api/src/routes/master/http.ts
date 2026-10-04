@@ -5,10 +5,15 @@ import { validator } from "hono/validator";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 import type { Bindings } from "../../bindings.js";
+import type { PasswordBreachCheck } from "../../breached-password.js";
 
 export type MasterEnv = {
   Bindings: Bindings;
-  Variables: { store: MasterStore };
+  Variables: {
+    store: MasterStore;
+    /** The breached-password lookup, resolved per request so a test can swap it. */
+    isPasswordBreached: PasswordBreachCheck;
+  };
 };
 
 /** A request the route itself refused, before the store ever saw it. */
