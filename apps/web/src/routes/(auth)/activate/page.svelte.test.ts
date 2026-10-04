@@ -141,6 +141,25 @@ describe("activate page", () => {
     await expect.element(screen.getByRole("alert")).toHaveTextContent("Invalid code");
   });
 
+  it("shows a refused code's error under the boxes and describes the code field with it", async () => {
+    const screen = await render(Page, {
+      form: {
+        step: "reset",
+        email: "a@example.com",
+        errorAt: "code",
+        error: "That code isn't right. Enter it again."
+      }
+    });
+
+    const error = screen.getByRole("alert");
+    await expect.element(error).toHaveTextContent("That code isn't right. Enter it again.");
+    await expect.element(error).toHaveAttribute("id", "otp-error");
+    await expect
+      .element(screen.getByLabelText("Code"))
+      .toHaveAttribute("aria-describedby", "otp-hint otp-error");
+    expect(screen.getByRole("alert").elements()).toHaveLength(1);
+  });
+
   // Both places a code is requested: the email step, and "Send a new code",
   // which keeps the user on the code step (#251).
   it.each([
@@ -525,10 +544,12 @@ describe("activate page", () => {
 
       await completions[0]!({
         result: { type: "failure" },
-        update: () => screen.rerender({ form: { ...resetStep, error: "Invalid code" } })
+        update: () =>
+          screen.rerender({ form: { ...resetStep, errorAt: "code", error: "Invalid code" } })
       });
 
       await expect.element(screen.getByRole("alert")).toHaveTextContent("Invalid code");
+      await expect.element(screen.getByRole("alert")).toHaveAttribute("id", "otp-error");
       await expect.element(code).toHaveValue("");
       expect(boxes(screen.container)).toEqual(["", "", "", "", "", ""]);
       await expect.element(code).toHaveFocus();

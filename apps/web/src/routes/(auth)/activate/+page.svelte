@@ -116,6 +116,13 @@
     ActivateResetInputSchema.pick({ otp: true, password: true }),
     () => serverErrors
   );
+  // A refused code or reset with no field to blame: the error goes under the
+  // boxes instead of the banner.
+  let codeError = $derived(
+    step === "reset" && !serverErrors && form && "errorAt" in form && form.errorAt === "code"
+      ? form.error
+      : undefined
+  );
   let fieldErrors: FieldErrors | undefined = $derived(
     step === "reset" ? resetValidation.errors : requestValidation.errors
   );
@@ -149,7 +156,7 @@
   {/if}
 
   <div class="mt-5 space-y-5">
-    {#if form?.error && (!fieldErrors || (step === "reset" && fieldErrors.email))}
+    {#if form?.error && !codeError && (!fieldErrors || (step === "reset" && fieldErrors.email))}
       <Notice variant="destructive">{form.error}</Notice>
     {/if}
 
@@ -172,13 +179,13 @@
             bind:value={code}
             bind:inputRef={codeInput}
             invalid={!!fieldErrors?.otp}
-            aria-describedby={fieldErrors?.otp ? "otp-hint otp-error" : "otp-hint"}
+            aria-describedby={fieldErrors?.otp || codeError ? "otp-hint otp-error" : "otp-hint"}
             onComplete={sendOnComplete}
           />
           <p id="otp-hint" class="text-muted-foreground text-sm">Use the code from your email.</p>
-          {#if fieldErrors?.otp}
+          {#if fieldErrors?.otp || codeError}
             <p id="otp-error" role="alert" class="text-destructive text-sm">
-              {fieldErrors.otp}
+              {fieldErrors?.otp ?? codeError}
             </p>
           {/if}
         </div>

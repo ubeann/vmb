@@ -212,7 +212,8 @@ describe("activate actions", () => {
       data: {
         step: "reset",
         email: "a@example.com",
-        error: "That code isn't right. Check it and try again."
+        errorAt: "code",
+        error: "That code isn't right. Enter it again."
       }
     });
   });
