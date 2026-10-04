@@ -132,6 +132,21 @@ describe("createAuth", () => {
       expect(isPasswordBreachedMock).toHaveBeenCalledWith(password);
     });
 
+    it("refuses a password built from the email name or VMB, before any lookup", async () => {
+      const email = "rina.wijaya@vmblogistics.id";
+
+      await expect(
+        runBefore("/email-otp/reset-password", { email, password: "my-Rina.Wijaya-is-long" })
+      ).rejects.toMatchObject({
+        status: "BAD_REQUEST",
+        body: { code: "PASSWORD_CONTAINS_CONTEXT" }
+      });
+      await expect(
+        runBefore("/email-otp/reset-password", { email, password: "the VMB warehouse crate" })
+      ).rejects.toMatchObject({ body: { code: "PASSWORD_CONTAINS_CONTEXT" } });
+      expect(isPasswordBreachedMock).not.toHaveBeenCalled();
+    });
+
     it("lets a password through that is not breached", async () => {
       await expect(runBefore("/email-otp/reset-password", { password })).resolves.toBeUndefined();
     });

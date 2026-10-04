@@ -14,6 +14,12 @@ describe("mapAuthErrorToCopy", () => {
     );
   });
 
+  it("maps a password built from the email or VMB to its own copy", () => {
+    expect(mapAuthErrorToCopy({ code: "PASSWORD_CONTAINS_CONTEXT" }, "fallback")).toBe(
+      'Your password can\'t contain your email name or "VMB". Choose a different one.'
+    );
+  });
+
   it("maps the sign-in gate's code to the same copy the API uses", () => {
     expect(mapAuthErrorToCopy({ code: "ACCOUNT_UNAVAILABLE" }, "fallback")).toBe(
       "This account is unavailable. Contact an administrator."

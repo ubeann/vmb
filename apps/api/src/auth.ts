@@ -3,8 +3,11 @@ import {
   CLIENT_IP_HEADER,
   PASSWORD_BREACHED_CODE,
   PASSWORD_BREACHED_MESSAGE,
+  PASSWORD_CONTEXT_CODE,
+  PASSWORD_CONTEXT_MESSAGE,
   PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH
+  PASSWORD_MIN_LENGTH,
+  passwordContainsContext
 } from "@vmb/types";
 import { betterAuth } from "better-auth";
 import { waitUntil } from "cloudflare:workers";
@@ -60,13 +63,14 @@ function buildAuth(env: Bindings) {
       maxPasswordLength: PASSWORD_MAX_LENGTH
     },
     hooks: {
-      // The breached-password check, on the way in to the endpoint that sets a
+      // The context and breached-password checks, on the way in to the endpoint that sets a
       // password. It runs before the code is spent, so a refused password
       // leaves the code to use again. Better Auth's `haveibeenpwned` plugin is
       // not used: it fails closed, and VMB's check fails open (ADR-0041).
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== "/email-otp/reset-password") return;
-        const password = (ctx.body as { password?: unknown } | undefined)?.password;
+        const body = ctx.body as { password?: unknown; email?: unknown } | undefined;
+        const password = body?.password;
         // A length Better Auth refuses itself is not worth a lookup.
         if (
           typeof password !== "string" ||
@@ -74,6 +78,13 @@ function buildAuth(env: Bindings) {
           password.length > PASSWORD_MAX_LENGTH
         ) {
           return;
+        }
+        // The words about the account come first: they need no lookup.
+        if (typeof body?.email === "string" && passwordContainsContext(password, body.email)) {
+          throw APIError.from("BAD_REQUEST", {
+            code: PASSWORD_CONTEXT_CODE,
+            message: PASSWORD_CONTEXT_MESSAGE
+          });
         }
         if (await isPasswordBreached(password)) {
           throw APIError.from("BAD_REQUEST", {

@@ -390,6 +390,29 @@ describe("master API: users", () => {
     }
   });
 
+  it("refuses a password built from the email name or VMB (#256)", async () => {
+    for (const password of [
+      "rina@vmblogistics.id-too",
+      "my-rina.wijaya-secret",
+      "VMB is a long phrase"
+    ]) {
+      const store = fakeStore();
+      const response = await appWith(store).request(
+        "/users",
+        json("POST", {
+          ...body,
+          email: "rina.wijaya@vmblogistics.id",
+          password,
+          passwordConfirmation: password
+        }),
+        env
+      );
+
+      expect(response.status).toBe(400);
+      expect(store.createUser).not.toHaveBeenCalled();
+    }
+  });
+
   it("refuses a breached password on create, with its own message (#256)", async () => {
     const store = fakeStore();
     const response = await appWith(store, async () => true).request(

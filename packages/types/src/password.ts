@@ -19,3 +19,22 @@ export const passwordSchema = z
   .min(1, "Enter a new password")
   .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters`)
   .max(PASSWORD_MAX_LENGTH, `Use ${PASSWORD_MAX_LENGTH} characters or fewer`);
+
+// Words a password about this account should not be built from: the name in the
+// user's own email, and the product. NIST SP 800-63B allows a blocklist of
+// context-specific words, and these are the first things a guess tries
+// (ADR-0041). Not a composition rule: it refuses nothing about the shape.
+export const PASSWORD_CONTEXT_CODE = "PASSWORD_CONTAINS_CONTEXT";
+export const PASSWORD_CONTEXT_MESSAGE =
+  'Your password can\'t contain your email name or "VMB". Choose a different one.';
+
+const PRODUCT_WORDS = ["vmb", "vmblogistics"];
+// A shorter name would match by chance inside a long passphrase.
+const MIN_EMAIL_NAME_LENGTH = 4;
+
+export function passwordContainsContext(password: string, email: string): boolean {
+  const lowered = password.toLowerCase();
+  const name = email.split("@")[0]?.trim().toLowerCase() ?? "";
+  const words = name.length >= MIN_EMAIL_NAME_LENGTH ? [...PRODUCT_WORDS, name] : PRODUCT_WORDS;
+  return words.some((word) => lowered.includes(word));
+}
