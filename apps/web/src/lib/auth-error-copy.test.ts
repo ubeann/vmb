@@ -8,6 +8,12 @@ describe("mapAuthErrorToCopy", () => {
     );
   });
 
+  it("maps a breached password to its own copy", () => {
+    expect(mapAuthErrorToCopy({ code: "PASSWORD_BREACHED" }, "fallback")).toBe(
+      "This password appeared in a data leak. Choose a different one."
+    );
+  });
+
   it("maps the sign-in gate's code to the same copy the API uses", () => {
     expect(mapAuthErrorToCopy({ code: "ACCOUNT_UNAVAILABLE" }, "fallback")).toBe(
       "This account is unavailable. Contact an administrator."

@@ -51,6 +51,21 @@ describe("login action", () => {
     expect(signInEmail).toHaveBeenCalledWith(expect.objectContaining({ password: "x" }));
   });
 
+  // Passwords set before the 12-character rule (#256) are untouched: the rule
+  // applies when a password is set, never when it is used.
+  it.each(["x".repeat(8), "x".repeat(11)])(
+    "still signs in with an existing password of %s",
+    async (password) => {
+      await expect(
+        action(fakeAuthEvent({ email: "a@example.com", password }))
+      ).rejects.toMatchObject({
+        status: 303
+      });
+
+      expect(signInEmail).toHaveBeenCalledWith(expect.objectContaining({ password }));
+    }
+  );
+
   it("puts a malformed email on the email field, before the API is called", async () => {
     const result = await action(fakeAuthEvent({ email: "a@", password: "secret" }));
 

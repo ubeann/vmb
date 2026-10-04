@@ -1,5 +1,7 @@
 <script lang="ts">
   import {
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
     USER_STATUS_LABELS,
     USER_STATUSES,
     UserUpdateInputSchema,
@@ -93,7 +95,7 @@
       <span>
         Password
         {#if passwordRequired}
-          (minimum 8 characters)
+          ({PASSWORD_MIN_LENGTH}–{PASSWORD_MAX_LENGTH} characters)
         {:else}
           (leave blank to keep the current password)
         {/if}
@@ -102,8 +104,8 @@
         type="password"
         name="password"
         bind:value={$fields.password}
-        minlength="8"
-        maxlength="255"
+        minlength={PASSWORD_MIN_LENGTH}
+        maxlength={PASSWORD_MAX_LENGTH}
         required={passwordRequired}
       />
       {#if $errors.password}<span class="error">{$errors.password[0]}</span>{/if}
@@ -115,8 +117,8 @@
         type="password"
         name="passwordConfirmation"
         bind:value={$fields.passwordConfirmation}
-        minlength="8"
-        maxlength="255"
+        minlength={PASSWORD_MIN_LENGTH}
+        maxlength={PASSWORD_MAX_LENGTH}
         required={passwordRequired}
       />
       {#if $errors.passwordConfirmation}<span class="error">{$errors.passwordConfirmation[0]}</span

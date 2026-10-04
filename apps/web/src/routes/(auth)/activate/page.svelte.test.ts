@@ -463,11 +463,11 @@ describe("activate page", () => {
 
       const button = screen.getByRole("button", { name: "Set password" }).element();
 
-      await screen.getByLabelText("New password").fill("long-enough");
+      await screen.getByLabelText("New password").fill("long-enough-password");
       await screen.getByRole("button", { name: "Set password" }).click();
 
       expect(submissions).toHaveLength(1);
-      expect([...submissions[0]!.entries()]).toEqual([["password", "long-enough"]]);
+      expect([...submissions[0]!.entries()]).toEqual([["password", "long-enough-password"]]);
       expect(button.closest("form")?.getAttribute("action")).toBe("?/reset");
     });
 
@@ -632,7 +632,8 @@ describe("activate page", () => {
 
     it.each([
       ["", "Enter a new password"],
-      ["short", "Use at least 8 characters"],
+      ["short", "Use at least 12 characters"],
+      ["x".repeat(11), "Use at least 12 characters"],
       ["x".repeat(129), "Use 128 characters or fewer"]
     ])("rejects the new password %#", async (password, message) => {
       const screen = await render(Page, passwordStep);
@@ -643,9 +644,24 @@ describe("activate page", () => {
       await expect.element(screen.getByText(message)).toBeVisible();
       await expect
         .element(screen.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-error");
+        .toHaveAttribute("aria-describedby", "password-error password-rules");
       await expect.element(screen.getByLabelText("New password")).toHaveFocus();
       expect(submissions).toHaveLength(0);
+    });
+
+    it("ticks the length check as the password reaches 12 characters", async () => {
+      const screen = await render(Page, passwordStep);
+      const password = screen.getByLabelText("New password");
+      const rules = screen.container.querySelector("#password-rules")!;
+
+      await password.fill("x".repeat(11));
+      expect(rules.textContent).toContain("Not yet:");
+
+      await password.fill("x".repeat(12));
+      expect(rules.textContent).toContain("Done:");
+
+      await password.fill("x".repeat(5));
+      expect(rules.textContent).toContain("Not yet:");
     });
 
     it("clears the password message as soon as the password is long enough", async () => {
@@ -653,11 +669,11 @@ describe("activate page", () => {
       const password = screen.getByLabelText("New password");
       await password.fill("short");
       await screen.getByRole("button", { name: "Set password" }).click();
-      await expect.element(screen.getByText("Use at least 8 characters")).toBeVisible();
+      await expect.element(screen.getByText("Use at least 12 characters")).toBeVisible();
 
-      await password.fill("long-enough");
+      await password.fill("long-enough-password");
 
-      expect(screen.getByText("Use at least 8 characters").elements()).toHaveLength(0);
+      expect(screen.getByText("Use at least 12 characters").elements()).toHaveLength(0);
       await expect.element(password).not.toHaveAttribute("aria-invalid");
     });
 
@@ -951,10 +967,13 @@ describe("activate page", () => {
       await code.unmount();
 
       const password = await render(Page, passwordStep);
-      await expect.element(password.getByText("Use at least 8 characters.")).toBeVisible();
+      await expect.element(password.getByText("At least 12 characters")).toBeVisible();
+      await expect
+        .element(password.getByText("Try three or four words you'll remember."))
+        .toBeVisible();
       await expect
         .element(password.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-hint");
+        .toHaveAttribute("aria-describedby", "password-rules");
     });
   });
 
@@ -1024,7 +1043,7 @@ describe("activate page", () => {
       const screen = await submitAndReply(
         passwordStep,
         async (screen) => {
-          await screen.getByLabelText("New password").fill("long-enough");
+          await screen.getByLabelText("New password").fill("long-enough-password");
           await screen.getByRole("button", { name: "Set password" }).click();
         },
         { type: "failure", data: expired },

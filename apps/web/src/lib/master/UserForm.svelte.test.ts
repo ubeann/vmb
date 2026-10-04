@@ -53,9 +53,7 @@ describe("UserForm", () => {
     const form = await superValidate(zod4(UserUpdateInputSchema));
 
     const created = await render(UserForm, { form, divisions, passwordRequired: true });
-    await expect
-      .element(created.getByRole("textbox", { name: /minimum 8 characters/ }))
-      .toBeVisible();
+    await expect.element(created.getByRole("textbox", { name: /12–128 characters/ })).toBeVisible();
 
     const edited = await render(UserForm, { form, divisions });
     await expect

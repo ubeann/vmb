@@ -84,8 +84,9 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
   };
 }
 
-function appWith(store: MasterStore) {
-  return createMasterRoutes(() => store);
+// Never the real Pwned Passwords lookup: a test makes no network call.
+function appWith(store: MasterStore, isPasswordBreached = async (_password: string) => false) {
+  return createMasterRoutes(() => store, isPasswordBreached);
 }
 
 function json(method: string, body: unknown) {
@@ -340,8 +341,8 @@ describe("master API: users", () => {
     divisionId: OTHER_ID,
     status: "active",
     profilePhotoPath: "",
-    password: "password123",
-    passwordConfirmation: "password123"
+    password: "a-long-enough-password",
+    passwordConfirmation: "a-long-enough-password"
   };
 
   it("creates with a normalized phone and the password confirmation", async () => {
@@ -356,16 +357,19 @@ describe("master API: users", () => {
       divisionId: OTHER_ID,
       status: "active",
       profilePhotoPath: "",
-      password: "password123",
-      passwordConfirmation: "password123"
+      password: "a-long-enough-password",
+      passwordConfirmation: "a-long-enough-password"
     });
   });
 
-  it("requires a password of at least 8 characters on create", async () => {
+  it.each([
+    ["11 characters", "x".repeat(11)],
+    ["129 characters", "x".repeat(129)]
+  ])("refuses a password of %s on create", async (_label, password) => {
     const store = fakeStore();
     const response = await appWith(store).request(
       "/users",
-      json("POST", { ...body, password: "short", passwordConfirmation: "short" }),
+      json("POST", { ...body, password, passwordConfirmation: password }),
       env
     );
 
@@ -373,10 +377,63 @@ describe("master API: users", () => {
     expect(store.createUser).not.toHaveBeenCalled();
   });
 
+  it("accepts a password at the 12 and 128 character bounds", async () => {
+    for (const password of ["x".repeat(12), "x".repeat(128)]) {
+      const store = fakeStore();
+      const response = await appWith(store).request(
+        "/users",
+        json("POST", { ...body, password, passwordConfirmation: password }),
+        env
+      );
+
+      expect(response.status).toBe(201);
+    }
+  });
+
+  it("refuses a breached password on create, with its own message (#256)", async () => {
+    const store = fakeStore();
+    const response = await appWith(store, async () => true).request(
+      "/users",
+      json("POST", body),
+      env
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "This password appeared in a data leak. Choose a different one.",
+      issues: [
+        {
+          path: "password",
+          message: "This password appeared in a data leak. Choose a different one."
+        }
+      ]
+    });
+    expect(store.createUser).not.toHaveBeenCalled();
+  });
+
+  it("refuses a breached password on update, but does not look up an empty one", async () => {
+    const store = fakeStore();
+    const isPasswordBreached = vi.fn(async () => true);
+    const app = appWith(store, isPasswordBreached);
+
+    const refused = await app.request(`/users/${ID}`, json("PATCH", body), env);
+    expect(refused.status).toBe(400);
+    expect(store.updateUser).not.toHaveBeenCalled();
+
+    isPasswordBreached.mockClear();
+    const kept = await app.request(
+      `/users/${ID}`,
+      json("PATCH", { ...body, password: "", passwordConfirmation: "" }),
+      env
+    );
+    expect(kept.status).toBe(200);
+    expect(isPasswordBreached).not.toHaveBeenCalled();
+  });
+
   it("rejects a mismatched confirmation", async () => {
     const response = await appWith(fakeStore()).request(
       "/users",
-      json("POST", { ...body, passwordConfirmation: "different123" }),
+      json("POST", { ...body, passwordConfirmation: "a-different-long-password" }),
       env
     );
     const parsed = (await response.json()) as { issues: { path: string; message: string }[] };
@@ -403,14 +460,14 @@ describe("master API: users", () => {
       `/users/${ID}`,
       json("PATCH", {
         ...body,
-        password: "newpassword123",
-        passwordConfirmation: "newpassword123"
+        password: "newa-long-enough-password",
+        passwordConfirmation: "newa-long-enough-password"
       }),
       env
     );
     expect(store.updateUser).toHaveBeenLastCalledWith(
       ID,
-      expect.objectContaining({ password: "newpassword123" })
+      expect.objectContaining({ password: "newa-long-enough-password" })
     );
   });
 

@@ -1,10 +1,18 @@
 import { account, createDb, rateLimit, session, user, verification } from "@vmb/db";
-import { CLIENT_IP_HEADER } from "@vmb/types";
+import {
+  CLIENT_IP_HEADER,
+  PASSWORD_BREACHED_CODE,
+  PASSWORD_BREACHED_MESSAGE,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH
+} from "@vmb/types";
 import { betterAuth } from "better-auth";
 import { waitUntil } from "cloudflare:workers";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import type { Bindings } from "./bindings.js";
+import { isPasswordBreached } from "./breached-password.js";
 import { sendOtpEmail, sendVerificationEmail } from "./email.js";
 import { masterStore } from "./master.js";
 import { createSignInGate } from "./sign-in-gate.js";
@@ -46,7 +54,34 @@ function buildAuth(env: Bindings) {
       requireEmailVerification: true,
       // Public sign-up is gone (#7): users are provisioned by the Master CRUD,
       // as in the legacy app. Activation is the email-OTP flow below.
-      disableSignUp: true
+      disableSignUp: true,
+      // The same bounds as the Master CRUD user form (ADR-0041).
+      minPasswordLength: PASSWORD_MIN_LENGTH,
+      maxPasswordLength: PASSWORD_MAX_LENGTH
+    },
+    hooks: {
+      // The breached-password check, on the way in to the endpoint that sets a
+      // password. It runs before the code is spent, so a refused password
+      // leaves the code to use again. Better Auth's `haveibeenpwned` plugin is
+      // not used: it fails closed, and VMB's check fails open (ADR-0041).
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/email-otp/reset-password") return;
+        const password = (ctx.body as { password?: unknown } | undefined)?.password;
+        // A length Better Auth refuses itself is not worth a lookup.
+        if (
+          typeof password !== "string" ||
+          password.length < PASSWORD_MIN_LENGTH ||
+          password.length > PASSWORD_MAX_LENGTH
+        ) {
+          return;
+        }
+        if (await isPasswordBreached(password)) {
+          throw APIError.from("BAD_REQUEST", {
+            code: PASSWORD_BREACHED_CODE,
+            message: PASSWORD_BREACHED_MESSAGE
+          });
+        }
+      })
     },
     emailVerification: {
       sendOnSignUp: true,

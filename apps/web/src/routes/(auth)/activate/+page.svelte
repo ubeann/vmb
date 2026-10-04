@@ -2,6 +2,7 @@
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
   import Check from "@lucide/svelte/icons/check";
+  import Circle from "@lucide/svelte/icons/circle";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mail from "@lucide/svelte/icons/mail";
   import Send from "@lucide/svelte/icons/send";
@@ -157,6 +158,16 @@
     () => serverErrors
   );
   const passwordValidation = createFieldValidation(ActivatePasswordInputSchema, () => serverErrors);
+  // The length check under the new-password field ticks as the user types
+  // (ADR-0041). It only reads the field; the schema still decides on submit.
+  let passwordLength = $state(0);
+  let passwordLongEnough = $derived(passwordLength >= PASSWORD_MIN_LENGTH);
+  function onPasswordFormInput(event: Event) {
+    passwordValidation.oninput(event);
+    if (event.target instanceof HTMLInputElement && event.target.name === "password") {
+      passwordLength = event.target.value.length;
+    }
+  }
   // A refused code with no field to blame: the error goes under the boxes
   // instead of the banner.
   let codeError = $derived(
@@ -235,7 +246,7 @@
         method="POST"
         action="?/reset"
         novalidate
-        oninput={passwordValidation.oninput}
+        oninput={onPasswordFormInput}
         use:enhance={checked(passwordValidation)}
         class="space-y-5"
       >
@@ -250,18 +261,28 @@
             name="password"
             autocomplete="new-password"
             aria-invalid={fieldErrors?.password ? "true" : undefined}
-            aria-describedby={fieldErrors?.password ? "password-error" : "password-hint"}
+            aria-describedby={fieldErrors?.password
+              ? "password-error password-rules"
+              : "password-rules"}
             required
           />
           {#if fieldErrors?.password}
             <p id="password-error" role="alert" class="text-destructive text-sm">
               {fieldErrors.password}
             </p>
-          {:else}
-            <p id="password-hint" class="text-muted-foreground text-sm">
-              Use at least {PASSWORD_MIN_LENGTH} characters.
-            </p>
           {/if}
+          <div id="password-rules" class="text-muted-foreground space-y-1 text-sm">
+            <p class={["flex items-center gap-2", passwordLongEnough && "text-foreground"]}>
+              {#if passwordLongEnough}
+                <Check class="text-primary size-4 shrink-0" aria-hidden="true" />
+              {:else}
+                <Circle class="size-4 shrink-0" aria-hidden="true" />
+              {/if}
+              <span class="sr-only">{passwordLongEnough ? "Done:" : "Not yet:"}</span>
+              <span>At least {PASSWORD_MIN_LENGTH} characters</span>
+            </p>
+            <p>Try three or four words you'll remember.</p>
+          </div>
         </div>
 
         <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>

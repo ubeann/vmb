@@ -33,6 +33,12 @@ vi.mock("better-auth/plugins/email-otp", () => ({
   emailOTP: (options: unknown) => emailOtpMock(options)
 }));
 
+const isPasswordBreachedMock = vi.fn(async (_password: string) => false);
+
+vi.mock("./breached-password.js", () => ({
+  isPasswordBreached: (password: string) => isPasswordBreachedMock(password)
+}));
+
 const sendVerificationEmailMock = vi.fn();
 const sendOtpEmailMock = vi.fn();
 
@@ -90,6 +96,59 @@ describe("createAuth", () => {
         })
       })
     );
+  });
+
+  it("sets Better Auth's password bounds to the shared 12 to 128 rule (#256)", async () => {
+    const { createAuth } = await import("./auth.js");
+
+    createAuth(env);
+
+    expect(betterAuthMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailAndPassword: expect.objectContaining({ minPasswordLength: 12, maxPasswordLength: 128 })
+      })
+    );
+  });
+
+  describe("the breached-password hook (#256)", () => {
+    const password = "a long and unusual passphrase";
+
+    async function runBefore(path: string, body: unknown) {
+      const { createAuth } = await import("./auth.js");
+      createAuth(env);
+      const options = betterAuthMock.mock.calls[0]?.[0] as {
+        hooks: { before: (ctx: unknown) => Promise<unknown> };
+      };
+      return options.hooks.before({ path, body, context: {} });
+    }
+
+    it("refuses a breached password on reset-password, with its own code", async () => {
+      isPasswordBreachedMock.mockResolvedValueOnce(true);
+
+      await expect(runBefore("/email-otp/reset-password", { password })).rejects.toMatchObject({
+        status: "BAD_REQUEST",
+        body: { code: "PASSWORD_BREACHED" }
+      });
+      expect(isPasswordBreachedMock).toHaveBeenCalledWith(password);
+    });
+
+    it("lets a password through that is not breached", async () => {
+      await expect(runBefore("/email-otp/reset-password", { password })).resolves.toBeUndefined();
+    });
+
+    it("does not look up a password of a length Better Auth refuses itself", async () => {
+      await runBefore("/email-otp/reset-password", { password: "short" });
+      await runBefore("/email-otp/reset-password", { password: "x".repeat(129) });
+
+      expect(isPasswordBreachedMock).not.toHaveBeenCalled();
+    });
+
+    it("leaves every other endpoint alone", async () => {
+      isPasswordBreachedMock.mockResolvedValue(true);
+
+      await expect(runBefore("/sign-in/email", { password })).resolves.toBeUndefined();
+      expect(isPasswordBreachedMock).not.toHaveBeenCalled();
+    });
   });
 
   it("sends the verification email through the configured provider when Better Auth calls sendVerificationEmail", async () => {

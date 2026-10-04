@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { indonesianPhoneSchema, optionalText } from "./inputs.js";
+import { passwordSchema } from "./password.js";
 import {
   PageSchema,
   PerPageSchema,
@@ -36,11 +37,6 @@ export const UserSchema = z.object({
 });
 
 export type User = z.infer<typeof UserSchema>;
-
-const passwordSchema = z
-  .string()
-  .min(8, "Password must be at least 8 characters.")
-  .max(255, "Password must be 255 characters or fewer.");
 
 const userFields = {
   name: z
