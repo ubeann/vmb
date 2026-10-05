@@ -1,0 +1,57 @@
+name: Web Test Bench
+
+# TEMPORARY (#288): measures the web component tests on the CI runner with full
+# Chrome or Playwright's headless shell, at one or two workers, both alone and
+# under the parallel `build`/`typecheck`/`test` turbo run that `Verify` does.
+# Removed before the branch merges.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: Web Test Bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Runner cores
+        run: |
+          nproc
+          node -p "'availableParallelism=' + require('node:os').availableParallelism()"
+
+      - name: Install the headless shell
+        run: time pnpm --filter @vmb/web exec playwright install chromium-headless-shell
+
+      - name: Bench
+        env:
+          CI: "true"
+        run: |
+          pnpm --filter @vmb/web run sync >/dev/null
+          TIMEFORMAT='%R %U %S'
+          results=()
+          for round in 1 2; do
+            for browser in chrome shell; do
+              for workers in 1 2; do
+                label="$browser-w$workers-r$round"
+                export WEB_TEST_BROWSER=$browser WEB_TEST_MAX_WORKERS=$workers
+
+                t=$( { time (cd apps/web && SVELTE_KIT_OUT_DIR=.svelte-kit/test pnpm exec vitest run --project component > "/tmp/alone-$label.log" 2>&1); } 2>&1 )
+                read -r real user sys <<<"$t"
+                dur=$(sed 's/\x1b\[[0-9;]*m//g' "/tmp/alone-$label.log" | grep -E "Test Files|Duration" | tr -s ' ' | tr '\n' ' ')
+                results+=("alone    $label real=$real cpu=$(echo "$user + $sys" | bc) $dur")
+
+                t=$( { time pnpm turbo run build test typecheck --filter=@vmb/web --force --env-mode=loose --cache=local:,remote: --output-logs=full > "/tmp/turbo-$label.log" 2>&1; } 2>&1 )
+                read -r real user sys <<<"$t"
+                dur=$(sed 's/\x1b\[[0-9;]*m//g' "/tmp/turbo-$label.log" | grep -E "Test Files|Duration|built in" | tr -s ' ' | tr '\n' ' ')
+                results+=("parallel $label real=$real cpu=$(echo "$user + $sys" | bc) $dur")
+              done
+            done
+          done
+          printf '%s\n' "${results[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
