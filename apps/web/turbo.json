@@ -2,8 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "extends": ["//"],
   "tasks": {
-    "typecheck": {
-      "dependsOn": ["^build", "build"],
+    "sync": {
       "outputs": [
         ".svelte-kit/ambient.d.ts",
         ".svelte-kit/env.d.ts",
@@ -13,8 +12,15 @@
         ".svelte-kit/types/**"
       ]
     },
+    "build": {
+      "dependsOn": ["^build", "sync"],
+      "outputs": [".svelte-kit/cloudflare/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "sync"]
+    },
     "test": {
-      "dependsOn": ["^build", "build", "typecheck"]
+      "dependsOn": ["^build", "sync"]
     }
   }
 }

@@ -6,9 +6,10 @@
   "scripts": {
     "predev": "printf 'CLIENT_IP_SECRET=%s\\n' \"$(fnox get CLIENT_IP_SECRET)\" > .dev.vars",
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "SVELTE_KIT_OUT_DIR=.svelte-kit/build vite build",
+    "sync": "svelte-kit sync",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run",
+    "test": "SVELTE_KIT_OUT_DIR=.svelte-kit/test vitest run",
     "lint": "eslint .",
     "deploy": "wrangler pages deploy .svelte-kit/cloudflare"
   },

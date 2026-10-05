@@ -24,8 +24,9 @@ export default [
     rules: { "svelte/no-navigation-without-resolve": "off" }
   },
   {
-    // Node tooling scripts; `document` appears only inside Playwright page.evaluate callbacks.
-    files: ["scripts/**/*.mjs"],
+    // Node tooling scripts and svelte.config.js (reads SVELTE_KIT_OUT_DIR); `document` appears
+    // only inside Playwright page.evaluate callbacks.
+    files: ["scripts/**/*.mjs", "svelte.config.js"],
     languageOptions: {
       globals: { process: "readonly", console: "readonly", document: "readonly" }
     }
