@@ -93,18 +93,32 @@ describe("AppShell", () => {
     expect(dark.b).toBeGreaterThan(dark.g);
   });
 
-  it("gives the sidebar rows room, and keeps it when the sidebar collapses", async () => {
+  it("gives the sidebar rows room, and keeps their rhythm as a square when it collapses", async () => {
     await desktop();
-    for (const sidebarOpen of [true, false]) {
+    for (const [sidebarOpen, size] of [
+      [true, 40],
+      [false, 32]
+    ] as const) {
       const screen = await render(AppShell, props({ sidebarOpen }));
       const rows = ["Divisions", "Roles"].map((name) =>
         screen.getByRole("link", { name }).element().getBoundingClientRect()
       );
 
-      expect(rows[0]!.height).toBe(40);
-      expect(rows[1]!.top - rows[0]!.bottom).toBe(4);
+      expect(rows[0]!.height).toBe(size);
+      if (!sidebarOpen) expect(rows[0]!.width).toBe(size);
+      // Open or collapsed, the rows sit 44px apart, so nothing shifts as the sidebar narrows.
+      expect(rows[1]!.top - rows[0]!.top).toBe(44);
       await screen.unmount();
     }
+  });
+
+  it("makes the theme choice a comfortable height on desktop", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+
+    const group = screen.getByRole("menuitemradio", { name: "Light" }).element().parentElement!;
+    await expect.poll(() => group.getBoundingClientRect().height).toBe(40);
   });
 
   it("opens the user's menu with their identity and division", async () => {

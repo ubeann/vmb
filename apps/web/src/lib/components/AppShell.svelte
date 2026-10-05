@@ -72,10 +72,10 @@
               {#each group.items as item (item.href)}
                 {@const current = isCurrent(page.url.pathname, item.href)}
                 {@const Icon = ICONS[item.icon]}
-                <Sidebar.MenuItem>
+                <Sidebar.MenuItem class="transition-[padding] group-data-[collapsible=icon]:py-1">
                   <Sidebar.MenuButton
                     isActive={current}
-                    class="data-[active=true]:bg-sidebar-primary/15 dark:data-[active=true]:bg-sidebar-accent h-10 group-data-[collapsible=icon]:h-10! pointer-coarse:h-11"
+                    class="data-[active=true]:bg-sidebar-primary/15 dark:data-[active=true]:bg-sidebar-accent h-10 pointer-coarse:h-11"
                   >
                     {#snippet child({ props })}
                       <a

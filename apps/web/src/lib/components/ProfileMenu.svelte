@@ -84,14 +84,14 @@
     <DropdownMenu.RadioGroup
       value={userPrefersMode.current}
       onValueChange={chooseTheme}
-      class="bg-muted flex gap-1 rounded-lg p-1"
+      class="bg-muted flex gap-1 rounded-lg p-1 pointer-coarse:p-0.5"
     >
       {#each THEMES as theme (theme.value)}
         <DropdownMenu.RadioItem
           value={theme.value}
           closeOnSelect={false}
           aria-label={theme.label}
-          class="data-[state=checked]:bg-background data-[state=checked]:text-foreground text-muted-foreground flex-1 justify-center rounded-md px-0 py-1.5 data-[state=checked]:shadow-sm pointer-coarse:min-h-11 [&_[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
+          class="data-[state=checked]:bg-background data-[state=checked]:text-foreground text-muted-foreground min-h-8 flex-1 justify-center rounded-md px-0 py-1.5 data-[state=checked]:shadow-sm pointer-coarse:min-h-11 [&_[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
         >
           <theme.icon aria-hidden="true" />
         </DropdownMenu.RadioItem>
