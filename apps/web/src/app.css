@@ -27,7 +27,8 @@
   --secondary-foreground: oklch(0.247 0.094 267.7);
   --muted: oklch(0.946 0.012 91.5);
   --muted-foreground: oklch(0.488 0.052 273.5);
-  --accent: oklch(0.95 0.01 273.4);
+  /* A firmer wash than the secondary fill: 12.9:1 under the navy text, 4.2:1 against the green focus ring */
+  --accent: oklch(0.92 0.028 273);
   --accent-foreground: oklch(0.247 0.094 267.7);
   --destructive: oklch(0.53 0.207 22.3);
   --border: oklch(0.888 0.014 93);
@@ -48,7 +49,7 @@
   --sidebar-foreground: oklch(0.247 0.094 267.7);
   --sidebar-primary: oklch(0.51 0.164 143.6);
   --sidebar-primary-foreground: oklch(0.982 0.01 145.5);
-  --sidebar-accent: oklch(0.95 0.01 273.4);
+  --sidebar-accent: oklch(0.92 0.028 273);
   --sidebar-accent-foreground: oklch(0.247 0.094 267.7);
   --sidebar-border: oklch(0.888 0.014 93);
   --sidebar-ring: oklch(0.51 0.164 143.6);
@@ -251,7 +252,7 @@
 
   /* Tailwind v4 dropped the pointer cursor from buttons. Restore it for enabled
    * controls; :where() keeps specificity at zero so a `cursor-*` utility still
-   * wins (menu items stay `cursor-default`, as on a desktop menu). */
+   * wins. Menu items get theirs below, past the registry's `cursor-default`. */
   :where(
     button,
     [role="button"],
@@ -336,6 +337,17 @@
     [data-slot="dropdown-menu-sub-trigger"]
   ):focus-visible {
     box-shadow: inset 0 0 0 2px var(--ring);
+  }
+
+  /* The registry's menu items are `cursor-default`. Ours are clickable like any
+   * button, so an enabled one gets the pointer. */
+  :is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"]
+  ):not([data-disabled]) {
+    cursor: pointer;
   }
 }
 

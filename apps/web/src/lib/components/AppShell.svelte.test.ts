@@ -10,7 +10,10 @@ import { axeViolations } from "$lib/a11y-support.js";
 
 const mockPage = { url: new URL("http://localhost/") };
 
-vi.mock("$app/paths", () => ({ resolve: (path: string) => path }));
+vi.mock("$app/paths", () => ({
+  resolve: (path: string, params: Record<string, string> = {}) =>
+    Object.entries(params).reduce((out, [key, value]) => out.replace(`[${key}]`, value), path)
+}));
 vi.mock("$app/state", () => ({ page: mockPage }));
 
 const { render } = await import("vitest-browser-svelte");
@@ -19,7 +22,7 @@ const { default: AppShell } = await import("./AppShell.svelte");
 
 const body = createRawSnippet(() => ({ render: () => "<h1>Page body</h1>" }));
 
-const user = { name: "Siti Rahma", email: "siti@vmblogistics.id" };
+const user = { id: "u-1", name: "Siti Rahma", email: "siti@vmblogistics.id" };
 const division = { name: "Warehouse", iconName: "heroicon-o-building-storefront" };
 
 const props = (overrides: Record<string, unknown> = {}) => ({
@@ -110,6 +113,39 @@ describe("AppShell", () => {
     expect(localStorage.getItem(modeStorageKey.current)).toBe("system");
   });
 
+  it("shows a pointer over the menu's actions", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+
+    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+
+    for (const target of [
+      screen.getByRole("menuitem", { name: "Log out" }),
+      screen.getByRole("menuitemradio", { name: "Dark" })
+    ]) {
+      expect(getComputedStyle(target.element()).cursor).toBe("pointer");
+    }
+  });
+
+  it("rounds the account button into a circle on a phone and a roomy pill on desktop", async () => {
+    await phone();
+    const small = await render(AppShell, props());
+    const circle = small.getByRole("button", { name: "Siti Rahma, account menu" }).element();
+    const { width, height } = circle.getBoundingClientRect();
+
+    expect(width).toBe(height);
+    expect(parseFloat(getComputedStyle(circle).borderTopLeftRadius)).toBeGreaterThanOrEqual(
+      height / 2
+    );
+    small.unmount();
+
+    await desktop();
+    const large = await render(AppShell, props());
+    const pill = large.getByRole("button", { name: "Siti Rahma, account menu" }).element();
+
+    expect(pill.getBoundingClientRect().height).toBeGreaterThanOrEqual(48);
+  });
+
   it("shows the page's content below the top bar", async () => {
     await desktop();
     const screen = await render(AppShell, props());
@@ -118,15 +154,18 @@ describe("AppShell", () => {
     await expect.element(screen.getByRole("heading", { name: "Page body" })).toBeVisible();
   });
 
-  it("falls back to generated initials until a photo loads", async () => {
+  it("falls back to the generated bot until a photo loads", async () => {
     await desktop();
     const screen = await render(AppShell, props({ user: { ...user, image: "/missing.png" } }));
 
-    const fallback = screen
+    const bots = screen
       .getByRole("button", { name: "Siti Rahma, account menu" })
       .element()
-      .querySelector("[data-slot='avatar-fallback'] img");
-    await expect.poll(() => fallback?.getAttribute("src")).toMatch(/^data:image\/svg\+xml/);
+      .querySelectorAll("[data-slot='avatar-fallback'] img");
+    expect([...bots].map((bot) => bot.getAttribute("src"))).toEqual([
+      "/(app)/avatar/u-1?theme=light",
+      "/(app)/avatar/u-1?theme=dark"
+    ]);
   });
 
   it("keeps the navigation behind a toggle on a phone", async () => {

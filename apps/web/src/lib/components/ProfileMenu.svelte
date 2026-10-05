@@ -20,7 +20,7 @@
     user,
     division
   }: {
-    user: { name: string; email: string; image?: string | null };
+    user: { id: string; name: string; email: string; image?: string | null };
     division: { name: string; iconName: string } | null;
   } = $props();
 
@@ -43,9 +43,9 @@
         {...props}
         variant="ghost"
         aria-label="{user.name}, account menu"
-        class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent h-auto gap-2 rounded-lg p-1 sm:pr-2 pointer-coarse:min-h-11"
+        class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent h-auto gap-2.5 rounded-full p-1 sm:rounded-xl sm:py-2 sm:pr-3 sm:pl-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
       >
-        <UserAvatar name={user.name} image={user.image} />
+        <UserAvatar seed={user.id} image={user.image} />
         <span class="hidden min-w-0 text-left leading-tight sm:grid">
           <span class="max-w-40 truncate text-sm font-medium">{user.name}</span>
           <span class="text-sidebar-foreground/70 max-w-40 truncate text-xs font-normal">
@@ -59,7 +59,7 @@
 
   <DropdownMenu.Content align="end" class="w-72 max-w-[calc(100vw-1rem)] p-2">
     <div class="flex items-center gap-3 px-1 py-1.5">
-      <UserAvatar name={user.name} image={user.image} size="lg" />
+      <UserAvatar seed={user.id} image={user.image} size="lg" animated />
       <div class="grid min-w-0 leading-tight">
         <span class="truncate text-sm font-medium">{user.name}</span>
         <span class="text-muted-foreground truncate text-xs">{user.email}</span>
