@@ -2,8 +2,9 @@
   The frame of every signed-in screen (#167): a top bar across the full width
   (logo, sidebar toggle, the user's menu), the navigation below it, and the
   page in a rounded panel. Below 48rem the sidebar becomes a sheet behind the
-  bar's toggle, and the bar gets a line under it, since there is no panel edge
-  to part it from the page. Search and notifications take the space between the toggle and
+  bar's toggle, and the bar keeps a line under it, since there is no panel edge
+  to part it from the page; on desktop the line and a shadow appear once the page
+  has scrolled under the bar. Search and notifications take the space between the toggle and
   the menu when those features exist. Sidebar state persists in the
   `sidebar_state` cookie, which the layout load reads back (`sidebarOpen`), so a
   reload keeps it without a flash.
@@ -12,6 +13,7 @@
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import ProfileMenu from "$lib/components/ProfileMenu.svelte";
+  import SidebarToggle from "$lib/components/SidebarToggle.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
   import { isCurrent, NAV_GROUPS, visibleGroups, type NavIcon } from "$lib/nav.js";
@@ -41,6 +43,9 @@
   };
 
   const groups = visibleGroups(NAV_GROUPS);
+
+  // The bar lifts off the page once the page has scrolled under it.
+  let scrollY = $state(0);
 </script>
 
 <a
@@ -50,20 +55,24 @@
   Skip to content
 </a>
 
+<svelte:window bind:scrollY />
+
 <Sidebar.Provider
   open={sidebarOpen}
   class="flex-col [--header-height:3.5rem] sm:[--header-height:4rem]"
 >
   <header
-    class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 px-3 max-md:border-b sm:px-4"
+    data-scrolled={scrollY > 0}
+    class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border data-[scrolled=true]:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-transparent px-3 transition-[border-color,box-shadow] duration-(--duration-panel) ease-(--easing-standard) data-[scrolled=true]:shadow-sm sm:px-4"
   >
+    <!-- On a phone the logo moves into the menu sheet, freeing the bar for search and alerts. -->
     <a
       href={resolve("/")}
-      class="focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-none"
+      class="focus-visible:ring-ring hidden rounded-md focus-visible:ring-2 focus-visible:outline-none md:block"
     >
       <VmbLogo class="h-8" title="VMB, go to the dashboard" />
     </a>
-    <Sidebar.Trigger class="pointer-coarse:size-11" />
+    <SidebarToggle />
     <div class="ml-auto">
       <ProfileMenu {user} {division} />
     </div>
@@ -75,6 +84,15 @@
       collapsible="icon"
       class="top-(--header-height) h-[calc(100svh-var(--header-height))]!"
     >
+      <Sidebar.Header class="md:hidden">
+        <a
+          href={resolve("/")}
+          class="focus-visible:ring-sidebar-ring flex h-10 items-center rounded-md px-2 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <VmbLogo class="h-9" title="VMB, go to the dashboard" />
+        </a>
+      </Sidebar.Header>
+
       <Sidebar.Content>
         <nav aria-label="Main" class="flex flex-col gap-2">
           {#each groups as group (group.label)}

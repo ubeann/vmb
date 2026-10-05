@@ -149,15 +149,65 @@ describe("AppShell", () => {
   it("underlines the top bar on a phone, where no panel edge parts it from the page", async () => {
     await phone();
     const small = await render(AppShell, props());
-    const bar = small.getByRole("banner").element();
 
-    expect(getComputedStyle(bar).borderBottomWidth).toBe("1px");
+    expect(getComputedStyle(small.getByRole("banner").element()).borderBottomColor).not.toBe(
+      "rgba(0, 0, 0, 0)"
+    );
     small.unmount();
 
     await desktop();
     const large = await render(AppShell, props());
 
-    expect(getComputedStyle(large.getByRole("banner").element()).borderBottomWidth).toBe("0px");
+    expect(getComputedStyle(large.getByRole("banner").element()).borderBottomColor).toBe(
+      "rgba(0, 0, 0, 0)"
+    );
+  });
+
+  it("moves the logo from the bar into the menu sheet on a phone", async () => {
+    await phone();
+    const small = await render(AppShell, props());
+    const logo = (screen: typeof small) =>
+      screen.getByRole("link", { name: "VMB, go to the dashboard" });
+
+    await expect.element(small.getByRole("banner").getByRole("link")).not.toBeInTheDocument();
+    await small.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await expect.element(logo(small)).toBeVisible();
+    small.unmount();
+
+    await desktop();
+    const large = await render(AppShell, props());
+
+    await expect
+      .element(large.getByRole("banner").getByRole("link", { name: "VMB, go to the dashboard" }))
+      .toBeVisible();
+  });
+
+  it("says whether the sidebar toggle has opened the menu", async () => {
+    await phone();
+    const screen = await render(AppShell, props());
+    const toggle = screen.getByRole("button", { name: "Toggle Sidebar" });
+
+    await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
+    await toggle.click();
+    await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("lifts the bar off the page once the page has scrolled under it", async () => {
+    await desktop();
+    const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
+    const screen = await render(AppShell, props({ children: tall }));
+    const bar = screen.getByRole("banner").element();
+
+    expect(bar.getAttribute("data-scrolled")).toBe("false");
+    expect(getComputedStyle(bar).boxShadow).toBe("none");
+
+    window.scrollTo(0, 200);
+    await expect.poll(() => bar.getAttribute("data-scrolled")).toBe("true");
+    await expect.poll(() => getComputedStyle(bar).boxShadow).not.toBe("none");
+    await expect.poll(() => getComputedStyle(bar).borderBottomColor).not.toBe("rgba(0, 0, 0, 0)");
+
+    window.scrollTo(0, 0);
+    await expect.poll(() => bar.getAttribute("data-scrolled")).toBe("false");
   });
 
   it("keeps the account button clear of the top edge", async () => {
@@ -165,7 +215,7 @@ describe("AppShell", () => {
     const screen = await render(AppShell, props());
     const button = screen.getByRole("button", { name: "Siti Rahma, account menu" }).element();
 
-    expect(button.getBoundingClientRect().top).toBeGreaterThanOrEqual(8);
+    expect(button.getBoundingClientRect().top).toBeGreaterThanOrEqual(7);
   });
 
   it("shows the page's content below the top bar", async () => {
