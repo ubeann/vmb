@@ -297,6 +297,36 @@
     background-color: var(--primary-hover);
   }
 
+  /* The registry's focus ring is the ring colour at half strength, which reads
+   * 2.2:1 on paper (3.0:1 in dark), under WCAG 2.2's 3:1 for the state
+   * indicator (#208). Fields, the select, the checkbox and buttons take it at
+   * full strength; an invalid field takes the error colour in full, since its
+   * resting ring is already a faint one and a focused invalid field would
+   * otherwise look like an unfocused one. The destructive button keeps its own
+   * tint. The checkbox is the registry's button; a code box is invalid through
+   * `data-invalid`, as a box (a div) must not carry `aria-invalid`.
+   *
+   * The rules out-rank the registry's by specificity, except the dark invalid
+   * one, which ties with `dark:aria-invalid:ring-destructive/40` and wins by
+   * coming later in this layer. Keep this block after the `@import`. */
+  :is(
+      [data-slot="input"],
+      [data-slot="checkbox"],
+      [data-slot="select-trigger"],
+      [data-slot="button"]:not([class*="focus-visible:ring-destructive"])
+    ):focus-visible:not([aria-invalid="true"]),
+  [data-slot="input-otp-slot"][data-active]:not([data-invalid]) {
+    --tw-ring-color: var(--ring);
+  }
+  :is(
+      [data-slot="input"],
+      [data-slot="checkbox"],
+      [data-slot="select-trigger"]
+    )[aria-invalid="true"]:focus-visible,
+  [data-slot="input-otp-slot"][data-active][data-invalid] {
+    --tw-ring-color: var(--destructive);
+  }
+
   /* The registry's menu items only change fill on keyboard focus;
    * inset ink keeps the focus indicator visible without patching vendored files. */
   :is(
