@@ -14,7 +14,7 @@
     },
     "build": {
       "dependsOn": ["^build", "sync"],
-      "outputs": [".svelte-kit/cloudflare/**"]
+      "outputs": [".svelte-kit/cloudflare/**", ".svelte-kit/build/**"]
     },
     "typecheck": {
       "dependsOn": ["^build", "sync"]
