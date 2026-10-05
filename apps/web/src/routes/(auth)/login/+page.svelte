@@ -14,12 +14,11 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
-  import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
+  import { createFieldValidation } from "$lib/field-validation.svelte.js";
+  import { createSubmission } from "$lib/form-submission.svelte.js";
   import type { ActionData } from "./$types.js";
 
   let { form }: { form: ActionData } = $props();
-
-  let submitting = $state(false);
 
   let verified = $derived(page.url.searchParams.get("verified") === "true");
   let activated = $derived(page.url.searchParams.get("activated") === "true");
@@ -32,6 +31,7 @@
       : undefined
   );
   let fieldErrors = $derived(validation.errors);
+  const submission = createSubmission();
 
   const linkClass =
     "text-primary focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none";
@@ -61,15 +61,7 @@
     method="POST"
     novalidate
     oninput={validation.oninput}
-    use:enhance={({ formElement, cancel }) => {
-      if (!validation.validate(formElement)) return cancel();
-      submitting = true;
-      return async ({ result, update }) => {
-        await update();
-        submitting = false;
-        if (result.type === "failure") focusFirstInvalidField(formElement);
-      };
-    }}
+    use:enhance={submission.enhance(validation)}
     class="space-y-5"
   >
     <div class="space-y-2">
@@ -118,8 +110,13 @@
       Remember me
     </Label>
 
-    <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
-      {#if submitting}
+    <Button
+      type="submit"
+      class="min-h-11 w-full"
+      disabled={submission.submitting}
+      aria-busy={submission.submitting}
+    >
+      {#if submission.submitting}
         <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
         Signing in…
       {:else}

@@ -27,6 +27,7 @@
   import { Countdown, formatClock } from "$lib/countdown.svelte.js";
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
+  import { createSubmission, type Handle } from "$lib/form-submission.svelte.js";
   import {
     PASSWORD_BAR_FULL_AT,
     PASSWORD_MIN_MARK,
@@ -59,46 +60,32 @@
     password: "new-password"
   };
 
-  let submitting = $state(false);
+  const submission = createSubmission();
 
-  // Shared by every form here: the button reports progress until the action
-  // settles. A reply that names another step swaps the steps in the same
-  // sheet, so it moves the way a change of page does, and focus goes to the
-  // new step's first field. Otherwise `afterFailure` is where focus goes when
-  // the server turns the form down, `afterSuccess` what to reset once it has
-  // taken it.
+  // What each form does with an action's reply, besides the button reporting
+  // progress until it settles. A reply that names another step swaps the steps
+  // in the same sheet, so it moves the way a change of page does, and focus
+  // goes to the new step's first field. Otherwise `afterFailure` is where focus
+  // goes when the server turns the form down, `afterSuccess` what to reset once
+  // it has taken it.
   const trackWith =
-    (afterFailure: (formElement: HTMLFormElement) => void, afterSuccess?: () => void) =>
-    ({ formElement }: { formElement: HTMLFormElement }) => {
-      submitting = true;
-      return async ({
-        result,
-        update
-      }: {
-        result: { type: string; data?: Record<string, unknown> };
-        update: () => Promise<void>;
-      }) => {
-        const from = step;
-        const moves = result.data?.step !== undefined && result.data.step !== from;
-        await (moves
-          ? transitionUpdate(async () => {
-              await update();
-              code = "";
-            })
-          : update());
-        submitting = false;
-        if (step !== from) document.getElementById(firstField[step])?.focus();
-        else if (result.type === "failure") afterFailure(formElement);
-        else if (result.type === "success") afterSuccess?.();
-      };
+    (afterFailure = focusFirstInvalidField, afterSuccess?: () => void): Handle =>
+    ({ formElement }) =>
+    async ({ result, update }) => {
+      const from = step;
+      const moves =
+        "data" in result && result.data?.step !== undefined && result.data.step !== from;
+      await (moves
+        ? transitionUpdate(async () => {
+            await update();
+            code = "";
+          })
+        : update());
+      if (step !== from) document.getElementById(firstField[step])?.focus();
+      else if (result.type === "failure") afterFailure(formElement);
+      else if (result.type === "success") afterSuccess?.();
     };
-  const track = trackWith(focusFirstInvalidField);
-
-  // Stops a form whose fields fail the rules before anything is sent (issue #231).
-  const checked =
-    (validation: { validate: (form: HTMLFormElement) => boolean }, run = track) =>
-    ({ formElement, cancel }: { formElement: HTMLFormElement; cancel: () => void }) =>
-      validation.validate(formElement) ? run({ formElement }) : cancel();
+  const track = trackWith();
 
   // The six boxes hold what was typed until the form is sent.
   let code = $state("");
@@ -114,7 +101,7 @@
   // The last digit sends Verify. Not while a send is under way: a second one
   // would count as another try.
   function sendOnComplete() {
-    if (!submitting) codeInput?.form?.requestSubmit();
+    if (!submission.submitting) codeInput?.form?.requestSubmit();
   }
 
   // The wait before "Send a new code" is back (#255). The load works out the
@@ -134,15 +121,14 @@
   // page so a change is announced. It is built from the length of the wait,
   // not the time left, so it changes when the wait starts and when it ends,
   // not every second.
-  function resendMessage() {
+  let resendStatus = $derived.by(() => {
     if (step !== "code") return "";
     if (resendWait.remaining === 0)
       return resendWait.finished ? "You can send a new code now." : "";
     return resendWait.total === 1
       ? "You can send a new code in 1 second."
       : `You can send a new code in ${resendWait.total} seconds.`;
-  }
-  let resendStatus = $derived(resendMessage());
+  });
 
   // A link inside a sentence keeps the line's height; one on its own line gets
   // a full touch target.
@@ -167,12 +153,14 @@
   // The reading under the new-password field follows what is typed (ADR-0041).
   // It only reads the field; the schema still decides on submit, and so does
   // the server for the words about the account.
-  let password = $state("");
+  //
   // The password form is mounted again, blank, each time the step is reached, so
-  // what was typed goes when the step is left: kept, it would describe a field
-  // that is empty (a code that expired sends the user back to the code step).
-  $effect(() => {
-    if (step !== "password") password = "";
+  // what was typed goes when the step changes: kept, it would describe a field
+  // that is empty (a code that expired sends the user back to the code step). A
+  // derived that is written to, and starts over when the step changes.
+  let password = $derived.by(() => {
+    void step;
+    return "";
   });
   let passwordLength = $derived(password.length);
   let strength = $derived(passwordStrength(passwordLength));
@@ -180,20 +168,15 @@
   let contextWords = $derived(passwordContextWords(password, email));
   // A word to leave out stops the form in the browser, with the field marked
   // and focused; the server refuses it too (ADR-0041).
-  function checkedPassword({
-    formElement,
-    cancel
-  }: {
-    formElement: HTMLFormElement;
-    cancel: () => void;
-  }) {
-    if (contextWords.length) {
-      cancel();
-      document.getElementById("new-password")?.focus();
-      return;
+  const passwordCheck = {
+    validate(form: HTMLFormElement) {
+      if (contextWords.length) {
+        document.getElementById("new-password")?.focus();
+        return false;
+      }
+      return passwordValidation.validate(form);
     }
-    return checked(passwordValidation)({ formElement, cancel });
-  }
+  };
   function onPasswordFormInput(event: Event) {
     passwordValidation.oninput(event);
     if (event.target instanceof HTMLInputElement && event.target.name === "password") {
@@ -259,13 +242,18 @@
          only the server can reach, and it works without JavaScript. It still
          looks like a link; the base layer's bordered button would read as a
          second Set password. -->
-    <form method="POST" action="?/restart" novalidate use:enhance={track}>
+    <form
+      method="POST"
+      action="?/restart"
+      novalidate
+      use:enhance={submission.enhance(undefined, track)}
+    >
       <!-- For a page left open past the cookies' life, which hold the email too. -->
       <input type="hidden" name="email" value={email} />
       <button
         type="submit"
         class="{linkClass} border-0 bg-transparent p-0 text-sm"
-        disabled={submitting}>Use a different email</button
+        disabled={submission.submitting}>Use a different email</button
       >
     </form>
   {/if}
@@ -281,7 +269,7 @@
         action="?/reset"
         novalidate
         oninput={onPasswordFormInput}
-        use:enhance={checkedPassword}
+        use:enhance={submission.enhance(passwordCheck, track)}
         class="space-y-5"
       >
         <!-- Tells a password manager which email the new password is saved
@@ -349,8 +337,13 @@
           </div>
         </div>
 
-        <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
-          {#if submitting}
+        <Button
+          type="submit"
+          class="min-h-11 w-full"
+          disabled={submission.submitting}
+          aria-busy={submission.submitting}
+        >
+          {#if submission.submitting}
             <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
             Saving…
           {:else}
@@ -365,7 +358,7 @@
         action="?/verify"
         novalidate
         oninput={verifyValidation.oninput}
-        use:enhance={checked(verifyValidation, trackWith(afterCodeFailure))}
+        use:enhance={submission.enhance(verifyValidation, trackWith(afterCodeFailure))}
         class="space-y-5"
       >
         <input type="hidden" name="email" value={email} />
@@ -397,8 +390,13 @@
           {/if}
         </div>
 
-        <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
-          {#if submitting}
+        <Button
+          type="submit"
+          class="min-h-11 w-full"
+          disabled={submission.submitting}
+          aria-busy={submission.submitting}
+        >
+          {#if submission.submitting}
             <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
             Verifying…
           {:else}
@@ -412,15 +410,18 @@
         method="POST"
         action="?/resend"
         novalidate
-        use:enhance={trackWith(focusFirstInvalidField, () => (code = ""))}
+        use:enhance={submission.enhance(
+          undefined,
+          trackWith(undefined, () => (code = ""))
+        )}
       >
         <input type="hidden" name="email" value={email} />
         <Button
           type="submit"
           variant="outline"
           class="min-h-11 w-full"
-          disabled={submitting || resendWait.remaining > 0}
-          aria-busy={submitting}
+          disabled={submission.submitting || resendWait.remaining > 0}
+          aria-busy={submission.submitting}
         >
           Send a new code{#if resendWait.remaining > 0}<span aria-hidden="true"
               >&nbsp;in {formatClock(resendWait.remaining)}</span
@@ -438,7 +439,7 @@
         action="?/request"
         novalidate
         oninput={requestValidation.oninput}
-        use:enhance={checked(requestValidation)}
+        use:enhance={submission.enhance(requestValidation, track)}
         class="space-y-5"
       >
         <div class="space-y-2">
@@ -461,8 +462,13 @@
             </p>
           {/if}
         </div>
-        <Button type="submit" class="min-h-11 w-full" disabled={submitting} aria-busy={submitting}>
-          {#if submitting}
+        <Button
+          type="submit"
+          class="min-h-11 w-full"
+          disabled={submission.submitting}
+          aria-busy={submission.submitting}
+        >
+          {#if submission.submitting}
             <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
             Sending…
           {:else}

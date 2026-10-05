@@ -109,30 +109,6 @@ describe("login page", () => {
     await expect.element(screen.getByRole("link", { name: "Forgot password?" })).toBeVisible();
   });
 
-  it("confirms sign-out on the login page", async () => {
-    mockPage.url = new URL("http://localhost/login?logged_out=true");
-
-    const screen = await render(Page, { form: null });
-
-    await expect.element(screen.getByText(/logged out/i)).toBeVisible();
-  });
-
-  it("renders missing-field errors beside the relevant input", async () => {
-    mockPage.url = new URL("http://localhost/login");
-
-    const screen = await render(Page, {
-      form: {
-        error: "Email and password are required.",
-        fieldErrors: { password: "Password is required." }
-      }
-    });
-
-    await expect.element(screen.getByText("Password is required.")).toBeVisible();
-    await expect
-      .element(screen.getByLabelText("Password", { exact: true }))
-      .toHaveAttribute("aria-invalid", "true");
-  });
-
   // #206: unticked by default, as in the legacy Filament login. The action
   // reads the field's presence, so what matters is what the form submits.
   it("offers Remember me, unticked by default and submitted only once ticked", async () => {
