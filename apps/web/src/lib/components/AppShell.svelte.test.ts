@@ -14,6 +14,7 @@ vi.mock("$app/paths", () => ({ resolve: (path: string) => path }));
 vi.mock("$app/state", () => ({ page: mockPage }));
 
 const { render } = await import("vitest-browser-svelte");
+const { modeStorageKey, resetMode } = await import("mode-watcher");
 const { default: AppShell } = await import("./AppShell.svelte");
 
 const body = createRawSnippet(() => ({ render: () => "<h1>Page body</h1>" }));
@@ -33,6 +34,7 @@ const desktop = () => browser.viewport(1280, 800);
 const phone = () => browser.viewport(390, 844);
 
 afterEach(() => {
+  resetMode();
   mockPage.url = new URL("http://localhost/");
   document.documentElement.classList.remove("dark");
 });
@@ -55,38 +57,76 @@ describe("AppShell", () => {
       .not.toHaveAttribute("aria-current");
   });
 
-  it("shows who is signed in and their division", async () => {
+  it("opens the user's menu with their identity and division", async () => {
     await desktop();
     const screen = await render(AppShell, props());
 
-    await expect.element(screen.getByText("Siti Rahma")).toBeVisible();
-    await expect.element(screen.getByText("Warehouse")).toBeVisible();
+    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+
+    await expect.element(screen.getByText("siti@vmblogistics.id")).toBeVisible();
+    await expect.element(screen.getByText("Division", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("Warehouse").last()).toBeVisible();
   });
 
   it("says so when the user has no division", async () => {
     await desktop();
     const screen = await render(AppShell, props({ division: null }));
 
-    await expect.element(screen.getByText("No division")).toBeVisible();
+    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+
+    await expect.element(screen.getByText("No division").last()).toBeVisible();
   });
 
-  it("signs out with a plain form post, so it works before scripts load", async () => {
+  it("signs out with a form post from the user's menu", async () => {
     await desktop();
     const screen = await render(AppShell, props());
 
-    const logOut = screen.getByRole("button", { name: "Log out" });
+    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+
+    const logOut = screen.getByRole("menuitem", { name: "Log out" });
     await expect.element(logOut).toBeVisible();
     const form = logOut.element().closest("form");
     expect(form?.method).toBe("post");
     expect(form?.getAttribute("action")).toBe("/logout");
   });
 
-  it("carries the theme toggle and the page's content", async () => {
+  it("chooses the theme from the user's menu without closing it", async () => {
     await desktop();
     const screen = await render(AppShell, props());
 
-    await expect.element(screen.getByRole("button", { name: "Theme" })).toBeVisible();
+    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+    await expect
+      .element(screen.getByRole("menuitemradio", { name: "System" }))
+      .toHaveAttribute("aria-checked", "true");
+
+    await screen.getByRole("menuitemradio", { name: "Dark" }).click();
+
+    expect(localStorage.getItem(modeStorageKey.current)).toBe("dark");
+    await expect
+      .element(screen.getByRole("menuitemradio", { name: "Dark" }))
+      .toHaveAttribute("aria-checked", "true");
+
+    await screen.getByRole("menuitemradio", { name: "System" }).click();
+    expect(localStorage.getItem(modeStorageKey.current)).toBe("system");
+  });
+
+  it("shows the page's content below the top bar", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+
+    await expect.element(screen.getByRole("banner")).toBeVisible();
     await expect.element(screen.getByRole("heading", { name: "Page body" })).toBeVisible();
+  });
+
+  it("falls back to generated initials until a photo loads", async () => {
+    await desktop();
+    const screen = await render(AppShell, props({ user: { ...user, image: "/missing.png" } }));
+
+    const fallback = screen
+      .getByRole("button", { name: "Siti Rahma, account menu" })
+      .element()
+      .querySelector("[data-slot='avatar-fallback'] img");
+    await expect.poll(() => fallback?.getAttribute("src")).toMatch(/^data:image\/svg\+xml/);
   });
 
   it("keeps the navigation behind a toggle on a phone", async () => {
@@ -122,12 +162,23 @@ describe("AppShell", () => {
   });
 
   for (const scheme of ["light", "dark"] as const) {
-    it(`has no axe violations in ${scheme} mode`, async () => {
+    it(`has no axe violations in ${scheme} mode, with the user's menu open too`, async () => {
       await desktop();
       document.documentElement.classList.toggle("dark", scheme === "dark");
       const screen = await render(AppShell, props());
 
       await expect.element(screen.getByRole("navigation", { name: "Main" })).toBeVisible();
+      expect(await axeViolations(document.body)).toEqual([]);
+
+      await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+      await expect.element(screen.getByRole("menuitem", { name: "Log out" })).toBeVisible();
+      // Axe reads the colours it sees: wait out the menu's fade-in.
+      await expect
+        .poll(
+          () =>
+            document.querySelector("[data-slot='dropdown-menu-content']")?.getAnimations().length
+        )
+        .toBe(0);
       expect(await axeViolations(document.body)).toEqual([]);
     });
   }

@@ -348,7 +348,7 @@
     {@render section(
       "dark",
       "Dark tokens",
-      "A .dark subtree — the toggle lives in the app shell (#167)."
+      "A .dark subtree — the toggle lives in the account menu of the app shell (#167)."
     )}
     <div class="dark bg-background text-foreground space-y-4 rounded-xl border p-6">
       <div class="flex flex-wrap gap-3">
