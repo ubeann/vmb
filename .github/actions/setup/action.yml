@@ -36,7 +36,8 @@ runs:
       shell: bash
       run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-    - if: inputs.install-dependencies == 'true'
+    - id: pnpm-store-cache
+      if: inputs.install-dependencies == 'true'
       uses: actions/cache@v6
       with:
         path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -47,3 +48,11 @@ runs:
     - if: inputs.install-dependencies == 'true'
       shell: bash
       run: pnpm install --frozen-lockfile
+
+    # The store restored from a `restore-keys` prefix still holds packages the
+    # new lockfile dropped, and the post step would save them back. Prune only
+    # when that step will save: on an exact hit it saves nothing (issue #287).
+    - name: Prune pnpm store
+      if: inputs.install-dependencies == 'true' && steps.pnpm-store-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm store prune
