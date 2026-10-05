@@ -146,6 +146,28 @@ describe("AppShell", () => {
     expect(pill.getBoundingClientRect().height).toBeGreaterThanOrEqual(48);
   });
 
+  it("underlines the top bar on a phone, where no panel edge parts it from the page", async () => {
+    await phone();
+    const small = await render(AppShell, props());
+    const bar = small.getByRole("banner").element();
+
+    expect(getComputedStyle(bar).borderBottomWidth).toBe("1px");
+    small.unmount();
+
+    await desktop();
+    const large = await render(AppShell, props());
+
+    expect(getComputedStyle(large.getByRole("banner").element()).borderBottomWidth).toBe("0px");
+  });
+
+  it("keeps the account button clear of the top edge", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+    const button = screen.getByRole("button", { name: "Siti Rahma, account menu" }).element();
+
+    expect(button.getBoundingClientRect().top).toBeGreaterThanOrEqual(8);
+  });
+
   it("shows the page's content below the top bar", async () => {
     await desktop();
     const screen = await render(AppShell, props());

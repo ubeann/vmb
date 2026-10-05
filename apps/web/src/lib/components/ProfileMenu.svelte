@@ -43,7 +43,7 @@
         {...props}
         variant="ghost"
         aria-label="{user.name}, account menu"
-        class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent h-auto gap-2.5 rounded-full p-1 sm:rounded-xl sm:py-2 sm:pr-3 sm:pl-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+        class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent h-auto gap-2.5 rounded-full p-1 sm:h-12 sm:rounded-xl sm:py-0 sm:pr-3 sm:pl-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
       >
         <UserAvatar seed={user.id} image={user.image} />
         <span class="hidden min-w-0 text-left leading-tight sm:grid">

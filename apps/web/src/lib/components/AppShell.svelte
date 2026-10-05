@@ -2,7 +2,8 @@
   The frame of every signed-in screen (#167): a top bar across the full width
   (logo, sidebar toggle, the user's menu), the navigation below it, and the
   page in a rounded panel. Below 48rem the sidebar becomes a sheet behind the
-  bar's toggle. Search and notifications take the space between the toggle and
+  bar's toggle, and the bar gets a line under it, since there is no panel edge
+  to part it from the page. Search and notifications take the space between the toggle and
   the menu when those features exist. Sidebar state persists in the
   `sidebar_state` cookie, which the layout load reads back (`sidebarOpen`), so a
   reload keeps it without a flash.
@@ -49,9 +50,12 @@
   Skip to content
 </a>
 
-<Sidebar.Provider open={sidebarOpen} class="flex-col" style="--header-height: 3.5rem">
+<Sidebar.Provider
+  open={sidebarOpen}
+  class="flex-col [--header-height:3.5rem] sm:[--header-height:4rem]"
+>
   <header
-    class="bg-sidebar text-sidebar-foreground sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 px-3 sm:px-4"
+    class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 px-3 max-md:border-b sm:px-4"
   >
     <a
       href={resolve("/")}
