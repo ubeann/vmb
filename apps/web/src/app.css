@@ -27,8 +27,9 @@
   --secondary-foreground: oklch(0.247 0.094 267.7);
   --muted: oklch(0.946 0.012 91.5);
   --muted-foreground: oklch(0.488 0.052 273.5);
-  /* A firmer wash than the secondary fill: 12.9:1 under the navy text, 4.2:1 against the green focus ring */
-  --accent: oklch(0.92 0.028 273);
+  /* The hover wash: paper one step deeper, warm like the paper it sits on (a cool tint reads as
+   * a stray hue there). 12.5:1 under the navy text, 4.1:1 against the green focus ring */
+  --accent: oklch(0.93 0.016 91);
   --accent-foreground: oklch(0.247 0.094 267.7);
   --destructive: oklch(0.53 0.207 22.3);
   --border: oklch(0.888 0.014 93);
@@ -49,7 +50,7 @@
   --sidebar-foreground: oklch(0.247 0.094 267.7);
   --sidebar-primary: oklch(0.51 0.164 143.6);
   --sidebar-primary-foreground: oklch(0.982 0.01 145.5);
-  --sidebar-accent: oklch(0.92 0.028 273);
+  --sidebar-accent: oklch(0.93 0.016 91);
   --sidebar-accent-foreground: oklch(0.247 0.094 267.7);
   --sidebar-border: oklch(0.888 0.014 93);
   --sidebar-ring: oklch(0.51 0.164 143.6);

@@ -60,6 +60,39 @@ describe("AppShell", () => {
       .not.toHaveAttribute("aria-current");
   });
 
+  it("washes the current page green and the hovered one warm in light mode, not blue", async () => {
+    await desktop();
+    mockPage.url = new URL("http://localhost/master/users");
+    const screen = await render(AppShell, props());
+
+    // Reads the painted colour as sRGB through a canvas, whatever space the CSS uses.
+    const rgb = (el: Element) => {
+      const ctx = document.createElement("canvas").getContext("2d")!;
+      ctx.fillStyle = "#000";
+      ctx.fillStyle = getComputedStyle(el).backgroundColor;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      return { r: r!, g: g!, b: b! };
+    };
+
+    const current = (await screen.getByRole("link", { name: "Users" }).element()).closest(
+      "[data-slot='sidebar-menu-button']"
+    )!;
+    const { r, g, b } = rgb(current);
+    expect(g).toBeGreaterThan(r);
+    expect(g).toBeGreaterThan(b);
+
+    await userEvent.hover(screen.getByRole("link", { name: "Roles" }));
+    const hovered = (await screen.getByRole("link", { name: "Roles" }).element()).closest(
+      "[data-slot='sidebar-menu-button']"
+    )!;
+    await expect.poll(() => rgb(hovered).r).toBeGreaterThan(rgb(hovered).b);
+
+    document.documentElement.classList.add("dark");
+    const dark = rgb(current);
+    expect(dark.b).toBeGreaterThan(dark.g);
+  });
+
   it("opens the user's menu with their identity and division", async () => {
     await desktop();
     const screen = await render(AppShell, props());

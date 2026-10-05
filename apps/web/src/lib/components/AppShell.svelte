@@ -73,7 +73,10 @@
                 {@const current = isCurrent(page.url.pathname, item.href)}
                 {@const Icon = ICONS[item.icon]}
                 <Sidebar.MenuItem>
-                  <Sidebar.MenuButton isActive={current} class="pointer-coarse:h-11">
+                  <Sidebar.MenuButton
+                    isActive={current}
+                    class="data-[active=true]:bg-sidebar-primary/15 dark:data-[active=true]:bg-sidebar-accent pointer-coarse:h-11"
+                  >
                     {#snippet child({ props })}
                       <a
                         {...props}
