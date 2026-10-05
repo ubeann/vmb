@@ -3,6 +3,13 @@ import { isPublicRoute } from "$lib/public-routes.js";
 import { loadSession } from "$lib/session.js";
 import { redirect, type Handle, type HandleServerError } from "@sveltejs/kit";
 
+// The two faces the first screen paints with. The browser only discovers them
+// after it has read the stylesheet, so the largest paint waits on that
+// round trip; a preload link starts both downloads with the page. Only the
+// `latin` subsets: the `latin-ext` files are fetched only when a page uses
+// those characters, and preloading them would spend bandwidth on every load.
+const PRELOADED_FONT = /\/(?:inter|newsreader)-latin-wght-normal\.[^/]+\.woff2$/;
+
 export const handle: Handle = async ({ event, resolve }) => {
   // withAuthApiClient owns URL resolution and the transport-failure path, but
   // this hook runs on every request — a config mistake or an API outage should
@@ -27,7 +34,9 @@ export const handle: Handle = async ({ event, resolve }) => {
     redirect(303, "/login");
   }
 
-  return resolve(event);
+  return resolve(event, {
+    preload: ({ type, path }) => type === "font" && PRELOADED_FONT.test(path)
+  });
 };
 
 // An unexpected failure gets a short reference and its time, logged with the
