@@ -5,5 +5,6 @@
 export const duration = {
   feedback: 120,
   panel: 220,
+  exit: 160,
   icon: 300
 } as const;

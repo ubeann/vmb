@@ -14,6 +14,8 @@
     "deploy": "wrangler pages deploy .svelte-kit/cloudflare"
   },
   "dependencies": {
+    "@dicebear/core": "^10.7.0",
+    "@dicebear/styles": "^10.6.0",
     "@internationalized/date": "^3.12.0",
     "@lucide/svelte": "^1.49.0",
     "better-auth": "^1.7.7",
