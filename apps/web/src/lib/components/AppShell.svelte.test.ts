@@ -163,29 +163,30 @@ describe("AppShell", () => {
     );
   });
 
-  it("moves the logo from the bar into the menu sheet on a phone", async () => {
+  it("puts the logo at the top of the sidebar, and in the menu sheet on a phone", async () => {
     await phone();
     const small = await render(AppShell, props());
     const logo = (screen: typeof small) =>
       screen.getByRole("link", { name: "VMB, go to the dashboard" });
 
     await expect.element(small.getByRole("banner").getByRole("link")).not.toBeInTheDocument();
-    await small.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await expect.element(logo(small)).not.toBeInTheDocument();
+    await small.getByRole("button", { name: "Menu" }).click();
     await expect.element(logo(small)).toBeVisible();
     small.unmount();
 
     await desktop();
     const large = await render(AppShell, props());
 
-    await expect
-      .element(large.getByRole("banner").getByRole("link", { name: "VMB, go to the dashboard" }))
-      .toBeVisible();
+    await expect.element(large.getByRole("banner").getByRole("link")).not.toBeInTheDocument();
+    await expect.element(logo(large)).toBeVisible();
+    expect(logo(large).element().getBoundingClientRect().left).toBeLessThan(64);
   });
 
   it("says whether the sidebar toggle has opened the menu", async () => {
     await phone();
     const screen = await render(AppShell, props());
-    const toggle = screen.getByRole("button", { name: "Toggle Sidebar" });
+    const toggle = screen.getByRole("button", { name: "Menu" });
 
     await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
     await toggle.click();
@@ -246,21 +247,31 @@ describe("AppShell", () => {
 
     await expect.element(screen.getByRole("link", { name: "Divisions" })).not.toBeInTheDocument();
 
-    await screen.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await screen.getByRole("button", { name: "Menu" }).click();
 
     await expect.element(screen.getByRole("link", { name: "Divisions" })).toBeVisible();
   });
 
-  it("collapses to icons on desktop and opens again from the same toggle", async () => {
+  it("collapses to icons from the sidebar's foot, and opens again from there or Ctrl+B", async () => {
     await desktop();
     const screen = await render(AppShell, props());
     const sidebar = () => document.querySelector("[data-slot='sidebar'][data-state]");
 
     expect(sidebar()?.getAttribute("data-state")).toBe("expanded");
-    await screen.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await screen.getByRole("button", { name: "Collapse sidebar" }).click();
     expect(sidebar()?.getAttribute("data-state")).toBe("collapsed");
+    await expect
+      .element(screen.getByRole("button", { name: "Expand sidebar" }))
+      .toHaveAttribute("aria-expanded", "false");
     await userEvent.keyboard("{Control>}b{/Control}");
     expect(sidebar()?.getAttribute("data-state")).toBe("expanded");
+  });
+
+  it("hides the menu button on desktop, where the sidebar collapses instead", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+
+    await expect.element(screen.getByRole("button", { name: "Menu" })).not.toBeInTheDocument();
   });
 
   it("starts collapsed when the saved state says so", async () => {
@@ -270,6 +281,110 @@ describe("AppShell", () => {
     expect(
       document.querySelector("[data-slot='sidebar'][data-state]")?.getAttribute("data-state")
     ).toBe("collapsed");
+  });
+
+  describe("peeking at the collapsed rail", () => {
+    const container = () => document.querySelector<HTMLElement>("[data-slot='sidebar-container']")!;
+    const gap = () => document.querySelector<HTMLElement>("[data-slot='sidebar-gap']")!;
+    const content = () => document.querySelector<HTMLElement>("#main-content")!;
+    const peeking = () => container().getAttribute("data-peek");
+    const rem = (n: number) => n * parseFloat(getComputedStyle(document.documentElement).fontSize);
+
+    it("opens over the page when the pointer rests on the rail, and the page stays put", async () => {
+      await desktop();
+      await render(AppShell, props({ sidebarOpen: false }));
+      const railWidth = container().getBoundingClientRect().width;
+      const pageLeft = content().getBoundingClientRect().left;
+
+      await userEvent.hover(browser.elementLocator(container()));
+
+      await expect.poll(peeking).toBe("true");
+      await expect
+        .poll(() => container().getBoundingClientRect().width)
+        .toBeGreaterThanOrEqual(rem(16) - 1);
+      expect(railWidth).toBeLessThan(rem(5));
+      expect(gap().getBoundingClientRect().width).toBeLessThan(rem(5));
+      expect(content().getBoundingClientRect().left).toBe(pageLeft);
+      await expect.element(browser.getByRole("link", { name: "Divisions" })).toBeVisible();
+      expect(
+        browser.getByRole("link", { name: "Divisions" }).element().getBoundingClientRect().width
+      ).toBeGreaterThan(rem(8));
+    });
+
+    it("closes again once the pointer leaves", async () => {
+      await desktop();
+      await render(AppShell, props({ sidebarOpen: false }));
+
+      await userEvent.hover(browser.elementLocator(container()));
+      await expect.poll(peeking).toBe("true");
+      await userEvent.unhover(browser.elementLocator(container()));
+
+      await expect.poll(peeking).toBe("false");
+    });
+
+    it("opens for keyboard focus and closes on Esc", async () => {
+      await desktop();
+      await render(AppShell, props({ sidebarOpen: false }));
+
+      await userEvent.tab();
+      await userEvent.tab();
+      await userEvent.tab();
+      await expect.poll(peeking).toBe("true");
+
+      await userEvent.keyboard("{Escape}");
+      await expect.poll(peeking).toBe("false");
+    });
+
+    it("ignores a touch pointer", async () => {
+      await desktop();
+      await render(AppShell, props({ sidebarOpen: false }));
+
+      container().dispatchEvent(new PointerEvent("pointerenter", { pointerType: "touch" }));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect(peeking()).toBe("false");
+    });
+
+    it("does not peek when the sidebar is pinned open", async () => {
+      await desktop();
+      await render(AppShell, props());
+
+      await userEvent.hover(browser.elementLocator(container()));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect(peeking()).toBe("false");
+    });
+
+    for (const scheme of ["light", "dark"] as const) {
+      it(`has no axe violations while peeking in ${scheme} mode`, async () => {
+        await desktop();
+        document.documentElement.classList.toggle("dark", scheme === "dark");
+        await render(AppShell, props({ sidebarOpen: false }));
+
+        await userEvent.hover(browser.elementLocator(container()));
+        await expect.poll(peeking).toBe("true");
+        // Axe reads the colours it sees: wait out the panel's slide.
+        await expect.poll(() => container().getAnimations({ subtree: true }).length).toBe(0);
+        await expect
+          .poll(() => container().getBoundingClientRect().width)
+          .toBeGreaterThanOrEqual(rem(16) - 1);
+
+        expect(await axeViolations(document.body)).toEqual([]);
+      });
+    }
+
+    it("waits for the pointer to leave after the foot button collapses it", async () => {
+      await desktop();
+      const screen = await render(AppShell, props());
+
+      await screen.getByRole("button", { name: "Collapse sidebar" }).click();
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(peeking()).toBe("false");
+
+      await userEvent.unhover(browser.elementLocator(container()));
+      await userEvent.hover(browser.elementLocator(container()));
+      await expect.poll(peeking).toBe("true");
+    });
   });
 
   for (const scheme of ["light", "dark"] as const) {
