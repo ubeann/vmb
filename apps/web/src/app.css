@@ -104,6 +104,8 @@
   --duration-feedback: 120ms;
   /* A panel, a toast or the auth card changing contents. */
   --duration-panel: 220ms;
+  /* A panel closing: leaving is read as less important than arriving. */
+  --duration-exit: 160ms;
   /* An icon swapping for another, such as the theme toggle's glyph. */
   --duration-icon: 300ms;
 
@@ -354,6 +356,7 @@
     [data-slot="sidebar-menu-button"]
     > span:last-child {
     opacity: 0;
+    transition-duration: var(--duration-exit);
   }
 
   /* The registry's menu items are `cursor-default`. Ours are clickable like any

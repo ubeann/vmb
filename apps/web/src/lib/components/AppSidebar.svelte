@@ -54,7 +54,7 @@
       return;
     }
     closing = true;
-    const done = setTimeout(() => (closing = false), duration.panel);
+    const done = setTimeout(() => (closing = false), duration.exit);
     return () => clearTimeout(done);
   });
 
@@ -101,12 +101,14 @@
 </script>
 
 {#snippet logo()}
+  <!-- Anchored left in both looks (5px puts the collapsed mark at the middle of the
+       rail), so the mark never swings across the panel while it narrows. -->
   <a
     href={resolve("/")}
-    class="focus-visible:ring-sidebar-ring flex h-10 items-center rounded-md px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 focus-visible:ring-2 focus-visible:outline-none"
+    class="focus-visible:ring-sidebar-ring flex h-10 items-center rounded-md pr-2 pl-4 transition-[padding] duration-(--duration-panel) ease-(--easing-standard) group-data-[collapsible=icon]:pr-0 group-data-[collapsible=icon]:pl-[5px] group-data-[collapsible=icon]:duration-(--duration-exit) focus-visible:ring-2 focus-visible:outline-none"
   >
     <VmbLogo
-      class="h-8 transition-[height] duration-(--duration-panel) ease-(--easing-standard) group-data-[collapsible=icon]:h-6"
+      class="h-8 transition-[height] duration-(--duration-panel) ease-(--easing-standard) group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:duration-(--duration-exit)"
       title="VMB, go to the dashboard"
     />
   </a>
@@ -129,7 +131,7 @@
     <!-- Holds the page's place; it follows the saved state, never the peek. -->
     <div
       data-slot="sidebar-gap"
-      class="relative w-(--sidebar-width) bg-transparent transition-[width] duration-(--duration-panel) ease-(--easing-standard) group-data-[state=collapsed]:w-[calc(var(--sidebar-width-icon)+--spacing(4))]"
+      class="relative w-(--sidebar-width) bg-transparent transition-[width] duration-(--duration-panel) ease-(--easing-standard) group-data-[state=collapsed]:w-[calc(var(--sidebar-width-icon)+--spacing(4))] group-data-[state=collapsed]:duration-(--duration-exit)"
     ></div>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -138,7 +140,7 @@
       data-peek={peeking}
       data-narrow={narrow}
       data-closing={closing}
-      class="fixed inset-y-0 start-0 z-30 hidden h-svh w-(--sidebar-width) p-2 transition-[width] duration-(--duration-panel) ease-(--easing-standard) data-[narrow=true]:w-[calc(var(--sidebar-width-icon)+--spacing(4)+2px)] md:flex"
+      class="fixed inset-y-0 start-0 z-30 hidden h-svh w-(--sidebar-width) p-2 transition-[width] duration-(--duration-panel) ease-(--easing-standard) data-[narrow=true]:w-[calc(var(--sidebar-width-icon)+--spacing(4)+2px)] data-[narrow=true]:duration-(--duration-exit) md:flex"
       onpointerenter={enter}
       onpointerleave={leave}
       onfocusin={focusIn}
@@ -151,9 +153,7 @@
         data-peek={peeking}
         class="bg-sidebar data-[peek=true]:ring-sidebar-border flex size-full flex-col overflow-hidden rounded-xl transition-shadow duration-(--duration-panel) data-[peek=true]:shadow-[10px_0_36px_-6px_rgb(0_0_0/0.22),0_12px_28px_-10px_rgb(0_0_0/0.2)] data-[peek=true]:ring-1 dark:data-[peek=true]:shadow-[10px_0_36px_-6px_rgb(0_0_0/0.6),0_12px_28px_-10px_rgb(0_0_0/0.5)]"
       >
-        <Sidebar.Header
-          class="h-[calc(var(--header-height)-1rem)] justify-center p-0 px-2 group-data-[collapsible=icon]:px-0"
-        >
+        <Sidebar.Header class="h-[calc(var(--header-height)-1rem)] justify-center p-0">
           {@render logo()}
         </Sidebar.Header>
 

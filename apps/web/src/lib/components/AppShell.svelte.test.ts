@@ -290,6 +290,29 @@ describe("AppShell", () => {
     expect(link().getBoundingClientRect().width).toBeLessThan(40);
   });
 
+  it("keeps the logo moving only toward its resting place while the sidebar collapses", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+    const logo = () => document.querySelector("[data-slot='sidebar-header'] svg")!;
+    const startLeft = logo().getBoundingClientRect().left;
+    const lefts: number[] = [];
+
+    await screen.getByRole("button", { name: "Collapse sidebar" }).click();
+    const begin = performance.now();
+    await new Promise<void>((done) => {
+      const sample = () => {
+        lefts.push(logo().getBoundingClientRect().left);
+        if (performance.now() - begin < 400) requestAnimationFrame(sample);
+        else done();
+      };
+      sample();
+    });
+
+    // Centred with flexbox it swung to the middle of the wide panel first.
+    expect(Math.max(...lefts)).toBeLessThanOrEqual(startLeft + 0.5);
+    expect(lefts.at(-1)!).toBeLessThan(startLeft - 8);
+  });
+
   it("hides the menu button on desktop, where the sidebar collapses instead", async () => {
     await desktop();
     const screen = await render(AppShell, props());

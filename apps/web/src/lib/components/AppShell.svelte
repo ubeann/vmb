@@ -95,7 +95,7 @@
   </AppSidebar>
 
   <div
-    class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2"
+    class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
   >
     <header
       data-scrolled={scrollY > 0}
