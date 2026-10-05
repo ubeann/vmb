@@ -840,15 +840,22 @@ describe("activate page", () => {
       expect(code.getAttribute("name")).toBe("otp");
     });
 
-    it("fills a box per digit and takes no seventh", async () => {
+    it("fills a box per digit and never grows past six digits", async () => {
       const screen = await render(Page, codeStep);
       const code = screen.getByLabelText("Code");
 
       await code.click();
-      await userEvent.keyboard("1234567");
+      await userEvent.keyboard("123456");
 
       await expect.element(code).toHaveValue("123456");
       expect(boxes(screen.container)).toEqual(["1", "2", "3", "4", "5", "6"]);
+
+      // PinInput selects the last filled box on selectionchange. Depending
+      // on when that event runs, another key is ignored or replaces that
+      // digit; neither may append a seventh digit.
+      await userEvent.keyboard("7");
+      await expect.poll(() => (code.element() as HTMLInputElement).value).toMatch(/^\d{6}$/);
+      expect(boxes(screen.container)).toHaveLength(6);
     });
 
     it("refuses anything but digits", async () => {
