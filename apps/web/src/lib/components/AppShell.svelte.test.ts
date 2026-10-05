@@ -211,12 +211,20 @@ describe("AppShell", () => {
     await expect.poll(() => bar.getAttribute("data-scrolled")).toBe("false");
   });
 
-  it("keeps the account button clear of the top edge", async () => {
+  it("centres the account button and the logo in the space above the panel", async () => {
     await desktop();
     const screen = await render(AppShell, props());
+    const centre = (element: Element) => {
+      const box = element.getBoundingClientRect();
+      return box.top + box.height / 2;
+    };
+    const panelTop = document.querySelector("#main-content")!.getBoundingClientRect().top;
     const button = screen.getByRole("button", { name: "Siti Rahma, account menu" }).element();
+    const logo = screen.getByRole("link", { name: "VMB, go to the dashboard" }).element();
 
-    expect(button.getBoundingClientRect().top).toBeGreaterThanOrEqual(7);
+    expect(Math.abs(centre(button) - panelTop / 2)).toBeLessThanOrEqual(1);
+    expect(Math.abs(centre(logo) - panelTop / 2)).toBeLessThanOrEqual(2);
+    expect(button.getBoundingClientRect().top).toBeGreaterThanOrEqual(10);
   });
 
   it("shows the page's content below the top bar", async () => {
@@ -265,6 +273,21 @@ describe("AppShell", () => {
       .toHaveAttribute("aria-expanded", "false");
     await userEvent.keyboard("{Control>}b{/Control}");
     expect(sidebar()?.getAttribute("data-state")).toBe("expanded");
+  });
+
+  it("lets the panel slide shut with the labels clipped, not snapped away", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+    const container = () => document.querySelector<HTMLElement>("[data-slot='sidebar-container']")!;
+    const link = () => screen.getByRole("link", { name: "Divisions" }).element();
+
+    await screen.getByRole("button", { name: "Collapse sidebar" }).click();
+
+    expect(container().getAttribute("data-narrow")).toBe("true");
+    expect(container().getAttribute("data-closing")).toBe("true");
+    expect(link().getBoundingClientRect().width).toBeGreaterThan(100);
+    await expect.poll(() => container().getAttribute("data-closing")).toBe("false");
+    expect(link().getBoundingClientRect().width).toBeLessThan(40);
   });
 
   it("hides the menu button on desktop, where the sidebar collapses instead", async () => {

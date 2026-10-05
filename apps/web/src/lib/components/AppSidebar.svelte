@@ -19,9 +19,11 @@
   import { resolve } from "$app/paths";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
+  import { duration } from "$lib/motion.js";
   import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
   import PanelLeftOpen from "@lucide/svelte/icons/panel-left-open";
   import type { Snippet } from "svelte";
+  import { prefersReducedMotion } from "svelte/motion";
 
   let { children }: { children: Snippet } = $props();
 
@@ -40,6 +42,21 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const peeking = $derived(sidebar.state === "collapsed" && (hovering || focused));
+
+  // Collapsing slides the panel shut while the buttons keep their full width,
+  // so the labels are clipped by the closing edge instead of snapping away at
+  // the start (`data-closing`, which app.css reads). Expanding needs none of it.
+  const narrow = $derived(sidebar.state === "collapsed" && !peeking);
+  let closing = $state(false);
+  $effect(() => {
+    if (!narrow || prefersReducedMotion.current) {
+      closing = false;
+      return;
+    }
+    closing = true;
+    const done = setTimeout(() => (closing = false), duration.panel);
+    return () => clearTimeout(done);
+  });
 
   function hover(next: boolean) {
     clearTimeout(timer);
@@ -104,7 +121,7 @@
   <div
     class="group peer text-sidebar-foreground hidden md:block"
     data-state={sidebar.state}
-    data-collapsible={sidebar.state === "collapsed" && !peeking ? "icon" : ""}
+    data-collapsible={narrow ? "icon" : ""}
     data-variant="inset"
     data-side="left"
     data-slot="sidebar"
@@ -119,7 +136,9 @@
       data-slot="sidebar-container"
       data-side="left"
       data-peek={peeking}
-      class="fixed inset-y-0 start-0 z-30 hidden h-svh w-(--sidebar-width) p-2 transition-[width] duration-(--duration-panel) ease-(--easing-standard) group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+--spacing(4)+2px)] md:flex"
+      data-narrow={narrow}
+      data-closing={closing}
+      class="fixed inset-y-0 start-0 z-30 hidden h-svh w-(--sidebar-width) p-2 transition-[width] duration-(--duration-panel) ease-(--easing-standard) data-[narrow=true]:w-[calc(var(--sidebar-width-icon)+--spacing(4)+2px)] md:flex"
       onpointerenter={enter}
       onpointerleave={leave}
       onfocusin={focusIn}
@@ -130,10 +149,10 @@
         data-sidebar="sidebar"
         data-slot="sidebar-inner"
         data-peek={peeking}
-        class="bg-sidebar data-[peek=true]:ring-sidebar-border flex size-full flex-col overflow-hidden rounded-xl transition-shadow duration-(--duration-panel) data-[peek=true]:shadow-lg data-[peek=true]:ring-1"
+        class="bg-sidebar data-[peek=true]:ring-sidebar-border flex size-full flex-col overflow-hidden rounded-xl transition-shadow duration-(--duration-panel) data-[peek=true]:shadow-[10px_0_36px_-6px_rgb(0_0_0/0.22),0_12px_28px_-10px_rgb(0_0_0/0.2)] data-[peek=true]:ring-1 dark:data-[peek=true]:shadow-[10px_0_36px_-6px_rgb(0_0_0/0.6),0_12px_28px_-10px_rgb(0_0_0/0.5)]"
       >
         <Sidebar.Header
-          class="h-[calc(var(--header-height)-0.5rem)] justify-center p-0 px-2 group-data-[collapsible=icon]:px-0"
+          class="h-[calc(var(--header-height)-1rem)] justify-center p-0 px-2 group-data-[collapsible=icon]:px-0"
         >
           {@render logo()}
         </Sidebar.Header>

@@ -339,6 +339,23 @@
     box-shadow: inset 0 0 0 2px var(--ring);
   }
 
+  /* The sidebar's collapse slide (AppSidebar). The registry narrows every menu
+   * button to an icon the moment the sidebar collapses, which snaps the labels
+   * away while the panel is still wide. While `data-closing` is set the
+   * buttons keep their width, so the closing edge clips the labels, which fade
+   * out as the panel narrows and back in as it widens. */
+  [data-slot="sidebar-container"][data-closing="true"] [data-slot="sidebar-menu-button"] {
+    width: 100% !important;
+  }
+  [data-slot="sidebar-container"] [data-slot="sidebar-menu-button"] > span:last-child {
+    transition: opacity var(--duration-panel) var(--easing-standard);
+  }
+  [data-slot="sidebar-container"][data-narrow="true"]
+    [data-slot="sidebar-menu-button"]
+    > span:last-child {
+    opacity: 0;
+  }
+
   /* The registry's menu items are `cursor-default`. Ours are clickable like any
    * button, so an enabled one gets the pointer. */
   :is(

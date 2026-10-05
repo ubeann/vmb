@@ -58,7 +58,10 @@
 
 <svelte:window bind:scrollY />
 
-<Sidebar.Provider open={sidebarOpen} class="[--header-height:3.5rem] sm:[--header-height:4rem]">
+<Sidebar.Provider
+  open={sidebarOpen}
+  class="[--header-height:3.5rem] sm:[--header-height:4rem] md:[--header-height:4.5rem]"
+>
   <AppSidebar>
     <nav aria-label="Main" class="flex flex-col gap-2">
       {#each groups as group (group.label)}
@@ -107,7 +110,7 @@
     <Sidebar.Inset
       id="main-content"
       tabindex={-1}
-      class="max-w-none min-w-0 p-4 outline-none sm:p-6 md:m-2 md:ml-0 md:rounded-xl md:shadow-sm"
+      class="max-w-none min-w-0 p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm"
     >
       {@render children()}
     </Sidebar.Inset>
