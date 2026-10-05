@@ -116,7 +116,7 @@
 
 {#if sidebar.isMobile}
   <Sidebar.Root variant="inset" collapsible="icon">
-    <Sidebar.Header>{@render logo()}</Sidebar.Header>
+    <Sidebar.Header class="px-0">{@render logo()}</Sidebar.Header>
     <Sidebar.Content>{@render children()}</Sidebar.Content>
   </Sidebar.Root>
 {:else}

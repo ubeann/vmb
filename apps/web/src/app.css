@@ -341,6 +341,18 @@
     box-shadow: inset 0 0 0 2px var(--ring);
   }
 
+  /* The sheet's scrim (the phone menu). The registry's is 10% black with a blur,
+   * which leaves the page behind it hard to read and the sheet with no depth.
+   * Half black and no blur keeps the page recognisable and lifts the sheet off
+   * it; a little more in dark mode, where the page is already dim. */
+  [data-slot="sheet-overlay"] {
+    background-color: oklch(0 0 0 / 0.5);
+    backdrop-filter: none;
+  }
+  .dark [data-slot="sheet-overlay"] {
+    background-color: oklch(0 0 0 / 0.6);
+  }
+
   /* The sidebar's collapse slide (AppSidebar). The registry narrows every menu
    * button to an icon the moment the sidebar collapses, which snaps the labels
    * away while the panel is still wide. While `data-closing` is set the

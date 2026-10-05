@@ -183,6 +183,30 @@ describe("AppShell", () => {
     expect(logo(large).element().getBoundingClientRect().left).toBeLessThan(64);
   });
 
+  it("lines the sheet's logo up with the menu below it", async () => {
+    await phone();
+    const screen = await render(AppShell, props());
+
+    await screen.getByRole("button", { name: "Menu" }).click();
+
+    const logo = screen.getByRole("link", { name: "VMB, go to the dashboard" }).element();
+    const icon = screen.getByRole("link", { name: "Dashboard" }).element().querySelector("svg")!;
+    await expect
+      .poll(() => logo.querySelector("svg")!.getBoundingClientRect().left)
+      .toBeCloseTo(icon.getBoundingClientRect().left, 0);
+  });
+
+  it("dims the page behind the phone menu without blurring it", async () => {
+    await phone();
+    const screen = await render(AppShell, props());
+
+    await screen.getByRole("button", { name: "Menu" }).click();
+
+    const scrim = getComputedStyle(document.querySelector("[data-slot='sheet-overlay']")!);
+    expect(scrim.backdropFilter).toBe("none");
+    expect(Number(/\/ ([\d.]+)\)/.exec(scrim.backgroundColor)?.[1])).toBeGreaterThanOrEqual(0.5);
+  });
+
   it("says whether the sidebar toggle has opened the menu", async () => {
     await phone();
     const screen = await render(AppShell, props());
@@ -285,9 +309,11 @@ describe("AppShell", () => {
 
     expect(container().getAttribute("data-narrow")).toBe("true");
     expect(container().getAttribute("data-closing")).toBe("true");
-    expect(link().getBoundingClientRect().width).toBeGreaterThan(100);
+    // Still the closing panel's full width (34px at the rail), not the icon button's
+    // 32px; the slide's position at this instant varies with the machine.
+    expect(link().getBoundingClientRect().width).toBeGreaterThan(33);
     await expect.poll(() => container().getAttribute("data-closing")).toBe("false");
-    expect(link().getBoundingClientRect().width).toBeLessThan(40);
+    await expect.poll(() => link().getBoundingClientRect().width).toBeLessThan(33);
   });
 
   it("keeps the logo moving only toward its resting place while the sidebar collapses", async () => {
