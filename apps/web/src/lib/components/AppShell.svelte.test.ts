@@ -93,6 +93,20 @@ describe("AppShell", () => {
     expect(dark.b).toBeGreaterThan(dark.g);
   });
 
+  it("gives the sidebar rows room, and keeps it when the sidebar collapses", async () => {
+    await desktop();
+    for (const sidebarOpen of [true, false]) {
+      const screen = await render(AppShell, props({ sidebarOpen }));
+      const rows = ["Divisions", "Roles"].map((name) =>
+        screen.getByRole("link", { name }).element().getBoundingClientRect()
+      );
+
+      expect(rows[0]!.height).toBe(40);
+      expect(rows[1]!.top - rows[0]!.bottom).toBe(4);
+      await screen.unmount();
+    }
+  });
+
   it("opens the user's menu with their identity and division", async () => {
     await desktop();
     const screen = await render(AppShell, props());

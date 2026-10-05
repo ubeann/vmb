@@ -68,14 +68,14 @@
         <Sidebar.Group>
           <Sidebar.GroupLabel>{group.label}</Sidebar.GroupLabel>
           <Sidebar.GroupContent>
-            <Sidebar.Menu>
+            <Sidebar.Menu class="gap-1">
               {#each group.items as item (item.href)}
                 {@const current = isCurrent(page.url.pathname, item.href)}
                 {@const Icon = ICONS[item.icon]}
                 <Sidebar.MenuItem>
                   <Sidebar.MenuButton
                     isActive={current}
-                    class="data-[active=true]:bg-sidebar-primary/15 dark:data-[active=true]:bg-sidebar-accent pointer-coarse:h-11"
+                    class="data-[active=true]:bg-sidebar-primary/15 dark:data-[active=true]:bg-sidebar-accent h-10 group-data-[collapsible=icon]:h-10! pointer-coarse:h-11"
                   >
                     {#snippet child({ props })}
                       <a
