@@ -265,12 +265,61 @@ describe("AppShell", () => {
       await expect.element(screen.getByRole("link", { name: "Divisions" })).not.toBeInTheDocument();
     });
 
+    it("is as wide as the sidebar, however wide the screen", async () => {
+      const screen = await openMenu();
+      const width = () => sheet()!.getBoundingClientRect().width;
+
+      expect(width()).toBe(288);
+      screen.unmount();
+
+      await browser.viewport(320, 700);
+      const narrow = await render(AppShell, props());
+      await narrow.getByRole("button", { name: "Menu" }).click();
+      await expect.element(narrow.getByRole("link", { name: "Divisions" })).toBeVisible();
+
+      expect(width()).toBeCloseTo(272, 0);
+    });
+
     it("locks the page behind it and draws no focus box round the sheet", async () => {
       await openMenu();
 
       expect(getComputedStyle(document.body).overflow).toBe("hidden");
       expect(getComputedStyle(sheet()!).outlineStyle).toBe("none");
     });
+  });
+
+  it("keeps wide page content from widening the page", async () => {
+    const wide = createRawSnippet(() => ({
+      render: () => '<div style="width: 2400px">wide</div>'
+    }));
+    const page = () => document.documentElement;
+
+    for (const [name, size, open] of [
+      ["a phone", phone, true],
+      ["desktop, sidebar open", desktop, true],
+      ["desktop, sidebar collapsed", desktop, false]
+    ] as const) {
+      await size();
+      const screen = await render(AppShell, props({ children: wide, sidebarOpen: open }));
+
+      expect(page().scrollWidth, name).toBeLessThanOrEqual(page().clientWidth);
+      expect(
+        document.querySelector("#main-content")!.scrollWidth,
+        `${name}: the panel scrolls it`
+      ).toBeGreaterThan(2000);
+      screen.unmount();
+    }
+  });
+
+  it("fits the panel inside the page on desktop", async () => {
+    await desktop();
+    await render(AppShell, props());
+
+    const panel = document.querySelector("#main-content")!.getBoundingClientRect();
+    expect(panel.right).toBeLessThanOrEqual(document.documentElement.clientWidth - 8);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+      document.documentElement.clientWidth
+    );
   });
 
   it("says whether the sidebar toggle has opened the menu", async () => {

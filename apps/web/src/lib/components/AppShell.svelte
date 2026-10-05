@@ -107,10 +107,14 @@
       </div>
     </header>
 
+    <!-- app.css still gives every <main> auto side margins and a max width (the legacy
+         page styles). On a phone those make the panel as wide as its widest content,
+         which widens the page; `m-0 w-auto max-w-none` opt out, and the panel scrolls
+         wide content itself. -->
     <Sidebar.Inset
       id="main-content"
       tabindex={-1}
-      class="max-w-none min-w-0 p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm"
+      class="m-0 w-auto max-w-none min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm"
     >
       {@render children()}
     </Sidebar.Inset>

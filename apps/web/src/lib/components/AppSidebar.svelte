@@ -126,8 +126,14 @@
 {/snippet}
 
 {#if sidebar.isMobile}
-  <!-- The sheet's own focus lands on its panel, which is not a control. -->
-  <Sidebar.Root variant="inset" collapsible="icon" class="outline-none">
+  <!-- The registry sizes the sheet at three quarters of the viewport, which grows with a
+       page that overflows; here it is the sidebar's own width, and never more than
+       85% of a narrow screen. Its panel is not a control, so it takes no focus box. -->
+  <Sidebar.Root
+    variant="inset"
+    collapsible="icon"
+    class="outline-none data-[side=left]:w-(--sidebar-width) data-[side=left]:max-w-[85vw] data-[side=left]:sm:max-w-(--sidebar-width)"
+  >
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div
       class="flex size-full min-h-0 touch-pan-y flex-col"
