@@ -6,13 +6,6 @@ import { defineConfig } from "vitest/config";
 // `std-env`'s rule: CI is on when the variable is set and not "false".
 const onCi = !!process.env.CI && process.env.CI !== "false";
 
-// TEMPORARY (#288 experiment): pick the browser build and worker count from
-// the environment so the bench workflow can compare them on the CI runner.
-const benchBrowser = process.env.WEB_TEST_BROWSER ?? (onCi ? "chrome" : "shell");
-const benchWorkers = process.env.WEB_TEST_MAX_WORKERS
-  ? Number(process.env.WEB_TEST_MAX_WORKERS)
-  : undefined;
-
 export default defineConfig({
   // SvelteKit reads PUBLIC_-prefixed vars through $env/*, but resolveApiUrl
   // reads import.meta.env.PUBLIC_API_URL directly so it stays a pure,
@@ -27,7 +20,6 @@ export default defineConfig({
   // needs sveltekit() anyway, to resolve $app/* imports in .svelte files.
   plugins: [tailwindcss(), ...(process.env.VITEST ? [] : [sveltekit()])],
   test: {
-    maxWorkers: benchWorkers,
     projects: [
       {
         extends: true,
@@ -54,7 +46,7 @@ export default defineConfig({
             // deliberate: CI tests the runner's Chrome version, which drifts
             // with the image (docs/ARCHITECTURE.md §9, ADR-0021).
             provider: playwright({
-              launchOptions: benchBrowser === "chrome" ? { channel: "chrome" } : {}
+              launchOptions: onCi ? { channel: "chrome" } : {}
             }),
             headless: true,
             instances: [{ browser: "chromium" }]
