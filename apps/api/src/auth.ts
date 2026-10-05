@@ -13,12 +13,12 @@ import { betterAuth } from "better-auth";
 import { waitUntil } from "cloudflare:workers";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
-import { emailOTP } from "better-auth/plugins/email-otp";
 import type { Bindings } from "./bindings.js";
 import { isPasswordBreached } from "./breached-password.js";
 import { CODE_REQUEST_PATH, codeRequestLimit } from "./code-request-limit.js";
 import { sendOtpEmail, sendVerificationEmail } from "./email.js";
 import { masterStore } from "./master.js";
+import { privateEmailOtp } from "./private-email-otp.js";
 import { createSignInGate } from "./sign-in-gate.js";
 
 // The endpoints that set a password over HTTP, and the body field each reads.
@@ -151,12 +151,7 @@ function buildAuth(env: Bindings) {
       // checks the code first (`check-verification-otp`, #254), then spends it
       // with the password. `disableSignUp` keeps an unknown email from being
       // auto-registered by the OTP endpoints.
-      emailOTP({
-        disableSignUp: true,
-        sendVerificationOTP: async ({ email, otp }) => {
-          await sendOtpEmail(env, email, otp);
-        }
-      })
+      privateEmailOtp((email, otp) => sendOtpEmail(env, email, otp))
     ]
   });
 }

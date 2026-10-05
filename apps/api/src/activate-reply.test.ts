@@ -52,9 +52,13 @@ const UNREGISTERED = "nobody@vmblogistics.id";
 
 // Sent the way apps/web sends it: the browser's address, vouched for by the
 // shared secret (#250).
-async function requestCode(email: string, clientIp = "203.0.113.10") {
+async function requestCode(
+  email: string,
+  clientIp = "203.0.113.10",
+  path = "/email-otp/request-password-reset"
+) {
   const res = await app.request(
-    "/api/auth/email-otp/request-password-reset",
+    `/api/auth${path}`,
     {
       method: "POST",
       headers: {
@@ -63,7 +67,7 @@ async function requestCode(email: string, clientIp = "203.0.113.10") {
         [CLIENT_IP_HEADER]: clientIp,
         [CLIENT_IP_SECRET_HEADER]: bindings.CLIENT_IP_SECRET
       },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, type: "forget-password" })
     },
     bindings
   );
@@ -297,8 +301,8 @@ describe("per-email code request limit (#252)", () => {
 });
 
 // The code step's Verify (#254): it checks a code without using it up. An
-// unregistered email has no code to check, so it must read exactly like a
-// registered one with a wrong code (#232).
+// unregistered email's unsent decoy reads exactly like a registered email's
+// wrong, expired or exhausted code (#232, #271).
 async function checkCode(email: string, otp: string, clientIp = "192.0.2.10") {
   const res = await app.request(
     "/api/auth/email-otp/check-verification-otp",
@@ -322,6 +326,20 @@ const sentCode = () => sendOtpEmailMock.mock.lastCall![2];
 const wrongCode = () => (sentCode() === "000000" ? "111111" : "000000");
 
 describe("POST /api/auth/email-otp/check-verification-otp", () => {
+  it("exhausts the same attempt budget for registered and unregistered emails (#271)", async () => {
+    await requestCode(REGISTERED, "192.0.2.1");
+    await requestCode(UNREGISTERED, "192.0.2.2");
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const registered = await checkCode(REGISTERED, wrongCode(), `192.0.2.${40 + attempt}`);
+      const unregistered = await checkCode(UNREGISTERED, wrongCode(), `192.0.2.${50 + attempt}`);
+      expect(unregistered).toEqual(registered);
+      expect(JSON.parse(registered.body).code).toBe(
+        attempt === 3 ? "TOO_MANY_ATTEMPTS" : "INVALID_OTP"
+      );
+    }
+  });
+
   it("answers an unregistered email exactly like a registered one with a wrong code", async () => {
     await requestCode(REGISTERED, "192.0.2.1");
     await requestCode(UNREGISTERED, "192.0.2.2");
@@ -354,4 +372,118 @@ describe("POST /api/auth/email-otp/check-verification-otp", () => {
     expect(right.status).toBe(403);
     expect(JSON.parse(right.body)).toMatchObject({ code: "TOO_MANY_ATTEMPTS" });
   });
+});
+
+async function resetPassword(email: string, otp: string, clientIp = "192.0.2.100") {
+  const res = await app.request(
+    "/api/auth/email-otp/reset-password",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: bindings.WEB_URL,
+        [CLIENT_IP_HEADER]: clientIp,
+        [CLIENT_IP_SECRET_HEADER]: bindings.CLIENT_IP_SECRET
+      },
+      body: JSON.stringify({ email, otp, password: "a-new-activation-password" })
+    },
+    bindings
+  );
+  return { status: res.status, body: await res.text() };
+}
+
+describe("OTP expiry and redemption privacy (#271)", () => {
+  it.each([
+    ["check", checkCode],
+    ["reset", resetPassword]
+  ] as const)(
+    "%s gives the same expired-code reply and then invalid-code reply",
+    async (_name, submit) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      async function expired(email: string, ip: string) {
+        await requestCode(email, ip);
+        // Run each email's expiry separately: Better Auth's lookup cleans up
+        // all expired rows, so an earlier lookup can collect the other fixture.
+        vi.setSystemTime(Date.now() + 300_001);
+        return [await submit(email, "000000", ip), await submit(email, "000000", ip)];
+      }
+      const registered = await expired(REGISTERED, "192.0.2.110");
+      const unknown = await expired(UNREGISTERED, "192.0.2.111");
+      expect(unknown).toEqual(registered);
+      expect(JSON.parse(registered[0]!.body).code).toBe("OTP_EXPIRED");
+      expect(JSON.parse(registered[1]!.body).code).toBe("INVALID_OTP");
+    }
+  );
+
+  it("shares the same attempt budget across Verify and reset for both emails", async () => {
+    await requestCode(REGISTERED);
+    await requestCode(UNREGISTERED);
+    const submitters = [checkCode, resetPassword, resetPassword, resetPassword, resetPassword];
+    for (const [attempt, submit] of submitters.entries()) {
+      const registered = await submit(REGISTERED, wrongCode(), `192.0.2.${120 + attempt}`);
+      const unknown = await submit(UNREGISTERED, wrongCode(), `192.0.2.${130 + attempt}`);
+      expect(unknown).toEqual(registered);
+      expect(JSON.parse(registered.body).code).toBe(
+        attempt === 3 ? "TOO_MANY_ATTEMPTS" : "INVALID_OTP"
+      );
+    }
+  });
+
+  it("lets a migrated User check and spend the mailed code once, then sign in", async () => {
+    await requestCode(REGISTERED);
+    const code = sentCode();
+    expect((await checkCode(REGISTERED, code)).status).toBe(200);
+    expect((await resetPassword(REGISTERED, code)).status).toBe(200);
+    const replay = await resetPassword(REGISTERED, code);
+    expect(JSON.parse(replay.body).code).toBe("INVALID_OTP");
+    const login = await app.request(
+      "/api/auth/sign-in/email",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: bindings.WEB_URL },
+        body: JSON.stringify({ email: REGISTERED, password: "a-new-activation-password" })
+      },
+      bindings
+    );
+    expect(login.status).toBe(200);
+  });
+
+  it("resending replaces the previous code and restores the attempt budget for both emails", async () => {
+    await requestCode(REGISTERED, "192.0.2.140");
+    const oldCode = sentCode();
+    await requestCode(UNREGISTERED, "192.0.2.141");
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await checkCode(REGISTERED, wrongCode(), `192.0.2.${150 + attempt}`);
+      await checkCode(UNREGISTERED, wrongCode(), `192.0.2.${160 + attempt}`);
+    }
+    await requestCode(REGISTERED, "192.0.2.140");
+    await requestCode(UNREGISTERED, "192.0.2.141");
+    expect(await checkCode(UNREGISTERED, wrongCode(), "192.0.2.170")).toEqual(
+      await checkCode(REGISTERED, wrongCode(), "192.0.2.171")
+    );
+    // A newly generated six-digit code can coincide with the old one.
+    if (oldCode !== sentCode()) {
+      expect(JSON.parse((await checkCode(REGISTERED, oldCode, "192.0.2.172")).body).code).toBe(
+        "INVALID_OTP"
+      );
+    }
+    expect((await resetPassword(REGISTERED, sentCode())).status).toBe(200);
+  });
+
+  it.each(["/forget-password/email-otp", "/email-otp/send-verification-otp"])(
+    "also retains decoys through the alternative request endpoint %s",
+    async (path) => {
+      await requestCode(REGISTERED.toUpperCase(), "192.0.2.180", path);
+      await requestCode(UNREGISTERED.toUpperCase(), "192.0.2.181", path);
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const registered = await checkCode(REGISTERED, wrongCode(), `192.0.2.${190 + attempt}`);
+        const unknown = await checkCode(UNREGISTERED, wrongCode(), `192.0.2.${200 + attempt}`);
+        expect(unknown).toEqual(registered);
+        expect(JSON.parse(registered.body).code).toBe(
+          attempt === 3 ? "TOO_MANY_ATTEMPTS" : "INVALID_OTP"
+        );
+      }
+      expect(sendOtpEmailMock).toHaveBeenCalledOnce();
+    }
+  );
 });

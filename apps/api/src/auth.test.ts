@@ -34,9 +34,15 @@ vi.mock("better-auth/adapters/drizzle", () => ({
   drizzleAdapter: (db: unknown, config: unknown) => drizzleAdapterMock(db, config)
 }));
 
-vi.mock("better-auth/plugins/email-otp", () => ({
-  emailOTP: (options: unknown) => emailOtpMock(options)
-}));
+vi.mock("better-auth/plugins/email-otp", async (importOriginal) => {
+  const original = await importOriginal<typeof import("better-auth/plugins/email-otp")>();
+  return {
+    emailOTP: (options: Parameters<typeof original.emailOTP>[0]) => {
+      emailOtpMock(options);
+      return original.emailOTP(options);
+    }
+  };
+});
 
 const sessionEmailMock = vi.fn(async () => ({ user: { email: "signed.in@vmblogistics.id" } }));
 
