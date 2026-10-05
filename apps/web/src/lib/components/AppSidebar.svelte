@@ -17,11 +17,14 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { Button } from "$lib/components/ui/button/index.js";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
   import { duration } from "$lib/motion.js";
+  import { swipeToClose } from "$lib/swipe-to-close.js";
   import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
   import PanelLeftOpen from "@lucide/svelte/icons/panel-left-open";
+  import X from "@lucide/svelte/icons/x";
   import type { Snippet } from "svelte";
   import { prefersReducedMotion } from "svelte/motion";
 
@@ -92,6 +95,14 @@
     focused = false;
   }
 
+  const closeMenu = () => sidebar.setOpenMobile(false);
+
+  // Following a link from the phone menu, even to the page already shown, puts
+  // the menu away; the vendored sheet would stay over the page.
+  function closeOnLink(event: MouseEvent) {
+    if ((event.target as Element).closest("a[href]")) closeMenu();
+  }
+
   function toggle() {
     clearTimeout(timer);
     hovering = false;
@@ -115,9 +126,28 @@
 {/snippet}
 
 {#if sidebar.isMobile}
-  <Sidebar.Root variant="inset" collapsible="icon">
-    <Sidebar.Header class="px-0">{@render logo()}</Sidebar.Header>
-    <Sidebar.Content>{@render children()}</Sidebar.Content>
+  <!-- The sheet's own focus lands on its panel, which is not a control. -->
+  <Sidebar.Root variant="inset" collapsible="icon" class="outline-none">
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div
+      class="flex size-full min-h-0 touch-pan-y flex-col"
+      use:swipeToClose={closeMenu}
+      onclick={closeOnLink}
+    >
+      <Sidebar.Header class="flex-row items-center justify-between px-0 pr-2">
+        {@render logo()}
+        <Button
+          variant="ghost"
+          size="icon"
+          class="pointer-coarse:size-11"
+          aria-label="Close menu"
+          onclick={closeMenu}
+        >
+          <X aria-hidden="true" />
+        </Button>
+      </Sidebar.Header>
+      <Sidebar.Content>{@render children()}</Sidebar.Content>
+    </div>
   </Sidebar.Root>
 {:else}
   <div

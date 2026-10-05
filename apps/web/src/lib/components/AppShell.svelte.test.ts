@@ -207,6 +207,72 @@ describe("AppShell", () => {
     expect(Number(/\/ ([\d.]+)\)/.exec(scrim.backgroundColor)?.[1])).toBeGreaterThanOrEqual(0.5);
   });
 
+  describe("the phone menu", () => {
+    const sheet = () => document.querySelector<HTMLElement>("[data-mobile='true']");
+    const openMenu = async () => {
+      await phone();
+      const screen = await render(AppShell, props());
+      await screen.getByRole("button", { name: "Menu" }).click();
+      await expect.element(screen.getByRole("link", { name: "Divisions" })).toBeVisible();
+      return screen;
+    };
+    const stroke = (from: [number, number], to: [number, number]) => {
+      const target = sheet()!.querySelector<HTMLElement>("nav")!;
+      const event = (type: string, [x, y]: [number, number]) =>
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            pointerType: "touch",
+            pointerId: 7,
+            clientX: x,
+            clientY: y,
+            bubbles: true
+          })
+        );
+      event("pointerdown", from);
+      event("pointerup", to);
+    };
+
+    it("closes from a close button in the sheet", async () => {
+      const screen = await openMenu();
+
+      await screen.getByRole("button", { name: "Close menu" }).click();
+
+      await expect.element(screen.getByRole("link", { name: "Divisions" })).not.toBeInTheDocument();
+      await expect
+        .element(screen.getByRole("button", { name: "Menu" }))
+        .toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("closes when a link in it is followed", async () => {
+      const screen = await openMenu();
+      const keepPage = (event: Event) => event.preventDefault();
+      document.addEventListener("click", keepPage);
+
+      await screen.getByRole("link", { name: "Dashboard" }).click();
+      document.removeEventListener("click", keepPage);
+
+      await expect.element(screen.getByRole("link", { name: "Divisions" })).not.toBeInTheDocument();
+    });
+
+    it("closes on a leftward flick, and ignores short or vertical strokes", async () => {
+      const screen = await openMenu();
+
+      stroke([200, 300], [180, 300]);
+      stroke([200, 300], [100, 420]);
+      await expect.element(screen.getByRole("link", { name: "Divisions" })).toBeVisible();
+
+      stroke([220, 300], [90, 310]);
+      await expect.element(screen.getByRole("link", { name: "Divisions" })).not.toBeInTheDocument();
+    });
+
+    it("locks the page behind it and draws no focus box round the sheet", async () => {
+      await openMenu();
+
+      expect(getComputedStyle(document.body).overflow).toBe("hidden");
+      expect(getComputedStyle(sheet()!).outlineStyle).toBe("none");
+    });
+  });
+
   it("says whether the sidebar toggle has opened the menu", async () => {
     await phone();
     const screen = await render(AppShell, props());
