@@ -62,9 +62,10 @@
   const digitsOnly = (text: string) => text.replace(/\D/g, "");
 
   // The registry's slot colours an invalid box through `aria-invalid`, which a
-  // box (a div) must not carry. The field's own `aria-invalid` is on the input.
-  const invalidSlotClass =
-    "border-destructive data-active:border-destructive data-active:ring-destructive/20 dark:data-active:ring-destructive/40";
+  // box (a div) must not carry. The field's own `aria-invalid` is on the input,
+  // and the box says so through `data-invalid`, which app.css reads for the
+  // active box's ring.
+  const invalidSlotClass = "border-destructive data-active:border-destructive";
 </script>
 
 {#if enhanced}
@@ -86,6 +87,7 @@
         {#each cells as cell, index (index)}
           <InputOTP.Slot
             {cell}
+            data-invalid={invalid ? "" : undefined}
             class={cn(
               "border-input size-auto h-11 min-w-0 flex-1 rounded-lg border text-base",
               invalid && invalidSlotClass

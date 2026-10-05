@@ -38,6 +38,7 @@
     "@vmb/api": "workspace:*",
     "@vmb/config": "workspace:*",
     "@vmb/types": "workspace:*",
+    "axe-core": "^4.13.0",
     "eslint": "^10.11.0",
     "eslint-plugin-svelte": "^3.23.0",
     "playwright": "^1.63.0",
