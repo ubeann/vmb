@@ -21,6 +21,11 @@ vi.mock("./master.js", () => ({
   masterStore: () => ({ getSignInEligibility: (userId: string) => userStatusMock(userId) })
 }));
 
+vi.mock("./code-request-limit.js", () => ({
+  CODE_REQUEST_PATH: "/email-otp/request-password-reset",
+  codeRequestLimit: () => ({ id: "code-request-limit" })
+}));
+
 vi.mock("better-auth", () => ({
   betterAuth: (options: unknown) => betterAuthMock(options)
 }));
@@ -258,7 +263,10 @@ describe("createAuth", () => {
     expect(options.rateLimit).toEqual({
       enabled: true,
       storage: "database",
-      customRules: { "/get-session": false }
+      customRules: {
+        "/get-session": false,
+        "/email-otp/request-password-reset": { window: 60, max: 3 }
+      }
     });
   });
 
@@ -283,7 +291,10 @@ describe("createAuth", () => {
     };
 
     expect(options.emailAndPassword.disableSignUp).toBe(true);
-    expect(options.plugins).toEqual([expect.objectContaining({ id: "email-otp" })]);
+    expect(options.plugins).toEqual([
+      expect.objectContaining({ id: "code-request-limit" }),
+      expect.objectContaining({ id: "email-otp" })
+    ]);
     expect(emailOtpMock).toHaveBeenCalledWith(
       expect.objectContaining({ disableSignUp: true, sendVerificationOTP: expect.any(Function) })
     );

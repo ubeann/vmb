@@ -1,18 +1,17 @@
 import { CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } from "@vmb/types";
-import { memoryAdapter } from "better-auth/adapters/memory";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rateLimit, user } from "@vmb/db";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDatabase, type TestDatabase } from "../../../packages/db/test/harness.js";
+
+// Match the database suite's allowance for booting WASM Postgres and replaying
+// migrations when the full monorepo suite is competing for CPU.
+vi.setConfig({ hookTimeout: 30_000, testTimeout: 30_000 });
 
 // The activate request step through the real Better Auth handler, on an
-// in-memory database. A reply must not tell a registered email from an
+// embedded Postgres database and real Drizzle adapter. A reply must not tell a registered email from an
 // unregistered one, by its body or by how long it takes (#232), and the rate
 // limits on it count in that database, per client IP (#251, ADR-0042).
-const memoryDb = vi.hoisted(
-  () =>
-    ({ user: [], session: [], account: [], verification: [], rateLimit: [] }) as Record<
-      string,
-      Record<string, unknown>[]
-    >
-);
+let database: TestDatabase;
 const backgroundTasks = vi.hoisted(() => [] as Promise<unknown>[]);
 const sendOtpEmailMock = vi.hoisted(() =>
   vi.fn(async (_env: unknown, _to: string, _otp: string) => {})
@@ -22,17 +21,9 @@ vi.mock("cloudflare:workers", () => ({
   waitUntil: (promise: Promise<unknown>) => backgroundTasks.push(promise)
 }));
 
-vi.mock("@vmb/db", () => ({
-  createDb: () => ({}),
-  user: "user",
-  session: "session",
-  account: "account",
-  verification: "verification",
-  rateLimit: "rateLimit"
-}));
-
-vi.mock("better-auth/adapters/drizzle", () => ({
-  drizzleAdapter: () => memoryAdapter(memoryDb)
+vi.mock("@vmb/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@vmb/db")>()),
+  createDb: () => database.db
 }));
 
 vi.mock("./master.js", () => ({
@@ -76,12 +67,28 @@ async function requestCode(email: string, clientIp = "203.0.113.10") {
     },
     bindings
   );
-  return { status: res.status, body: await res.text() };
+  return {
+    status: res.status,
+    body: await res.text(),
+    retryAfter: res.headers.get("X-Retry-After")
+  };
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  database = await createDatabase();
+  await database.migrate();
+});
+
+afterAll(async () => {
+  await database?.close();
+});
+
+beforeEach(async () => {
+  await database.client.exec(
+    'truncate public."user", public.verification, public.rate_limit cascade'
+  );
   const now = new Date();
-  memoryDb.user = [
+  await database.db.insert(user).values([
     {
       id: "user-1",
       name: "Staff",
@@ -90,9 +97,7 @@ beforeEach(() => {
       createdAt: now,
       updatedAt: now
     }
-  ];
-  memoryDb.verification = [];
-  memoryDb.rateLimit = [];
+  ]);
   backgroundTasks.length = 0;
   sendOtpEmailMock.mockReset();
   sendOtpEmailMock.mockImplementation(async () => {});
@@ -100,6 +105,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("POST /api/auth/email-otp/request-password-reset", () => {
@@ -182,7 +188,8 @@ describe("rate limits on the request step (#251)", () => {
     await requestCode(REGISTERED, "198.51.100.5");
     await requestCode(REGISTERED, "198.51.100.6");
 
-    expect(memoryDb.rateLimit).toEqual([
+    const rows = await database.db.select().from(rateLimit);
+    expect(rows.filter((row) => !row.key.startsWith("code-request:"))).toEqual([
       expect.objectContaining({
         key: expect.stringContaining("198.51.100.5"),
         count: 2,
@@ -206,7 +213,86 @@ describe("rate limits on the request step (#251)", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(memoryDb.rateLimit).toEqual([]);
+    expect(await database.db.select().from(rateLimit)).toEqual([]);
+  });
+});
+
+describe("per-email code request limit (#252)", () => {
+  it("allows five requests across client IPs, then replies like the per-IP limit for either email", async () => {
+    for (const email of [REGISTERED, UNREGISTERED]) {
+      for (let i = 0; i < 5; i++) {
+        expect((await requestCode(email, `198.51.100.${20 + i}`)).status).toBe(200);
+      }
+    }
+    const registered = await requestCode(REGISTERED, "198.51.100.30");
+    const unregistered = await requestCode(UNREGISTERED, "198.51.100.31");
+
+    for (let i = 0; i < 3; i++) await requestCode("another@example.com", "198.51.100.40");
+    const ipLimited = await requestCode("another@example.com", "198.51.100.40");
+
+    expect(registered.status).toBe(429);
+    expect(registered).toEqual(unregistered);
+    expect(registered).toEqual(ipLimited);
+    expect(registered.retryAfter).toBeNull();
+    expect(sendOtpEmailMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("shares a counter across casing and surrounding whitespace, without storing typed emails", async () => {
+    const addresses = [
+      REGISTERED,
+      REGISTERED.toUpperCase(),
+      ` ${REGISTERED} `,
+      REGISTERED,
+      REGISTERED
+    ];
+    for (const [i, email] of addresses.entries()) {
+      expect((await requestCode(email, `198.51.100.${50 + i}`)).status).toBe(200);
+    }
+    expect((await requestCode(` ${REGISTERED.toUpperCase()} `, "198.51.100.60")).status).toBe(429);
+    // Normalization is also passed on to the OTP handler: each allowed request
+    // really addresses the same User, including the whitespace variants.
+    expect(sendOtpEmailMock).toHaveBeenCalledTimes(5);
+    for (const call of sendOtpEmailMock.mock.calls) expect(call[1]).toBe(REGISTERED);
+
+    const rows = await database.db.select().from(rateLimit);
+    const emailRows = rows.filter((row) => row.key.startsWith("code-request:"));
+    expect(emailRows).toHaveLength(1);
+    expect(emailRows[0]).toMatchObject({
+      // Independent HMAC-SHA256 vector, using the fixture secret above.
+      key: "code-request:6262f4d9c57f3e531a29386de66af755f07f94cbeb711e6f9d47b246a8fd1ef6",
+      count: 5
+    });
+    expect(JSON.stringify(rows)).not.toContain(REGISTERED);
+    expect(JSON.stringify(rows)).not.toContain(REGISTERED.toUpperCase());
+  });
+
+  it("allows only five simultaneous requests, including when the counter does not exist yet", async () => {
+    const replies = await Promise.all(
+      Array.from({ length: 12 }, (_, i) => requestCode(UNREGISTERED, `192.0.2.${50 + i}`))
+    );
+    expect(replies.filter((reply) => reply.status === 200)).toHaveLength(5);
+    expect(replies.filter((reply) => reply.status === 429)).toHaveLength(7);
+  });
+
+  it("keeps the hourly counter through IP cleanup and resets after an hour, without blocked requests extending it", async () => {
+    const start = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(start);
+    for (let i = 0; i < 5; i++) await requestCode(UNREGISTERED, `192.0.2.${70 + i}`);
+
+    clock.mockReturnValue(start + 61_000);
+    // Reuse an expired IP counter: Better Auth's database store prunes here.
+    await requestCode("another@example.com", "192.0.2.70");
+    await Promise.all(backgroundTasks);
+    expect((await requestCode(UNREGISTERED, "192.0.2.80")).status).toBe(429);
+
+    clock.mockReturnValue(start + 3_599_000);
+    expect((await requestCode(UNREGISTERED, "192.0.2.81")).status).toBe(429);
+    clock.mockReturnValue(start + 3_600_000);
+    const replies = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => requestCode(UNREGISTERED, `192.0.2.${90 + i}`))
+    );
+    expect(replies.filter((reply) => reply.status === 200)).toHaveLength(5);
+    expect(replies.filter((reply) => reply.status === 429)).toHaveLength(3);
   });
 });
 

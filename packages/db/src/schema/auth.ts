@@ -103,7 +103,8 @@ export const session = pgTable(
 );
 
 // Better Auth's rate-limit counters (ADR-0042), as its 1.7 schema defines
-// them: one row per client IP and path. `last_request` is epoch
+// them: one row per client IP and path, or per hashed code-request email.
+// `last_request` is epoch
 // milliseconds, which outgrows an integer.
 export const rateLimit = pgTable(
   "rate_limit",
