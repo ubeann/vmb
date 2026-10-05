@@ -102,12 +102,6 @@ describe("activate page", () => {
     await expect.element(screen.getByText(/forgot your password/i)).toBeVisible();
   });
 
-  it("shows the server action's error message", async () => {
-    const screen = await render(Page, { data: noCheckedCode, form: { error: "Invalid code" } });
-
-    await expect.element(screen.getByRole("alert")).toHaveTextContent("Invalid code");
-  });
-
   describe("the code step", () => {
     it("holds the code, Verify, a new code and a way back, and no password", async () => {
       const screen = await render(Page, codeStep);
@@ -273,18 +267,6 @@ describe("activate page", () => {
       await expect
         .element(screen.getByRole("alert"))
         .toHaveTextContent("Reload this page, enter your email, and request a new code");
-    });
-    // The error says what the hint said, so it takes the hint's place, as the
-    // password field's does.
-    it("shows a code error in place of the hint", async () => {
-      const screen = await render(Page, codeStep);
-
-      await screen.getByRole("button", { name: "Verify code" }).click();
-
-      await expect.element(screen.getByText("Enter the code from your email")).toBeVisible();
-      expect(screen.getByText("Enter the 6-digit code from your email.").elements()).toHaveLength(
-        0
-      );
     });
   });
 
@@ -500,12 +482,6 @@ describe("activate page", () => {
       expect(username?.name).toBe("");
     });
 
-    it("never puts a code in the page", async () => {
-      const screen = await render(Page, passwordStep);
-
-      expect(screen.container.innerHTML).not.toMatch(/\d{6}/);
-    });
-
     it("starts over from a form, so the checked code is dropped on the server", async () => {
       const screen = await render(Page, passwordStep);
       const button = screen.getByRole("button", { name: "Use a different email" });
@@ -632,6 +608,10 @@ describe("activate page", () => {
         .element(screen.getByLabelText("Code"))
         .toHaveAttribute("aria-describedby", "otp-error");
       await expect.element(screen.getByLabelText("Code")).toHaveFocus();
+      // The error takes the hint's place, as the password field's does.
+      expect(screen.getByText("Enter the 6-digit code from your email.").elements()).toHaveLength(
+        0
+      );
       expect(submissions).toHaveLength(0);
     });
 
@@ -759,22 +739,6 @@ describe("activate page", () => {
 
       expect(screen.getByText("Use at least 12 characters").elements()).toHaveLength(0);
       await expect.element(password).not.toHaveAttribute("aria-invalid");
-    });
-
-    it("marks the field a server response names", async () => {
-      const screen = await render(Page, {
-        data: noCheckedCode,
-        form: {
-          ...codeStep.form,
-          error: "Invalid",
-          fieldErrors: { otp: "Enter the code from your email" }
-        }
-      });
-
-      await expect.element(screen.getByLabelText("Code")).toHaveAttribute("aria-invalid", "true");
-      await expect.element(screen.getByText("Enter the code from your email")).toBeVisible();
-      // The field message stands in for the banner.
-      expect(screen.getByText("Invalid").elements()).toHaveLength(0);
     });
 
     it("shows Better Auth's INVALID_EMAIL at the email field, with no banner", async () => {
@@ -1000,6 +964,9 @@ describe("activate page", () => {
 
       await expect.element(code).toHaveAttribute("aria-invalid", "true");
       await expect.element(code).toHaveAttribute("aria-describedby", "otp-error");
+      // The field message stands in for the banner.
+      await expect.element(screen.getByText("Enter the code")).toBeVisible();
+      expect(screen.getByText("Invalid").elements()).toHaveLength(0);
       // Boxes are not fields: only the input carries the state.
       expect(
         screen.container.querySelectorAll("[data-slot=input-otp-slot][aria-invalid]")

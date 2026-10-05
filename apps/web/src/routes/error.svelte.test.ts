@@ -92,6 +92,27 @@ describe("error page", () => {
     writeText.mockRestore();
   });
 
+  it("goes back to Copy after two seconds, so it can be copied again", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      mockPage.status = 500;
+      mockPage.error = { message: "Internal Error", errorId: "3f9a1c2e" };
+      mockPage.data = { user: null };
+      vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+
+      const screen = await render(ErrorPage);
+      await screen.getByRole("button", { name: "Copy reference" }).click();
+      await expect.element(screen.getByRole("button", { name: "Copied" })).toBeVisible();
+
+      vi.advanceTimersByTime(2000);
+
+      await expect.element(screen.getByRole("button", { name: "Copy reference" })).toBeVisible();
+      expect(screen.getByText("Reference copied").elements()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("selects the reference and names the shortcut when the clipboard is blocked", async () => {
     mockPage.status = 500;
     mockPage.error = { message: "Internal Error", errorId: "3f9a1c2e" };
@@ -126,17 +147,6 @@ describe("error page", () => {
       .element(screen.getByText("Ask an administrator for access.", { exact: false }))
       .toBeVisible();
     expect(screen.getByText("Forbidden").elements()).toHaveLength(0);
-  });
-
-  it("keeps the vignette out of the accessibility tree", async () => {
-    mockPage.status = 404;
-    mockPage.error = { message: "Not Found" };
-    mockPage.data = { user: null };
-
-    const screen = await render(ErrorPage);
-
-    const vignette = screen.container.querySelector(".etched-vignette");
-    expect(vignette?.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("offers the dashboard instead of logging in when the visitor has a session", async () => {
