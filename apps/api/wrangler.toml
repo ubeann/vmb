@@ -24,7 +24,7 @@ compatibility_flags = ["nodejs_compat"]
 # sandbox `onboarding@resend.dev` works without owning a domain for local
 # dev/testing, but production needs a real domain verified in Resend.
 #
-# EMAIL_TRANSPORT is optional and unset everywhere except preview versions,
+# EMAIL_TRANSPORT is optional and unset everywhere except PR previews,
 # whose secrets file sets it to `log` so outbound email is logged instead of
 # sent via Resend (issue #121). Local `wrangler dev` and production leave it
 # unset and send for real — the local `.dev.vars` needs no entry.
@@ -37,6 +37,21 @@ compatibility_flags = ["nodejs_compat"]
 # Pages Production environment. Previews take fnox's value from the preview
 # secrets file, and local `wrangler dev` from fnox via `.dev.vars`. Rotate
 # both sides together.
+
+# PR previews are Worker Previews (`wrangler preview`, ADR-0019's 2026-10-07
+# amendment), and Previews take nothing from the production settings above.
+# Their secrets come from preview.yml's secrets file on every run, so a
+# preview's values never reach the production Worker. Logs are on so a
+# preview's suppressed email, OTP codes included, can be read in the
+# Preview's Observability tab. Production's observability stays as the
+# dashboard sets it.
+[previews.observability]
+enabled = true
+
+[previews.observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
 
 [env.staging]
 name = "vmb-api-staging"

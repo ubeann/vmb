@@ -1,7 +1,7 @@
 name: Cleanup
 
-# The teardown half of preview.yml. Three of the four per-PR preview resources
-# are not self-cleaning and are deleted here (issue #55):
+# The teardown half of preview.yml. Four per-PR preview resources are not
+# self-cleaning and are deleted here (issue #55):
 #   - Neon branch — Neon caps branches per project, so a leaked branch blocks
 #     new previews. Deleted on close.
 #   - Pages preview deployment — retained indefinitely, and every push to a PR
@@ -15,14 +15,15 @@ name: Cleanup
 #     one per pull request forever (issue #154). Deleted on close; this is the
 #     one delete that needs an admin-capable token, because GITHUB_TOKEN cannot
 #     be granted Administration: write.
-# The Workers preview alias needs no cleanup: aliases are LRU-pruned past 1000
-# concurrent ones, and the version behind an alias is Cloudflare-retained with
-# no supported individual delete — versions have no documented retention policy
-# either, so they accumulate and are counted per preview run rather than reaped
-# (issues #55, #152). That is the distinction the original "neither needs
-# cleanup" claim collapsed.
+#   - Worker Preview — the PR's `vmb-api` Preview, with the PR's secrets.
+#     Cloudflare prunes the least recently deployed past its per-Worker cap,
+#     but deleting on close takes a closed PR's API offline (ADR-0019's
+#     2026-10-07 amendment).
+# Previews before that amendment were version URLs with an alias, which need
+# no cleanup: aliases are LRU-pruned past 1000 concurrent ones, and the
+# versions behind them have no supported individual delete (issues #55, #152).
 #
-# Runs on `closed`, which covers both merged and closed-without-merge. All three
+# Runs on `closed`, which covers both merged and closed-without-merge. All four
 # lookups make this idempotent: if the preview workflow never got as far as
 # creating the resource (or it was already removed), there's nothing to delete
 # and the job succeeds quietly instead of erroring on a 404.
@@ -232,6 +233,61 @@ jobs:
           echo "Deleted $deleted Pages deployment(s)."
           if [ "$failed" -gt 0 ]; then
             echo "::error::$failed Pages deployment(s) failed to delete."
+            exit 1
+          fi
+
+      # The PR's Worker Preview (ADR-0019's 2026-10-07 amendment). Cloudflare
+      # drops the least recently deployed Preview past 100 per Worker on the
+      # free plan, so a miss is pruned eventually, but deleting on close keeps
+      # a closed PR's API, and the Neon connection string in its secrets, off
+      # the internet. Every Preview the PR made is matched by the shared
+      # prefix/fallback rule (`preview_name_matches`), because a retitle
+      # deploys to a new Preview name and leaves the old one behind.
+      #
+      # The list is paginated at the API's 100-per-page cap. A delete failure
+      # fails the run, as the Pages sweep does; 404 means it is already gone.
+      - name: Find and delete this PR's Worker Previews
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          WORKER_NAME: vmb-api
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=scripts/preview-identifiers.sh
+          . scripts/preview-identifiers.sh
+
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/workers/$WORKER_NAME/previews"
+          previews=""
+          page=1
+          while :; do
+            body=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api?per_page=100&page=$page")
+            previews+=$(printf '%s' "$body" | jq -r '.result[] | "\(.id)\t\(.name)"')$'\n'
+            total_pages=$(printf '%s' "$body" | jq -r '.result_info.total_pages // 1')
+            [ "$page" -lt "$total_pages" ] || break
+            page=$((page + 1))
+          done
+
+          deleted=0
+          failed=0
+          while IFS=$'\t' read -r preview_id preview_name; do
+            [ -n "$preview_id" ] || continue
+            preview_name_matches "$PR_NUMBER" "$preview_name" || continue
+
+            status=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api/$preview_id")
+            if [ "$status" -ge 200 ] && [ "$status" -lt 300 ] || [ "$status" = 404 ]; then
+              echo "Deleted Worker Preview '$preview_name'."
+              deleted=$((deleted + 1))
+            else
+              echo "::error::Worker Preview '$preview_name' failed to delete (HTTP $status)."
+              failed=$((failed + 1))
+            fi
+          done <<< "$previews"
+
+          echo "Deleted $deleted Worker Preview(s) for PR #$PR_NUMBER."
+          if [ "$failed" -gt 0 ]; then
             exit 1
           fi
 
