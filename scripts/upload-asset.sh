@@ -6,18 +6,39 @@
 # shows its evidence. Only people with access to vmb-assets see the images.
 #
 # The file name gets a content-hash prefix, so uploading the same file twice
-# prints the same link without writing a second copy.
+# prints the same link without writing a second copy, and a link never changes
+# what it shows. To replace an image, upload the new one and swap the link.
 #
 # Usage: scripts/upload-asset.sh <file> [<folder>]
 #   <folder>  where it goes in vmb-assets, e.g. `issues/301` or `prs/320`
 #             (default `misc`)
+#        scripts/upload-asset.sh --delete <link-or-path>
+#   Removes an image uploaded by mistake. It stays in vmb-assets' git history;
+#   an image that leaked a secret needs that history rewritten as well.
 # Override the repo with VMB_ASSETS_REPO=<owner>/<name>.
 
 set -euo pipefail
 
-file=${1:?usage: upload-asset.sh <file> [<folder>]}
-folder=${2:-misc}
 repo=${VMB_ASSETS_REPO:-ubeann/vmb-assets}
+
+if [ "${1:-}" = "--delete" ]; then
+  target=${2:?usage: upload-asset.sh --delete <link-or-path>}
+  # Accept the printed Markdown link, the bare URL, or the path itself.
+  path=${target#*/blob/main/}
+  path=${path%%\?*}
+  path=${path%)}
+  sha=$(gh api "repos/$repo/contents/$path" --jq .sha 2>/dev/null) || {
+    echo "upload-asset: nothing at $path in $repo" >&2
+    exit 1
+  }
+  gh api --method DELETE "repos/$repo/contents/$path" \
+    -f message="Remove $path" -f sha="$sha" --silent
+  echo "Removed $path"
+  exit 0
+fi
+
+file=${1:?usage: upload-asset.sh <file> [<folder>] | upload-asset.sh --delete <link-or-path>}
+folder=${2:-misc}
 
 [ -f "$file" ] || {
   echo "upload-asset: no such file: $file" >&2
