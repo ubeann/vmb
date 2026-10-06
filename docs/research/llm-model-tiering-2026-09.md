@@ -19,12 +19,12 @@ Earlier content is unchanged except the daily row of the tier table; every new c
 **Review by: 2026-12-24 (quarterly), or as soon as a provider is added to T3 Code's routing,
 whichever comes first.** Both platforms in the original table shipped new model waves inside the
 three weeks before this research, and the task brief that produced this file flagged quarterly
-releases as the norm. Treat this snapshot, and the routing table in `docs/agents/git-workflow.md`
+releases as the norm. Treat this snapshot, and the routing table in `docs/agents/model-routing.md`
 that depends on it, as due for re-verification once that date passes. Also re-verify when a new
 provider joins the picker, because a new provider can change which model is cheapest or strongest
 in a tier (as Gemini and OpenCode Go did in the 2026-09-27 update). Re-running the same research
 brief (fetch each provider's current pricing/model-docs pages, re-check llm-stats.com /
-Artificial Analysis) is enough. Update this file and the `git-workflow.md` table together so
+Artificial Analysis) is enough. Update this file and the `model-routing.md` table together so
 they don't drift apart.
 
 **Scope.** The developer's tool (T3 Code) currently favorites, per provider:
@@ -233,7 +233,7 @@ the benefit of keeping daily-driver quota off truly trivial tickets.
 
 ### Tier → model across all four providers (added 2026-09-27)
 
-Proposed here; the adopted version is the tier table in `docs/agents/git-workflow.md` (#185),
+Proposed here; the adopted version is the tier table in `docs/agents/model-routing.md` (#185),
 which drops the Gemini column per #184. "Fast", "daily", and "frontier" correspond to
 `complexity:trivial`, `standard`, and `complex`.
 
@@ -271,8 +271,8 @@ Independent runs of both new models would settle it; none were found yet.
 
 ### AI co-author addresses (added 2026-09-27)
 
-This follows the resolution order in `docs/agents/git-workflow.md` ("Co-authoring AI-assisted
-work"). Only a vendor-**documented** address qualifies for step 3 of that order. Registering the
+This follows the resolution order in `docs/agents/model-routing.md` ("Adopting a model: its
+co-author address"). Only a vendor-**documented** address qualifies for step 3 of that order. Registering the
 addresses is follow-on work in #186.
 
 - **Google / Gemini: no vendor-documented address found.**

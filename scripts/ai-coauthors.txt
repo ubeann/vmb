@@ -2,7 +2,7 @@
 #
 # One address per line, no inline comments. The hook validates the address only,
 # never the name. To adopt a model, follow the resolution order in
-# docs/agents/git-workflow.md, then add its address below.
+# docs/agents/model-routing.md, then add its address below.
 #
 #   1. a service account on the GitHub org    <ID+username@users.noreply.github.com>
 #   2. the model's own GitHub bot account     <ID+username@users.noreply.github.com>

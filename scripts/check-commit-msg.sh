@@ -40,7 +40,7 @@ fi
 
 # The trailer is optional (a human commit has none), but every trailer present
 # must be well formed and name an address registered in scripts/ai-coauthors.txt
-# (see docs/agents/git-workflow.md for the resolution order).
+# (see docs/agents/model-routing.md for the resolution order).
 coauthor_list=$(dirname "$0")/ai-coauthors.txt
 if grep -q '^Co-Authored-By: ' "$msg_file"; then
   if [ ! -f "$coauthor_list" ]; then
@@ -74,7 +74,7 @@ if grep -q '^Co-Authored-By: ' "$msg_file"; then
       echo "unregistered Co-Authored-By address(es):"
       printf '%s\n' "$unregistered" | sed 's/^/  /'
       echo "  register the address in $coauthor_list"
-      echo "  see docs/agents/git-workflow.md for the resolution order"
+      echo "  see docs/agents/model-routing.md for the resolution order"
       echo "  bypass deliberately with --no-verify"
     } >&2
     exit 1
