@@ -37,6 +37,13 @@ pre-commit:
     preview-identifiers:
       glob: "scripts/preview-identifiers*.sh"
       run: bash scripts/preview-identifiers.test.sh
+    # The ticket loop's gates decide what an agent builds and merges unattended.
+    ticket-lint:
+      glob: "scripts/ticket-lint*.sh"
+      run: bash scripts/ticket-lint.test.sh
+    merge-gate:
+      glob: "scripts/merge-gate*.sh"
+      run: bash scripts/merge-gate.test.sh
     actionlint:
       # actionlint with no arguments walks .github/workflows and also checks
       # the local actions those workflows reference, so the composite action is

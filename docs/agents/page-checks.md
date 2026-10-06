@@ -14,7 +14,7 @@ Pass `--login` to either script. It signs in through `/login` as the seeded prev
 
 ## Screenshots
 
-`node apps/web/scripts/design-screenshots.mjs <url> <out-dir> [--login]` captures the review viewports in light and dark. Read every capture. T3's preview tools are fine for a quick look, but a hidden preview tab pauses CSS animations, so use the script for anything with entrance motion. Keep one-off probe scripts and captures in a temp directory, outside the repo.
+`node apps/web/scripts/design-screenshots.mjs <url> <out-dir> [--login]` captures the review viewports in light and dark. Read every capture. T3's preview tools are fine for a quick look, but a hidden preview tab pauses CSS animations, so use the script for anything with entrance motion. Keep one-off probe scripts and captures in a temp directory, outside the repo, and upload the captures a PR cites as evidence with `scripts/upload-asset.sh <file> prs/<pr-number>`.
 
 ## Lighthouse
 

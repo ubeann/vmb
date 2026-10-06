@@ -1,0 +1,76 @@
+name: Ticket Lint
+
+# Keeps the `ready-for-agent` pool buildable without the owner. The scheduled
+# dispatcher (`docs/agents/ticket-loop.md`) launches an agent on any ticket in
+# that pool, so a ticket missing its criteria or its complexity label would be
+# built on a guess. This checks the shape with `scripts/ticket-lint.sh` and
+# moves a failing ticket back to `needs-triage` with the reasons as a comment.
+#
+# It reports on the issue, never on a PR, and never blocks anything else.
+
+on:
+  issues:
+    # `unlabeled` too: removing a ticket's complexity label must re-check it.
+    types: [opened, edited, labeled, unlabeled]
+
+# Queue rather than cancel: the relabel below fires `unlabeled` and `labeled`
+# on this issue, and cancelling would kill this run before it comments.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Relabelling and commenting on the ticket being checked. Nothing else.
+  issues: write
+
+jobs:
+  lint:
+    name: Check Ticket Shape
+    # Only tickets in the agent pool are checked; relabelling one to
+    # `needs-triage` below fires `labeled` again, and this condition ends it.
+    if: contains(github.event.issue.labels.*.name, 'ready-for-agent')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+
+      - name: Lint the ticket
+        id: lint
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -uo pipefail
+          # The ticket as it is now, not the event's snapshot: runs queue, and
+          # an older one must not bounce a ticket that was fixed since.
+          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json body,labels > "$RUNNER_TEMP/issue.json"
+          labels=$(jq -r '[.labels[].name] | join(",")' "$RUNNER_TEMP/issue.json")
+          if problems=$(jq -r '.body // ""' "$RUNNER_TEMP/issue.json" | bash scripts/ticket-lint.sh "$labels"); then
+            echo "Ticket shape is fine."
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$problems"
+            printf '%s\n' "$problems" > "$RUNNER_TEMP/problems.txt"
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Move the ticket back to triage
+        if: steps.lint.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          {
+            echo "This ticket left the agent pool: it isn't ready for an unattended build yet."
+            echo
+            sed 's/^/- /' "$RUNNER_TEMP/problems.txt"
+            echo
+            echo "Fix the body or labels, then add \`ready-for-agent\` again. The shape is in \`docs/agents/ticket-loop.md\`."
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" \
+            --remove-label ready-for-agent --add-label needs-triage
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"

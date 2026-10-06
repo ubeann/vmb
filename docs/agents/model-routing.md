@@ -34,8 +34,8 @@ Skill-driven work (`/implement`, `/tdd`, `/code-review`, and the planning flows)
 | `complexity:complex`  | Needs a stated reason: cross-cutting change, security- or data-integrity risk (e.g. rewriting production data), or a new architecture decision still open | `frontier` |
 
 - **Set it once, at creation.** `/to-tickets` sets the label on each ticket it creates (and `/triage` on incoming issues); don't re-pick it by feel at pickup time. Apply it like any other label (`gh issue edit <n> --add-label "complexity:standard"` — see `issue-tracker.md`).
-- **`complex` names its reason** in the ticket body. No reason, no `complex` — it's `standard`.
-- **Escalate once, then re-plan.** A stalled `standard` ticket first gets checked for an unclear spec, then moves up to `complexity:complex` once; note the escalation in the PR's Testing section so the routing miss stays visible. If it fails again at `frontier`, the ticket goes back to `/grill-with-docs` — not to a bigger model.
+- **`complex` names its reason** under a `## Why complex` heading in the ticket body (`ticket-lint.yml` checks it). No reason, no `complex` — it's `standard`.
+- **Escalate once, then re-plan.** A stalled `standard` ticket first gets checked for an unclear spec, then moves up to `complexity:complex` once; note the escalation in the PR's Evidence section so the routing miss stays visible. If it fails again at `frontier`, the ticket goes back to `/grill-with-docs` — not to a bigger model.
 
 ## Review
 
@@ -60,7 +60,7 @@ A cross-provider session re-reads the ticket and diff from scratch on a second p
 
 ## Auditing routing
 
-The `Co-Authored-By` trailer (see `git-workflow.md`) names the model that did the work, so comparing a PR's trailer(s) against its ticket's final `complexity:*` label shows whether routing matched reality — no separate field to keep in sync. An escalated ticket can leave two trailers on one PR (one per tier it passed through); read them alongside the Testing-section escalation note.
+The `Co-Authored-By` trailer (see `git-workflow.md`) names the model that did the work, so comparing a PR's trailer(s) against its ticket's final `complexity:*` label shows whether routing matched reality — no separate field to keep in sync. An escalated ticket can leave two trailers on one PR (one per tier it passed through); read them alongside the Evidence-section escalation note.
 
 ## Adopting a model: its co-author address
 
