@@ -8,7 +8,7 @@ import { trustedClientIpHeaders } from "./client-ip.js";
  * half of #7's gate (the web half is the request-level check in
  * `apps/web/src/hooks.server.ts`, honouring its public allowlist). It only
  * proves *someone* is signed in; whether that person may touch a resource is
- * #8's job, and whether their business record still exists is enforced at
+ * `requirePermission`'s (ADR-0045), and whether their business record still exists is enforced at
  * session creation (`./sign-in-gate.ts`).
  */
 export const requireSession = createMiddleware<{
@@ -23,7 +23,7 @@ export const requireSession = createMiddleware<{
     return c.json({ error: "Authentication required." }, 401);
   }
 
-  // the permission checks downstream (#8) need to know who is asking
+  // the permission checks downstream (ADR-0045) need to know who is asking
   c.set("userId", session.user.id);
   await next();
 });

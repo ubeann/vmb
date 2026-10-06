@@ -21,3 +21,11 @@ export class MasterSystemRoleError extends Error {
     this.name = "MasterSystemRoleError";
   }
 }
+
+/** The caller may not change a role that carries permissions they do not hold. */
+export class MasterForbiddenError extends Error {
+  constructor(message = "You cannot change a role that carries permissions you do not have.") {
+    super(message);
+    this.name = "MasterForbiddenError";
+  }
+}

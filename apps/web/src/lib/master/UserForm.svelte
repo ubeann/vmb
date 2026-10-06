@@ -5,7 +5,6 @@
     USER_STATUS_LABELS,
     USER_STATUSES,
     UserUpdateInputSchema,
-    type Division,
     type UserUpdateInput
   } from "@vmb/types";
   import { superForm, type SuperValidated } from "sveltekit-superforms";
@@ -13,12 +12,12 @@
 
   let {
     form,
-    divisions,
+    roles,
     passwordRequired = false,
     submitLabel = "Save user"
   }: {
     form: SuperValidated<UserUpdateInput>;
-    divisions: Division[];
+    roles: Array<{ id: string; name: string }>;
     passwordRequired?: boolean;
     submitLabel?: string;
   } = $props();
@@ -66,16 +65,18 @@
   <fieldset>
     <legend>Authorization</legend>
 
-    <label>
-      <span>Division</span>
-      <select name="divisionId" bind:value={$fields.divisionId} required>
-        <option value="">Choose a division</option>
-        {#each divisions as division (division.id)}
-          <option value={division.id}>{division.name}</option>
-        {/each}
-      </select>
-      {#if $errors.divisionId}<span class="error">{$errors.divisionId[0]}</span>{/if}
-    </label>
+    <fieldset class="roles">
+      <legend>Roles</legend>
+      {#each roles as role (role.id)}
+        <label>
+          <input type="checkbox" name="roleIds" value={role.id} bind:group={$fields.roleIds} />
+          <span>{role.name}</span>
+        </label>
+      {:else}
+        <p class="muted">No roles to choose from.</p>
+      {/each}
+      {#if $errors.roleIds}<span class="error">{$errors.roleIds._errors?.[0]}</span>{/if}
+    </fieldset>
 
     <label>
       <span>Status</span>

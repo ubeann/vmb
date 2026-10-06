@@ -64,10 +64,10 @@ export type MasterStore = {
   listUsers(query: UserListQuery): Promise<UserListResponse>;
   getUser(id: string): Promise<User>;
   getSignInEligibility(id: string): Promise<SignInEligibility>;
-  createUser(input: UserCreateInput): Promise<User>;
-  updateUser(id: string, input: UserUpdateInput): Promise<User>;
-  deleteUser(id: string): Promise<void>;
-  restoreUser(id: string): Promise<User>;
+  createUser(input: UserCreateInput, actorId: string): Promise<User>;
+  updateUser(id: string, input: UserUpdateInput, actorId: string): Promise<User>;
+  deleteUser(id: string, actorId: string): Promise<void>;
+  restoreUser(id: string, actorId: string): Promise<User>;
 };
 
 export function createMasterStore(db: MasterDb, options: UserStoreOptions): MasterStore {
@@ -90,9 +90,9 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     listUsers: (query) => listUsers(db, query),
     getUser: (id) => getUser(db, id),
     getSignInEligibility: (id) => getSignInEligibility(db, id),
-    createUser: (input) => createUser(db, options, input),
-    updateUser: (id, input) => updateUser(db, options, id, input),
-    deleteUser: (id) => deleteUser(db, id),
-    restoreUser: (id) => restoreUser(db, id)
+    createUser: (input, actorId) => createUser(db, options, input, actorId),
+    updateUser: (id, input, actorId) => updateUser(db, options, id, input, actorId),
+    deleteUser: (id, actorId) => deleteUser(db, id, actorId),
+    restoreUser: (id, actorId) => restoreUser(db, id, actorId)
   };
 }

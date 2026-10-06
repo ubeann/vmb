@@ -1,12 +1,10 @@
 import { withApiClient } from "$lib/api-access.js";
 import { deleteUser, getUser, restoreUser, pageErrorStatus } from "$lib/master/api.js";
 import { runRowAction } from "$lib/master/form-action.js";
-import { loadDivisionOptions } from "$lib/master/loads.js";
 import { error, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
 
 export const load: PageServerLoad = async (event) => {
-  const divisions = loadDivisionOptions(event);
   const access = await withApiClient(event, (client) => getUser(client, event.params.id));
 
   if (!access.ok) {
@@ -17,7 +15,7 @@ export const load: PageServerLoad = async (event) => {
     error(pageErrorStatus(access.value.status), access.value.error);
   }
 
-  return { user: access.value.value, divisions: await divisions };
+  return { user: access.value.value };
 };
 
 export const actions: Actions = {

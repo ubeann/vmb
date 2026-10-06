@@ -133,7 +133,6 @@ export const users = master.table(
     id: uuid().primaryKey().notNull().defaultRandom(),
     name: varchar({ length: 255 }).notNull(),
     status: varchar({ length: 255 }).default("active").notNull(),
-    divisionId: uuid("division_id"),
     phone: varchar({ length: 20 }),
     email: varchar({ length: 255 }).notNull(),
     profilePhotoPath: varchar("profile_photo_path", { length: 255 }),
@@ -142,17 +141,6 @@ export const users = master.table(
     deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
-    foreignKey({
-      columns: [table.divisionId],
-      foreignColumns: [divisions.id],
-      name: "master_users_division_id_foreign"
-    })
-      .onUpdate("cascade")
-      .onDelete("set null"),
-    index("master_users_division_id_index").using(
-      "btree",
-      table.divisionId.asc().nullsLast().op("uuid_ops")
-    ),
     unique("master_users_email_unique").on(table.email),
     check(
       "users_status_check",

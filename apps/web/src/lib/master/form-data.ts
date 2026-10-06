@@ -31,7 +31,7 @@ export function userFormData(user: User) {
     name: user.name,
     email: user.email,
     phone: user.phone ?? "",
-    divisionId: user.divisionId ?? "",
+    roleIds: user.roles.map((role) => role.id),
     status: user.status,
     profilePhotoPath: user.profilePhotoPath ?? "",
     password: "",

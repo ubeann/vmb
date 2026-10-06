@@ -4,8 +4,8 @@
 INSERT INTO master.divisions (id, name, code, description, color_hex, icon_name, is_active)
 VALUES ('11111111-1111-4111-8111-111111111111', 'Operations', 'OPS', 'Fixture division', '#112233', 'heroicon-o-cube', true);
 
-INSERT INTO master.users (id, name, status, division_id, email)
-VALUES ('22222222-2222-4222-8222-222222222222', 'Fixture User', 'active', '11111111-1111-4111-8111-111111111111', 'fixture.user@example.test');
+INSERT INTO master.users (id, name, status, email)
+VALUES ('22222222-2222-4222-8222-222222222222', 'Fixture User', 'active', 'fixture.user@example.test');
 
 INSERT INTO trucking.clients (id, name, code)
 VALUES ('33333333-3333-4333-8333-333333333333', 'Fixture Client', 'CL-001');

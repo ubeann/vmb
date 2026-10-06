@@ -1,6 +1,6 @@
 -- Data the legacy schema permits but the domain does not:
 --
---   * a user with no Division, because division scoping is assumed by the UI
+--   * a user holding no Role, so no permissions and no division
 --   * a procurement request that takes the schema's default status rather than
 --     naming one (the default is a valid value since #106 corrected it)
 --   * an approval whose approvable_id matches no row — the morph target has no
@@ -13,11 +13,11 @@
 INSERT INTO master.divisions (id, name, code, color_hex, icon_name, is_active)
 VALUES ('a1111111-1111-4111-8111-111111111111', 'Edge Division', 'EDGE', '#445566', 'heroicon-o-cube', true);
 
-INSERT INTO master.users (id, name, status, division_id, email)
-VALUES ('a2222222-2222-4222-8222-222222222222', 'Divisionless User', 'active', NULL, 'no.division@example.test');
+INSERT INTO master.users (id, name, status, email)
+VALUES ('a2222222-2222-4222-8222-222222222222', 'Roleless User', 'active', 'no.role@example.test');
 
-INSERT INTO master.users (id, name, status, division_id, email)
-VALUES ('a2222222-2222-4222-8222-222222222223', 'Approver User', 'active', 'a1111111-1111-4111-8111-111111111111', 'approver@example.test');
+INSERT INTO master.users (id, name, status, email)
+VALUES ('a2222222-2222-4222-8222-222222222223', 'Approver User', 'active', 'approver@example.test');
 
 INSERT INTO trucking.clients (id, name, code)
 VALUES ('a3333333-3333-4333-8333-333333333333', 'Edge Client', 'CL-EDGE');

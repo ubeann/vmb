@@ -26,7 +26,7 @@ export const UserSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   status: UserStatusSchema,
-  divisionId: z.uuid().nullable(),
+  roles: z.array(z.object({ id: z.uuid(), name: z.string() })),
   phone: z.string().nullable(),
   email: z.string(),
   emailVerified: z.boolean(),
@@ -46,7 +46,6 @@ const userFields = {
     .max(255, "Name must be 255 characters or fewer."),
   email: z.email("Enter a valid email address.").max(255, "Email must be 255 characters or fewer."),
   phone: indonesianPhoneSchema,
-  divisionId: z.uuid("Choose a division."),
   status: UserStatusSchema.default("active"),
   profilePhotoPath: optionalText(255)
 };
@@ -56,28 +55,35 @@ const userFields = {
  * empty password means "leave the credential alone" on the edit form and is
  * rejected on create, so the two schemas share everything else.
  */
-const UserFormSchema = z
-  .object({
-    ...userFields,
-    password: z.union([z.literal(""), passwordSchema]).default(""),
-    passwordConfirmation: z.string().default("")
-  })
-  .refine((data) => data.password === "" || !passwordContainsContext(data.password, data.email), {
-    message: PASSWORD_CONTEXT_MESSAGE,
-    path: ["password"]
-  });
+function userFormSchema<R extends z.ZodType>(roleIds: R) {
+  return z
+    .object({
+      ...userFields,
+      roleIds,
+      password: z.union([z.literal(""), passwordSchema]).default(""),
+      passwordConfirmation: z.string().default("")
+    })
+    .refine((data) => data.password === "" || !passwordContainsContext(data.password, data.email), {
+      message: PASSWORD_CONTEXT_MESSAGE,
+      path: ["password"]
+    });
+}
 
-export const UserCreateInputSchema = UserFormSchema.refine((data) => data.password !== "", {
-  message: "Password is required.",
-  path: ["password"]
-}).refine((data) => data.password === data.passwordConfirmation, {
-  message: "Passwords do not match.",
-  path: ["passwordConfirmation"]
-});
+// A new user starts with the roles chosen, none by default.
+export const UserCreateInputSchema = userFormSchema(z.array(z.uuid()).default([]))
+  .refine((data) => data.password !== "", {
+    message: "Password is required.",
+    path: ["password"]
+  })
+  .refine((data) => data.password === data.passwordConfirmation, {
+    message: "Passwords do not match.",
+    path: ["passwordConfirmation"]
+  });
 
 export type UserCreateInput = z.infer<typeof UserCreateInputSchema>;
 
-export const UserUpdateInputSchema = UserFormSchema.refine(
+// Omitting `roleIds` leaves the user's roles alone; a list is their whole new set.
+export const UserUpdateInputSchema = userFormSchema(z.array(z.uuid()).optional()).refine(
   (data) => data.password === "" || data.password === data.passwordConfirmation,
   { message: "Passwords do not match.", path: ["passwordConfirmation"] }
 );

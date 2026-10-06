@@ -2,7 +2,7 @@ import { withApiClient } from "$lib/api-access.js";
 import { getUser, updateUser, pageErrorStatus } from "$lib/master/api.js";
 import { userFormData } from "$lib/master/form-data.js";
 import { createMasterFormAction } from "$lib/master/form-action.js";
-import { loadDivisionOptions } from "$lib/master/loads.js";
+import { loadRoleOptions, mergeRoles } from "$lib/master/loads.js";
 import { UserUpdateInputSchema } from "@vmb/types";
 import { error } from "@sveltejs/kit";
 import { superValidate } from "sveltekit-superforms/server";
@@ -10,7 +10,7 @@ import { zod4 } from "sveltekit-superforms/adapters";
 import type { Actions, PageServerLoad } from "./$types.js";
 
 export const load: PageServerLoad = async (event) => {
-  const divisions = loadDivisionOptions(event);
+  const options = loadRoleOptions(event);
   const access = await withApiClient(event, (client) => getUser(client, event.params.id));
 
   if (!access.ok) {
@@ -24,7 +24,8 @@ export const load: PageServerLoad = async (event) => {
   return {
     user: access.value.value,
     form: await superValidate(userFormData(access.value.value), zod4(UserUpdateInputSchema)),
-    divisions: await divisions
+    // the options, plus any role the user holds that the list did not return
+    roles: mergeRoles(await options, access.value.value.roles)
   };
 };
 

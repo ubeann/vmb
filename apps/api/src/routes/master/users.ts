@@ -33,7 +33,7 @@ export const userRoutes = new Hono<MasterEnv>()
     async (c) => {
       const input = c.req.valid("json");
       await refuseBreachedPassword(c, input.password);
-      const user = await c.get("store").createUser(input);
+      const user = await c.get("store").createUser(input, c.get("userId"));
       return c.json(UserSchema.parse(user), 201);
     }
   )
@@ -49,15 +49,15 @@ export const userRoutes = new Hono<MasterEnv>()
       const id = pathId(c);
       const input = c.req.valid("json");
       await refuseBreachedPassword(c, input.password);
-      const user = await c.get("store").updateUser(id, input);
+      const user = await c.get("store").updateUser(id, input, c.get("userId"));
       return c.json(UserSchema.parse(user));
     }
   )
   .delete("/:id", requirePermission("master-users.delete"), async (c) => {
-    await c.get("store").deleteUser(pathId(c));
+    await c.get("store").deleteUser(pathId(c), c.get("userId"));
     return c.body(null, 204);
   })
   .post("/:id/restore", requirePermission("master-users.restore"), async (c) => {
-    const user = await c.get("store").restoreUser(pathId(c));
+    const user = await c.get("store").restoreUser(pathId(c), c.get("userId"));
     return c.json(UserSchema.parse(user));
   });

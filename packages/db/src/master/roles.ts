@@ -1,8 +1,8 @@
 import type { Role, RoleInput, RoleListQuery, RoleListResponse } from "@vmb/types";
 import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
-import { roles } from "../schema/master.js";
+import { roles, userRoles } from "../schema/master.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { MasterNotFoundError, MasterSystemRoleError } from "./errors.js";
+import { MasterConflictError, MasterNotFoundError, MasterSystemRoleError } from "./errors.js";
 
 type RoleRow = typeof roles.$inferSelect;
 
@@ -115,6 +115,19 @@ export async function updateRole(db: MasterDb, id: string, input: RoleInput): Pr
 
 export async function deleteRole(db: MasterDb, id: string): Promise<void> {
   await assertMutable(db, id);
+
+  // a role in use is refused, not cascaded: deleting it would strip access
+  // from everyone who holds it (the foreign key is the backstop)
+  const holders = await db
+    .select({ value: count() })
+    .from(userRoles)
+    .where(eq(userRoles.roleId, id));
+  const held = holders[0]?.value ?? 0;
+  if (held > 0) {
+    throw new MasterConflictError(
+      `${held} ${held === 1 ? "user holds" : "users hold"} this role. Remove it from them first.`
+    );
+  }
 
   const rows = await db
     .delete(roles)

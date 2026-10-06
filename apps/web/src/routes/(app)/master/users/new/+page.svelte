@@ -12,6 +12,6 @@
 
 <h2>New user</h2>
 
-<UserForm form={data.form} divisions={data.divisions} passwordRequired submitLabel="Create user" />
+<UserForm form={data.form} roles={data.roles} passwordRequired submitLabel="Create user" />
 
 <p><a href={resolve("/master/users")}>Back to users</a></p>

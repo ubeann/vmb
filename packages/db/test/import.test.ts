@@ -241,21 +241,21 @@ describe("the verifier", () => {
       // validating the rows that already exist — the state a load that bypassed
       // enforcement would leave behind
       await client.exec(
-        "alter table master.users drop constraint master_users_division_id_foreign"
+        "alter table expense.budgets drop constraint expense_budgets_division_id_foreign"
       );
       await client.exec(
-        `update master.users set division_id = '99999999-9999-4999-8999-999999999999'`
+        `update expense.budgets set division_id = '99999999-9999-4999-8999-999999999999'`
       );
       await client.exec(
-        `alter table master.users
-           add constraint master_users_division_id_foreign
+        `alter table expense.budgets
+           add constraint expense_budgets_division_id_foreign
            foreign key (division_id) references master.divisions(id) not valid`
       );
 
       const report = await verify(await readSnapshot(snapshotFile), client);
       const finding = report.errors.find((f) => f.code === "fk-integrity");
       expect(finding?.message).toContain("1 row(s)");
-      expect(finding?.message).toContain("master.users");
+      expect(finding?.message).toContain("expense.budgets");
     });
   });
 

@@ -12,6 +12,6 @@
 
 <h2>Edit user</h2>
 
-<UserForm form={data.form} divisions={data.divisions} />
+<UserForm form={data.form} roles={data.roles} />
 
 <p><a href={resolve("/(app)/master/users/[id]", { id: data.user.id })}>Back to user</a></p>

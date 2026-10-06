@@ -1,8 +1,13 @@
-import { allPermissionKeys } from "@vmb/types";
+import {
+  allPermissionKeys,
+  type User,
+  type UserCreateInput,
+  type UserUpdateInput
+} from "@vmb/types";
 import { describe, expect, it } from "vitest";
 import { ID_GROUPS, fixtureId } from "../src/seed/ids.js";
 import { seed } from "../src/seed/run.js";
-import { createMasterStore } from "../src/master/index.js";
+import { createMasterStore, MasterForbiddenError } from "../src/master/index.js";
 import { count, rejects, withMigratedDatabase, withMigratedDb } from "./harness.js";
 
 const SUPER_ADMIN = fixtureId(ID_GROUPS.role, 1);
@@ -165,6 +170,309 @@ describe("a user's access", () => {
       await client.exec(`update master.divisions set deleted_at = now() where id = '${FINANCE}'`);
 
       expect((await store(db).getAccess(user)).divisions).toEqual([]);
+    });
+  });
+});
+
+describe("assigning roles to users", () => {
+  const store = (db: Parameters<typeof createMasterStore>[0]) =>
+    createMasterStore(db, { hashPassword: async (password) => `hashed:${password}` });
+
+  const SUPER_ADMIN_USER = fixtureId(ID_GROUPS.user, 1);
+  const MANAGER_USER = fixtureId(ID_GROUPS.user, 2); // holds Manager Finance
+  const STAFF_ROLE = fixtureId(ID_GROUPS.role, 4); // divisions.view only, a subset of the manager's
+
+  const newUser = (overrides: Partial<UserCreateInput> = {}): UserCreateInput => ({
+    name: "Dani Pratama",
+    email: "dani@vmblogistics.id",
+    phone: "+628111000077",
+    status: "active",
+    roleIds: [],
+    profilePhotoPath: "",
+    password: "password123",
+    passwordConfirmation: "password123",
+    ...overrides
+  });
+
+  const edit = (user: User, roleIds: string[]): UserUpdateInput => ({
+    name: user.name,
+    email: user.email,
+    phone: user.phone ?? "+628111000077",
+    status: user.status,
+    roleIds,
+    profilePhotoPath: "",
+    password: "",
+    passwordConfirmation: ""
+  });
+
+  it("creates a user holding the chosen roles, named in the result", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      const created = await store(db).createUser(
+        newUser({ roleIds: [STAFF_ROLE, MANAGER_FINANCE] }),
+        SUPER_ADMIN_USER
+      );
+
+      expect(created.roles.map((role) => role.name)).toEqual(["Manager Finance", "Staff"]);
+    });
+  });
+
+  it("replaces the set on update: adds the new, removes the dropped, keeps the rest", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const created = await store(db).createUser(
+        newUser({ roleIds: [STAFF_ROLE] }),
+        SUPER_ADMIN_USER
+      );
+
+      const updated = await store(db).updateUser(
+        created.id,
+        edit(created, [MANAGER_FINANCE]),
+        SUPER_ADMIN_USER
+      );
+      expect(updated.roles.map((role) => role.name)).toEqual(["Manager Finance"]);
+
+      // saving the same set again is harmless, and an empty set clears the roles
+      await store(db).updateUser(created.id, edit(created, [MANAGER_FINANCE]), SUPER_ADMIN_USER);
+      const cleared = await store(db).updateUser(created.id, edit(created, []), SUPER_ADMIN_USER);
+      expect(cleared.roles).toEqual([]);
+    });
+  });
+
+  it("lets a caller grant only roles whose permissions they hold themselves", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const target = await store(db).createUser(newUser(), SUPER_ADMIN_USER);
+
+      // the Finance manager holds master-divisions.view*, so may grant Staff
+      await expect(
+        store(db).updateUser(target.id, edit(target, [STAFF_ROLE]), MANAGER_USER)
+      ).resolves.toMatchObject({ roles: [{ name: "Staff" }] });
+
+      // but Super Admin carries keys the manager lacks
+      await expect(
+        store(db).updateUser(target.id, edit(target, [SUPER_ADMIN]), MANAGER_USER)
+      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      await expect(
+        store(db).createUser(
+          newUser({ email: "x@vmblogistics.id", roleIds: [SUPER_ADMIN] }),
+          MANAGER_USER
+        )
+      ).rejects.toBeInstanceOf(MasterForbiddenError);
+    });
+  });
+
+  it("will not let a caller take away a role that carries permissions they lack", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const admin = await store(db).getUser(SUPER_ADMIN_USER);
+
+      await expect(
+        store(db).updateUser(admin.id, edit(admin, []), MANAGER_USER)
+      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      // nothing changed
+      expect((await store(db).getUser(admin.id)).roles.map((role) => role.name)).toEqual([
+        "Super Admin"
+      ]);
+    });
+  });
+
+  it("lets Super Admin grant Super Admin", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      const created = await store(db).createUser(
+        newUser({ roleIds: [SUPER_ADMIN] }),
+        SUPER_ADMIN_USER
+      );
+
+      expect(created.roles.map((role) => role.name)).toEqual(["Super Admin"]);
+    });
+  });
+
+  it("reports a role that does not exist", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      await expect(
+        store(db).createUser(
+          newUser({ roleIds: ["00000000-0000-4000-8000-0000000000ee"] }),
+          SUPER_ADMIN_USER
+        )
+      ).rejects.toThrow("One of the chosen roles no longer exists.");
+    });
+  });
+
+  it("filters the user list by the division a role is scoped to", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      const list = await store(db).listUsers({
+        divisionId: FINANCE,
+        status: "all",
+        trashed: "exclude",
+        sort: "name",
+        dir: "asc",
+        page: 1,
+        perPage: 10
+      });
+
+      expect(list.items.map((user) => user.id)).toEqual([MANAGER_USER]);
+    });
+  });
+});
+
+describe("deleting a role", () => {
+  it("is refused with a count while users hold it, and allowed once they do not", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const store = createMasterStore(db, { hashPassword: async (password) => password });
+      const staff = fixtureId(ID_GROUPS.role, 4);
+      await client.exec(
+        `insert into master.user_roles (user_id, role_id) values ('${fixtureId(ID_GROUPS.user, 5)}', '${staff}'),
+                                                                  ('${fixtureId(ID_GROUPS.user, 6)}', '${staff}')`
+      );
+
+      await expect(store.deleteRole(staff)).rejects.toThrow(
+        "3 users hold this role. Remove it from them first."
+      );
+
+      await client.exec(`delete from master.user_roles where role_id = '${staff}'`);
+      await expect(store.deleteRole(staff)).resolves.toBeUndefined();
+    });
+  });
+});
+
+describe("the permission catalogue", () => {
+  it("is exactly what the migrations load, so a change to either needs the other", async () => {
+    await withMigratedDatabase(async (client) => {
+      const rows = await client.query<{ key: string }>(
+        "select key from master.permissions order by key"
+      );
+
+      expect(rows.map((row) => row.key)).toEqual([...allPermissionKeys()].sort());
+    });
+  });
+});
+
+describe("reaching a more privileged user", () => {
+  const store = (db: Parameters<typeof createMasterStore>[0]) =>
+    createMasterStore(db, { hashPassword: async (password) => `hashed:${password}` });
+
+  const ADMIN = fixtureId(ID_GROUPS.user, 1); // Super Admin
+  const MANAGER = fixtureId(ID_GROUPS.user, 2); // Manager Finance
+  const STAFF_USER = fixtureId(ID_GROUPS.user, 4); // Staff, a subset of the manager's permissions
+
+  const resetPassword = (user: User): UserUpdateInput => ({
+    name: user.name,
+    email: user.email,
+    phone: user.phone ?? "+628111000077",
+    status: user.status,
+    profilePhotoPath: "",
+    password: "a-brand-new-password",
+    passwordConfirmation: "a-brand-new-password"
+  });
+
+  it("refuses to edit, delete or restore a user who holds permissions the caller lacks", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const admin = await store(db).getUser(ADMIN);
+
+      // roleIds omitted: only the credential changes, yet it is still account takeover
+      await expect(
+        store(db).updateUser(ADMIN, resetPassword(admin), MANAGER)
+      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      await expect(store(db).deleteUser(ADMIN, MANAGER)).rejects.toBeInstanceOf(
+        MasterForbiddenError
+      );
+      await expect(
+        store(db).updateUser(ADMIN, { ...resetPassword(admin), status: "suspended" }, MANAGER)
+      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      expect(
+        await count(
+          client,
+          `select count(*)::int as value from public.account
+            where account_id = '${ADMIN}' and password = 'hashed:a-brand-new-password'`
+        )
+      ).toBe(0);
+
+      await client.exec(`update master.users set deleted_at = now() where id = '${ADMIN}'`);
+      await expect(store(db).restoreUser(ADMIN, MANAGER)).rejects.toBeInstanceOf(
+        MasterForbiddenError
+      );
+    });
+  });
+
+  it("lets a caller manage someone whose permissions they hold, and themselves", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const staff = await store(db).getUser(STAFF_USER);
+      const manager = await store(db).getUser(MANAGER);
+
+      await expect(
+        store(db).updateUser(STAFF_USER, resetPassword(staff), MANAGER)
+      ).resolves.toMatchObject({
+        id: STAFF_USER
+      });
+      await expect(
+        store(db).updateUser(MANAGER, resetPassword(manager), MANAGER)
+      ).resolves.toMatchObject({
+        id: MANAGER
+      });
+      // a Super Admin may manage anyone
+      await expect(
+        store(db).updateUser(MANAGER, resetPassword(manager), ADMIN)
+      ).resolves.toMatchObject({
+        id: MANAGER
+      });
+    });
+  });
+
+  it("leaves a user's roles alone when the update names none", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const manager = await store(db).getUser(MANAGER);
+      const before = manager.roles.map((role) => role.name);
+      expect(before.length).toBeGreaterThan(0);
+
+      const updated = await store(db).updateUser(MANAGER, resetPassword(manager), ADMIN);
+
+      expect(updated.roles.map((role) => role.name)).toEqual(before);
+    });
+  });
+
+  it("reads uppercase role ids as the same role", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const target = await store(db).getUser(STAFF_USER);
+
+      const updated = await store(db).updateUser(
+        STAFF_USER,
+        { ...resetPassword(target), roleIds: [fixtureId(ID_GROUPS.role, 4).toUpperCase()] },
+        ADMIN
+      );
+
+      expect(updated.roles).toHaveLength(1);
+    });
+  });
+});
+
+describe("a session that outlives its user", () => {
+  it("grants nothing once the user is suspended or Trashed", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const store = createMasterStore(db, { hashPassword: async (password) => password });
+      const admin = fixtureId(ID_GROUPS.user, 1);
+      expect((await store.getAccess(admin)).permissions.length).toBeGreaterThan(0);
+
+      await client.exec(`update master.users set status = 'suspended' where id = '${admin}'`);
+      expect(await store.getAccess(admin)).toEqual({ permissions: [], divisions: [] });
+
+      await client.exec(
+        `update master.users set status = 'active', deleted_at = now() where id = '${admin}'`
+      );
+      expect(await store.getAccess(admin)).toEqual({ permissions: [], divisions: [] });
     });
   });
 });
