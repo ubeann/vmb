@@ -14,6 +14,10 @@ _Avoid_: Department, unit, team
 A person who signs in to VMB. The durable business record every domain references; Better Auth owns the identity, credentials and sessions behind it (ADR-0012, ADR-0032).
 _Avoid_: Account, member, staff
 
+**Suspended User**:
+A User who can't sign in for now and is expected back. An **Inactive** User has left.
+_Avoid_: Blocked, banned, locked
+
 **Identity**:
 The Better Auth-owned record behind a User: credentials, sessions and email verification. A User has exactly one (ADR-0032).
 _Avoid_: Auth user, credential
@@ -21,6 +25,10 @@ _Avoid_: Auth user, credential
 **Role**:
 A named bundle of permissions granted to users.
 _Avoid_: Group, access level
+
+**System Role**:
+A seeded Role that VMB depends on; nobody can edit or delete it.
+_Avoid_: Built-in role, default role
 
 **Permission**:
 A single capability checked during authorization.
@@ -133,6 +141,14 @@ _Avoid_: Urgent request, urgent fund
 **Approval**:
 A recorded approval decision. Legacy implemented three independent approval tables (warehouse, trucking, expense); each is a distinct concept that happens to share a name, so always qualify which domain an Approval belongs to.
 _Avoid_: Approver (that's the User), sign-off
+
+**Trashed**:
+A deleted record that can still be restored, hidden from lists unless asked for. Records with no Trash, such as Roles, are deleted permanently instead.
+_Avoid_: Archived, deactivated, soft-deleted
+
+**Inactive**:
+A record that still exists and stays on the records already using it, but can't be chosen for new ones.
+_Avoid_: Disabled, archived
 
 ### Environments
 
