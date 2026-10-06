@@ -322,3 +322,24 @@ describe("assigning roles to users", () => {
     });
   });
 });
+
+describe("deleting a role", () => {
+  it("is refused with a count while users hold it, and allowed once they do not", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const store = createMasterStore(db, { hashPassword: async (password) => password });
+      const staff = fixtureId(ID_GROUPS.role, 4);
+      await client.exec(
+        `insert into master.user_roles (user_id, role_id) values ('${fixtureId(ID_GROUPS.user, 5)}', '${staff}'),
+                                                                  ('${fixtureId(ID_GROUPS.user, 6)}', '${staff}')`
+      );
+
+      await expect(store.deleteRole(staff)).rejects.toThrow(
+        "3 users hold this role. Remove it from them first."
+      );
+
+      await client.exec(`delete from master.user_roles where role_id = '${staff}'`);
+      await expect(store.deleteRole(staff)).resolves.toBeUndefined();
+    });
+  });
+});
