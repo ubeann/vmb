@@ -4,7 +4,7 @@ Researched 2026-09-24 against primary sources (OpenAI's and Anthropic's own deve
 pricing pages) wherever they could be fetched directly, cross-checked against llm-stats.com and
 Artificial Analysis (both explicitly flagged as secondary/aggregated). Every claim below carries a
 source URL and the access date. This is a market/pricing snapshot, not a domain or architecture
-decision, so it lives here rather than in `CONTEXT.md` or `docs/adr/` (see "Where this was saved"
+decision, so it lives here rather than in `GLOSSARY.md` or `docs/adr/` (see "Where this was saved"
 at the end).
 
 **Updated 2026-09-27:** added Gemini (Google) and OpenCode (OpenCode Go, serving DeepSeek V4.1
