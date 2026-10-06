@@ -44,3 +44,5 @@ declare global {
 }
 
 export {};
+
+// Lighthouse baseline for #289: do not merge.
