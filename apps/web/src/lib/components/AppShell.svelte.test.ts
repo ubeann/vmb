@@ -435,6 +435,96 @@ describe("AppShell", () => {
     await expect.element(screen.getByRole("heading", { name: "Page body" })).toBeVisible();
   });
 
+  describe("the footer strip", () => {
+    const supportLink = (screen: Awaited<ReturnType<typeof render>>) =>
+      screen.getByRole("link", { name: "support@vmblogistics.id", exact: true });
+    const supportIcon = (screen: Awaited<ReturnType<typeof render>>) =>
+      screen.getByRole("link", { name: "Email the support team, support@vmblogistics.id" });
+
+    it("sits below the panel as the page's contentinfo landmark, not inside it", async () => {
+      await desktop();
+      const screen = await render(AppShell, props());
+
+      const footer = screen.getByRole("contentinfo");
+      await expect.element(footer).toBeVisible();
+      await expect.element(footer.getByText(/PT\. Vifiera Minova Bersaudara/)).toBeVisible();
+      const panel = document.querySelector("#main-content")!;
+      expect(panel.contains(footer.element())).toBe(false);
+      expect(footer.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        panel.getBoundingClientRect().bottom
+      );
+    });
+
+    it("gives its text 8px on the left and 12px on the right from tablet up", async () => {
+      for (const [width, height] of [
+        [1920, 1080],
+        [768, 1024]
+      ] as const) {
+        await browser.viewport(width, height);
+        for (const sidebarOpen of [true, false]) {
+          const screen = await render(AppShell, props({ sidebarOpen }));
+          const strip = screen.getByRole("contentinfo").element().getBoundingClientRect();
+          const text = screen
+            .getByText(/PT\. Vifiera Minova Bersaudara/)
+            .element()
+            .getBoundingClientRect();
+          const last = screen.getByRole("link", { name: /ubeann/ }).element();
+          const label = `${width}px, open: ${sidebarOpen}`;
+
+          expect(text.left - strip.left, label).toBeCloseTo(8, 0);
+          expect(strip.right - last.getBoundingClientRect().right, label).toBeCloseTo(12, 0);
+          screen.unmount();
+        }
+      }
+    });
+
+    it("keeps the panel's 16px on both sides on a phone", async () => {
+      await phone();
+      const screen = await render(AppShell, props());
+      const strip = screen.getByRole("contentinfo").element().getBoundingClientRect();
+      const text = screen
+        .getByText(/PT\. Vifiera Minova Bersaudara/)
+        .element()
+        .getBoundingClientRect();
+      const last = screen.getByRole("link", { name: /ubeann/ }).element();
+
+      expect(text.left - strip.left).toBeCloseTo(16, 0);
+      expect(strip.right - last.getBoundingClientRect().right).toBeGreaterThanOrEqual(16);
+    });
+
+    it("spells out the support address and credit while the column has room", async () => {
+      await browser.viewport(1440, 900);
+      const screen = await render(AppShell, props());
+
+      await expect.element(supportLink(screen)).toBeVisible();
+      await expect.element(screen.getByRole("link", { name: "ubeann", exact: true })).toBeVisible();
+      await expect.element(supportIcon(screen)).not.toBeInTheDocument();
+    });
+
+    it("drops to icon buttons when an open sidebar narrows the column, though the viewport is wide", async () => {
+      // 1200px is past the old `lg:` breakpoint, but the column beside a 16rem sidebar is 944px.
+      await browser.viewport(1200, 800);
+      const open = await render(AppShell, props());
+
+      await expect.element(supportIcon(open)).toBeVisible();
+      await expect.element(supportLink(open)).not.toBeInTheDocument();
+      open.unmount();
+
+      const collapsed = await render(AppShell, props({ sidebarOpen: false }));
+
+      await expect.element(supportLink(collapsed)).toBeVisible();
+      await expect.element(supportIcon(collapsed)).not.toBeInTheDocument();
+    });
+
+    it("keeps the icon buttons 44px square on a phone", async () => {
+      await phone();
+      const screen = await render(AppShell, props());
+
+      const { width, height } = supportIcon(screen).element().getBoundingClientRect();
+      expect([width, height]).toEqual([44, 44]);
+    });
+  });
+
   it("falls back to the generated bot until a photo loads", async () => {
     await desktop();
     const screen = await render(AppShell, props({ user: { ...user, image: "/missing.png" } }));

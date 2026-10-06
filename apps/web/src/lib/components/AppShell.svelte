@@ -8,7 +8,7 @@
   has scrolled under the bar. Search and notifications take the space in the bar
   when those features exist. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
-  without a flash.
+  without a flash. The footer strip (#218) closes the column below the panel.
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
@@ -16,6 +16,7 @@
   import AppSidebar from "$lib/components/AppSidebar.svelte";
   import ProfileMenu from "$lib/components/ProfileMenu.svelte";
   import SidebarToggle from "$lib/components/SidebarToggle.svelte";
+  import SiteFooter from "$lib/components/SiteFooter.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { isCurrent, NAV_GROUPS, visibleGroups, type NavIcon } from "$lib/nav.js";
   import Building2 from "@lucide/svelte/icons/building-2";
@@ -121,5 +122,11 @@
     >
       {@render children()}
     </Sidebar.Inset>
+
+    <!-- Below the panel, not inside it, so it stays the page's contentinfo landmark.
+         It sits on the sidebar's colour. From tablet up it takes 8px on the left and
+         12px on the right; the phone keeps the panel's 16px. `sm:px-3` and `lg:px-3`
+         beat SiteFooter's own `sm:px-10 lg:px-16`. -->
+    <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-3 sm:pl-2 lg:px-3 lg:pl-2" />
   </div>
 </Sidebar.Provider>
