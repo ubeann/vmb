@@ -8,7 +8,7 @@
       "ignoreDependencies": ["playwright"]
     },
     "apps/web": {
-      // Run by hand for design reviews (docs/agents/design-workflow.md).
+      // Run by hand to check pages (docs/agents/page-checks.md).
       "entry": ["scripts/*.mjs"]
     },
     "apps/api": {

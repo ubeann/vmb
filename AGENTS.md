@@ -27,3 +27,7 @@ Which harnesses (Claude Code, Codex, OpenCode, Antigravity) load these instructi
 ### Design workflow
 
 Redesigning a screen's look, or making illustrations, logos or motion for it: the steps, rules and paid tools (Recraft, Pen, Rive) proven on the auth pages. See `docs/agents/design-workflow.md`.
+
+### Page checks
+
+Seeing a page you changed: screenshots and Lighthouse runs on a PR preview or local dev, signed in as the seeded preview user. See `docs/agents/page-checks.md`.
