@@ -7,6 +7,8 @@ import {
   RoleSchema,
   UserListResponseSchema,
   UserSchema,
+  AccessSchema,
+  type Access,
   type Division,
   type DivisionInput,
   type DivisionListQuery,
@@ -32,6 +34,16 @@ import type { ErrorStatus } from "sveltekit-superforms";
  */
 export type ApiResult<T> =
   { ok: true; value: T } | { ok: false; status: ErrorStatus; error: string };
+
+/** What a page does with a failed lookup: a refusal and a miss keep their meaning, the rest is a 500. */
+export function pageErrorStatus(status: number): 403 | 404 | 500 {
+  return status === 403 || status === 404 ? status : 500;
+}
+
+/** The signed-in caller's permissions and divisions (`GET /api/me`). */
+export function getMyAccess(client: ApiClient): Promise<ApiResult<Access>> {
+  return client.api.me.$get().then((response) => read(response, AccessSchema));
+}
 
 /** The status union SvelteKit and Superforms accept on a failure response. */
 function errorStatus(status: number): ErrorStatus {

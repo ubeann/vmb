@@ -1,5 +1,5 @@
 import { withApiClient } from "$lib/api-access.js";
-import { getUser, updateUser } from "$lib/master/api.js";
+import { getUser, updateUser, pageErrorStatus } from "$lib/master/api.js";
 import { userFormData } from "$lib/master/form-data.js";
 import { createMasterFormAction } from "$lib/master/form-action.js";
 import { loadDivisionOptions } from "$lib/master/loads.js";
@@ -18,7 +18,7 @@ export const load: PageServerLoad = async (event) => {
     error(500, "Could not load this user. Please try again.");
   }
   if (!access.value.ok) {
-    error(access.value.status === 404 ? 404 : 500, access.value.error);
+    error(pageErrorStatus(access.value.status), access.value.error);
   }
 
   return {

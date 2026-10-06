@@ -8,6 +8,13 @@ vi.mock("../../auth.js", () => ({
   })
 }));
 
+vi.mock("../../master.js", () => ({
+  masterStore: () =>
+    ({
+      getAccess: async () => ({ permissions: ["master-divisions.create"], divisions: [] })
+    }) as never
+}));
+
 const { default: app } = await import("../../index.js");
 
 describe("the master API mount", () => {

@@ -1,6 +1,6 @@
 # Master entities review: Roles, Divisions, Users
 
-Review date: **2026-10-06**. The owner accepted the recommendations in [section 5](#5-decisions-for-the-owner) on 2026-10-06. Phase 2 (migration `0029`), the status gate (D2) and the matching role and user page edits are built; D1 (dropping `users.division_id`), the permission middleware and role assignment are the next slices ([section 6](#6-suggested-slicing)). Evidence is cited as `repo:path:line` against `ubeann/vmb` (this repo, **new**), `ubeann/vmb-warehouse@development` (**legacy**, the deployed shape) and `ubeann/vmb-warehouse@revamp` (**revamp**, the legacy branch where the owner already redesigned Master; it holds `refactor/divisions-on-roles`, merged as its PR #174).
+Review date: **2026-10-06**. The owner accepted the recommendations in [section 5](#5-decisions-for-the-owner) on 2026-10-06. Phase 2 (migration `0029`), the status gate (D2), the matching role and user page edits and the API permission checks (ADR-0045) are built; D1 (dropping `users.division_id`) and role assignment are the next slice ([section 6](#6-suggested-slicing)). Evidence is cited as `repo:path:line` against `ubeann/vmb` (this repo, **new**), `ubeann/vmb-warehouse@development` (**legacy**, the deployed shape) and `ubeann/vmb-warehouse@revamp` (**revamp**, the legacy branch where the owner already redesigned Master; it holds `refactor/divisions-on-roles`, merged as its PR #174).
 
 ## 1. Where the backend stands
 

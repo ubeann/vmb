@@ -7,6 +7,8 @@ import type {
   User,
   UserListResponse
 } from "@vmb/types";
+import { allPermissionKeys } from "@vmb/types";
+import { Hono } from "hono";
 import { MasterConflictError, MasterNotFoundError, MasterSystemRoleError } from "@vmb/db";
 import type { MasterStore } from "@vmb/db";
 import { describe, expect, it, vi } from "vitest";
@@ -60,6 +62,8 @@ const user: User = {
 
 function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
   return {
+    // the caller may do everything unless a test narrows it (permissions.test.ts)
+    getAccess: vi.fn(async () => ({ permissions: allPermissionKeys(), divisions: [] })),
     listDivisions: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
     getDivision: vi.fn(async () => division),
     createDivision: vi.fn(async () => division),
@@ -84,7 +88,15 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
 
 // Never the real Pwned Passwords lookup: a test makes no network call.
 function appWith(store: MasterStore, isPasswordBreached = async (_password: string) => false) {
-  return createMasterRoutes(() => store, isPasswordBreached);
+  return new Hono<{ Variables: { userId: string } }>()
+    .use("*", async (c, next) => {
+      c.set("userId", ID);
+      await next();
+    })
+    .route(
+      "/",
+      createMasterRoutes(() => store, isPasswordBreached)
+    );
 }
 
 function json(method: string, body: unknown) {

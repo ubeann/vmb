@@ -4,6 +4,7 @@ import { runRowAction } from "$lib/master/form-action.js";
 import { parseListQuery } from "$lib/master/list.js";
 import { loadDivisionOptions } from "$lib/master/loads.js";
 import { UserListQuerySchema } from "@vmb/types";
+import { error } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
 
 export const load: PageServerLoad = async (event) => {
@@ -17,6 +18,7 @@ export const load: PageServerLoad = async (event) => {
     return { query, users: null, divisions: await divisions };
   }
   if (!access.value.ok) {
+    if (access.value.status === 403) error(403, access.value.error);
     console.error("users list: API refused the request", access.value.error);
     return { query, users: null, divisions: await divisions };
   }

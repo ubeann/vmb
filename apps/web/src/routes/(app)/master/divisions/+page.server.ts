@@ -3,6 +3,7 @@ import { deleteDivision, listDivisions, restoreDivision } from "$lib/master/api.
 import { runRowAction } from "$lib/master/form-action.js";
 import { parseListQuery } from "$lib/master/list.js";
 import { DivisionListQuerySchema } from "@vmb/types";
+import { error } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
 
 export const load: PageServerLoad = async (event) => {
@@ -14,6 +15,7 @@ export const load: PageServerLoad = async (event) => {
     return { query, divisions: null };
   }
   if (!access.value.ok) {
+    if (access.value.status === 403) error(403, access.value.error);
     console.error("divisions list: API refused the request", access.value.error);
     return { query, divisions: null };
   }

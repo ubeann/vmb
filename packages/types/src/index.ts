@@ -4,6 +4,7 @@ export * from "./list.js";
 export * from "./divisions.js";
 export * from "./roles.js";
 export * from "./permissions.js";
+export * from "./access.js";
 export * from "./users.js";
 export * from "./password.js";
 export * from "./auth.js";

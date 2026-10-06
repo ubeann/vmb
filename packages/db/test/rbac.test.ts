@@ -2,7 +2,8 @@ import { allPermissionKeys } from "@vmb/types";
 import { describe, expect, it } from "vitest";
 import { ID_GROUPS, fixtureId } from "../src/seed/ids.js";
 import { seed } from "../src/seed/run.js";
-import { count, rejects, withMigratedDatabase } from "./harness.js";
+import { createMasterStore } from "../src/master/index.js";
+import { count, rejects, withMigratedDatabase, withMigratedDb } from "./harness.js";
 
 const SUPER_ADMIN = fixtureId(ID_GROUPS.role, 1);
 const MANAGER_FINANCE = fixtureId(ID_GROUPS.role, 2);
@@ -99,6 +100,71 @@ describe("role-based access tables", () => {
         `delete from master.divisions where id = '${FINANCE}'`,
         /master_roles_division_id_foreign/
       );
+    });
+  });
+});
+
+describe("a user's access", () => {
+  const store = (db: Parameters<typeof createMasterStore>[0]) =>
+    createMasterStore(db, { hashPassword: async (password) => password });
+
+  it("is the union of their active roles' permissions, sorted", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const user = fixtureId(ID_GROUPS.user, 3);
+      await client.exec(
+        `insert into master.user_roles (user_id, role_id) values ('${user}', '${MANAGER_FINANCE}')`
+      );
+
+      const access = await store(db).getAccess(user);
+
+      // the user already held Manager Division (seeded) and now Manager Finance too
+      expect(access.permissions).toEqual([...access.permissions].sort());
+      expect(access.permissions).toContain("master-divisions.manager");
+      expect(new Set(access.permissions).size).toBe(access.permissions.length);
+      expect(access.permissions).not.toContain("master-users.delete");
+    });
+  });
+
+  it("gets nothing from an inactive role", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const user = fixtureId(ID_GROUPS.user, 2);
+      expect((await store(db).getAccess(user)).permissions.length).toBeGreaterThan(0);
+
+      await client.exec(
+        `update master.roles set is_active = false where id = '${MANAGER_FINANCE}'`
+      );
+
+      expect((await store(db).getAccess(user)).permissions).toEqual([]);
+    });
+  });
+
+  it("is empty for a user with no roles, and for one that does not exist", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      const unassigned = await store(db).getAccess(fixtureId(ID_GROUPS.user, 9));
+      const missing = await store(db).getAccess(fixtureId(ID_GROUPS.user, 99));
+
+      expect(unassigned.permissions).toEqual([]);
+      expect(missing).toEqual({ permissions: [], divisions: [] });
+    });
+  });
+
+  it("names the division the user belongs to, unless it is Trashed", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const user = fixtureId(ID_GROUPS.user, 2);
+
+      const before = await store(db).getAccess(user);
+      expect(before.divisions).toEqual([
+        { id: FINANCE, name: "Finance", iconName: expect.any(String) }
+      ]);
+
+      await client.exec(`update master.divisions set deleted_at = now() where id = '${FINANCE}'`);
+
+      expect((await store(db).getAccess(user)).divisions).toEqual([]);
     });
   });
 });

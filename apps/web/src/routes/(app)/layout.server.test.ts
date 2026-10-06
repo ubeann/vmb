@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const withApiClientMock = vi.fn();
-const getUserMock = vi.fn();
-const getDivisionMock = vi.fn();
+const getMyAccessMock = vi.fn();
 
 // The unit project runs without SvelteKit's Vite plugin, so `$lib` isn't a
 // resolvable alias here — mock the specifiers the route itself imports.
@@ -14,21 +13,12 @@ vi.mock("$lib/components/ui/sidebar/constants.js", () => ({
   SIDEBAR_COOKIE_NAME: "sidebar_state"
 }));
 vi.mock("$lib/master/api.js", () => ({
-  getUser: (...args: unknown[]) => getUserMock(...args),
-  getDivision: (...args: unknown[]) => getDivisionMock(...args)
+  getMyAccess: (...args: unknown[]) => getMyAccessMock(...args)
 }));
 
 const { load } = await import("./+layout.server.js");
 
-const division = {
-  id: "d-1",
-  name: "Warehouse",
-  code: "WH",
-  description: null,
-  colorHex: "#087c16",
-  iconName: "heroicon-o-building-storefront",
-  isActive: true
-};
+const division = { id: "d-1", name: "Warehouse", iconName: "heroicon-o-building-storefront" };
 
 const event = (user: { id: string } | null = { id: "u-1" }, sidebarState?: string) =>
   ({
@@ -38,16 +28,17 @@ const event = (user: { id: string } | null = { id: "u-1" }, sidebarState?: strin
 
 beforeEach(() => {
   withApiClientMock.mockReset();
-  getUserMock.mockReset();
-  getDivisionMock.mockReset();
+  getMyAccessMock.mockReset();
   withApiClientMock.mockImplementation(
     async (_event: unknown, run: (client: unknown) => Promise<unknown>) => ({
       ok: true,
       value: await run({})
     })
   );
-  getUserMock.mockResolvedValue({ ok: true, value: { id: "u-1", divisionId: "d-1" } });
-  getDivisionMock.mockResolvedValue({ ok: true, value: division });
+  getMyAccessMock.mockResolvedValue({
+    ok: true,
+    value: { permissions: ["master-users.view_any"], divisions: [division] }
+  });
 });
 
 describe("the app shell layout", () => {
@@ -58,33 +49,44 @@ describe("the app shell layout", () => {
     await expect(load(event({ id: "u-1" }, "true"))).resolves.toMatchObject({ sidebarOpen: true });
   });
 
-  it("hands the shell the division the signed-in user belongs to", async () => {
+  it("hands the shell the user's division and permissions", async () => {
     await expect(load(event())).resolves.toEqual({
       division: { name: "Warehouse", iconName: "heroicon-o-building-storefront" },
+      permissions: ["master-users.view_any"],
       sidebarOpen: true
     });
 
-    expect(getUserMock).toHaveBeenCalledWith({}, "u-1");
-    expect(getDivisionMock).toHaveBeenCalledWith({}, "d-1");
+    expect(getMyAccessMock).toHaveBeenCalledWith({});
   });
 
-  it("reports no division for a user who has none, without asking for one", async () => {
-    getUserMock.mockResolvedValue({ ok: true, value: { id: "u-1", divisionId: null } });
+  it("reports no division for a user who has none", async () => {
+    getMyAccessMock.mockResolvedValue({ ok: true, value: { permissions: [], divisions: [] } });
 
-    await expect(load(event())).resolves.toEqual({ division: null, sidebarOpen: true });
-    expect(getDivisionMock).not.toHaveBeenCalled();
+    await expect(load(event())).resolves.toEqual({
+      division: null,
+      permissions: [],
+      sidebarOpen: true
+    });
   });
 
-  it("reports no division when there is no session user", async () => {
-    await expect(load(event(null))).resolves.toEqual({ division: null, sidebarOpen: true });
+  it("asks nothing when there is no session user", async () => {
+    await expect(load(event(null))).resolves.toEqual({
+      division: null,
+      permissions: [],
+      sidebarOpen: true
+    });
     expect(withApiClientMock).not.toHaveBeenCalled();
   });
 
-  it("degrades to no division when the API is unreachable", async () => {
+  it("degrades when the API is unreachable", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     withApiClientMock.mockResolvedValue({ ok: false, error: new Error("down") });
 
-    await expect(load(event())).resolves.toEqual({ division: null, sidebarOpen: true });
+    await expect(load(event())).resolves.toEqual({
+      division: null,
+      permissions: [],
+      sidebarOpen: true
+    });
 
     expect(consoleError).toHaveBeenCalledWith(
       "app layout load: failed to reach the API",
@@ -93,15 +95,19 @@ describe("the app shell layout", () => {
     consoleError.mockRestore();
   });
 
-  it("degrades to no division when the API refuses the lookup", async () => {
+  it("degrades when the API refuses the lookup", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    getDivisionMock.mockResolvedValue({ ok: false, status: 404, error: "Division not found." });
+    getMyAccessMock.mockResolvedValue({ ok: false, status: 500, error: "Something went wrong." });
 
-    await expect(load(event())).resolves.toEqual({ division: null, sidebarOpen: true });
+    await expect(load(event())).resolves.toEqual({
+      division: null,
+      permissions: [],
+      sidebarOpen: true
+    });
 
     expect(consoleError).toHaveBeenCalledWith(
-      "app layout load: API refused the division lookup",
-      "Division not found."
+      "app layout load: API refused the access lookup",
+      "Something went wrong."
     );
     consoleError.mockRestore();
   });

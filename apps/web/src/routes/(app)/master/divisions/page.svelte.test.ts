@@ -32,6 +32,7 @@ describe("divisions list", () => {
     const data = {
       user: null,
       division: null,
+      permissions: [],
       sidebarOpen: true,
       query: DivisionListQuerySchema.parse({ search: "ops" }),
       divisions: {
@@ -65,6 +66,7 @@ describe("divisions list", () => {
       data: {
         user: null,
         division: null,
+        permissions: [],
         sidebarOpen: true,
         query: DivisionListQuerySchema.parse({}),
         divisions: { items: [], total: 0, page: 1, perPage: 10 }
@@ -77,6 +79,7 @@ describe("divisions list", () => {
       data: {
         user: null,
         division: null,
+        permissions: [],
         sidebarOpen: true,
         query: DivisionListQuerySchema.parse({}),
         divisions: null
@@ -93,6 +96,7 @@ describe("divisions list", () => {
       data: {
         user: null,
         division: null,
+        permissions: [],
         sidebarOpen: true,
         query: DivisionListQuerySchema.parse({}),
         divisions: { items: [division], total: 1, page: 1, perPage: 10 }
