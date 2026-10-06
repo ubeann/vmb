@@ -40,13 +40,15 @@ jobs:
       - name: Lint the ticket
         id: lint
         env:
-          # Through the environment, never interpolated into the script: the
-          # body is user-written text.
-          BODY: ${{ github.event.issue.body }}
-          LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
         run: |
           set -uo pipefail
-          if problems=$(printf '%s' "$BODY" | bash scripts/ticket-lint.sh "$LABELS"); then
+          # The ticket as it is now, not the event's snapshot: runs queue, and
+          # an older one must not bounce a ticket that was fixed since.
+          gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json body,labels > "$RUNNER_TEMP/issue.json"
+          labels=$(jq -r '[.labels[].name] | join(",")' "$RUNNER_TEMP/issue.json")
+          if problems=$(jq -r '.body // ""' "$RUNNER_TEMP/issue.json" | bash scripts/ticket-lint.sh "$labels"); then
             echo "Ticket shape is fine."
             echo "failed=false" >> "$GITHUB_OUTPUT"
           else

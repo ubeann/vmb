@@ -28,7 +28,7 @@ problems=()
 
 # Issue forms render each field as `### Label`; `/to-tickets` writes `## `.
 has_heading() {
-  printf '%s\n' "$body" | grep -Eiq "^#{2,3}[[:space:]]+$1[[:space:]]*$"
+  grep -Eiq "^#{2,3}[[:space:]]+$1[[:space:]]*$" <<<"$body"
 }
 
 for heading in "What to build" "Acceptance criteria" "Blocked by"; do
