@@ -29,7 +29,7 @@ describe("the migration chain", () => {
       `select count(*)::int as value from information_schema.tables
         where table_schema in (${LEGACY_SCHEMAS})`
     );
-    expect(tables).toBe(31);
+    expect(tables).toBe(34);
   });
 
   it("keeps the four legacy schemas and no others", async () => {
@@ -67,13 +67,14 @@ describe("the migration chain", () => {
   });
 
   it("retains the legacy quirks the port is faithful to", async () => {
-    // master.users stays as a staging table and keeps its inbound foreign keys
+    // master.users stays as a staging table and keeps its inbound foreign keys;
+    // master.user_roles is the eleventh
     const usersFks = await count(
       client,
       `select count(*)::int as value from pg_constraint
         where contype = 'f' and confrelid = 'master.users'::regclass`
     );
-    expect(usersFks).toBe(10);
+    expect(usersFks).toBe(11);
 
     // the morph approval target has no foreign key to enforce it
     const morphFks = await count(
