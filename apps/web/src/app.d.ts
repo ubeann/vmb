@@ -1,4 +1,5 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
+// Lighthouse diagnostics baseline (throwaway preview, do not merge).
 import type { AuthSession, AuthUser } from "$lib/auth.js";
 
 declare global {
