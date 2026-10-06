@@ -265,14 +265,11 @@ const roles = table(
   [
     "id",
     "name",
-    "guard_name",
-    "level",
     "is_active",
     "is_system",
     "color_hex",
     "icon_name",
     "description",
-    "metadata",
     "division_id",
     "created_at",
     "updated_at"
@@ -281,57 +278,45 @@ const roles = table(
     {
       id: fixtureId(ID_GROUPS.role, 1),
       name: "Super Admin",
-      guard_name: "web",
-      level: 3,
       is_active: true,
       is_system: true,
       color_hex: "#3182CE",
       icon_name: "heroicon-o-shield-check",
       description: "Full access to all system features, configurations, and settings.",
-      metadata: null,
       division_id: null,
       ...stamps(1)
     },
     {
       id: fixtureId(ID_GROUPS.role, 2),
       name: "Manager Finance",
-      guard_name: "web",
-      level: 2,
       is_active: true,
       is_system: false,
       color_hex: "#48BB78",
       icon_name: "heroicon-o-banknotes",
       description: "Responsible for financial planning, budget management, and fiscal oversight.",
-      metadata: null,
       division_id: fixtureId(ID_GROUPS.division, 2),
       ...stamps(2)
     },
     {
       id: fixtureId(ID_GROUPS.role, 3),
       name: "Manager Division",
-      guard_name: "web",
-      level: 2,
       is_active: true,
       is_system: false,
       color_hex: "#ED8936",
       icon_name: "heroicon-o-building-office-2",
       description:
         "Ensures operational efficiency, oversees workflows, and manages division activities.",
-      metadata: null,
       division_id: null,
       ...stamps(3)
     },
     {
       id: fixtureId(ID_GROUPS.role, 4),
       name: "Staff",
-      guard_name: "web",
-      level: 0,
       is_active: true,
       is_system: false,
       color_hex: "#805AD5",
       icon_name: "heroicon-o-user",
       description: "Supports daily operations, office management, and administrative functions.",
-      metadata: null,
       division_id: null,
       ...stamps(4)
     }
@@ -347,7 +332,6 @@ const users = table(
     "division_id",
     "phone",
     "email",
-    "email_verified_at",
     "profile_photo_path",
     "created_at",
     "updated_at",
@@ -362,8 +346,6 @@ const users = table(
       division_id: fixtureId(ID_GROUPS.division, index),
       phone: `+62 811-1000-${String(index).padStart(4, "0")}`,
       email: person.email,
-      // one minute after the row's own created_at, never before it
-      email_verified_at: atMinute(index * 10 + 1),
       profile_photo_path: null,
       ...softStamps(index)
     };

@@ -23,7 +23,6 @@ const division = (overrides: Partial<DivisionInput> = {}): DivisionInput => ({
 
 const role = (overrides: Partial<RoleInput> = {}): RoleInput => ({
   name: "Staff",
-  level: 0,
   description: "Supports daily operations",
   colorHex: "#805AD5",
   iconName: "heroicon-o-user",
@@ -162,6 +161,27 @@ describe("divisions store", () => {
     });
   });
 
+  it("frees a Trashed division's name and code, and ignores case", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const first = await store.createDivision(division());
+
+      await expect(
+        store.createDivision(division({ name: "operations", code: "ops" }))
+      ).rejects.toThrow("A division with that name already exists.");
+
+      await store.deleteDivision(first.id);
+      const second = await store.createDivision(division());
+
+      // the Trashed one cannot come back while its name is in use
+      await expect(store.restoreDivision(first.id)).rejects.toThrow(
+        "A division with that name already exists."
+      );
+      await store.deleteDivision(second.id);
+      await expect(store.restoreDivision(first.id)).resolves.toMatchObject({ id: first.id });
+    });
+  });
+
   it("refuses duplicate names and codes with the constraint's message", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
@@ -192,56 +212,43 @@ describe("divisions store", () => {
 });
 
 describe("roles store", () => {
-  it("creates a role with the web guard and never as a system role", async () => {
+  it("creates a role that is never a system role", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
 
-      const created = await store.createRole(role({ level: 2 }));
+      const created = await store.createRole(role());
 
       expect(created).toMatchObject({
         name: "Staff",
-        guardName: "web",
-        level: 2,
         isSystem: false,
-        isActive: true
+        isActive: true,
+        divisionId: null
       });
       await expect(store.getRole(created.id)).resolves.toMatchObject({ id: created.id });
     });
   });
 
-  it("lists by level, search and level-desc default order", async () => {
+  it("lists by name and search, name ascending by default", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
-      await store.createRole(role({ name: "Staff", level: 0 }));
-      await store.createRole(role({ name: "Manager", level: 2 }));
-      await store.createRole(role({ name: "Admin", level: 3, description: "Everything" }));
+      await store.createRole(role({ name: "Staff" }));
+      await store.createRole(role({ name: "Manager" }));
+      await store.createRole(role({ name: "Admin", description: "Everything" }));
 
       const list = await store.listRoles({
-        level: "all",
         active: "all",
-        sort: "level",
-        dir: "desc",
+        sort: "name",
+        dir: "asc",
         page: 1,
         perPage: 10
       });
       expect(list.items.map((item) => item.name)).toEqual(["Admin", "Manager", "Staff"]);
 
-      const managers = await store.listRoles({
-        level: "2",
-        active: "all",
-        sort: "level",
-        dir: "desc",
-        page: 1,
-        perPage: 10
-      });
-      expect(managers.items.map((item) => item.name)).toEqual(["Manager"]);
-
       const search = await store.listRoles({
         search: "every",
-        level: "all",
         active: "all",
-        sort: "level",
-        dir: "desc",
+        sort: "name",
+        dir: "asc",
         page: 1,
         perPage: 10
       });
@@ -254,8 +261,8 @@ describe("roles store", () => {
       const store = storeFor(db);
       const created = await store.createRole(role());
 
-      const updated = await store.updateRole(created.id, role({ name: "Senior Staff", level: 1 }));
-      expect(updated).toMatchObject({ name: "Senior Staff", level: 1 });
+      const updated = await store.updateRole(created.id, role({ name: "Senior Staff" }));
+      expect(updated).toMatchObject({ name: "Senior Staff" });
 
       await store.deleteRole(created.id);
       await expect(store.getRole(created.id)).rejects.toThrow("Role not found.");
@@ -267,7 +274,11 @@ describe("roles store", () => {
       const store = storeFor(db);
       await store.createRole(role());
 
-      await expect(store.createRole(role({ level: 3 }))).rejects.toThrow(
+      await expect(store.createRole(role({ description: "Another" }))).rejects.toThrow(
+        "A role with that name already exists."
+      );
+      // case does not make a different role
+      await expect(store.createRole(role({ name: "staff" }))).rejects.toThrow(
         "A role with that name already exists."
       );
     });
@@ -277,8 +288,8 @@ describe("roles store", () => {
     await withMigratedDb(async (db, client) => {
       const store = storeFor(db);
       await client.exec(
-        `insert into master.roles (id, name, guard_name, level, is_active, is_system)
-          values ('00000000-0000-4000-8000-000000000002', 'Super Admin', 'web', 3, true, true)`
+        `insert into master.roles (id, name, is_active, is_system)
+          values ('00000000-0000-4000-8000-000000000002', 'Super Admin', true, true)`
       );
 
       await expect(
@@ -337,7 +348,7 @@ describe("users store", () => {
         email: "rina@vmblogistics.id",
         divisionId,
         status: "active",
-        emailVerifiedAt: null
+        emailVerified: false
       });
 
       // #7's migration dropped the legacy auth columns; the credential lives
@@ -370,7 +381,10 @@ describe("users store", () => {
 
       const created = await store.createUser(input(divisionId));
 
-      await expect(store.getSignInEligibility(created.id)).resolves.toEqual({ deletedAt: null });
+      await expect(store.getSignInEligibility(created.id)).resolves.toEqual({
+        deletedAt: null,
+        status: "active"
+      });
 
       await store.deleteUser(created.id);
       const afterDelete = await store.getSignInEligibility(created.id);
@@ -615,6 +629,62 @@ describe("users store", () => {
       const restored = await store.restoreUser(created.id);
       expect(restored.deletedAt).toBeNull();
       await expect(store.restoreUser(created.id)).rejects.toThrow("Deleted user not found.");
+    });
+  });
+
+  it("reports email verification from Better Auth's identity", async () => {
+    await withMigratedDb(async (db, client) => {
+      const divisionId = await seedDivisionId(client);
+      const store = storeFor(db);
+      const created = await store.createUser(input(divisionId));
+      expect(created.emailVerified).toBe(false);
+
+      await client.exec(
+        `update public."user" set email_verified = true where id = '${created.id}'`
+      );
+
+      await expect(store.getUser(created.id)).resolves.toMatchObject({ emailVerified: true });
+      const list = await store.listUsers({
+        status: "all",
+        trashed: "exclude",
+        sort: "name",
+        dir: "asc",
+        page: 1,
+        perPage: 10
+      });
+      expect(list.items[0]?.emailVerified).toBe(true);
+    });
+  });
+
+  it("ends a user's sessions when their status stops being active", async () => {
+    await withMigratedDb(async (db, client) => {
+      const divisionId = await seedDivisionId(client);
+      const store = storeFor(db);
+      const created = await store.createUser(input(divisionId));
+      await client.exec(
+        `insert into public.session (id, expires_at, token, created_at, updated_at, user_id)
+          values ('s1', now() + interval '1 day', 'token-1', now(), now(), '${created.id}')`
+      );
+
+      await store.updateUser(created.id, {
+        ...input(divisionId),
+        password: "",
+        passwordConfirmation: ""
+      });
+      expect(await count(client, `select count(*)::int as value from public.session`)).toBe(1);
+
+      await store.updateUser(created.id, {
+        ...input(divisionId),
+        status: "suspended",
+        password: "",
+        passwordConfirmation: ""
+      });
+
+      expect(await count(client, `select count(*)::int as value from public.session`)).toBe(0);
+      await expect(store.getSignInEligibility(created.id)).resolves.toEqual({
+        deletedAt: null,
+        status: "suspended"
+      });
     });
   });
 

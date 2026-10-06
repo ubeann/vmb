@@ -1,10 +1,9 @@
 import {
   index,
-  integer,
-  json,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   boolean,
   foreignKey,
   pgSchema,
@@ -32,28 +31,31 @@ export const divisions = master.table(
     deletedAt: timestamp("deleted_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
-    unique("master_divisions_name_unique").on(table.name),
-    unique("master_divisions_code_unique").on(table.code)
+    // Unique among live rows and case-insensitive, so a Trashed division does
+    // not hold its name and code hostage and "finance" cannot sit beside "Finance".
+    uniqueIndex("master_divisions_name_unique")
+      .using("btree", sql`lower(${table.name})`)
+      .where(sql`${table.deletedAt} is null`),
+    uniqueIndex("master_divisions_code_unique")
+      .using("btree", sql`lower(${table.code})`)
+      .where(sql`${table.deletedAt} is null`),
+    check("divisions_color_hex_check", sql`${table.colorHex} ~ '^#[0-9A-Fa-f]{6}$'`)
   ]
 );
 
-// Recreated in the legacy shape while #8 decides the replacement RBAC model:
-// `guard_name`, `level`, `is_system` and `metadata` are Spatie/custom columns
-// the admin panel reads today. Permissions and role assignments are not ported
-// yet; their tables stay #8's design (deviations ledger D-003).
+// Legacy's Spatie `guard_name`, `level` and `metadata` are gone (D-012): the
+// guard was always `web`, nothing authorized by level, and metadata was never
+// written. What a role may do lives in `role_permissions` below.
 export const roles = master.table(
   "roles",
   {
     id: uuid().primaryKey().notNull().defaultRandom(),
     name: varchar({ length: 255 }).notNull(),
-    guardName: varchar("guard_name", { length: 255 }).notNull(),
-    level: integer().default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     isSystem: boolean("is_system").default(false).notNull(),
     colorHex: varchar("color_hex", { length: 255 }).default("#000000").notNull(),
     iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-rocket-launch").notNull(),
     description: varchar({ length: 255 }),
-    metadata: json(),
     // The division a role operates in; null means every division (Super Admin,
     // Executive). Division scopes a role and never grants anything itself.
     divisionId: uuid("division_id"),
@@ -61,7 +63,8 @@ export const roles = master.table(
     updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 })
   },
   (table) => [
-    unique("master_roles_name_guard_name_unique").on(table.name, table.guardName),
+    uniqueIndex("master_roles_name_unique").using("btree", sql`lower(${table.name})`),
+    check("roles_color_hex_check", sql`${table.colorHex} ~ '^#[0-9A-Fa-f]{6}$'`),
     foreignKey({
       columns: [table.divisionId],
       foreignColumns: [divisions.id],
@@ -133,7 +136,6 @@ export const users = master.table(
     divisionId: uuid("division_id"),
     phone: varchar({ length: 20 }),
     email: varchar({ length: 255 }).notNull(),
-    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true, precision: 3 }),
     profilePhotoPath: varchar("profile_photo_path", { length: 255 }),
     createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
     updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),

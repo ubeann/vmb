@@ -19,7 +19,6 @@ export function divisionFormData(division: Division) {
 export function roleFormData(role: Role) {
   return {
     name: role.name,
-    level: role.level,
     description: role.description ?? "",
     colorHex: role.colorHex,
     iconName: role.iconName,

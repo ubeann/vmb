@@ -104,7 +104,7 @@
           <td>{user.email}</td>
           <td>{user.phone ?? "No phone number"}</td>
           <td>{USER_STATUS_LABELS[user.status]}</td>
-          <td>{user.emailVerifiedAt ? "Verified" : "Unverified"}</td>
+          <td>{user.emailVerified ? "Verified" : "Unverified"}</td>
           <td>
             <a href={resolve("/(app)/master/users/[id]/edit", { id: user.id })}>Edit</a>
             {#if user.deletedAt}

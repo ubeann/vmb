@@ -34,14 +34,12 @@ const division: Division = {
 const role: Role = {
   id: ID,
   name: "Staff",
-  guardName: "web",
-  level: 0,
   isActive: true,
   isSystem: false,
   colorHex: "#805AD5",
   iconName: "heroicon-o-user",
   description: "",
-  metadata: null,
+  divisionId: null,
   createdAt: STAMP,
   updatedAt: STAMP
 };
@@ -53,7 +51,7 @@ const user: User = {
   divisionId: OTHER_ID,
   phone: "+628111000001",
   email: "rina@vmblogistics.id",
-  emailVerifiedAt: null,
+  emailVerified: false,
   profilePhotoPath: "",
   createdAt: STAMP,
   updatedAt: STAMP,
@@ -75,7 +73,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     deleteRole: vi.fn(async () => undefined),
     listUsers: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
     getUser: vi.fn(async () => user),
-    getSignInEligibility: vi.fn(async () => ({ deletedAt: null })),
+    getSignInEligibility: vi.fn(async () => ({ deletedAt: null, status: "active" as const })),
     createUser: vi.fn(async () => user),
     updateUser: vi.fn(async () => user),
     deleteUser: vi.fn(async () => undefined),
@@ -278,10 +276,9 @@ describe("master API: roles", () => {
 
     expect(store.listRoles).toHaveBeenCalledWith({
       search: undefined,
-      level: "all",
       active: "all",
-      sort: "level",
-      dir: "desc",
+      sort: "name",
+      dir: "asc",
       page: 1,
       perPage: 10
     });
@@ -291,7 +288,6 @@ describe("master API: roles", () => {
     const store = fakeStore();
     const body = {
       name: "Staff",
-      level: "2",
       description: "",
       colorHex: "#805AD5",
       iconName: "heroicon-o-user",
@@ -303,7 +299,6 @@ describe("master API: roles", () => {
     });
     expect(store.createRole).toHaveBeenCalledWith({
       name: "Staff",
-      level: 2,
       description: "",
       colorHex: "#805AD5",
       iconName: "heroicon-o-user",

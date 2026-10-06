@@ -1,5 +1,4 @@
 import type { Role, RoleInput, RoleListQuery, RoleListResponse } from "@vmb/types";
-import { DEFAULT_ROLE_GUARD } from "@vmb/types";
 import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { roles } from "../schema/master.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
@@ -9,26 +8,23 @@ type RoleRow = typeof roles.$inferSelect;
 
 const SORT_COLUMNS = {
   name: roles.name,
-  level: roles.level,
   updatedAt: roles.updatedAt
 } as const;
 
 const ROLE_NAME_CONFLICT = {
-  master_roles_name_guard_name_unique: "A role with that name already exists."
+  master_roles_name_unique: "A role with that name already exists."
 };
 
 function toRole(row: RoleRow): Role {
   return {
     id: row.id,
     name: row.name,
-    guardName: row.guardName,
-    level: row.level,
     isActive: row.isActive,
     isSystem: row.isSystem,
     colorHex: row.colorHex,
     iconName: row.iconName,
     description: row.description,
-    metadata: row.metadata,
+    divisionId: row.divisionId,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt)
   };
@@ -37,7 +33,6 @@ function toRole(row: RoleRow): Role {
 function whereFor(query: RoleListQuery) {
   const conditions: SQL[] = [];
 
-  if (query.level !== "all") conditions.push(eq(roles.level, Number(query.level)));
   if (query.active === "active") conditions.push(eq(roles.isActive, true));
   if (query.active === "inactive") conditions.push(eq(roles.isActive, false));
   if (query.search) {
@@ -88,7 +83,6 @@ export async function createRole(db: MasterDb, input: RoleInput): Promise<Role> 
       .values({
         ...input,
         description: nullIfEmpty(input.description),
-        guardName: DEFAULT_ROLE_GUARD,
         isSystem: false,
         createdAt: stamp,
         updatedAt: stamp

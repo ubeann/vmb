@@ -1,14 +1,8 @@
 <script lang="ts">
-  import { ROLE_ACCESS_LEVELS } from "@vmb/types";
   import { resolve } from "$app/paths";
   import type { PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: { error?: string } | null } = $props();
-
-  let levelLabel = $derived(
-    ROLE_ACCESS_LEVELS.find((level) => level.value === data.role.level)?.label ??
-      String(data.role.level)
-  );
 </script>
 
 <svelte:head>
@@ -25,12 +19,6 @@
 {/if}
 
 <dl>
-  <dt>Guard</dt>
-  <dd>{data.role.guardName}</dd>
-
-  <dt>Access level</dt>
-  <dd>{levelLabel}</dd>
-
   <dt>Description</dt>
   <dd>{data.role.description ?? "No description"}</dd>
 

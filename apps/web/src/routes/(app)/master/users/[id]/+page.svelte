@@ -29,7 +29,7 @@
   <dd>{divisionName}</dd>
 
   <dt>Email</dt>
-  <dd>{data.user.email} ({data.user.emailVerifiedAt ? "verified" : "unverified"})</dd>
+  <dd>{data.user.email} ({data.user.emailVerified ? "verified" : "unverified"})</dd>
 
   <dt>Phone</dt>
   <dd>{data.user.phone ?? "No phone number"}</dd>

@@ -345,7 +345,7 @@ describe("createAuth", () => {
     userStatusMock.mockResolvedValueOnce({ deletedAt: "2026-09-01T00:00:00.000Z" });
     await expect(before({ userId: "user-1" })).rejects.toMatchObject({ status: "FORBIDDEN" });
 
-    userStatusMock.mockResolvedValueOnce({ deletedAt: null });
+    userStatusMock.mockResolvedValueOnce({ deletedAt: null, status: "active" });
     await expect(before({ userId: "user-1" })).resolves.toBeUndefined();
   });
 });
