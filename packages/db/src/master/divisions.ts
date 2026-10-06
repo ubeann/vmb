@@ -4,6 +4,11 @@ import { divisions } from "../schema/master.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
 import { MasterNotFoundError } from "./errors.js";
 
+const DIVISION_CONFLICTS = {
+  master_divisions_name_unique: "A division with that name already exists.",
+  master_divisions_code_unique: "A division with that code already exists."
+};
+
 type DivisionRow = typeof divisions.$inferSelect;
 
 const SORT_COLUMNS = {
@@ -98,10 +103,7 @@ export async function createDivision(db: MasterDb, input: DivisionInput): Promis
     if (!row) throw new Error("creating a division returned no row");
     return toDivision(row);
   } catch (error) {
-    return conflictFrom(error, {
-      master_divisions_name_unique: "A division with that name already exists.",
-      master_divisions_code_unique: "A division with that code already exists."
-    });
+    return conflictFrom(error, DIVISION_CONFLICTS);
   }
 }
 
@@ -120,10 +122,7 @@ export async function updateDivision(
     if (!row) throw new MasterNotFoundError("Division not found.");
     return toDivision(row);
   } catch (error) {
-    return conflictFrom(error, {
-      master_divisions_name_unique: "A division with that name already exists.",
-      master_divisions_code_unique: "A division with that code already exists."
-    });
+    return conflictFrom(error, DIVISION_CONFLICTS);
   }
 }
 
@@ -138,13 +137,18 @@ export async function deleteDivision(db: MasterDb, id: string): Promise<void> {
 }
 
 export async function restoreDivision(db: MasterDb, id: string): Promise<Division> {
-  const rows = await db
-    .update(divisions)
-    .set({ deletedAt: null, updatedAt: new Date() })
-    .where(and(eq(divisions.id, id), isNotNull(divisions.deletedAt)))
-    .returning();
+  try {
+    const rows = await db
+      .update(divisions)
+      .set({ deletedAt: null, updatedAt: new Date() })
+      .where(and(eq(divisions.id, id), isNotNull(divisions.deletedAt)))
+      .returning();
 
-  const row = rows[0];
-  if (!row) throw new MasterNotFoundError("Deleted division not found.");
-  return toDivision(row);
+    const row = rows[0];
+    if (!row) throw new MasterNotFoundError("Deleted division not found.");
+    return toDivision(row);
+  } catch (error) {
+    // its name or code may have been taken while it was Trashed
+    return conflictFrom(error, DIVISION_CONFLICTS);
+  }
 }

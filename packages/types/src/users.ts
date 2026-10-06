@@ -29,7 +29,7 @@ export const UserSchema = z.object({
   divisionId: z.uuid().nullable(),
   phone: z.string().nullable(),
   email: z.string(),
-  emailVerifiedAt: z.iso.datetime().nullable(),
+  emailVerified: z.boolean(),
   profilePhotoPath: z.string().nullable(),
   createdAt: z.iso.datetime().nullable(),
   updatedAt: z.iso.datetime().nullable(),

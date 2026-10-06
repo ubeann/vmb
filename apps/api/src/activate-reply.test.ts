@@ -27,7 +27,7 @@ vi.mock("@vmb/db", async (importOriginal) => ({
 }));
 
 vi.mock("./master.js", () => ({
-  masterStore: () => ({ getSignInEligibility: async () => ({ deletedAt: null }) })
+  masterStore: () => ({ getSignInEligibility: async () => ({ deletedAt: null, status: "active" }) })
 }));
 
 vi.mock("./email.js", () => ({

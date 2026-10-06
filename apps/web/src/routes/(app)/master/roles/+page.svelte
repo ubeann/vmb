@@ -1,7 +1,6 @@
 <script lang="ts">
   import { pageHref } from "$lib/master/list.js";
   import { resolve } from "$app/paths";
-  import { ROLE_ACCESS_LEVELS } from "@vmb/types";
   import type { PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: { error?: string } | null } = $props();
@@ -11,13 +10,6 @@
   let totalPages = $derived(
     data.roles ? Math.max(1, Math.ceil(data.roles.total / data.roles.perPage)) : 1
   );
-
-  const levelLabels = new Map<number, string>(
-    ROLE_ACCESS_LEVELS.map((level) => [level.value, level.label])
-  );
-  function levelLabel(level: number): string {
-    return levelLabels.get(level) ?? String(level);
-  }
 </script>
 
 <svelte:head>
@@ -34,18 +26,6 @@
   <label>
     <span>Search</span>
     <input type="search" name="search" value={data.query.search ?? ""} />
-  </label>
-
-  <label>
-    <span>Access level</span>
-    <select name="level">
-      <option value="all" selected={data.query.level === "all"}>All</option>
-      {#each ROLE_ACCESS_LEVELS as level (level.value)}
-        <option value={level.value} selected={data.query.level === String(level.value)}>
-          {level.label}
-        </option>
-      {/each}
-    </select>
   </label>
 
   <label>
@@ -72,8 +52,6 @@
     <thead>
       <tr>
         <th>Role</th>
-        <th>Guard</th>
-        <th>Access level</th>
         <th>Status</th>
         <th>Color</th>
         <th>Actions</th>
@@ -86,8 +64,6 @@
             <a href={resolve("/(app)/master/roles/[id]", { id: role.id })}>{role.name}</a>
             {#if role.isSystem}<span class="badge">system</span>{/if}
           </td>
-          <td class="muted">{role.guardName}</td>
-          <td>{levelLabel(role.level)}</td>
           <td>{role.isActive ? "Active" : "Inactive"}</td>
           <td>
             <span class="swatch" style="background: {role.colorHex}"></span>

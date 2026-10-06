@@ -12,6 +12,7 @@ import {
   count,
   desc,
   eq,
+  getTableColumns,
   ilike,
   isNotNull,
   isNull,
@@ -19,12 +20,27 @@ import {
   sql,
   type SQL
 } from "drizzle-orm";
-import { session as authSession } from "../schema/auth.js";
+import { session as authSession, user as authUser } from "../schema/auth.js";
 import { users } from "../schema/master.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
 import { MasterNotFoundError } from "./errors.js";
 
-type UserRow = typeof users.$inferSelect;
+// A user's columns plus whether Better Auth has verified the email: the
+// identity owns verification (ADR-0032), so it is read from there rather than
+// kept as a second copy on the business row.
+const userColumns = {
+  ...getTableColumns(users),
+  emailVerified: sql<boolean>`coalesce(${authUser.emailVerified}, false)`
+};
+
+type UserRow = typeof users.$inferSelect & { emailVerified: boolean };
+
+function selectUsers(db: MasterDb) {
+  return db
+    .select(userColumns)
+    .from(users)
+    .leftJoin(authUser, sql`${authUser.id} = ${users.id}::text`);
+}
 
 export type UserStoreOptions = {
   hashPassword: (password: string) => Promise<string>;
@@ -50,7 +66,7 @@ function toUser(row: UserRow): User {
     divisionId: row.divisionId,
     phone: row.phone,
     email: row.email,
-    emailVerifiedAt: toIso(row.emailVerifiedAt),
+    emailVerified: row.emailVerified,
     profilePhotoPath: row.profilePhotoPath,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
@@ -84,9 +100,7 @@ export async function listUsers(db: MasterDb, query: UserListQuery): Promise<Use
   const order = query.dir === "asc" ? asc(column) : desc(column);
 
   const [rows, totals] = await Promise.all([
-    db
-      .select()
-      .from(users)
+    selectUsers(db)
       .where(where)
       .orderBy(order, asc(users.id))
       .limit(query.perPage)
@@ -103,19 +117,18 @@ export async function listUsers(db: MasterDb, query: UserListQuery): Promise<Use
 }
 
 export async function getUser(db: MasterDb, id: string): Promise<User> {
-  const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  const rows = await selectUsers(db).where(eq(users.id, id)).limit(1);
   const row = rows[0];
   if (!row) throw new MasterNotFoundError("User not found.");
   return toUser(row);
 }
 
 /**
- * What the sign-in gate reads (#7): `deletedAt` is the soft-delete marker, and
- * `null` means the user has no business record at all. There is deliberately no
- * `status` here — legacy never enforced `users.status`, and the unmerged
- * `refactor/divisions-on-roles` branch removes the column.
+ * What the sign-in gate reads (#7): `deletedAt` is the soft-delete marker,
+ * `status` is Active, Suspended or Inactive, and `null` means the user has no
+ * business record at all. Only an Active, not-Trashed user may hold a session.
  */
-export type SignInEligibility = { deletedAt: string | null } | null;
+export type SignInEligibility = { deletedAt: string | null; status: UserStatus } | null;
 
 /**
  * The sign-in gate's lookup (ADR-0033): whether a session may exist at all for
@@ -124,13 +137,13 @@ export type SignInEligibility = { deletedAt: string | null } | null;
  */
 export async function getSignInEligibility(db: MasterDb, id: string): Promise<SignInEligibility> {
   const rows = await db
-    .select({ deletedAt: users.deletedAt })
+    .select({ deletedAt: users.deletedAt, status: users.status })
     .from(users)
     .where(eq(users.id, id))
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  return { deletedAt: toIso(row.deletedAt) };
+  return { deletedAt: toIso(row.deletedAt), status: row.status as UserStatus };
 }
 
 export async function createUser(
@@ -259,6 +272,12 @@ export async function updateUser(
     return conflictFrom(error, EMAIL_CONFLICT);
   }
 
+  // The gate reads status when a session is created; ending the current ones
+  // closes the window for cookies already issued, as deleting a user does.
+  if (input.status !== "active") {
+    await db.delete(authSession).where(eq(authSession.userId, id));
+  }
+
   return getUser(db, id);
 }
 
@@ -283,9 +302,8 @@ export async function restoreUser(db: MasterDb, id: string): Promise<User> {
     .update(users)
     .set({ deletedAt: null, updatedAt: new Date() })
     .where(and(eq(users.id, id), isNotNull(users.deletedAt)))
-    .returning();
+    .returning({ id: users.id });
 
-  const row = rows[0];
-  if (!row) throw new MasterNotFoundError("Deleted user not found.");
-  return toUser(row);
+  if (!rows[0]) throw new MasterNotFoundError("Deleted user not found.");
+  return getUser(db, id);
 }

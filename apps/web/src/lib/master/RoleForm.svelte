@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ROLE_ACCESS_LEVELS, RoleInputSchema, type RoleInput } from "@vmb/types";
+  import { RoleInputSchema, type RoleInput } from "@vmb/types";
   import { superForm, type SuperValidated } from "sveltekit-superforms";
   import { zod4Client } from "sveltekit-superforms/adapters";
 
@@ -27,16 +27,6 @@
       <span>Role name</span>
       <input name="name" bind:value={$fields.name} maxlength="255" required />
       {#if $errors.name}<span class="error">{$errors.name[0]}</span>{/if}
-    </label>
-
-    <label>
-      <span>Access level</span>
-      <select name="level" bind:value={$fields.level}>
-        {#each ROLE_ACCESS_LEVELS as level (level.value)}
-          <option value={level.value}>{level.label}</option>
-        {/each}
-      </select>
-      {#if $errors.level}<span class="error">{$errors.level[0]}</span>{/if}
     </label>
 
     <label>

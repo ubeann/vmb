@@ -143,8 +143,6 @@ describe("master API client", () => {
 
     await listRoles(client, RoleListQuerySchema.parse({}));
 
-    expect(calls[0]?.path).toBe(
-      "/api/master/roles?level=all&active=all&sort=level&dir=desc&page=1&perPage=10"
-    );
+    expect(calls[0]?.path).toBe("/api/master/roles?active=all&sort=name&dir=asc&page=1&perPage=10");
   });
 });
