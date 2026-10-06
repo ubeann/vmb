@@ -36,14 +36,19 @@ export const PERMISSION_CATALOGUE = [
   { resource: "master-users", actions: RECORD_ACTIONS }
 ] as const;
 
-export type PermissionKey = string;
+/** Every key the catalogue defines, as a union, so a route cannot name one that does not exist. */
+export type PermissionKey = {
+  [
+    E in (typeof PERMISSION_CATALOGUE)[number] as E["resource"]
+  ]: `${E["resource"]}.${E["actions"][number]}`;
+}[(typeof PERMISSION_CATALOGUE)[number]["resource"]];
 
-export function permissionKey(resource: string, action: string): PermissionKey {
+export function permissionKey(resource: string, action: string): string {
   return `${resource}.${action}`;
 }
 
 /** Every key the catalogue defines, in catalogue order. */
-export function allPermissionKeys(): PermissionKey[] {
+export function allPermissionKeys(): string[] {
   return PERMISSION_CATALOGUE.flatMap(({ resource, actions }) =>
     actions.map((action) => permissionKey(resource, action))
   );

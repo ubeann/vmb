@@ -11,7 +11,11 @@ vi.mock("./auth.js", () => ({
 const listDivisionsMock = vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 }));
 
 vi.mock("./master.js", () => ({
-  masterStore: () => ({ listDivisions: listDivisionsMock }) as never
+  masterStore: () =>
+    ({
+      listDivisions: listDivisionsMock,
+      getAccess: async () => ({ permissions: ["master-divisions.view_any"], divisions: [] })
+    }) as never
 }));
 
 const { default: app } = await import("./index.js");
@@ -73,5 +77,27 @@ describe("the session guard", () => {
     expect(res.status).toBe(200);
     expect(authHandlerMock).toHaveBeenCalledTimes(1);
     expect(getSessionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("the caller's own access", () => {
+  it("answers a signed-in user with their permissions and divisions", async () => {
+    getSessionMock.mockResolvedValueOnce({ user: { id: "u1" }, session: { id: "s1" } });
+
+    const res = await app.request("/api/me", {}, bindings);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      permissions: ["master-divisions.view_any"],
+      divisions: []
+    });
+  });
+
+  it("refuses an unauthenticated request", async () => {
+    getSessionMock.mockResolvedValueOnce(null);
+
+    const res = await app.request("/api/me", {}, bindings);
+
+    expect(res.status).toBe(401);
   });
 });

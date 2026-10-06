@@ -11,7 +11,10 @@ import { trustedClientIpHeaders } from "./client-ip.js";
  * #8's job, and whether their business record still exists is enforced at
  * session creation (`./sign-in-gate.ts`).
  */
-export const requireSession = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
+export const requireSession = createMiddleware<{
+  Bindings: Bindings;
+  Variables: { userId: string };
+}>(async (c, next) => {
   // The same vouched-for client IP the auth routes give Better Auth (#250).
   const headers = await trustedClientIpHeaders(c.req.raw.headers, c.env.CLIENT_IP_SECRET);
   const session = await createAuth(c.env).api.getSession({ headers });
@@ -20,5 +23,7 @@ export const requireSession = createMiddleware<{ Bindings: Bindings }>(async (c,
     return c.json({ error: "Authentication required." }, 401);
   }
 
+  // the permission checks downstream (#8) need to know who is asking
+  c.set("userId", session.user.id);
   await next();
 });

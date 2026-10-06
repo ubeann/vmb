@@ -1,5 +1,5 @@
 import { withApiClient } from "$lib/api-access.js";
-import { deleteDivision, getDivision, restoreDivision } from "$lib/master/api.js";
+import { deleteDivision, getDivision, restoreDivision, pageErrorStatus } from "$lib/master/api.js";
 import { runRowAction } from "$lib/master/form-action.js";
 import { error, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
@@ -12,7 +12,7 @@ export const load: PageServerLoad = async (event) => {
     error(500, "Could not load this division. Please try again.");
   }
   if (!access.value.ok) {
-    error(access.value.status === 404 ? 404 : 500, access.value.error);
+    error(pageErrorStatus(access.value.status), access.value.error);
   }
 
   return { division: access.value.value };

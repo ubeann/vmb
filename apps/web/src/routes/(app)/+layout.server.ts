@@ -1,38 +1,37 @@
 import { withApiClient } from "$lib/api-access.js";
-import { getDivision, getUser, type ApiResult } from "$lib/master/api.js";
+import { getMyAccess } from "$lib/master/api.js";
 import { SIDEBAR_COOKIE_NAME } from "$lib/components/ui/sidebar/constants.js";
-import type { Division } from "@vmb/types";
 import type { LayoutServerLoad } from "./$types.js";
 
-// What the shell shows of the user's division: the session knows who they are,
-// but the division lives on the business record (ADR-0032). A failed lookup
-// leaves the sidebar without it rather than taking every screen down.
+// What the shell knows of the signed-in user beyond the session: their
+// permissions (`master-users.create`, for screens to hide what the API would
+// refuse) and the division they belong to. Both come from the caller's own
+// access endpoint, open to every signed-in user, so a user who may not read
+// Divisions or Users still gets a shell. A failed lookup leaves the sidebar
+// without a division and the page without permissions, rather than taking
+// every screen down.
 export const load: LayoutServerLoad = async (event) => {
   const user = event.locals.user;
   // The sidebar writes its own cookie when toggled; reading it here renders the
   // collapse state the user left, with no flash on a reload.
   const sidebarOpen = event.cookies.get(SIDEBAR_COOKIE_NAME) !== "false";
-  if (!user) return { division: null, sidebarOpen };
+  if (!user) return { division: null, permissions: [], sidebarOpen };
 
-  const access = await withApiClient(event, async (client): Promise<ApiResult<Division | null>> => {
-    const record = await getUser(client, user.id);
-    if (!record.ok) return record;
-    if (!record.value.divisionId) return { ok: true, value: null };
-    return getDivision(client, record.value.divisionId);
-  });
+  const access = await withApiClient(event, (client) => getMyAccess(client));
 
   if (!access.ok) {
     console.error("app layout load: failed to reach the API", access.error);
-    return { division: null, sidebarOpen };
+    return { division: null, permissions: [], sidebarOpen };
   }
   if (!access.value.ok) {
-    console.error("app layout load: API refused the division lookup", access.value.error);
-    return { division: null, sidebarOpen };
+    console.error("app layout load: API refused the access lookup", access.value.error);
+    return { division: null, permissions: [], sidebarOpen };
   }
 
-  const division = access.value.value;
+  const [division] = access.value.value.divisions;
   return {
     division: division ? { name: division.name, iconName: division.iconName } : null,
+    permissions: access.value.value.permissions,
     sidebarOpen
   };
 };

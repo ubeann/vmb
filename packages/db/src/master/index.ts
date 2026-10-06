@@ -1,4 +1,5 @@
 import type {
+  Access,
   Division,
   DivisionInput,
   DivisionListQuery,
@@ -22,6 +23,7 @@ import {
   restoreDivision,
   updateDivision
 } from "./divisions.js";
+import { getAccess } from "./access.js";
 import { createRole, deleteRole, getRole, listRoles, updateRole } from "./roles.js";
 import {
   createUser,
@@ -44,6 +46,8 @@ export type { SignInEligibility, UserStoreOptions } from "./users.js";
  * run against embedded Postgres.
  */
 export type MasterStore = {
+  getAccess(userId: string): Promise<Access>;
+
   listDivisions(query: DivisionListQuery): Promise<DivisionListResponse>;
   getDivision(id: string): Promise<Division>;
   createDivision(input: DivisionInput): Promise<Division>;
@@ -68,6 +72,8 @@ export type MasterStore = {
 
 export function createMasterStore(db: MasterDb, options: UserStoreOptions): MasterStore {
   return {
+    getAccess: (userId) => getAccess(db, userId),
+
     listDivisions: (query) => listDivisions(db, query),
     getDivision: (id) => getDivision(db, id),
     createDivision: (input) => createDivision(db, input),
