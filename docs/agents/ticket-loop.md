@@ -53,7 +53,7 @@ Never merge past a FAIL, and never edit a label or the body just to make the gat
 
 ## Dispatcher
 
-A T3 scheduled task runs this in the night windows (17:10–22:10 and 22:15–03:15 WIB, matching the owner's usage resets). Its prompt names the window's end and the Claude provider instance to use. Each run tops up the builds in flight, so it can run several times a window.
+A T3 scheduled task runs this in the night windows (17:10–22:10 and 22:15–03:15 WIB, matching the owner's usage resets). Its prompt names the window's end and the Claude provider instance to use. Each run tops up the builds in flight, so it can run several times a window. The tasks post into a dedicated dispatcher thread in **full-access** mode: T3 refuses `t3_thread_launch` from any other mode.
 
 1. **Room left.** If less than 90 minutes remain before the window ends, report that and stop: a build launched now would run out of usage mid-way.
 2. **Count slots.** Builds in flight are open `ready-for-agent` tickets with an assignee. Run at most **2**. With no free slot, report and stop.
