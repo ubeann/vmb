@@ -70,7 +70,7 @@ Route work to a **tier** — `fast`, `daily`, or `frontier` — never straight t
 | `daily`    | GPT-6.1 Sol                             | Claude Sonnet 5.5              | —                                      |
 | `frontier` | GPT-6 Astra (fallback / second opinion) | Claude Opus 5.5 (first choice) | —                                      |
 
-Within a tier, alternate providers by quota and availability. **Gemini has no tier slot** — it is a second-opinion reviewer only (decision in #184): Antigravity has no skills (`harnesses.md`) and its only picker model is a Flash.
+Within a tier, alternate providers by quota and availability. **Gemini has no tier slot** — it is a second-opinion reviewer only (decision in #184), made when Antigravity had no skills and its only picker model was a Flash. Both have since changed (it has the skills, see `harnesses.md`, and T3 now offers Gemini 3.1 Pro), so revisit the slot at the next tier review.
 
 Pricing, benchmarks, and billing behind this table: `docs/research/llm-model-tiering-2026-09.md`. Re-verify the table when that file's review-by date passes **or when a provider is added**, and update both together.
 
