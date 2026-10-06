@@ -24,6 +24,20 @@ Each design round gets its own folder, `docs/design/<round>/`, holding the round
 - **Decorative art is `aria-hidden`.** Show extra layers only where there is room for them. In the pilot, the sky appears at 64rem and wider, and the flock only on screens at least 56rem tall.
 - **Tokens only.** Art colours, washes and shadows come from `app.css` tokens (ADR-0035 rule 1). A new colour gets a new token in both `:root` and `.dark`.
 
+## Skills
+
+Checked 2026-10-06 against impeccable 4.5.0. Three design skill sets are installed per machine, and all three describe themselves as "improve this UI", so name the one you want instead of letting the model pick. Each has one job. All three defer to ADR-0035, ADR-0036, ADR-0040, `app.css` and the steps above.
+
+| Skill set                                | Job                                                                                                                                                                                                               | Not for                                                                                                                                                                 |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **impeccable** (`/impeccable <command>`) | Leads a round: `init` (`PRODUCT.md`), `shape` (steps 1–2), the build in step 3, variants (`live`, `generate`), the refine passes (`polish`, `harden`, `distill`). Its hook runs a design detector after UI edits. | Final accessibility and contrast numbers (use interfaces). Production art: its asset-producer output is a decision comp, never shipped (step 4 is Recraft).             |
+| **interfaces** (`/interfaces:better-*`)  | The exact-value check in step 6: `better-accessibility` (WCAG 2.2, ADR-0035 rule 6), `better-colors` (contrast, new tokens), `better-writing`. `build-design` turns a Pen image into Svelte on the real tokens.   | Choosing a direction.                                                                                                                                                   |
+| **ui-ux-pro-max** (`/ui-ux-pro-max:*`)   | Off-app assets: banners, slides, social images, logo exploration. At most a catalogue to look up when proposing territories in step 2.                                                                            | VMB screens. Its `ui-styling` targets shadcn/ui on React, and catalogue picks are the generic route _Tried and dropped_ rules out. Disabled in `.claude/settings.json`. |
+
+- **Brief it in Operate mode.** impeccable defaults to "go all out"; its rule that the brief wins only protects VMB when `PRODUCT.md` pins the app surfaces to its Operate mode and the chosen territory.
+- **One check per concern.** In step 6, `better-*` owns accessibility, contrast and copy; don't also run `/impeccable audit`, `typeset` or `colorize` on the same pass. Finish with `/impeccable polish`.
+- **`DESIGN.md` points, it doesn't restate.** If `/impeccable document` writes one, keep it to pointers at `app.css`, `/design-system` and the ADRs, so the token rules live in one place.
+
 ## Tools
 
 Checked 2026-09-28.
