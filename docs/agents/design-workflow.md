@@ -20,7 +20,7 @@ Each design round gets its own folder, `docs/design/<round>/`, holding the round
 
 - **Ornaments frame text.** Keep a clear zone of at least 2.5rem around every line of text, and place art around the text rather than under it. Measured in the pilot: a line at a 20% ink wash leaves the 16px supporting text at 4.2:1, below the 4.5:1 minimum, and hatching through letters reads as a printing flaw.
 - **The form is first.** It is usable before any art loads, and it keeps its layout whether or not the art loads at all. Every input sits in its own wrapper, so elements injected by extensions don't change the spacing.
-- **Motion plays once.** Entrance motion settles and stops, so it needs no pause control (WCAG 2.2.2). Reduced motion shows the finished state. Nothing moves near a focused field.
+- **Motion plays once.** Entrance motion settles and stops, so it needs no pause control (WCAG 2.2.2). Reduced motion shows the finished state. No ambient motion near a focused field. Feedback for the user's own action may play there once, within the motion tokens: a step's mark printed in when a code is sent, a check drawn when a code is confirmed, a toggle's icon changing.
 - **Decorative art is `aria-hidden`.** Show extra layers only where there is room for them. In the pilot, the sky appears at 64rem and wider, and the flock only on screens at least 56rem tall.
 - **Tokens only.** Art colours, washes and shadows come from `app.css` tokens (ADR-0035 rule 1). A new colour gets a new token in both `:root` and `.dark`.
 

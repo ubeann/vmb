@@ -90,9 +90,19 @@ describe("activate page", () => {
     const screen = await render(Page, emailStep);
 
     await expect.element(screen.getByRole("heading", { name: "Set your password" })).toBeVisible();
-    await expect.element(screen.getByRole("heading", { name: "Get a code" })).toBeVisible();
+    await expect.element(screen.getByText("Step 1 of 3")).toBeVisible();
     await expect.element(screen.getByLabelText("Email")).toBeVisible();
     await expect.element(screen.getByRole("button", { name: "Send code" })).toBeVisible();
+  });
+
+  it.each([
+    ["email", emailStep, "Step 1 of 3"],
+    ["code", codeStep, "Step 2 of 3"],
+    ["password", passwordStep, "Step 3 of 3"]
+  ])("says where the %s step sits among the three", async (_step, props, folio) => {
+    const screen = await render(Page, props);
+
+    await expect.element(screen.getByText(folio)).toBeVisible();
   });
 
   it("explains both first access and password reset", async () => {
@@ -246,11 +256,50 @@ describe("activate page", () => {
     it('sends "Send a new code" to the action that stays on the code step, checking nothing', async () => {
       const screen = await render(Page, codeStep);
 
-      await screen.getByRole("button", { name: "Send a new code" }).click();
+      const resend = screen.getByRole("button", { name: "Send a new code" });
+      const button = resend.element();
+      await resend.click();
 
       expect(submissions.map((data) => data.get("email"))).toEqual(["a@example.com"]);
-      const button = screen.getByRole("button", { name: "Send a new code" }).element();
       expect(button.closest("form")?.getAttribute("action")).toBe("?/resend");
+    });
+
+    // One shared progress flag once made Verify read "Verifying…" during a resend.
+    it("shows progress only on the button that was pressed", async () => {
+      const screen = await render(Page, codeStep);
+
+      await screen.getByRole("button", { name: "Send a new code" }).click();
+
+      await expect.element(screen.getByRole("button", { name: "Sending…" })).toBeVisible();
+      const verify = screen.getByRole("button", { name: "Verify code" });
+      await expect.element(verify).toBeVisible();
+      await expect.element(verify).not.toHaveAttribute("aria-busy", "true");
+    });
+
+    it("turns away a second send while one is under way", async () => {
+      const screen = await render(Page, codeStep);
+
+      await screen.getByRole("button", { name: "Send a new code" }).click();
+      await screen.getByRole("button", { name: "Verify code" }).click();
+
+      expect(submissions).toHaveLength(1);
+    });
+
+    it("says when a new code went out", async () => {
+      const screen = await render(Page, codeStep);
+
+      await screen.getByRole("button", { name: "Send a new code" }).click();
+      await completions[0]!({ result: { type: "success" }, update: async () => {} });
+
+      await expect.element(screen.getByText(/New code sent at/)).toBeVisible();
+    });
+
+    it("reads where the code went with the code field", async () => {
+      const screen = await render(Page, codeStep);
+
+      await expect
+        .element(screen.getByLabelText("Code"))
+        .toHaveAccessibleDescription(/we sent a code to it/);
     });
 
     it("shows a visible error when the hidden email is missing", async () => {
@@ -283,12 +332,18 @@ describe("activate page", () => {
       screen.getByRole("button", { name: "Send a new code" });
     const status = (screen: Awaited<ReturnType<typeof render>>) =>
       screen.getByRole("status").element().textContent;
+    // The line under the button that shows the wait.
+    const waitLine = (screen: Awaited<ReturnType<typeof render>>) =>
+      screen.container
+        .querySelector("form[action='?/resend'] p")
+        ?.textContent?.replace(/\s+/g, " ")
+        .trim();
 
-    it("disables the resend button for a minute after a code is sent, with the time left in its label", async () => {
+    it("disables the resend button for a minute after a code is sent, with the time left under it", async () => {
       const screen = await render(Page, reloadedCodeStep(60));
 
       await expect.element(resendButton(screen)).toBeDisabled();
-      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 1:00");
+      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 1:00.");
     });
 
     it("counts down each second", async () => {
@@ -296,7 +351,7 @@ describe("activate page", () => {
 
       vi.advanceTimersByTime(18_000);
 
-      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 0:42");
+      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 0:42.");
     });
 
     it("brings the button back when the time is up", async () => {
@@ -306,6 +361,7 @@ describe("activate page", () => {
 
       await expect.element(resendButton(screen)).toBeEnabled();
       expect(resendButton(screen).element().textContent?.trim()).toBe("Send a new code");
+      expect(waitLine(screen)).toBe("");
     });
 
     // The time left is the load's, worked out from the send time the server kept.
@@ -313,7 +369,7 @@ describe("activate page", () => {
       const screen = await render(Page, reloadedCodeStep(42));
 
       await expect.element(resendButton(screen)).toBeDisabled();
-      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 0:42");
+      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 0:42.");
     });
 
     it("has the button ready on a reload after the minute", async () => {
@@ -330,7 +386,7 @@ describe("activate page", () => {
       await screen.rerender(reloadedCodeStep(60, 2_000));
 
       await expect.element(resendButton(screen)).toBeDisabled();
-      await expect.element(resendButton(screen)).toHaveTextContent("Send a new code in 1:00");
+      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 1:00.");
     });
 
     it("stops the clock when the page goes", async () => {
@@ -358,11 +414,12 @@ describe("activate page", () => {
         .toBeEnabled();
     });
 
-    it("keeps the label's time out of the button's name, so only the status speaks", async () => {
+    it("keeps the ticking time out of the button's name and out of live regions, so only the status speaks", async () => {
       const screen = await render(Page, reloadedCodeStep(42));
 
-      await expect.element(resendButton(screen)).toBeVisible();
-      expect(resendButton(screen).element().querySelector("[aria-hidden='true']")).not.toBeNull();
+      await expect.element(resendButton(screen)).toHaveAccessibleName("Send a new code");
+      const line = screen.container.querySelector("form[action='?/resend'] p")!;
+      expect(line.closest("[role=status], [aria-live]")).toBeNull();
     });
 
     it("tells screen readers politely when the wait starts, not on every second", async () => {
@@ -532,7 +589,11 @@ describe("activate page", () => {
   // Both places a code is requested: the email step, and "Send a new code",
   // which keeps the user on the code step (#251).
   it.each([
-    ["the email step", { error: "Too many attempts. Wait a moment and try again." }, "Get a code"],
+    [
+      "the email step",
+      { error: "Too many attempts. Wait a moment and try again." },
+      "Set your password"
+    ],
     [
       "the code step",
       {
@@ -642,7 +703,10 @@ describe("activate page", () => {
       await expect.element(screen.getByText(message)).toBeVisible();
       await expect
         .element(screen.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-error password-rules password-context");
+        .toHaveAttribute(
+          "aria-describedby",
+          "password-error step-status password-rules password-context"
+        );
       await expect.element(screen.getByLabelText("New password")).toHaveFocus();
       expect(submissions).toHaveLength(0);
     });
@@ -1031,7 +1095,7 @@ describe("activate page", () => {
         .toBeVisible();
       await expect
         .element(password.getByLabelText("New password"))
-        .toHaveAttribute("aria-describedby", "password-rules password-context");
+        .toHaveAttribute("aria-describedby", "step-status password-rules password-context");
     });
   });
 

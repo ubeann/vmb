@@ -130,6 +130,11 @@
   --delay-etch-clouds: 900ms;
   --delay-etch-birds: 1100ms;
   --delay-etch-water: 2200ms;
+  /*
+   * A step's mark printed in on the auth sheet when the user's action brings
+   * it (a code sent, a code confirmed): the plate's reveal, at the mark's size.
+   */
+  --duration-etch-print: 640ms;
   /* Between parts of one group, such as the trucks in convoy. */
   --stagger-etch: 120ms;
   /*

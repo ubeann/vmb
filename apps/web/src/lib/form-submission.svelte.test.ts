@@ -1,6 +1,6 @@
 import type { ActionResult } from "@sveltejs/kit";
 import { describe, expect, it, vi } from "vitest";
-import { createSubmission } from "./form-submission.svelte.js";
+import { SLOW_AFTER_MS, createSubmission } from "./form-submission.svelte.js";
 
 function formWithField() {
   const form = document.createElement("form");
@@ -118,5 +118,49 @@ describe("createSubmission", () => {
     );
 
     expect(submission.submitting).toBe(false);
+  });
+
+  it("turns away a second send while one is under way", async () => {
+    const { form } = formWithField();
+    const other = formWithField().form;
+    const submission = createSubmission();
+
+    const first = submit(submission.enhance(), form);
+    const second = submit(submission.enhance(), other);
+
+    expect(first.cancel).not.toHaveBeenCalled();
+    expect(second.cancel).toHaveBeenCalledOnce();
+    await first.reply("success");
+    expect(submit(submission.enhance(), other).cancel).not.toHaveBeenCalled();
+  });
+
+  it("names the form that is being sent", async () => {
+    const { form } = formWithField();
+    const submission = createSubmission();
+
+    const { reply } = submit(submission.enhance(undefined, undefined, "resend"), form);
+    expect(submission.pending).toBe("resend");
+
+    await reply("success");
+    expect(submission.pending).toBeUndefined();
+  });
+
+  it("says the send is slow once it has taken a while, until it settles", async () => {
+    vi.useFakeTimers();
+    try {
+      const { form } = formWithField();
+      const submission = createSubmission();
+
+      const { reply } = submit(submission.enhance(), form);
+      vi.advanceTimersByTime(SLOW_AFTER_MS - 1);
+      expect(submission.slow).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(submission.slow).toBe(true);
+
+      await reply("success");
+      expect(submission.slow).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

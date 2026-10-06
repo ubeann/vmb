@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const { render } = await import("vitest-browser-svelte");
 const { default: PasswordInput } = await import("./PasswordInput.svelte");
@@ -62,5 +62,31 @@ describe("PasswordInput", () => {
     expect(field().required).toBe(true);
     expect(field().getAttribute("aria-invalid")).toBe("true");
     expect(field().classList.contains("extra")).toBe(true);
+  });
+
+  // On a phone, focus leaving the field closes the keyboard mid-word.
+  it("leaves focus and the caret in the field when pressed while typing", async () => {
+    const { field, toggle } = await renderField();
+    field().focus();
+    field().value = "crate yard";
+    field().setSelectionRange(5, 5);
+
+    await toggle.click();
+
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(field());
+      expect([field().selectionStart, field().selectionEnd]).toEqual([5, 5]);
+    });
+    expect(field().type).toBe("text");
+  });
+
+  it("keeps focus on the toggle when it is used from the keyboard", async () => {
+    const { field, toggle } = await renderField();
+    toggle.element().focus();
+
+    (toggle.element() as HTMLButtonElement).click();
+
+    await expect.element(toggle).toHaveFocus();
+    expect(field().type).toBe("text");
   });
 });
