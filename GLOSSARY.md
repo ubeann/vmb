@@ -7,7 +7,7 @@ VMB is the internal project/admin management tool being rebuilt from a Laravel +
 ### Master
 
 **Division**:
-Organisational unit that groups users, warehouse items and expense budgets.
+Organisational unit that groups warehouse items and expense budgets. A User belongs to a Division through the Roles they hold, so a User can belong to several.
 _Avoid_: Department, unit, team
 
 **User**:
@@ -23,7 +23,7 @@ The Better Auth-owned record behind a User: credentials, sessions and email veri
 _Avoid_: Auth user, credential
 
 **Role**:
-A named bundle of permissions granted to users.
+A named bundle of permissions granted to users, optionally scoped to one Division. A Role with no Division applies in every Division.
 _Avoid_: Group, access level
 
 **System Role**:

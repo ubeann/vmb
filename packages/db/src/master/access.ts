@@ -1,6 +1,6 @@
 import type { Access } from "@vmb/types";
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { divisions, rolePermissions, roles, userRoles } from "../schema/master.js";
+import { divisions, rolePermissions, roles, userRoles, users } from "../schema/master.js";
 import type { MasterDb } from "./db.js";
 
 /**
@@ -8,6 +8,18 @@ import type { MasterDb } from "./db.js";
  * roles. Nothing here can subtract, and an inactive role grants nothing.
  */
 export async function getAccess(db: MasterDb, userId: string): Promise<Access> {
+  // A session that outlives its user's suspension or deletion keeps nothing:
+  // only an Active, not-Trashed user holds permissions. The gate stops new
+  // sessions; this closes the window for one that survives a failed revoke.
+  const [account] = await db
+    .select({ status: users.status, deletedAt: users.deletedAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!account || account.deletedAt !== null || account.status !== "active") {
+    return { permissions: [], divisions: [] };
+  }
+
   const granted = await db
     .selectDistinct({ key: rolePermissions.permissionKey })
     .from(userRoles)

@@ -547,12 +547,12 @@ describe("master API: users", () => {
     await expect(
       appWith(store).request(`/users/${ID}`, { method: "DELETE" }, env)
     ).resolves.toMatchObject({ status: 204 });
-    expect(store.deleteUser).toHaveBeenCalledWith(ID);
+    expect(store.deleteUser).toHaveBeenCalledWith(ID, ID);
 
     await expect(
       appWith(store).request(`/users/${ID}/restore`, { method: "POST" }, env)
     ).resolves.toMatchObject({ status: 200 });
-    expect(store.restoreUser).toHaveBeenCalledWith(ID);
+    expect(store.restoreUser).toHaveBeenCalledWith(ID, ID);
   });
 
   it("maps a duplicate email to 409", async () => {

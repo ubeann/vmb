@@ -218,6 +218,13 @@
       "when": 1791275271332,
       "tag": "0030_drop_users_division",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791276467568,
+      "tag": "0031_permission_catalogue",
+      "breakpoints": true
     }
   ]
 }

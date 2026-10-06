@@ -54,10 +54,10 @@ export const userRoutes = new Hono<MasterEnv>()
     }
   )
   .delete("/:id", requirePermission("master-users.delete"), async (c) => {
-    await c.get("store").deleteUser(pathId(c));
+    await c.get("store").deleteUser(pathId(c), c.get("userId"));
     return c.body(null, 204);
   })
   .post("/:id/restore", requirePermission("master-users.restore"), async (c) => {
-    const user = await c.get("store").restoreUser(pathId(c));
+    const user = await c.get("store").restoreUser(pathId(c), c.get("userId"));
     return c.json(UserSchema.parse(user));
   });

@@ -390,7 +390,7 @@ describe("users store", () => {
         status: "active"
       });
 
-      await store.deleteUser(created.id);
+      await store.deleteUser(created.id, ACTOR);
       const afterDelete = await store.getSignInEligibility(created.id);
 
       expect(afterDelete?.deletedAt).toEqual(expect.any(String));
@@ -473,7 +473,7 @@ describe("users store", () => {
       });
       expect(search.items.map((item) => item.name)).toEqual(["Rina Wijaya"]);
 
-      await store.deleteUser(rina.id);
+      await store.deleteUser(rina.id, ACTOR);
       const trashed = await store.listUsers({
         status: "all",
         trashed: "only",
@@ -634,18 +634,18 @@ describe("users store", () => {
           values ('s1', now() + interval '1 day', 'token-1', now(), now(), '${created.id}')`
       );
 
-      await store.deleteUser(created.id);
+      await store.deleteUser(created.id, ACTOR);
       expect(
         await count(
           client,
           `select count(*)::int as value from public.session where user_id = '${created.id}'`
         )
       ).toBe(0);
-      await expect(store.deleteUser(created.id)).rejects.toThrow("User not found.");
+      await expect(store.deleteUser(created.id, ACTOR)).rejects.toThrow("User not found.");
 
-      const restored = await store.restoreUser(created.id);
+      const restored = await store.restoreUser(created.id, ACTOR);
       expect(restored.deletedAt).toBeNull();
-      await expect(store.restoreUser(created.id)).rejects.toThrow("Deleted user not found.");
+      await expect(store.restoreUser(created.id, ACTOR)).rejects.toThrow("Deleted user not found.");
     });
   });
 
@@ -765,8 +765,8 @@ describe("users store", () => {
           ACTOR
         )
       ).rejects.toThrow("User not found.");
-      await expect(store.deleteUser(missing)).rejects.toThrow("User not found.");
-      await expect(store.restoreUser(missing)).rejects.toThrow("Deleted user not found.");
+      await expect(store.deleteUser(missing, ACTOR)).rejects.toThrow("User not found.");
+      await expect(store.restoreUser(missing, ACTOR)).rejects.toThrow("Deleted user not found.");
     });
   });
 });

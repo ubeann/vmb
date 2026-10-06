@@ -137,7 +137,7 @@ erDiagram
 How a request would be authorized (not built here):
 
 1. Resolve once per request: the keys from `user_roles → roles (is_active) → role_permissions`, plus the set of `roles.division_id` the user holds.
-2. `requirePermission("master-users.create")` on each API route; the store applies the division scope to list queries. The web asks the same function to hide actions, but the API is the enforcement.
+2. `requirePermission("master-users.create")` on each API route. Division scope is applied to the records the domain modules add (items, budgets, requests); nothing in Master is filtered by it. The web asks the same function to hide actions, but the API is the enforcement.
 3. A resource's `all_division` permission (revamp's convention) lifts the division scope for a role that needs to see everything, instead of a second bypass.
 4. The catalogue lives in code (`packages/types/src/permissions.ts`) and is projected into `master.permissions` so grants carry a foreign key. The Roles screen edits grants; nobody edits the catalogue by hand.
 
