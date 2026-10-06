@@ -24,6 +24,8 @@ vi.mock("$lib/public-routes.js", () => import("./lib/public-routes.js"));
 
 const { handle, handleError } = await import("./hooks.server.js");
 
+const resolveOptionsMatcher = expect.objectContaining({ preload: expect.any(Function) });
+
 function fakeEvent(pathname = "/", routeId: string | null = pathname, cookie?: string) {
   const headers = new Headers();
   if (cookie) headers.set("cookie", cookie);
@@ -60,7 +62,7 @@ describe("handle", () => {
     );
     expect(event.locals.session).toBe(session);
     expect(event.locals.user).toBe(user);
-    expect(resolve).toHaveBeenCalledWith(event);
+    expect(resolve).toHaveBeenCalledWith(event, resolveOptionsMatcher);
     await expect(res.text()).resolves.toBe("ok");
   });
 
@@ -90,7 +92,7 @@ describe("handle", () => {
     expect(loadSessionMock).not.toHaveBeenCalled();
     expect(event.locals.session).toBeNull();
     expect(event.locals.user).toBeNull();
-    expect(resolve).toHaveBeenCalledWith(event);
+    expect(resolve).toHaveBeenCalledWith(event, resolveOptionsMatcher);
     await expect(res.text()).resolves.toBe("ok");
   });
 
@@ -117,7 +119,7 @@ describe("handle", () => {
 
       await handle({ event, resolve } as never);
 
-      expect(resolve).toHaveBeenCalledWith(event);
+      expect(resolve).toHaveBeenCalledWith(event, resolveOptionsMatcher);
     }
   );
 
@@ -129,7 +131,45 @@ describe("handle", () => {
 
     await handle({ event, resolve } as never);
 
-    expect(resolve).toHaveBeenCalledWith(event);
+    expect(resolve).toHaveBeenCalledWith(event, resolveOptionsMatcher);
+  });
+});
+
+describe("handle font preloading", () => {
+  async function resolveOptions() {
+    loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
+    const resolve = vi.fn().mockResolvedValue(new Response("ok"));
+    await handle({ event: fakeEvent("/login"), resolve } as never);
+    return resolve.mock.calls[0]![1] as {
+      preload: (input: { type: string; path: string }) => boolean;
+    };
+  }
+
+  const asset = (name: string) => `/_app/immutable/assets/${name}`;
+
+  it.each([
+    ["Inter", asset("inter-latin-wght-normal.Dx4kXJAl.woff2")],
+    ["Newsreader", asset("newsreader-latin-wght-normal.CCVVNp6i.woff2")]
+  ])("preloads the latin %s font", async (_name, path) => {
+    const { preload } = await resolveOptions();
+
+    expect(preload({ type: "font", path })).toBe(true);
+  });
+
+  it.each([
+    ["a latin-ext subset", "font", asset("inter-latin-ext-wght-normal.DO1Apj_S.woff2")],
+    [
+      "a Newsreader latin-ext subset",
+      "font",
+      asset("newsreader-latin-ext-wght-normal.C-3rgBeH.woff2")
+    ],
+    ["another font family", "font", asset("roboto-latin-wght-normal.abc123.woff2")],
+    ["a script", "js", "/_app/immutable/chunks/inter-latin-wght-normal.js"],
+    ["a stylesheet", "css", asset("inter-latin-wght-normal.abc123.css")]
+  ])("does not preload %s", async (_name, type, path) => {
+    const { preload } = await resolveOptions();
+
+    expect(preload({ type, path })).toBe(false);
   });
 });
 
