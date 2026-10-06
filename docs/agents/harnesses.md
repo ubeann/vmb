@@ -17,6 +17,10 @@ Checked 2026-10-06 on the maintainer's machine, against mattpocock-skills 1.3.1.
 
 **Antigravity skill discovery:** T3 runs Antigravity with its own config home (`~/.t3/userdata/providers/antigravity/<hash>/config/`) whose `skills/` is a symlink to `~/.gemini/config/skills/`. Nothing else under `~/.gemini/config/` reaches it, so `skills.json` and `plugins/` are ignored, and a symlinked skill directory is listed but can't be read. Only real skill directories work, hence the copy script.
 
+**Claude Code under T3 uses a second profile.** T3 runs Claude Code with `CLAUDE_CONFIG_DIR=~/.claude-sharing`, which has its own plugins, separate from `~/.claude`. The Claude row holds only while both profiles have the same plugins, so install or remove a plugin once per profile (`CLAUDE_CONFIG_DIR=~/.claude-sharing claude plugin install …`). They were mirrored on 2026-10-06; before that, T3's Claude threads had no mattpocock skills.
+
+**Impeccable** (design skill, see `design-workflow.md`) is installed along the same paths: a Claude Code plugin from `pbakaus/impeccable` with auto-update, which OpenCode picks up through the sync plugin, and copies for Codex (`~/.agents/skills/`) and Antigravity written by `~/.local/bin/sync-impeccable-skills`. Re-run that script after the plugin updates.
+
 **OpenCode Go quota:** when the Go usage limit is exhausted, `opencode run` retries silently instead of failing — it looks like a hang. `opencode run --print-logs` shows `Go usage limit exceeded`. A free model (`opencode/big-pickle`) still works for a probe.
 
 ## Routing constraint
