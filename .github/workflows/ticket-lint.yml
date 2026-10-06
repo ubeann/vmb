@@ -10,7 +10,8 @@ name: Ticket Lint
 
 on:
   issues:
-    types: [opened, edited, labeled]
+    # `unlabeled` too: removing a ticket's complexity label must re-check it.
+    types: [opened, edited, labeled, unlabeled]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number }}

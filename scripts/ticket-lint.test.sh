@@ -108,6 +108,12 @@ check "an unknown complexity value fails" 1 "must be trivial, standard or comple
 check "complex without a reason fails" 1 "## Why complex" \
   "ready-for-agent,complexity:complex" "$good"
 
+check "complex with an empty reason fails" 1 "## Why complex" \
+  "ready-for-agent,complexity:complex" "$good
+
+## Why complex
+"
+
 check "complex with a reason passes" 0 "" \
   "ready-for-agent,complexity:complex" "$good
 

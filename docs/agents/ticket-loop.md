@@ -62,7 +62,8 @@ A T3 scheduled task runs this in the night windows (17:10–22:10 and 22:15–03
    - `gh issue edit <n> --add-assignee @me`;
    - `t3_thread_launch` with title `#<n> <ticket title>`, `workspaceStrategy` `{"type":"worktree","baseRef":"master","startFromOrigin":true,"branch":"<type>/<scope>/<slug>"}` (type `fix` for a `bug`, otherwise `feature`; scope and slug from the ticket, as in `git-workflow.md`), and the model for the ticket's tier: the Claude model from `model-routing.md`'s tier table on the named Claude instance for `standard` and `complex`, and the Codex `fast` model for `trivial`. Resolve the IDs with `orchestrator_capabilities`;
    - message: `/mattpocock-skills:implement #<n>` on its first line, then `Unattended build: follow docs/agents/ticket-loop.md, Build, to an end state.`;
-   - comment on the ticket with the thread id.
+   - comment on the ticket with the thread id;
+   - if the launch fails, release the claim (`gh issue edit <n> --remove-assignee @me`) and report the error, so the slot frees for the next run.
 5. **Report** one line per launch (ticket, tier, thread), or why nothing launched.
 
 Done when every free slot holds a launched build or the frontier is empty.

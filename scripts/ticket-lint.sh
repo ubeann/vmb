@@ -55,9 +55,16 @@ case "$labels" in
   *) [ "$complexity" -eq 1 ] && problems+=("The \`complexity:*\` label must be trivial, standard or complex.") ;;
 esac
 
+# The reason is the text under `## Why complex`, up to the next heading.
+reason=$(printf '%s\n' "$body" | awk '
+  /^#{2,3}[[:space:]]+[Ww]hy complex[[:space:]]*$/ { inside = 1; next }
+  /^#{1,3}[[:space:]]/ { inside = 0 }
+  inside && /[^[:space:]]/ { count++ }
+  END { print count + 0 }
+')
 case "$labels" in
   *,complexity:complex,*)
-    has_heading "Why complex" ||
+    [ "$reason" -gt 0 ] ||
       problems+=("\`complexity:complex\` needs its reason under a \`## Why complex\` heading.")
     ;;
 esac

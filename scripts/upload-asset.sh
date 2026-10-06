@@ -40,6 +40,14 @@ fi
 file=${1:?usage: upload-asset.sh <file> [<folder>] | upload-asset.sh --delete <link-or-path>}
 folder=${2:-misc}
 
+# The folder lands in a URL and a JSON string, so keep it to path characters.
+case "$folder" in
+  *[!A-Za-z0-9._/-]* | /* | *..*)
+    echo "upload-asset: folder must be letters, digits, '.', '_', '-' and '/': $folder" >&2
+    exit 1
+    ;;
+esac
+
 [ -f "$file" ] || {
   echo "upload-asset: no such file: $file" >&2
   exit 1

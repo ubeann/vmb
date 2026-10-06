@@ -11,7 +11,8 @@
 #   - it closes at least one issue, and each closed issue is
 #     `complexity:trivial` or `complexity:standard` without `review:human`;
 #   - the PR has neither `review:human` nor `needs-decision`;
-#   - its body has no unticked `- [ ]` box and declares `**Door:** two-way`;
+#   - its body has no unticked `- [ ]` box and exactly one `**Door:**` line,
+#     which says two-way;
 #   - it touches no one-way path: migrations, the Drizzle schema, `.github/`,
 #     `fnox.toml` (secrets), or a `wrangler.toml` (deploy config).
 #
@@ -36,7 +37,12 @@ if [ "$1" = "--input" ]; then
   doc=$(cat "$2")
 else
   pr=$(gh pr view "$1" --json \
-    number,baseRefName,mergeable,labels,body,files,statusCheckRollup,closingIssuesReferences)
+    number,baseRefName,mergeable,labels,body,statusCheckRollup,closingIssuesReferences)
+  # `gh pr view --json files` stops at 100 files on older gh releases, which
+  # would hide a one-way path in a big PR; the paginated REST list never does.
+  files=$(gh api --paginate "repos/{owner}/{repo}/pulls/$1/files" --jq '.[].filename' |
+    jq -R '{path: .}' | jq -s '.')
+  pr=$(printf '%s' "$pr" | jq --argjson files "$files" '. + {files: $files}')
   issues="[]"
   for n in $(printf '%s' "$pr" | jq -r '.closingIssuesReferences[].number'); do
     issues=$(printf '%s' "$issues" |
@@ -72,8 +78,11 @@ reasons=$(printf '%s' "$doc" | jq -r '
       ($pr | names[] | select(. == "review:human" or . == "needs-decision")
         | "The PR is labelled \(.)."),
       (if ($pr.body // "") | test("(?m)^\\s*[-*]\\s+\\[ \\]") then "The body has unticked `- [ ]` items." else empty end),
-      (if ($pr.body // "") | test("\\*\\*Door:\\*\\*\\s*two-way"; "i") | not
-        then "The body does not declare `**Door:** two-way`." else empty end),
+      # Exactly one live Door line, and it says two-way: a struck-through,
+      # quoted or superseded declaration does not count.
+      ([($pr.body // "") | split("\n")[] | sub("\r$"; "") | select(test("^\\*\\*Door:\\*\\*"))] as $doors
+        | if ($doors | length) != 1 or ($doors[0] | test("^\\*\\*Door:\\*\\*\\s*two-way\\s*$"; "i") | not)
+          then "The body does not declare exactly one `**Door:** two-way` line." else empty end),
       ($pr.files[].path | select(one_way) | "Touches one-way path `\(.)`.")
     ]
   | .[]

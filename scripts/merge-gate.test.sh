@@ -84,8 +84,20 @@ check "a needs-decision PR fails" 1 "The PR is labelled needs-decision" \
 check "an unticked criterion fails" 1 "unticked" \
   '.pr.body += "\n- [ ] Screenshots on the preview"'
 
-check "a one-way door fails" 1 "**Door:** two-way" \
+check "a one-way door fails" 1 "exactly one \`**Door:** two-way\` line" \
   '.pr.body |= sub("two-way"; "one-way")'
+
+check "a struck-through door fails" 1 "exactly one \`**Door:** two-way\` line" \
+  '.pr.body |= sub("\\*\\*Door:\\*\\* two-way"; "~~**Door:** two-way~~")'
+
+check "a quoted door fails" 1 "exactly one \`**Door:** two-way\` line" \
+  '.pr.body |= sub("\\*\\*Door:\\*\\* two-way"; "> **Door:** two-way")'
+
+check "a door with trailing words fails" 1 "exactly one \`**Door:** two-way\` line" \
+  '.pr.body |= sub("two-way"; "two-way-ish")'
+
+check "a one-way line beside an old two-way line fails" 1 "exactly one \`**Door:** two-way\` line" \
+  '.pr.body += "\n**Door:** one-way"'
 
 check "a migration fails" 1 "one-way path \`migrations/0032_x.sql\`" \
   '.pr.files += [{"path": "migrations/0032_x.sql"}]'
