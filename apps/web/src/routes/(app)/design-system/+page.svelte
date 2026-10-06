@@ -121,14 +121,17 @@
     {@render section(
       "type",
       "Typography",
-      "Inter Variable; numbers in data columns use tabular figures."
+      "Schibsted Grotesk for UI text, Newsreader for display headings, JetBrains Mono for codes and figures (ADR-0046); numbers in data columns use tabular figures."
     )}
     <div class="space-y-2">
+      <p class="font-display text-3xl font-medium tracking-tight">
+        Display heading — Newsreader 30/medium
+      </p>
       <p class="text-3xl font-bold tracking-tight">Page title — 30/bold</p>
       <p class="text-lg font-semibold">Section title — 18/semibold</p>
       <p>Body text — 16/regular, line-height 1.5.</p>
       <p class="text-muted-foreground text-sm">Supporting text — 14/muted.</p>
-      <div class="flex gap-8 font-mono text-sm">
+      <div class="flex gap-8 text-sm">
         <div>
           <div class="text-muted-foreground text-xs">proportional</div>
           <div>1,111<br />8,888</div>
@@ -136,6 +139,10 @@
         <div class="tabular-nums">
           <div class="text-muted-foreground text-xs">tabular-nums</div>
           <div>1,111<br />8,888</div>
+        </div>
+        <div class="font-mono">
+          <div class="text-muted-foreground font-sans text-xs">font-mono</div>
+          <div>WH-0011<br />482915</div>
         </div>
       </div>
     </div>

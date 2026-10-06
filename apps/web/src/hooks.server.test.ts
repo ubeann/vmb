@@ -148,8 +148,8 @@ describe("handle font preloading", () => {
   const asset = (name: string) => `/_app/immutable/assets/${name}`;
 
   it.each([
-    ["Inter", asset("inter-latin-wght-normal.Dx4kXJAl.woff2")],
-    ["Newsreader", asset("newsreader-latin-wght-normal.CCVVNp6i.woff2")]
+    ["Schibsted Grotesk", asset("schibsted-grotesk-latin-wght-normal.Dx4kXJAl.woff2")],
+    ["Newsreader", asset("newsreader-latin-opsz-normal.CCVVNp6i.woff2")]
   ])("preloads the latin %s font", async (_name, path) => {
     const { preload } = await resolveOptions();
 
@@ -157,15 +157,16 @@ describe("handle font preloading", () => {
   });
 
   it.each([
-    ["a latin-ext subset", "font", asset("inter-latin-ext-wght-normal.DO1Apj_S.woff2")],
+    ["a latin-ext subset", "font", asset("schibsted-grotesk-latin-ext-wght-normal.DO1Apj_S.woff2")],
     [
       "a Newsreader latin-ext subset",
       "font",
-      asset("newsreader-latin-ext-wght-normal.C-3rgBeH.woff2")
+      asset("newsreader-latin-ext-opsz-normal.C-3rgBeH.woff2")
     ],
+    ["the mono face", "font", asset("jetbrains-mono-latin-wght-normal.abc123.woff2")],
     ["another font family", "font", asset("roboto-latin-wght-normal.abc123.woff2")],
-    ["a script", "js", "/_app/immutable/chunks/inter-latin-wght-normal.js"],
-    ["a stylesheet", "css", asset("inter-latin-wght-normal.abc123.css")]
+    ["a script", "js", "/_app/immutable/chunks/schibsted-grotesk-latin-wght-normal.js"],
+    ["a stylesheet", "css", asset("schibsted-grotesk-latin-wght-normal.abc123.css")]
   ])("does not preload %s", async (_name, type, path) => {
     const { preload } = await resolveOptions();
 

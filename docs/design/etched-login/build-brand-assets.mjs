@@ -66,8 +66,8 @@ const tile = (size, radius, inset) => `
 
 const font = async (file) =>
   dataUri("font/woff2", await readFile(root(`node_modules/@fontsource-variable/${file}`)));
-const newsreader = await font("newsreader/files/newsreader-latin-wght-normal.woff2");
-const inter = await font("inter/files/inter-latin-wght-normal.woff2");
+const newsreader = await font("newsreader/files/newsreader-latin-opsz-normal.woff2");
+const schibsted = await font("schibsted-grotesk/files/schibsted-grotesk-latin-wght-normal.woff2");
 const etching = dataUri(
   "image/webp",
   await readFile(root("src/lib/assets/auth/vmb-etching-2400.webp"))
@@ -79,9 +79,9 @@ const etching = dataUri(
 const ogImage = `
   <style>
     @font-face { font-family: Newsreader; src: url(${newsreader}); font-weight: 200 800; }
-    @font-face { font-family: Inter; src: url(${inter}); font-weight: 100 900; }
+    @font-face { font-family: Schibsted; src: url(${schibsted}); font-weight: 400 900; }
     body { margin: 0; }
-    .card { position: relative; width: 1200px; height: 630px; overflow: hidden; background: ${PAPER}; color: ${INK}; font-family: Inter; }
+    .card { position: relative; width: 1200px; height: 630px; overflow: hidden; background: ${PAPER}; color: ${INK}; font-family: Schibsted; }
     .logo { position: absolute; left: 72px; top: 60px; height: 64px; }
     .kicker { position: absolute; right: 72px; top: 84px; margin: 0; color: ${MUTED}; font-size: 17px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; }
     h1 { position: absolute; left: 72px; top: 172px; width: 820px; margin: 0; font: 400 68px/1.05 Newsreader; letter-spacing: -0.02em; }

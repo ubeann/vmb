@@ -1,8 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn-svelte/tailwind.css";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/newsreader";
+/* Type (ADR-0046): Schibsted Grotesk for UI text, Newsreader's optical-size cut for display
+ * headings, JetBrains Mono for codes and figures. Faces download only when a page uses them. */
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource-variable/newsreader/opsz.css";
+@import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -178,8 +181,9 @@
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Schibsted Grotesk Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Newsreader Variable", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --color-etching: var(--etching);
   --color-brand-mark: var(--brand-mark);
   --color-sidebar-ring: var(--sidebar-ring);

@@ -3,12 +3,15 @@ import { isPublicRoute } from "$lib/public-routes.js";
 import { loadSession } from "$lib/session.js";
 import { redirect, type Handle, type HandleServerError } from "@sveltejs/kit";
 
-// The two faces the first screen paints with. The browser only discovers them
-// after it has read the stylesheet, so the largest paint waits on that
-// round trip; a preload link starts both downloads with the page. Only the
-// `latin` subsets: the `latin-ext` files are fetched only when a page uses
-// those characters, and preloading them would spend bandwidth on every load.
-const PRELOADED_FONT = /\/(?:inter|newsreader)-latin-wght-normal\.[^/]+\.woff2$/;
+// The two faces the first screen paints with (ADR-0046): the UI face and the
+// display headings' optical-size cut. The browser only discovers them after it
+// has read the stylesheet, so the largest paint waits on that round trip; a
+// preload link starts both downloads with the page. Only the `latin` subsets:
+// the `latin-ext` files are fetched only when a page uses those characters, and
+// preloading them would spend bandwidth on every load. The mono face is left to
+// the pages that show codes.
+const PRELOADED_FONT =
+  /\/(?:schibsted-grotesk-latin-wght|newsreader-latin-opsz)-normal\.[^/]+\.woff2$/;
 
 export const handle: Handle = async ({ event, resolve }) => {
   // withAuthApiClient owns URL resolution and the transport-failure path, but
