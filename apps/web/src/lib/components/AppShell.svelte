@@ -124,9 +124,9 @@
     </Sidebar.Inset>
 
     <!-- Below the panel, not inside it, so it stays the page's contentinfo landmark.
-         It sits on the sidebar's colour. From tablet up it takes 16px on the right, as
-         the top bar does, and none on the left; the phone keeps the panel's 16px.
-         `sm:px-4` and `lg:px-4` beat SiteFooter's own `sm:px-10 lg:px-16`. -->
-    <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-4 sm:pl-0 lg:px-4 lg:pl-0" />
+         It sits on the sidebar's colour. From tablet up it takes 8px on the left and
+         12px on the right; the phone keeps the panel's 16px. `sm:px-3` and `lg:px-3`
+         beat SiteFooter's own `sm:px-10 lg:px-16`. -->
+    <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-3 sm:pl-2 lg:px-3 lg:pl-2" />
   </div>
 </Sidebar.Provider>
