@@ -38,23 +38,19 @@ Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`. The body is a 
 
 Respect the contributor's configured commit signing. A contributor's signer may ask them to approve each commit, as a password-manager SSH agent does. Run the normal commit command and allow time for that approval. If signing fails or approval is unavailable, leave the changes uncommitted (and staged if using Git) and report the failure. Use an unsigned commit only when the contributor explicitly authorizes that exception for that commit; do not silently set `commit.gpgsign=false` or use `--no-gpg-sign`.
 
-In a GitButler workspace, check `git config --show-origin --get gitbutler.signCommits` before committing. GitButler gives this setting precedence over `commit.gpgsign` and can set it to `false` locally after a signing failure, unless the contributor sets it to `true` at user level (`~/.gitconfig`). Restore signing for this repository with `git config --local gitbutler.signCommits true` when the signer is available. In a linked worktree, use the normal signed `git commit` flow. In either checkout, confirm a new commit is signed with `git cat-file -p HEAD`; its header includes a `gpgsig` block. For machine-specific setup with 1Password, see the [1Password setup guide](https://www.1password.dev/ssh/git-commit-signing); GitHub must have the public key registered as a **signing key** to mark commits Verified.
+In a GitButler workspace, check `git config --show-origin --get gitbutler.signCommits` before committing. GitButler gives this setting precedence over `commit.gpgsign` and can set it to `false` locally after a signing failure, unless the contributor sets it to `true` at user level (`~/.gitconfig`). Restore signing for this repository with `git config --local gitbutler.signCommits true` when the signer is available. In a linked worktree, use the normal signed `git commit` flow. Linked worktrees of this repo sign with a dedicated agent key, `~/.ssh/vmb_agent_signing`, which needs no approval, so an unattended build can commit; `~/.gitconfig` includes `~/.gitconfig-vmb-agent` for `gitdir:/Volumes/Gawean/vmb/.git/worktrees/`, which sets `user.signingkey` to that key and `gpg.ssh.program` to `ssh-keygen`. If a worktree commit still asks for 1Password, that include is missing. In either checkout, confirm a new commit is signed with `git cat-file -p HEAD`; its header includes a `gpgsig` block. For machine-specific setup with 1Password, see the [1Password setup guide](https://www.1password.dev/ssh/git-commit-signing); GitHub must have the public key registered as a **signing key** to mark commits Verified.
 
 After pushing, check GitHub's **Verified** status for the commit. If an unsigned commit is already on your own PR branch, `git commit --amend --no-edit -S` and `git push --force-with-lease` can replace it after the signer is available; this changes the commit SHA, so confirm no one else has updated the branch before rewriting it. For a branch in the GitButler workspace, rewrite it with `but` history commands instead of `git commit --amend`.
 
 ## PR body
 
-Two sections:
+Write it with the `/pr` skill (Summary, Evidence, Merge Danger). This repo adds three things, and `scripts/merge-gate.sh` reads all of them:
 
-```
-## Summary
+- **`Closes #<n>`** as the first line, once per ticket the PR finishes. Use `Refs #<n>` only for a ticket that stays open after the merge.
+- **`## Acceptance criteria`** after Evidence: the ticket's checklist, each item ticked only with its evidence beside it (a test name, a check, an uploaded screenshot). An item you couldn't verify stays unticked.
+- **`**Door:** two-way`** or **`**Door:** one-way`**, spelled exactly so.
 
-- <bullet per notable change>
-
-## Testing
-
-- <what was actually run, or "Not run (documentation only — no code changes, no executable tests)">
-```
+Upload screenshots with `scripts/upload-asset.sh <file> prs/<pr-number>` and paste the link it prints. What you ran, and a tier escalation (`model-routing.md`), go under Evidence; "Not run (documentation only)" is a valid entry there.
 
 Keep the PR title identical to (or a clean rollup of) the first commit's message headline.
 

@@ -4,6 +4,14 @@
 
 Issues live in GitHub Issues for this repo (ubeann/vmb), using the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+The five triage states, plus `complexity:*`, `review:human` and `needs-decision`. See `docs/agents/triage-labels.md`.
+
+### Ticket loop
+
+Building a ticket unattended, gating and merging an agent PR, and the scheduled dispatcher and morning digest. See `docs/agents/ticket-loop.md`.
+
 ### Domain docs
 
 Single-context layout: `GLOSSARY.md` at the repo root (created lazily) + `docs/adr/` for decision records. See `docs/agents/domain.md`.

@@ -1,0 +1,37 @@
+# The same sections `/to-tickets` writes, so a ticket filed by hand and one an
+# agent filed read alike. It starts in `needs-triage`: `/triage` adds the
+# complexity label and moves it to `ready-for-agent` (docs/agents/ticket-loop.md).
+name: Ticket
+description: Something to build or fix, written so an agent could pick it up.
+labels: [needs-triage]
+body:
+  - type: input
+    id: parent
+    attributes:
+      label: Parent
+      description: The parent issue, if this is one slice of a bigger one.
+      placeholder: "#172"
+  - type: textarea
+    id: what
+    attributes:
+      label: What to build
+      description: The behaviour this makes work, from the user's side, not a list of files.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: One checkbox each. Paste screenshots here; GitHub uploads them.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: blocked
+    attributes:
+      label: Blocked by
+      description: The issues that must close first, or "None".
+      value: None (can start immediately)
+    validations:
+      required: true

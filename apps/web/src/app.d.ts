@@ -3,7 +3,7 @@ import type { AuthSession, AuthUser } from "$lib/auth.js";
 
 declare global {
   // Injected at build time by CI (issue #23) so each per-PR web preview can
-  // point at its own `apps/api` preview version. Exposed to the bundle by
+  // point at its own `apps/api` Worker Preview. Exposed to the bundle by
   // Vite's `envPrefix` (see vite.config.ts). Unset for local dev/production,
   // where resolveApiUrl falls back to the Pages binding / localhost.
   interface ImportMetaEnv {
