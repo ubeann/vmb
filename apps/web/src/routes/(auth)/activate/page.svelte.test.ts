@@ -285,13 +285,17 @@ describe("activate page", () => {
       expect(submissions).toHaveLength(1);
     });
 
-    it("says when a new code went out", async () => {
+    // In the step's own sentence, which the code field is described by: no
+    // extra line to wrap or to move the help below it.
+    it("says when a new code went out, in the step's sentence", async () => {
       const screen = await render(Page, codeStep);
 
       await screen.getByRole("button", { name: "Send a new code" }).click();
       await completions[0]!({ result: { type: "success" }, update: async () => {} });
 
-      await expect.element(screen.getByText(/New code sent at/)).toBeVisible();
+      await expect
+        .element(screen.getByLabelText("Code"))
+        .toHaveAccessibleDescription(/we sent a new code to it at \d/);
     });
 
     it("reads where the code went with the code field", async () => {
@@ -332,18 +336,15 @@ describe("activate page", () => {
       screen.getByRole("button", { name: "Send a new code" });
     const status = (screen: Awaited<ReturnType<typeof render>>) =>
       screen.getByRole("status").element().textContent;
-    // The line under the button that shows the wait.
-    const waitLine = (screen: Awaited<ReturnType<typeof render>>) =>
-      screen.container
-        .querySelector("form[action='?/resend'] p")
-        ?.textContent?.replace(/\s+/g, " ")
-        .trim();
+    // What the button shows, the wait included.
+    const label = (screen: Awaited<ReturnType<typeof render>>) =>
+      resendButton(screen).element().textContent?.replace(/\s+/g, " ").trim();
 
-    it("disables the resend button for a minute after a code is sent, with the time left under it", async () => {
+    it("disables the resend button for a minute after a code is sent, with the time left in its label", async () => {
       const screen = await render(Page, reloadedCodeStep(60));
 
       await expect.element(resendButton(screen)).toBeDisabled();
-      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 1:00.");
+      await expect.poll(() => label(screen)).toBe("Send a new code in 1:00");
     });
 
     it("counts down each second", async () => {
@@ -351,7 +352,7 @@ describe("activate page", () => {
 
       vi.advanceTimersByTime(18_000);
 
-      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 0:42.");
+      await expect.poll(() => label(screen)).toBe("Send a new code in 0:42");
     });
 
     it("brings the button back when the time is up", async () => {
@@ -360,8 +361,7 @@ describe("activate page", () => {
       vi.advanceTimersByTime(60_000);
 
       await expect.element(resendButton(screen)).toBeEnabled();
-      expect(resendButton(screen).element().textContent?.trim()).toBe("Send a new code");
-      expect(waitLine(screen)).toBe("");
+      expect(label(screen)).toBe("Send a new code");
     });
 
     // The time left is the load's, worked out from the send time the server kept.
@@ -369,7 +369,7 @@ describe("activate page", () => {
       const screen = await render(Page, reloadedCodeStep(42));
 
       await expect.element(resendButton(screen)).toBeDisabled();
-      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 0:42.");
+      await expect.poll(() => label(screen)).toBe("Send a new code in 0:42");
     });
 
     it("has the button ready on a reload after the minute", async () => {
@@ -386,7 +386,7 @@ describe("activate page", () => {
       await screen.rerender(reloadedCodeStep(60, 2_000));
 
       await expect.element(resendButton(screen)).toBeDisabled();
-      await expect.poll(() => waitLine(screen)).toBe("You can send a new code in 1:00.");
+      await expect.poll(() => label(screen)).toBe("Send a new code in 1:00");
     });
 
     it("stops the clock when the page goes", async () => {
@@ -414,12 +414,19 @@ describe("activate page", () => {
         .toBeEnabled();
     });
 
-    it("keeps the ticking time out of the button's name and out of live regions, so only the status speaks", async () => {
+    it("keeps the ticking time out of the button's name, so only the status speaks", async () => {
       const screen = await render(Page, reloadedCodeStep(42));
 
       await expect.element(resendButton(screen)).toHaveAccessibleName("Send a new code");
-      const line = screen.container.querySelector("form[action='?/resend'] p")!;
-      expect(line.closest("[role=status], [aria-live]")).toBeNull();
+      await expect.poll(() => label(screen)).toBe("Send a new code in 0:42");
+    });
+
+    // Disabled buttons fade to half; the wait has to stay legible outdoors.
+    it("shows the wait at full opacity", async () => {
+      const screen = await render(Page, reloadedCodeStep(42));
+
+      await expect.element(resendButton(screen)).toBeDisabled();
+      expect(getComputedStyle(resendButton(screen).element()).opacity).toBe("1");
     });
 
     it("tells screen readers politely when the wait starts, not on every second", async () => {

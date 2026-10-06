@@ -1,8 +1,10 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
   import Check from "@lucide/svelte/icons/check";
   import Mail from "@lucide/svelte/icons/mail";
+  import PencilLine from "@lucide/svelte/icons/pencil-line";
   import Send from "@lucide/svelte/icons/send";
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import {
@@ -104,7 +106,7 @@
     codeInput?.focus();
   }
 
-  // When "Send a new code" last worked, shown under it until the step changes.
+  // When "Send a new code" last worked, said in the step's sentence until the step changes.
   // A derived that is written to, as `password` is below.
   let resentAt: Date | undefined = $derived.by(() => {
     void step;
@@ -243,6 +245,12 @@
       <MovingCheck animate={printed > 0} size={16} class="text-primary mr-1 align-[-0.2em]" />
       <span>Code confirmed for</span> <strong class="text-foreground">{email}</strong>. Choose a
       password you'll remember. Three or four words work well, and spaces are fine.
+    {:else if resentAt}
+      If <strong class="text-foreground">{email}</strong> has VMB access, we sent a new code to it
+      at
+      <time class="whitespace-nowrap" datetime={resentAt.toISOString()}
+        >{resentAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time
+      >. It expires in 5 minutes.
     {:else}
       If <strong class="text-foreground">{email}</strong> has VMB access, we sent a code to it. It expires
       in 5 minutes.
@@ -408,31 +416,29 @@
         use:enhance={submission.enhance(undefined, trackWith(undefined, afterResend), "resend")}
       >
         <input type="hidden" name="email" value={email} />
+        <!-- The wait is in the label, read at full opacity in the muted ink
+             rather than faded like other disabled buttons, so it stays legible
+             outdoors. The time is hidden from the button's name: screen readers
+             get the wait from the status region below, which changes when it
+             starts and ends, not every second. When the last code went out is
+             in the step's sentence above. -->
         <SubmitButton
           variant="outline"
+          class="disabled:text-muted-foreground disabled:opacity-100"
           pending={submission.pending === "resend"}
           slow={submission.slow}
           pendingLabel="Sending…"
           disabled={resendWait.remaining > 0}
         >
-          Send a new code
+          <!-- One span, so the button's flex gap doesn't widen the space before "in". -->
+          <span
+            >Send a new code{#if resendWait.remaining > 0}<span aria-hidden="true"
+                >&nbsp;in <span class="font-mono tabular-nums"
+                  >{formatClock(resendWait.remaining)}</span
+                ></span
+              >{/if}</span
+          >
         </SubmitButton>
-        <!-- The wait and the last code sent, under the button at full contrast
-             rather than dimmed inside it. The line keeps its height when it
-             has nothing to say, so the help below never jumps as the wait
-             ends. Screen readers get the wait from the status region below,
-             which changes when it starts and ends, not every second. -->
-        <p class="text-muted-foreground mt-2 min-h-5 text-center text-sm">
-          {#if resentAt}
-            New code sent at <time class="font-mono tabular-nums" datetime={resentAt.toISOString()}
-              >{resentAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time
-            >.
-          {/if}
-          {#if resendWait.remaining > 0}
-            You can send {resentAt ? "another" : "a new code"} in
-            <span class="font-mono tabular-nums">{formatClock(resendWait.remaining)}</span>.
-          {/if}
-        </p>
       </form>
 
       <p class="text-muted-foreground text-sm text-pretty">
@@ -480,9 +486,14 @@
   </div>
 
   <!-- Starting over sits with leaving, under the rule: both step out of the
-       task, and neither should sit between the step's status and its field. -->
+       task, and neither should sit between the step's status and its field.
+       "Back to log in" keeps the left on every step, its arrow pointing the
+       way it goes; the pencil says "change what you typed". -->
   {#snippet footer()}
     <div class="flex flex-wrap items-center justify-between gap-x-6">
+      <a href={resolve("/login")} class="{linkClass} gap-1.5">
+        <ArrowLeft class="size-4" aria-hidden="true" />Back to log in
+      </a>
       {#if step !== "request"}
         <!-- A form, not a link: starting over drops the sent or checked code,
              which only the server can reach, and it works without JavaScript.
@@ -498,12 +509,13 @@
           <input type="hidden" name="email" value={email} />
           <button
             type="submit"
-            class="{linkClass} border-0 bg-transparent p-0"
-            aria-busy={submission.pending === "restart"}>Use a different email</button
+            class="{linkClass} gap-1.5 border-0 bg-transparent p-0"
+            aria-busy={submission.pending === "restart"}
           >
+            <PencilLine class="size-4" aria-hidden="true" />Use a different email
+          </button>
         </form>
       {/if}
-      <a href={resolve("/login")} class={linkClass}>Back to log in</a>
     </div>
   {/snippet}
 </AuthCard>
