@@ -455,7 +455,7 @@ describe("AppShell", () => {
       );
     });
 
-    it("gives its text 16px on the left and none on the right from tablet up", async () => {
+    it("gives its text 16px on the right and none on the left from tablet up", async () => {
       for (const [width, height] of [
         [1920, 1080],
         [768, 1024]
@@ -471,8 +471,8 @@ describe("AppShell", () => {
           const last = screen.getByRole("link", { name: /ubeann/ }).element();
           const label = `${width}px, open: ${sidebarOpen}`;
 
-          expect(text.left - strip.left, label).toBeCloseTo(16, 0);
-          expect(strip.right - last.getBoundingClientRect().right, label).toBeLessThan(1);
+          expect(text.left - strip.left, label).toBeLessThan(1);
+          expect(strip.right - last.getBoundingClientRect().right, label).toBeCloseTo(16, 0);
           screen.unmount();
         }
       }
