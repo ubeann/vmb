@@ -42,6 +42,18 @@ async function insertDivision(
   );
 }
 
+async function insertRole(
+  client: SqlClient,
+  name: string,
+  divisionId: string | null = null
+): Promise<string> {
+  return scalar<string>(
+    client,
+    `insert into master.roles (name, division_id) values ('${name}', ${divisionId ? `'${divisionId}'` : "null"})
+      returning id`
+  );
+}
+
 describe("divisions store", () => {
   it("creates, reads back and updates a division", async () => {
     await withMigratedDb(async (db) => {
@@ -315,20 +327,14 @@ describe("roles store", () => {
 });
 
 describe("users store", () => {
-  async function seedDivisionId(client: SqlClient, code = "OPS") {
-    const id = "d1000000-0000-4000-8000-000000000001";
-    await insertDivision(client, id, "Operations", code);
-    return id;
-  }
+  // an actor who holds no roles: enough to create and edit users that get none
+  const ACTOR = "00000000-0000-4000-8000-0000000000aa";
 
-  const input = (
-    divisionId: string,
-    overrides: Partial<UserCreateInput> = {}
-  ): UserCreateInput => ({
+  const input = (overrides: Partial<UserCreateInput> = {}): UserCreateInput => ({
     name: "Rina Wijaya",
     email: "rina@vmblogistics.id",
     phone: "+628111000001",
-    divisionId,
+    roleIds: [],
     status: "active",
     profilePhotoPath: "",
     password: "password123",
@@ -338,15 +344,14 @@ describe("users store", () => {
 
   it("creates the business row and the Better Auth identity in one step", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       const store = storeFor(db);
 
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
 
       expect(created).toMatchObject({
         name: "Rina Wijaya",
         email: "rina@vmblogistics.id",
-        divisionId,
+        roles: [],
         status: "active",
         emailVerified: false
       });
@@ -375,11 +380,10 @@ describe("users store", () => {
   });
 
   it("reports sign-in status for an active user, a soft-deleted one, and a stranger", async () => {
-    await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
+    await withMigratedDb(async (db) => {
       const store = storeFor(db);
 
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
 
       await expect(store.getSignInEligibility(created.id)).resolves.toEqual({
         deletedAt: null,
@@ -399,21 +403,27 @@ describe("users store", () => {
 
   it("lists by search, status, division and trashed", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
+      const divisionId = "d1000000-0000-4000-8000-000000000001";
       const otherDivisionId = "d1000000-0000-4000-8000-000000000002";
+      await insertDivision(client, divisionId, "Operations", "OPS");
       await insertDivision(client, otherDivisionId, "Finance", "FIN");
+      const operations = await insertRole(client, "Staff - Operations", divisionId);
+      const finance = await insertRole(client, "Staff - Finance", otherDivisionId);
       const store = storeFor(db);
 
-      const rina = await store.createUser(input(divisionId));
+      const rina = await store.createUser(input({ roleIds: [operations] }), ACTOR);
       await store.createUser(
-        input(otherDivisionId, { name: "Agus Setiawan", email: "agus@vmblogistics.id" })
+        input({ name: "Agus Setiawan", email: "agus@vmblogistics.id", roleIds: [finance] }),
+        ACTOR
       );
       await store.createUser(
-        input(divisionId, {
+        input({
           name: "Siti Lestari",
           email: "siti@vmblogistics.id",
-          status: "suspended"
-        })
+          status: "suspended",
+          roleIds: [operations]
+        }),
+        ACTOR
       );
 
       const list = await store.listUsers({
@@ -478,21 +488,20 @@ describe("users store", () => {
 
   it("updates the business row and keeps an existing identity in step", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       const store = storeFor(db);
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
 
       const update: UserUpdateInput = {
         name: "Rina W.",
         email: "rina.w@vmblogistics.id",
         phone: "+628111000002",
-        divisionId,
+        roleIds: [],
         status: "inactive",
         profilePhotoPath: "",
         password: "",
         passwordConfirmation: ""
       };
-      const updated = await store.updateUser(created.id, update);
+      const updated = await store.updateUser(created.id, update, ACTOR);
 
       expect(updated).toMatchObject({
         name: "Rina W.",
@@ -507,20 +516,23 @@ describe("users store", () => {
 
   it("changes the credential when a password is submitted", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       const store = storeFor(db);
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
 
-      await store.updateUser(created.id, {
-        name: "Rina Wijaya",
-        email: "rina@vmblogistics.id",
-        phone: "+628111000001",
-        divisionId,
-        status: "active",
-        profilePhotoPath: "",
-        password: "newpassword123",
-        passwordConfirmation: "newpassword123"
-      });
+      await store.updateUser(
+        created.id,
+        {
+          name: "Rina Wijaya",
+          email: "rina@vmblogistics.id",
+          phone: "+628111000001",
+          roleIds: [],
+          status: "active",
+          profilePhotoPath: "",
+          password: "newpassword123",
+          passwordConfirmation: "newpassword123"
+        },
+        ACTOR
+      );
 
       expect(
         await scalar<string>(
@@ -533,9 +545,8 @@ describe("users store", () => {
 
   it("rolls the whole update back when the identity refuses the change", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       const store = storeFor(db);
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
 
       // An identity Better Auth owns under an email no business row holds: the
       // signup case, where only public."user" knows the address.
@@ -545,16 +556,20 @@ describe("users store", () => {
       );
 
       await expect(
-        store.updateUser(created.id, {
-          name: "Rina Wijaya",
-          email: "other@vmblogistics.id",
-          phone: "+628111000001",
-          divisionId,
-          status: "active",
-          profilePhotoPath: "",
-          password: "newpassword123",
-          passwordConfirmation: "newpassword123"
-        })
+        store.updateUser(
+          created.id,
+          {
+            name: "Rina Wijaya",
+            email: "other@vmblogistics.id",
+            phone: "+628111000001",
+            roleIds: [],
+            status: "active",
+            profilePhotoPath: "",
+            password: "newpassword123",
+            passwordConfirmation: "newpassword123"
+          },
+          ACTOR
+        )
       ).rejects.toThrow("A user with that email already exists.");
 
       // the business row and the credential are as they were
@@ -572,24 +587,27 @@ describe("users store", () => {
 
   it("gives a legacy-imported user a credential when a password is set", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       await client.exec(
-        `insert into master.users (id, name, status, division_id, phone, email, created_at, updated_at)
-          values ('d2000000-0000-4000-8000-000000000099', 'Legacy User', 'active', '${divisionId}',
+        `insert into master.users (id, name, status, phone, email, created_at, updated_at)
+          values ('d2000000-0000-4000-8000-000000000099', 'Legacy User', 'active',
                   '+628111000099', 'legacy@vmblogistics.id', now(), now())`
       );
       const store = storeFor(db);
 
-      await store.updateUser("d2000000-0000-4000-8000-000000000099", {
-        name: "Legacy User",
-        email: "legacy@vmblogistics.id",
-        phone: "+628111000099",
-        divisionId,
-        status: "active",
-        profilePhotoPath: "",
-        password: "password123",
-        passwordConfirmation: "password123"
-      });
+      await store.updateUser(
+        "d2000000-0000-4000-8000-000000000099",
+        {
+          name: "Legacy User",
+          email: "legacy@vmblogistics.id",
+          phone: "+628111000099",
+          roleIds: [],
+          status: "active",
+          profilePhotoPath: "",
+          password: "password123",
+          passwordConfirmation: "password123"
+        },
+        ACTOR
+      );
 
       expect(
         await scalar<string>(
@@ -608,9 +626,8 @@ describe("users store", () => {
 
   it("soft-deletes a user and revokes their sessions, then restores them", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       const store = storeFor(db);
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
 
       await client.exec(
         `insert into public.session (id, expires_at, token, created_at, updated_at, user_id)
@@ -634,9 +651,8 @@ describe("users store", () => {
 
   it("reports email verification from Better Auth's identity", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       const store = storeFor(db);
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
       expect(created.emailVerified).toBe(false);
 
       await client.exec(
@@ -658,27 +674,34 @@ describe("users store", () => {
 
   it("ends a user's sessions when their status stops being active", async () => {
     await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
       const store = storeFor(db);
-      const created = await store.createUser(input(divisionId));
+      const created = await store.createUser(input(), ACTOR);
       await client.exec(
         `insert into public.session (id, expires_at, token, created_at, updated_at, user_id)
           values ('s1', now() + interval '1 day', 'token-1', now(), now(), '${created.id}')`
       );
 
-      await store.updateUser(created.id, {
-        ...input(divisionId),
-        password: "",
-        passwordConfirmation: ""
-      });
+      await store.updateUser(
+        created.id,
+        {
+          ...input(),
+          password: "",
+          passwordConfirmation: ""
+        },
+        ACTOR
+      );
       expect(await count(client, `select count(*)::int as value from public.session`)).toBe(1);
 
-      await store.updateUser(created.id, {
-        ...input(divisionId),
-        status: "suspended",
-        password: "",
-        passwordConfirmation: ""
-      });
+      await store.updateUser(
+        created.id,
+        {
+          ...input(),
+          status: "suspended",
+          password: "",
+          passwordConfirmation: ""
+        },
+        ACTOR
+      );
 
       expect(await count(client, `select count(*)::int as value from public.session`)).toBe(0);
       await expect(store.getSignInEligibility(created.id)).resolves.toEqual({
@@ -689,28 +712,32 @@ describe("users store", () => {
   });
 
   it("refuses a duplicate email on create and update", async () => {
-    await withMigratedDb(async (db, client) => {
-      const divisionId = await seedDivisionId(client);
+    await withMigratedDb(async (db) => {
       const store = storeFor(db);
-      const first = await store.createUser(input(divisionId));
+      const first = await store.createUser(input(), ACTOR);
       await expect(
-        store.createUser(input(divisionId, { name: "Other", email: "rina@vmblogistics.id" }))
+        store.createUser(input({ name: "Other", email: "rina@vmblogistics.id" }), ACTOR)
       ).rejects.toThrow("A user with that email already exists.");
 
       const second = await store.createUser(
-        input(divisionId, { name: "Agus", email: "agus@vmblogistics.id" })
+        input({ name: "Agus", email: "agus@vmblogistics.id" }),
+        ACTOR
       );
       await expect(
-        store.updateUser(second.id, {
-          name: "Agus",
-          email: "rina@vmblogistics.id",
-          phone: "+628111000001",
-          divisionId,
-          status: "active",
-          profilePhotoPath: "",
-          password: "",
-          passwordConfirmation: ""
-        })
+        store.updateUser(
+          second.id,
+          {
+            name: "Agus",
+            email: "rina@vmblogistics.id",
+            phone: "+628111000001",
+            roleIds: [],
+            status: "active",
+            profilePhotoPath: "",
+            password: "",
+            passwordConfirmation: ""
+          },
+          ACTOR
+        )
       ).rejects.toThrow("A user with that email already exists.");
       expect(first.id).not.toBe(second.id);
     });
@@ -723,16 +750,20 @@ describe("users store", () => {
 
       await expect(store.getUser(missing)).rejects.toThrow("User not found.");
       await expect(
-        store.updateUser(missing, {
-          name: "Nobody",
-          email: "nobody@example.test",
-          phone: "+628111000000",
-          divisionId: "00000000-0000-4000-8000-000000000001",
-          status: "active",
-          profilePhotoPath: "",
-          password: "",
-          passwordConfirmation: ""
-        })
+        store.updateUser(
+          missing,
+          {
+            name: "Nobody",
+            email: "nobody@example.test",
+            phone: "+628111000000",
+            roleIds: [],
+            status: "active",
+            profilePhotoPath: "",
+            password: "",
+            passwordConfirmation: ""
+          },
+          ACTOR
+        )
       ).rejects.toThrow("User not found.");
       await expect(store.deleteUser(missing)).rejects.toThrow("User not found.");
       await expect(store.restoreUser(missing)).rejects.toThrow("Deleted user not found.");

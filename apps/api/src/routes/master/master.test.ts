@@ -9,7 +9,12 @@ import type {
 } from "@vmb/types";
 import { allPermissionKeys } from "@vmb/types";
 import { Hono } from "hono";
-import { MasterConflictError, MasterNotFoundError, MasterSystemRoleError } from "@vmb/db";
+import {
+  MasterConflictError,
+  MasterForbiddenError,
+  MasterNotFoundError,
+  MasterSystemRoleError
+} from "@vmb/db";
 import type { MasterStore } from "@vmb/db";
 import { describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../bindings.js";
@@ -50,7 +55,7 @@ const user: User = {
   id: ID,
   name: "Rina Wijaya",
   status: "active",
-  divisionId: OTHER_ID,
+  roles: [],
   phone: "+628111000001",
   email: "rina@vmblogistics.id",
   emailVerified: false,
@@ -345,7 +350,7 @@ describe("master API: users", () => {
     name: "Rina Wijaya",
     email: "rina@vmblogistics.id",
     phone: "0811-1000-0001",
-    divisionId: OTHER_ID,
+    roleIds: [OTHER_ID],
     status: "active",
     profilePhotoPath: "",
     password: "a-long-enough-password",
@@ -357,16 +362,32 @@ describe("master API: users", () => {
     const response = await appWith(store).request("/users", json("POST", body), env);
 
     expect(response.status).toBe(201);
-    expect(store.createUser).toHaveBeenCalledWith({
-      name: "Rina Wijaya",
-      email: "rina@vmblogistics.id",
-      phone: "+6281110000001",
-      divisionId: OTHER_ID,
-      status: "active",
-      profilePhotoPath: "",
-      password: "a-long-enough-password",
-      passwordConfirmation: "a-long-enough-password"
+    // the second argument is who is asking, which the role guard needs
+    expect(store.createUser).toHaveBeenCalledWith(
+      {
+        name: "Rina Wijaya",
+        email: "rina@vmblogistics.id",
+        phone: "+6281110000001",
+        roleIds: [OTHER_ID],
+        status: "active",
+        profilePhotoPath: "",
+        password: "a-long-enough-password",
+        passwordConfirmation: "a-long-enough-password"
+      },
+      ID
+    );
+  });
+
+  it("answers 403 when the caller may not grant a chosen role", async () => {
+    const store = fakeStore({
+      createUser: vi.fn(async () => {
+        throw new MasterForbiddenError();
+      })
     });
+
+    const response = await appWith(store).request("/users", json("POST", body), env);
+
+    expect(response.status).toBe(403);
   });
 
   it.each([
@@ -484,7 +505,11 @@ describe("master API: users", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(store.updateUser).toHaveBeenCalledWith(ID, expect.objectContaining({ password: "" }));
+    expect(store.updateUser).toHaveBeenCalledWith(
+      ID,
+      expect.objectContaining({ password: "" }),
+      ID
+    );
 
     await appWith(store).request(
       `/users/${ID}`,
@@ -497,7 +522,8 @@ describe("master API: users", () => {
     );
     expect(store.updateUser).toHaveBeenLastCalledWith(
       ID,
-      expect.objectContaining({ password: "newa-long-enough-password" })
+      expect.objectContaining({ password: "newa-long-enough-password" }),
+      ID
     );
   });
 

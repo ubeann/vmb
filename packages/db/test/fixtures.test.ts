@@ -60,12 +60,13 @@ describe("the edge-cases fixture", () => {
     await database?.close();
   });
 
-  it("keeps a user with no division", async () => {
-    const divisionless = await count(
+  it("keeps a user who holds no role", async () => {
+    const roleless = await count(
       client,
-      "select count(*)::int as value from master.users where division_id is null"
+      `select count(*)::int as value from master.users u
+        where not exists (select 1 from master.user_roles ur where ur.user_id = u.id)`
     );
-    expect(divisionless).toBe(1);
+    expect(roleless).toBe(2);
   });
 
   it("takes the corrected status default when none is given", async () => {

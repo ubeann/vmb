@@ -1,5 +1,6 @@
 import {
   MasterConflictError,
+  MasterForbiddenError,
   MasterNotFoundError,
   MasterSystemRoleError,
   type MasterStore
@@ -47,6 +48,7 @@ export function createMasterRoutes(
       if (error instanceof MasterNotFoundError) return c.json({ error: error.message }, 404);
       if (error instanceof MasterConflictError) return c.json({ error: error.message }, 409);
       if (error instanceof MasterSystemRoleError) return c.json({ error: error.message }, 403);
+      if (error instanceof MasterForbiddenError) return c.json({ error: error.message }, 403);
 
       console.error("master routes: unhandled error", error);
       return c.json({ error: "Something went wrong." }, 500);

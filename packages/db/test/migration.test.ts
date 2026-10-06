@@ -176,13 +176,21 @@ describe("the master and warehouse hygiene migrations", () => {
     ]);
   });
 
-  it("indexes the division on a user", async () => {
-    const indexes = await count(
+  it("reaches a user's division through their roles, not a column on the user", async () => {
+    const userColumn = await count(
+      client,
+      `select count(*)::int as value from information_schema.columns
+        where table_schema = 'master' and table_name = 'users' and column_name = 'division_id'`
+    );
+    expect(userColumn).toBe(0);
+
+    const roleIndexes = await count(
       client,
       `select count(*)::int as value from pg_indexes
-        where schemaname = 'master' and indexname = 'master_users_division_id_index'`
+        where schemaname = 'master' and indexname in
+          ('master_roles_division_id_index', 'master_user_roles_role_id_index')`
     );
-    expect(indexes).toBe(1);
+    expect(roleIndexes).toBe(2);
   });
 
   it("defaults both warehouse workflows to a status their vocabulary has", async () => {
@@ -266,9 +274,8 @@ describe("the master and warehouse hygiene migrations", () => {
        values ('d2222222-2222-4222-8222-222222222222', 'Hygiene', 'HYG')`
     );
     await client.exec(
-      `insert into master.users (id, name, email, division_id)
-       values ('d3333333-3333-4333-8333-333333333333', 'Hygiene User',
-               'hygiene@example.test', 'd2222222-2222-4222-8222-222222222222')`
+      `insert into master.users (id, name, email)
+       values ('d3333333-3333-4333-8333-333333333333', 'Hygiene User', 'hygiene@example.test')`
     );
     await client.exec(
       `insert into warehouse.items (id, division_id, name)

@@ -1,6 +1,6 @@
 import type { Access } from "@vmb/types";
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { divisions, rolePermissions, roles, userRoles, users } from "../schema/master.js";
+import { divisions, rolePermissions, roles, userRoles } from "../schema/master.js";
 import type { MasterDb } from "./db.js";
 
 /**
@@ -16,11 +16,15 @@ export async function getAccess(db: MasterDb, userId: string): Promise<Access> {
     .where(eq(userRoles.userId, userId))
     .orderBy(asc(rolePermissions.permissionKey));
 
+  // the divisions the user's active roles are scoped to; a role with none
+  // (Super Admin) is scoped to all of them and names no division
   const own = await db
-    .select({ id: divisions.id, name: divisions.name, iconName: divisions.iconName })
-    .from(users)
-    .innerJoin(divisions, and(eq(divisions.id, users.divisionId), isNull(divisions.deletedAt)))
-    .where(eq(users.id, userId));
+    .selectDistinct({ id: divisions.id, name: divisions.name, iconName: divisions.iconName })
+    .from(userRoles)
+    .innerJoin(roles, and(eq(roles.id, userRoles.roleId), eq(roles.isActive, true)))
+    .innerJoin(divisions, and(eq(divisions.id, roles.divisionId), isNull(divisions.deletedAt)))
+    .where(eq(userRoles.userId, userId))
+    .orderBy(asc(divisions.name));
 
   return { permissions: granted.map((row) => row.key), divisions: own };
 }

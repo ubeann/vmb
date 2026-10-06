@@ -4,11 +4,6 @@
   import type { PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: { error?: string } | null } = $props();
-
-  let divisionName = $derived(
-    data.divisions.find((division) => division.id === data.user.divisionId)?.name ??
-      "Unknown division"
-  );
 </script>
 
 <svelte:head>
@@ -25,8 +20,8 @@
 {/if}
 
 <dl>
-  <dt>Division</dt>
-  <dd>{divisionName}</dd>
+  <dt>Roles</dt>
+  <dd>{data.user.roles.map((role) => role.name).join(", ") || "No roles"}</dd>
 
   <dt>Email</dt>
   <dd>{data.user.email} ({data.user.emailVerified ? "verified" : "unverified"})</dd>

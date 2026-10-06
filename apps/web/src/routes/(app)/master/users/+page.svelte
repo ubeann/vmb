@@ -11,15 +11,6 @@
   let totalPages = $derived(
     data.users ? Math.max(1, Math.ceil(data.users.total / data.users.perPage)) : 1
   );
-
-  let divisionNames = $derived(
-    new Map(data.divisions.map((division) => [division.id, division.name]))
-  );
-
-  function divisionName(divisionId: string | null): string {
-    if (!divisionId) return "No division";
-    return divisionNames.get(divisionId) ?? "Unknown division";
-  }
 </script>
 
 <svelte:head>
@@ -85,7 +76,7 @@
     <thead>
       <tr>
         <th>Name</th>
-        <th>Division</th>
+        <th>Roles</th>
         <th>Email</th>
         <th>Phone</th>
         <th>Status</th>
@@ -100,7 +91,7 @@
             <a href={resolve("/(app)/master/users/[id]", { id: user.id })}>{user.name}</a>
             {#if user.deletedAt}<span class="badge">trashed</span>{/if}
           </td>
-          <td>{divisionName(user.divisionId)}</td>
+          <td>{user.roles.map((role) => role.name).join(", ") || "No roles"}</td>
           <td>{user.email}</td>
           <td>{user.phone ?? "No phone number"}</td>
           <td>{USER_STATUS_LABELS[user.status]}</td>

@@ -253,12 +253,8 @@ const people = [
 ];
 
 /**
- * The legacy business user table. `password` is NOT NULL but Better Auth never
- * reads it — identity is owned by Better Auth (ADR-0012) — so every row,
- * preview user included, carries a marker rather than a second copy of the
- * credential. The credential lives only in `public.account` above.
- * `division_id` pairs each user with the division of the same index, which is
- * what makes every division in the list clickable.
+ * The roles, one per access shape: Super Admin, a Finance-scoped manager, a
+ * division-wide manager and plain staff. Their grants are below.
  */
 const roles = table(
   "master.roles",
@@ -329,7 +325,6 @@ const users = table(
     "id",
     "name",
     "status",
-    "division_id",
     "phone",
     "email",
     "profile_photo_path",
@@ -343,7 +338,6 @@ const users = table(
       id: fixtureId(ID_GROUPS.user, index),
       name: person.name,
       status: "active",
-      division_id: fixtureId(ID_GROUPS.division, index),
       phone: `+62 811-1000-${String(index).padStart(4, "0")}`,
       email: person.email,
       profile_photo_path: null,

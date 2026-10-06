@@ -14,6 +14,7 @@ import {
   eq,
   getTableColumns,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   or,
@@ -21,19 +22,29 @@ import {
   type SQL
 } from "drizzle-orm";
 import { session as authSession, user as authUser } from "../schema/auth.js";
-import { users } from "../schema/master.js";
+import { rolePermissions, roles, userRoles, users } from "../schema/master.js";
+import { getAccess } from "./access.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { MasterNotFoundError } from "./errors.js";
+import { MasterForbiddenError, MasterNotFoundError } from "./errors.js";
 
 // A user's columns plus whether Better Auth has verified the email: the
 // identity owns verification (ADR-0032), so it is read from there rather than
 // kept as a second copy on the business row.
 const userColumns = {
   ...getTableColumns(users),
-  emailVerified: sql<boolean>`coalesce(${authUser.emailVerified}, false)`
+  emailVerified: sql<boolean>`coalesce(${authUser.emailVerified}, false)`,
+  // the roles the user holds, by name, so a list needs no second query
+  roles: sql<Array<{ id: string; name: string }>>`coalesce((
+    select json_agg(json_build_object('id', r.id, 'name', r.name) order by r.name)
+      from master.user_roles ur join master.roles r on r.id = ur.role_id
+     where ur.user_id = ${users.id}
+  ), '[]'::json)`
 };
 
-type UserRow = typeof users.$inferSelect & { emailVerified: boolean };
+type UserRow = typeof users.$inferSelect & {
+  emailVerified: boolean;
+  roles: Array<{ id: string; name: string }>;
+};
 
 function selectUsers(db: MasterDb) {
   return db
@@ -63,7 +74,7 @@ function toUser(row: UserRow): User {
     id: row.id,
     name: row.name,
     status: row.status as UserStatus,
-    divisionId: row.divisionId,
+    roles: row.roles,
     phone: row.phone,
     email: row.email,
     emailVerified: row.emailVerified,
@@ -80,7 +91,13 @@ function whereFor(query: UserListQuery) {
   if (query.trashed === "exclude") conditions.push(isNull(users.deletedAt));
   if (query.trashed === "only") conditions.push(isNotNull(users.deletedAt));
   if (query.status !== "all") conditions.push(eq(users.status, query.status));
-  if (query.divisionId) conditions.push(eq(users.divisionId, query.divisionId));
+  if (query.divisionId) {
+    // a user belongs to the divisions their roles are scoped to
+    conditions.push(sql`exists (
+      select 1 from master.user_roles ur join master.roles r on r.id = ur.role_id
+       where ur.user_id = ${users.id} and r.division_id = ${query.divisionId}
+    )`);
+  }
   if (query.search) {
     const pattern = `%${query.search}%`;
     const matches = or(
@@ -146,11 +163,58 @@ export async function getSignInEligibility(db: MasterDb, id: string): Promise<Si
   return { deletedAt: toIso(row.deletedAt), status: row.status as UserStatus };
 }
 
+/** A SQL `uuid[]` for a list of ids, empty included. */
+function uuidArray(ids: string[]) {
+  if (ids.length === 0) return sql`array[]::uuid[]`;
+  return sql`array[${sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `
+  )}]::uuid[]`;
+}
+
+/**
+ * Whether `actorId` may add or remove these roles. Changing who holds a role
+ * is granting its permissions, so a caller may only change roles whose every
+ * permission they hold themselves: nobody can hand out, or take away, more than
+ * they have. A role with no permissions is always changeable.
+ */
+async function assertCanChangeRoles(db: MasterDb, actorId: string, changed: string[]) {
+  if (changed.length === 0) return;
+
+  const found = await db.select({ id: roles.id }).from(roles).where(inArray(roles.id, changed));
+  if (found.length !== changed.length) {
+    throw new MasterNotFoundError("One of the chosen roles no longer exists.");
+  }
+
+  const [needed, held] = await Promise.all([
+    db
+      .selectDistinct({ key: rolePermissions.permissionKey })
+      .from(rolePermissions)
+      .where(inArray(rolePermissions.roleId, changed)),
+    getAccess(db, actorId)
+  ]);
+  const mine = new Set(held.permissions);
+
+  if (needed.some(({ key }) => !mine.has(key))) throw new MasterForbiddenError();
+}
+
+async function currentRoleIds(db: MasterDb, userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: userRoles.roleId })
+    .from(userRoles)
+    .where(eq(userRoles.userId, userId));
+  return rows.map((row) => row.id);
+}
+
 export async function createUser(
   db: MasterDb,
   options: UserStoreOptions,
-  input: UserCreateInput
+  input: UserCreateInput,
+  actorId: string
 ): Promise<User> {
+  const roleIds = [...new Set(input.roleIds)];
+  await assertCanChangeRoles(db, actorId, roleIds);
+
   const id = crypto.randomUUID();
   const passwordHash = await options.hashPassword(input.password);
 
@@ -161,9 +225,9 @@ export async function createUser(
     await db.execute(sql`
       with business_user as (
         insert into master.users
-          (id, name, status, division_id, phone, email, profile_photo_path, created_at, updated_at)
+          (id, name, status, phone, email, profile_photo_path, created_at, updated_at)
         values
-          (${id}, ${input.name}, ${input.status}, ${input.divisionId}, ${input.phone}, ${input.email},
+          (${id}, ${input.name}, ${input.status}, ${input.phone}, ${input.email},
            ${nullIfEmpty(input.profilePhotoPath)}, now(), now())
         returning id
       ), auth_user as (
@@ -171,6 +235,10 @@ export async function createUser(
         select id, ${input.name}, ${input.email}, false, ${nullIfEmpty(input.profilePhotoPath)}, now(), now()
           from business_user
         returning id
+      ), assigned as (
+        insert into master.user_roles (user_id, role_id)
+        select ${id}::uuid, r from unnest(${uuidArray(roleIds)}) as r
+        returning 1
       )
       insert into public.account
         (id, account_id, provider_id, user_id, password, created_at, updated_at)
@@ -188,10 +256,19 @@ export async function updateUser(
   db: MasterDb,
   options: UserStoreOptions,
   id: string,
-  input: UserUpdateInput
+  input: UserUpdateInput,
+  actorId: string
 ): Promise<User> {
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
   if (!existing[0]) throw new MasterNotFoundError("User not found.");
+
+  const roleIds = [...new Set(input.roleIds)];
+  const before = await currentRoleIds(db, id);
+  const changed = [
+    ...roleIds.filter((role) => !before.includes(role)),
+    ...before.filter((role) => !roleIds.includes(role))
+  ];
+  await assertCanChangeRoles(db, actorId, changed);
 
   const photo = nullIfEmpty(input.profilePhotoPath);
 
@@ -206,13 +283,21 @@ export async function updateUser(
           update master.users
              set name = ${input.name},
                  status = ${input.status},
-                 division_id = ${input.divisionId},
                  phone = ${input.phone},
                  email = ${input.email},
                  profile_photo_path = ${photo},
                  updated_at = now()
            where id = ${id}
           returning id
+        ), role_removal as (
+          delete from master.user_roles
+           where user_id = ${id}::uuid and role_id <> all(${uuidArray(roleIds)})
+          returning 1
+        ), role_addition as (
+          insert into master.user_roles (user_id, role_id)
+          select ${id}::uuid, r from unnest(${uuidArray(roleIds)}) as r
+          on conflict do nothing
+          returning 1
         )
         update public."user"
            set name = ${input.name},
@@ -232,7 +317,6 @@ export async function updateUser(
           update master.users
              set name = ${input.name},
                  status = ${input.status},
-                 division_id = ${input.divisionId},
                  phone = ${input.phone},
                  email = ${input.email},
                  profile_photo_path = ${photo},
@@ -259,6 +343,15 @@ export async function updateUser(
            where account_id = (select id::text from business_user)
              and provider_id = 'credential'
           returning id
+        ), role_removal as (
+          delete from master.user_roles
+           where user_id = ${id}::uuid and role_id <> all(${uuidArray(roleIds)})
+          returning 1
+        ), role_addition as (
+          insert into master.user_roles (user_id, role_id)
+          select ${id}::uuid, r from unnest(${uuidArray(roleIds)}) as r
+          on conflict do nothing
+          returning 1
         )
         insert into public.account
           (id, account_id, provider_id, user_id, password, created_at, updated_at)

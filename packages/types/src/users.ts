@@ -26,7 +26,7 @@ export const UserSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   status: UserStatusSchema,
-  divisionId: z.uuid().nullable(),
+  roles: z.array(z.object({ id: z.uuid(), name: z.string() })),
   phone: z.string().nullable(),
   email: z.string(),
   emailVerified: z.boolean(),
@@ -46,7 +46,8 @@ const userFields = {
     .max(255, "Name must be 255 characters or fewer."),
   email: z.email("Enter a valid email address.").max(255, "Email must be 255 characters or fewer."),
   phone: indonesianPhoneSchema,
-  divisionId: z.uuid("Choose a division."),
+  // The roles this user holds after the save: the whole set, not a change.
+  roleIds: z.array(z.uuid()).default([]),
   status: UserStatusSchema.default("active"),
   profilePhotoPath: optionalText(255)
 };
