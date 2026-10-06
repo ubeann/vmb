@@ -55,7 +55,7 @@ The thesis: **the mark is printed.** When the user's action brings a step (a cod
 
 | Moment             | Before                                                                                         | After                                                                                                                                                                                                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Code sent          | The sheet morphs; focus goes to the code field.                                                | The envelope prints in. The code field's description includes "If … has VMB access, we sent a code to it". A resend prints the envelope again, shows "New code sent at 14:02." under the button, and announces "A new code is on its way."                             |
+| Code sent          | The sheet morphs; focus goes to the code field.                                                | The envelope prints in. The code field's description includes "If … has VMB access, we sent a code to it". A resend prints the envelope again, changes the sentence to "we sent a new code to it at 12:06 AM", and announces "A new code is on its way."               |
 | Submit             | One progress flag drives every form on the page. Buttons fade to 50% and drop focus to `body`. | `createSubmission` names the form in flight and turns a second send away. `SubmitButton` keeps the pressed button at full colour with focus and `aria-busy`. After 8 seconds it reads "Still working…" and fills a status line that is mounted empty for that purpose. |
 | Show/hide password | The icon swaps instantly. A tap moves focus, which closes a phone's keyboard.                  | `EyeToggleIcon` draws its slash over `--duration-icon` and lifts it over `--duration-exit`. A press while typing keeps focus and the caret in the field; from the keyboard, focus stays on the toggle.                                                                 |
 | Code → password    | The sheet morphs.                                                                              | The padlock prints in, and the vendored moving `check` draws beside "Code confirmed for …", which is in the new password field's description.                                                                                                                          |
@@ -66,8 +66,12 @@ The thesis: **the mark is printed.** When the user's action brings a step (a cod
 
 ## Polish
 
-- **Resend wait:** the countdown left the disabled button, where it sat at 50% opacity. It is now a full-contrast line under the button with tabular mono figures, and its height is reserved so the help text below doesn't jump when the wait ends.
-- **Use a different email:** moved from between the step's status and its field to the footer, beside "Back to log in".
+- **Resend wait:** the countdown stays in the button ("Send a new code in 0:59", mono tabular figures, hidden from the button's name), but the disabled button no longer fades to 50%: its label is the muted ink at full opacity (6.00:1 light, 5.84:1 dark).
+- **When the last code went out:** it is in the step's sentence ("we sent a new code to it at 12:06 AM"), in plain figures that don't break across lines, so it adds no line.
+- **Footer:** "Use a different email" moved there from between the step's status and its field. "← Back to log in" (Lucide `arrow-left`) sits on the left on every step, and "Use a different email" (Lucide `pencil-line`) on the right. At 320px wide they stack as two 44px rows.
+
+**Owner review on the preview (2026-10-07):** a first version put the wait and the send time on a line under the resend button. It wrapped to two lines on a normal sheet, which moved the help text below; it left an empty reserved gap when there was nothing to say; and it set the clock time in mono. It was replaced by the two bullets above. Fixing it made the code step 28px shorter.
+
 - **Step status:** the code and password steps' status sentence now sits in `AuthCard`'s description slot, so heading → folio → description spacing is the same on every step.
 - **Strength bar:** animates `clip-path` on `--duration-feedback` instead of `width`, which the detector flagged as a layout transition.
 - **Login notice:** the notice shown on arrival ("Your password is set…") is now the description of the focused heading, because a status region that arrives already filled is often not read out.
@@ -82,10 +86,10 @@ The thesis: **the mark is printed.** When the user's action brings a step (a cod
 | ------------- | ----------- | ------------------ | ---------------- | ---------- | ----------- |
 | Login         | fits        | fits               | 773 (master 773) | fits       | 956 (960)   |
 | Email step    | fits        | fits               | fits             | fits       | 878 (888)   |
-| Code step     | fits        | 934 (master 940)   | 934 (940)        | 934 (940)  | 1137 (1147) |
+| Code step     | fits        | 906 (master 940)   | 906 (940)        | fits (940) | 1109 (1147) |
 | Password step | fits        | fits (master fits) | 856 (890)        | fits       | 1039 (1077) |
 
-No state got taller. The code step already scrolled at 1440 × 900 on `master`.
+No state got taller, and a resend doesn't change the sheet's height (682px at 1440, 702px at 390). The code step already scrolled at 1440 × 900 on `master`; it now fits at 1024 × 923.
 
 **Rendered contrast:** the background was read from screenshot pixels with the element's ink hidden. Light / dark:
 
@@ -96,6 +100,8 @@ No state got taller. The code step already scrolled at 1440 × 900 on `master`.
 | "Still working…" label      | 6.34:1 on the hover fill | 8.90:1  |
 | Moving check (non-text)     | 5.38:1                   | 8.01:1  |
 | Eye icon (non-text)         | 6.37:1                   | 5.84:1  |
+| Resend label while waiting  | 6.00:1                   | 5.84:1  |
+| Footer icons (non-text)     | 5.38:1                   | 8.01:1  |
 
 The brand supporting line is 6.00:1 and 8.45:1 over bare paper only. That makes axe's 2.47:1 flag on it a false positive: axe reads the masked etching layer's fill as the background. The flag is also present on `master`.
 
@@ -119,7 +125,7 @@ The brand supporting line is 6.00:1 and 8.45:1 over bare paper only. That makes 
 - **`build-brand-assets.mjs` draws the link-preview image from the shipped plate.** Since #243 that plate has its moving parts cut out, so a rebuild loses the trucks on the bridge. `og-image.jpg` was left as it was, with its Inter kicker. The script needs to composite the parts back before the image is rebuilt with Schibsted.
 - **After activation, `/login` opens with an empty email field.** It could prefill the email.
 - **Activation link on `/login`.** Its only link is the 14px "Activate your account" in the footer.
-- **Code step at 1366 × 768 and below.** It still scrolls, as it did before this round.
+- **Code step at 1440 × 900 and 1366 × 768.** It still scrolls, by 6px at 1440, as it did before this round.
 
 ## Pilot notes for the design workflow
 
