@@ -10,7 +10,11 @@ Single-context layout: `GLOSSARY.md` at the repo root (created lazily) + `docs/a
 
 ### Git workflow
 
-Branch naming, commit message format, PR body template, merge strategy, and AI co-author conventions. See `docs/agents/git-workflow.md`.
+Branch naming, commit message format and co-author trailer, PR body template, stacking and merge strategy. See `docs/agents/git-workflow.md`.
+
+### Model routing
+
+Picking a model tier for a ticket or delegated task, which review each complexity label gets, running Macroscope, and adopting a new model. See `docs/agents/model-routing.md`.
 
 ### Legacy reference
 
