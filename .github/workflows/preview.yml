@@ -1,6 +1,6 @@
 name: Preview
 
-# Per-PR preview environment (issue #23): a live `apps/api` Worker version, a
+# Per-PR preview environment (issue #23): a live `apps/api` Worker Preview, a
 # live `apps/web` Pages deployment, and an isolated Neon branch — so migrations
 # and the full stack get a real dry run before merging, without touching
 # production or a shared staging database.
@@ -9,7 +9,7 @@ name: Preview
 # come from `scripts/preview-identifiers.sh`, the one definition this workflow
 # shares with cleanup.yml (issue #78), and the alias names all three resources,
 # so the whole environment reads the same (ADR-0029):
-#   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Workers preview alias)
+#   - API:   https://pr<N>-<slug>-vmb-api.<account>.workers.dev  (Worker Preview)
 #   - Web:   https://pr<N>-<slug>.vmb-web.pages.dev              (Pages branch alias, as far as Cloudflare keeps it)
 #   - DB:    Neon branch `pr<N>-<slug>`, carrying the `app` database (see the Resolve step)
 #
@@ -23,13 +23,12 @@ name: Preview
 # here after each successful deploy so an open PR keeps only its newest
 # deployment (issue #84); cleanup.yml is the close-time safety net that deletes
 # the Neon branch, any Pages deployment this prune left behind, and the
-# environment (issues #55, #154). The Workers preview alias needs nothing —
-# aliases are LRU-pruned past 1000 concurrent ones and the version behind an
-# alias is Cloudflare-retained (issue #55). The versions themselves are not
-# reaped: no retention policy is documented and the only delete path is a beta
-# API, so the count is reported around each upload below and accumulation is
-# accepted until the trend or a documented limit says otherwise (issue #152).
-# See cleanup.yml for the full distinction.
+# environment (issues #55, #154). The Worker Preview is deleted there too;
+# Cloudflare also drops the least recently deployed Preview past 100 per
+# Worker on the free plan, so a missed delete only waits to be pruned. A
+# Preview deployment is not a `vmb-api` version, so previews no longer add to
+# the version count issue #152 measured. See cleanup.yml for the full
+# distinction.
 #
 # Whether a PR gets a preview at all is decided by the `Detect code-relevant
 # changes` job, not a trigger-level `paths` filter. The canonical
@@ -189,8 +188,9 @@ jobs:
       #
       # The account's workers.dev subdomain is not known to the workflow —
       # read it from the Cloudflare API rather than a hardcoded repo variable.
-      # (`<ALIAS>-<WORKER_NAME>.<SUBDOMAIN>.workers.dev`, per Cloudflare's
-      # preview-URL docs.)
+      # (`<PREVIEW_NAME>-<WORKER_NAME>.<SUBDOMAIN>.workers.dev`, per
+      # Cloudflare's Previews docs; the deploy step checks wrangler reports
+      # the same URL.)
       - name: Resolve preview identifiers
         id: ids
         env:
@@ -528,8 +528,8 @@ jobs:
       # on every push rather than only at branch creation is deliberate: the
       # branch is reused across pushes, and a deterministic dataset every time
       # is the seeder's whole point. The wipe and the inserts are one
-      # transaction, so a failed seed rolls back and fails this job before any
-      # version is uploaded — never a live, half-emptied preview.
+      # transaction, so a failed seed rolls back and fails this job before the
+      # Preview is deployed — never a live, half-emptied preview.
       - name: Seed the PR's Neon branch with deterministic fixtures
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}
@@ -539,8 +539,7 @@ jobs:
       # CLIENT_IP_SECRET) come from the committed fnox store, same as
       # build-and-test in ci.yml. ADR-0011 keeps fnox to local/CI secrets and out
       # of Worker runtime, so this is the narrow exception ADR-0019 records: fnox
-      # feeds only this ephemeral preview version, never the production
-      # deployment.
+      # feeds only this PR's Worker Preview, never the production deployment.
       #
       # The three per-PR values — DATABASE_URL, BETTER_AUTH_URL, WEB_URL — are
       # overridden so the preview Worker talks only to this PR's database and
@@ -551,7 +550,9 @@ jobs:
       # (issue #121): the Resend key and EMAIL_FROM above still ride along, but
       # the API logs the message instead of handing it to Resend, so a stranger
       # who finds the unlisted-but-public preview URL cannot send from the
-      # production sender. Production leaves the flag unset and sends for real.
+      # production sender. The logged message, OTP code included, is read in
+      # the Preview's Observability tab. Production leaves the flag unset and
+      # sends for real.
       #
       # CLIENT_IP_SECRET lets the API trust the browser address the web preview
       # forwards (#250, ADR-0042). The web side reads it from the vmb-web Pages
@@ -609,118 +610,58 @@ jobs:
             fi
           done
 
-      # Issue #152 instrumentation, first half: every preview run mints one more
-      # `vmb-api` version, Cloudflare documents no retention policy or cap for
-      # uploaded versions, and the only delete path is a beta API — so the count
-      # is recorded either side of the upload below. The trend across runs is
-      # the measurement; the per-run delta is the integrity check (a run that
-      # uploaded twice, or not at all, is visible rather than inferred).
-      # Accumulation is accepted for now, so this step reports instead of
-      # reaping; the reasoning is recorded on issue #152.
+      # `wrangler preview` creates this PR's Worker Preview on the first run and
+      # deploys to it on later ones (ADR-0019's 2026-10-07 amendment). A Preview
+      # deployment is not a `vmb-api` version, so its secrets (the file above)
+      # stay with the Preview. While previews were versions uploaded with
+      # `--preview-alias`, each production `wrangler deploy` took the newest
+      # version's secrets, a preview's. The Preview also gets wrangler.toml's
+      # `[previews.observability]`, so its logs, unlike a version URL's, are kept.
       #
-      # Best-effort, like the Pages prune: a count that cannot be read must not
-      # fail a deploy that otherwise succeeded. `per_page=1` is deliberate — the
-      # total comes from `result_info.total_count`, so one version's worth of
-      # payload answers the question.
-      - name: Count vmb-api versions before this run
-        id: versions_before
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          # Best-effort by design: clear the runner's inherited `-e` so an
-          # unexpected failure here cannot fail an otherwise-green deploy.
-          set +e
-          set -uo pipefail
-
-          before=$(curl -fsS \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/vmb-api/versions?per_page=1" \
-            | jq -r '.result_info.total_count // empty')
-
-          case "$before" in
-          '' | *[!0-9]*)
-            echo "::warning::Could not read a numeric vmb-api version count before this run; the growth report will be skipped."
-            exit 0
-            ;;
-          esac
-
-          echo "count=$before" >> "$GITHUB_OUTPUT"
-
-      # `versions upload` (not `deploy`) uploads a version without shifting
-      # production traffic; `--preview-alias` gives that version a stable URL
-      # for the life of the PR. No cleanup needed — aliases are only LRU-pruned
-      # past 1000 concurrent aliases, and the version behind one is
-      # Cloudflare-retained (issue #55); the versions themselves accumulate, and
-      # the count is reported after this upload (issue #152). The Pages
-      # deployment below is a different story; see cleanup.yml.
+      # `--ignore-base-config` keeps wrangler.toml the only source of the
+      # Preview's settings, so a Previews Base change made in the dashboard does
+      # not reach CI. `--env=""` states the top-level Worker explicitly; without
+      # it wrangler warns, because wrangler.toml defines [env.staging].
       #
-      # `--env=""` states the top-level (production) Worker explicitly. Without
-      # it wrangler warns, because wrangler.toml defines [env.staging]; the
-      # preview version must attach to vmb-api, not vmb-api-staging, for the
-      # `<alias>-vmb-api.<subdomain>.workers.dev` URL below to resolve.
-      - name: Deploy API preview version
+      # BETTER_AUTH_URL in the secrets file and the web build both use the
+      # computed API URL, so the step fails if Cloudflare reports another one.
+      # A Preview takes over an older version alias of the same name, so an
+      # open PR's URL survives the switch.
+      - name: Deploy API preview
         working-directory: apps/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PREVIEW_ALIAS: ${{ steps.ids.outputs.alias }}
+          API_PREVIEW_URL: ${{ steps.ids.outputs.api_url }}
           # The PR's head commit, not `GITHUB_SHA`. On `pull_request` the latter
-          # is the synthetic merge commit (`refs/pull/<n>/merge`), so the version
-          # tag would name a commit the author never pushed (issue #46). This
-          # workflow only runs on `pull_request`, so the payload always exists.
+          # is the synthetic merge commit (`refs/pull/<n>/merge`), so the
+          # deployment tag would name a commit the author never pushed (issue
+          # #46). This workflow only runs on `pull_request`, so the payload
+          # always exists.
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Passed through the environment, never interpolated into the script:
           # a pull request title is attacker-controlled text.
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          pnpm exec wrangler versions upload \
+          set -euo pipefail
+
+          pnpm exec wrangler preview \
             --env="" \
-            --preview-alias "$PREVIEW_ALIAS" \
+            --name "$PREVIEW_ALIAS" \
+            --ignore-base-config \
             --secrets-file "$RUNNER_TEMP/api-preview-secrets.json" \
             --message "PR #$PR_NUMBER: $PR_TITLE" \
-            --tag "${PREVIEW_ALIAS}-${HEAD_SHA:0:7}"
+            --tag "${PREVIEW_ALIAS}-${HEAD_SHA:0:7}" \
+            --json > "$RUNNER_TEMP/api-preview.json"
 
-      # Issue #152 instrumentation, second half (see the count step above): the
-      # count after this run's upload, the delta it caused, and the newest
-      # version's alias — which should be this run's, so a second uploader is
-      # visible rather than inferred. Best-effort, like the first half: a
-      # missing count warns, never fails. The implicit `success()` is wanted: a
-      # run whose upload failed has no growth to report.
-      - name: Report vmb-api version growth
-        if: steps.versions_before.outputs.count != ''
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREVIEW_ALIAS: ${{ steps.ids.outputs.alias }}
-          VERSIONS_BEFORE: ${{ steps.versions_before.outputs.count }}
-        run: |
-          # Best-effort by design: clear the runner's inherited `-e` so an
-          # unexpected failure here cannot fail an otherwise-green deploy.
-          set +e
-          set -uo pipefail
-
-          if ! response=$(curl -fsS \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/vmb-api/versions?per_page=1"); then
-            echo "::warning::Could not read the vmb-api version count after this run; no growth was recorded."
-            exit 0
+          reported=$(jq -r '.preview.urls[0] // empty' "$RUNNER_TEMP/api-preview.json")
+          if [ "$reported" != "$API_PREVIEW_URL" ]; then
+            echo "::error::wrangler reported the Preview URL '$reported', not '$API_PREVIEW_URL', which the secrets file and the web build use."
+            exit 1
           fi
-
-          after=$(printf '%s' "$response" | jq -r '.result_info.total_count // empty')
-          newest=$(printf '%s' "$response" | jq -r '.result.items[0].number // "?"')
-          newest_alias=$(printf '%s' "$response" | jq -r '.result.items[0].annotations["workers/alias"] // "(none)"')
-
-          case "$after" in
-          '' | *[!0-9]*)
-            echo "::warning::Could not read a numeric vmb-api version count after this run; no growth was recorded."
-            exit 0
-            ;;
-          esac
-
-          printf "vmb-api versions: %s -> %s (%+d this run); newest version #%s, alias '%s' (this run's alias '%s')\n" \
-            "$VERSIONS_BEFORE" "$after" "$((after - VERSIONS_BEFORE))" "$newest" "$newest_alias" "$PREVIEW_ALIAS"
+          echo "Deployed Worker Preview '$PREVIEW_ALIAS' at $reported"
 
       # Pages Preview environment variables are shared across every preview
       # deployment, so the per-PR API URL is injected at build time instead —
@@ -742,12 +683,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIEW_ALIAS: ${{ steps.ids.outputs.alias }}
-          # Same head commit as the API version tag above (issue #46).
+          # Same head commit as the API deployment tag above (issue #46).
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # Same identifier as the API alias, so the Pages branch alias and the
-          # Workers preview alias line up where Cloudflare lets them. The commit
+          # Same identifier as the API Preview name, so the Pages branch alias
+          # and the Worker Preview line up where Cloudflare lets them. The commit
           # metadata makes the Cloudflare Pages dashboard readable.
           set -o pipefail
           pnpm --filter @vmb/web exec wrangler pages deploy .svelte-kit/cloudflare \
@@ -954,6 +895,7 @@ jobs:
           # not print URLs anyway.
           WEB_PREVIEW_URL: ${{ steps.web.outputs.web_url || steps.ids.outputs.web_url }}
           API_PREVIEW_URL: ${{ steps.ids.outputs.api_url }}
+          PREVIEW_NAME: ${{ steps.ids.outputs.alias }}
           NEON_BRANCH: ${{ steps.ids.outputs.neon_branch }}
           JOB_STATUS: ${{ job.status }}
           # The job-level names (see the job's `env:`) and the compare step's
@@ -985,6 +927,7 @@ jobs:
             const branch = context.payload.pull_request.head.ref;
             const webUrl = process.env.WEB_PREVIEW_URL;
             const apiUrl = process.env.API_PREVIEW_URL;
+            const previewName = process.env.PREVIEW_NAME;
             // The shared module's Neon name (via the Resolve step), not a
             // second inline definition (issue #78).
             const neonBranch = process.env.NEON_BRANCH;
@@ -1095,6 +1038,8 @@ jobs:
                   `| Web preview | ${webUrl} |`,
                   `| API preview | ${apiUrl} |`,
                   `| API health | ${apiUrl}/health |`,
+                  "",
+                  `API logs, including the emails a preview logs instead of sending (OTP codes too), are in the Cloudflare dashboard: \`vmb-api\`, switch the environment from Production to \`${previewName}\`, then **Observability**.`,
                   "",
                   `The preview API runs on the application database \`${dbName}\` in an isolated Neon branch (\`${neonBranch}\`), which is deleted when this pull request closes.`,
                 ]

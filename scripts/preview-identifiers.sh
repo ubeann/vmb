@@ -4,7 +4,7 @@
 #
 # A preview has two names, one prefix, and one deployment environment:
 #   - the alias: `pr<N>-<slug>`, falling back to `pr-<N>` when nothing slugs at
-#     all. It is the Workers preview alias, the Neon branch name, and the Pages
+#     all. It is the Worker Preview name, the Neon branch name, and the Pages
 #     branch alias as far as Cloudflare lets it be (it truncates, and appends a
 #     disambiguating suffix on collision, which is why the workflow posts the
 #     URL `wrangler` reports rather than one computed from this);
@@ -192,7 +192,7 @@ preview_number_name() {
   printf 'pr-%s' "$1"
 }
 
-# The Workers preview alias and Pages branch alias: `pr<N>-<slug>` from the
+# The Worker Preview name and Pages branch alias: `pr<N>-<slug>` from the
 # title, then the branch, or the number-keyed name when neither slugs.
 preview_alias() {
   local pr_number=$1

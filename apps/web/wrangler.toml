@@ -12,7 +12,7 @@ compatibility_flags = ["nodejs_compat"]
 # `openssl rand -base64 32` and set it as a secret on both sides: the Pages
 # Production environment with vmb-api's production value, and the Pages
 # Preview environment (shared by every preview) with fnox's value, which the
-# preview workflow gives each vmb-api preview version. Local `vite dev` reads
+# preview workflow gives each vmb-api Worker Preview. Local `vite dev` reads
 # it from the `.dev.vars` that `predev` exports from fnox. Unset, nothing is
 # sent and vmb-api falls back to `cf-connecting-ip`.
 #
