@@ -99,7 +99,7 @@
   </AppSidebar>
 
   <div
-    class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&_footer]:pl-8 md:peer-data-[state=collapsed]:[&_footer]:duration-(--duration-exit) md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
+    class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
   >
     <header
       data-scrolled={scrollY > 0}
@@ -124,12 +124,9 @@
     </Sidebar.Inset>
 
     <!-- Below the panel, not inside it, so it stays the page's contentinfo landmark.
-         It sits on the sidebar's colour, with its text on the panel's content edges:
-         the panel's padding, plus its `md:m-2` margin on the right and, beside the
-         collapsed rail only, on the left (the column's variant above). `lg:px-6`
-         beats SiteFooter's own `lg:px-16`. -->
-    <SiteFooter
-      class="max-w-none px-4 pt-2 pb-3 transition-[padding-left] duration-(--duration-panel) ease-(--easing-standard) sm:px-6 md:pr-8 lg:px-6 lg:pr-8"
-    />
+         It sits on the sidebar's colour. From tablet up it takes 16px on the left, as
+         the top bar does, and none on the right; the phone keeps the panel's 16px.
+         `sm:px-4` and `lg:px-4` beat SiteFooter's own `sm:px-10 lg:px-16`. -->
+    <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-4 sm:pr-0 lg:px-4 lg:pr-0" />
   </div>
 </Sidebar.Provider>

@@ -455,26 +455,41 @@ describe("AppShell", () => {
       );
     });
 
-    it("puts its text on the panel's content edges, with the sidebar open or collapsed", async () => {
-      await browser.viewport(1920, 1080);
-      for (const sidebarOpen of [true, false]) {
-        const screen = await render(AppShell, props({ sidebarOpen }));
+    it("gives its text 16px on the left and none on the right from tablet up", async () => {
+      for (const [width, height] of [
+        [1920, 1080],
+        [768, 1024]
+      ] as const) {
+        await browser.viewport(width, height);
+        for (const sidebarOpen of [true, false]) {
+          const screen = await render(AppShell, props({ sidebarOpen }));
+          const strip = screen.getByRole("contentinfo").element().getBoundingClientRect();
+          const text = screen
+            .getByText(/PT\. Vifiera Minova Bersaudara/)
+            .element()
+            .getBoundingClientRect();
+          const last = screen.getByRole("link", { name: /ubeann/ }).element();
+          const label = `${width}px, open: ${sidebarOpen}`;
 
-        const panel = document.querySelector("#main-content")!.getBoundingClientRect();
-        const text = screen
-          .getByText(/PT\. Vifiera Minova Bersaudara/)
-          .element()
-          .getBoundingClientRect();
-        const credit = screen.getByRole("link", { name: "ubeann", exact: true }).element();
-
-        // The panel pads its content by 24px from sm up.
-        expect(text.left, `open: ${sidebarOpen}`).toBeCloseTo(panel.left + 24, 0);
-        expect(credit.getBoundingClientRect().right, `open: ${sidebarOpen}`).toBeCloseTo(
-          panel.right - 24,
-          0
-        );
-        screen.unmount();
+          expect(text.left - strip.left, label).toBeCloseTo(16, 0);
+          expect(strip.right - last.getBoundingClientRect().right, label).toBeLessThan(1);
+          screen.unmount();
+        }
       }
+    });
+
+    it("keeps the panel's 16px on both sides on a phone", async () => {
+      await phone();
+      const screen = await render(AppShell, props());
+      const strip = screen.getByRole("contentinfo").element().getBoundingClientRect();
+      const text = screen
+        .getByText(/PT\. Vifiera Minova Bersaudara/)
+        .element()
+        .getBoundingClientRect();
+      const last = screen.getByRole("link", { name: /ubeann/ }).element();
+
+      expect(text.left - strip.left).toBeCloseTo(16, 0);
+      expect(strip.right - last.getBoundingClientRect().right).toBeGreaterThanOrEqual(16);
     });
 
     it("spells out the support address and credit while the column has room", async () => {
