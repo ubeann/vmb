@@ -2,7 +2,7 @@ import { table, type SeedTable, type SqlLiteral } from "../sql.js";
 
 /**
  * `trucking`, `warehouse` and `expense` each have an `approvals` table with the
- * same nine columns — distinct concepts that share a name (CONTEXT.md), but
+ * same nine columns — distinct concepts that share a name (GLOSSARY.md), but
  * one shape. Sharing the column list keeps the three inserts from drifting.
  */
 const approvalColumns = [

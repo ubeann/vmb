@@ -1,6 +1,6 @@
 # Deviation ledger
 
-Every intentional difference between the new VMB schema and the legacy `vmb-warehouse` schema lives here — what changed, why, and what carries it. `CONTEXT.md` is the glossary; `docs/adr/` holds the decisions; this is the itemized register.
+Every intentional difference between the new VMB schema and the legacy `vmb-warehouse` schema lives here — what changed, why, and what carries it. `GLOSSARY.md` is the glossary; `docs/adr/` holds the decisions; this is the itemized register.
 
 Source of truth for the legacy shape: `docs/research/legacy-schema-inventory.md`.
 

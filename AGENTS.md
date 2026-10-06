@@ -6,7 +6,7 @@ Issues live in GitHub Issues for this repo (ubeann/vmb), using the `gh` CLI. See
 
 ### Domain docs
 
-Single-context layout: `CONTEXT.md` at the repo root (created lazily) + `docs/adr/` for decision records. See `docs/agents/domain.md`.
+Single-context layout: `GLOSSARY.md` at the repo root (created lazily) + `docs/adr/` for decision records. See `docs/agents/domain.md`.
 
 ### Git workflow
 
