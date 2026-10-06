@@ -8,7 +8,7 @@
   has scrolled under the bar. Search and notifications take the space in the bar
   when those features exist. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
-  without a flash.
+  without a flash. The footer strip (#218) closes the column below the panel.
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
@@ -16,6 +16,7 @@
   import AppSidebar from "$lib/components/AppSidebar.svelte";
   import ProfileMenu from "$lib/components/ProfileMenu.svelte";
   import SidebarToggle from "$lib/components/SidebarToggle.svelte";
+  import SiteFooter from "$lib/components/SiteFooter.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { isCurrent, NAV_GROUPS, visibleGroups, type NavIcon } from "$lib/nav.js";
   import Building2 from "@lucide/svelte/icons/building-2";
@@ -98,7 +99,7 @@
   </AppSidebar>
 
   <div
-    class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
+    class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&_footer]:pl-8 md:peer-data-[state=collapsed]:[&_footer]:duration-(--duration-exit) md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
   >
     <header
       data-scrolled={scrollY > 0}
@@ -121,5 +122,14 @@
     >
       {@render children()}
     </Sidebar.Inset>
+
+    <!-- Below the panel, not inside it, so it stays the page's contentinfo landmark.
+         It sits on the sidebar's colour, with its text on the panel's content edges:
+         the panel's padding, plus its `md:m-2` margin on the right and, beside the
+         collapsed rail only, on the left (the column's variant above). `lg:px-6`
+         beats SiteFooter's own `lg:px-16`. -->
+    <SiteFooter
+      class="max-w-none px-4 pt-2 pb-3 transition-[padding-left] duration-(--duration-panel) ease-(--easing-standard) sm:px-6 md:pr-8 lg:px-6 lg:pr-8"
+    />
   </div>
 </Sidebar.Provider>
