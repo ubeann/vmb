@@ -8,7 +8,7 @@
 # A PR passes only when all of these hold:
 #   - it targets `master` and GitHub reports it MERGEABLE;
 #   - every check finished green (success, skipped or neutral), and there is one;
-#   - it closes at least one issue, and each closed issue is
+#   - it closes at least one issue, all in this repository, and each is
 #     `complexity:trivial` or `complexity:standard` without `review:human`;
 #   - the PR has neither `review:human` nor `needs-decision`;
 #   - its body has no unticked `- [ ]` box and exactly one `**Door:**` line,
@@ -43,12 +43,15 @@ else
   files=$(gh api --paginate "repos/{owner}/{repo}/pulls/$1/files" --jq '.[].filename' |
     jq -R '{path: .}' | jq -s '.')
   pr=$(printf '%s' "$pr" | jq --argjson files "$files" '. + {files: $files}')
+  repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
   issues="[]"
-  for n in $(printf '%s' "$pr" | jq -r '.closingIssuesReferences[].number'); do
+  # By URL, not number: a PR can close an issue in another repository.
+  for url in $(printf '%s' "$pr" | jq -r '.closingIssuesReferences[].url'); do
     issues=$(printf '%s' "$issues" |
-      jq --argjson issue "$(gh issue view "$n" --json number,labels)" '. + [$issue]')
+      jq --argjson issue "$(gh issue view "$url" --json number,url,labels)" '. + [$issue]')
   done
-  doc=$(jq -n --argjson pr "$pr" --argjson issues "$issues" '{pr: $pr, issues: $issues}')
+  doc=$(jq -n --arg repo "$repo" --argjson pr "$pr" --argjson issues "$issues" \
+    '{repo: $repo, pr: $pr, issues: $issues}')
 fi
 
 reasons=$(printf '%s' "$doc" | jq -r '
@@ -61,7 +64,7 @@ reasons=$(printf '%s' "$doc" | jq -r '
     else .status == "COMPLETED" and (.conclusion | IN("SUCCESS", "SKIPPED", "NEUTRAL"))
     end;
 
-  .pr as $pr | .issues as $issues
+  .repo as $repo | .pr as $pr | .issues as $issues
   | [
       (if $pr.baseRefName != "master"
         then "Targets `\($pr.baseRefName)`, not `master`: a stacked PR merges by hand." else empty end),
@@ -71,13 +74,15 @@ reasons=$(printf '%s' "$doc" | jq -r '
       ($pr.statusCheckRollup[] | select(green | not)
         | "Check `\(.name // .context)` is not green (\(.conclusion // .status // .state))."),
       (if ($issues | length) == 0 then "Closes no issue: add `Closes #<n>`." else empty end),
+      ($issues[] | select((.url // "") | startswith("https://github.com/\($repo)/issues/") | not)
+        | "#\(.number) is outside \($repo) (\(.url)): the owner merges cross-repo work."),
       ($issues[] | . as $i | names as $l
         | if ($l | index("complexity:trivial") or index("complexity:standard")) | not
             then "#\($i.number) is not complexity:trivial or complexity:standard." else empty end,
           if $l | index("review:human") then "#\($i.number) is labelled review:human." else empty end),
       ($pr | names[] | select(. == "review:human" or . == "needs-decision")
         | "The PR is labelled \(.)."),
-      (if ($pr.body // "") | test("(?m)^\\s*[-*]\\s+\\[ \\]") then "The body has unticked `- [ ]` items." else empty end),
+      (if ($pr.body // "") | test("(?m)^\\s*[-*+]\\s+\\[ \\]") then "The body has unticked `- [ ]` items." else empty end),
       # Exactly one live Door line, and it says two-way: a struck-through,
       # quoted or superseded declaration does not count.
       ([($pr.body // "") | split("\n")[] | sub("\r$"; "") | select(test("^\\*\\*Door:\\*\\*"))] as $doors

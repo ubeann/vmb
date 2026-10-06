@@ -64,6 +64,9 @@ check "a /to-tickets ticket passes" 0 "" \
 check "an issue-form ticket (### headings) passes" 0 "" \
   "ready-for-agent,complexity:trivial" "$form"
 
+check "headings match in any case" 0 "" \
+  "ready-for-agent,complexity:standard" "${good//Acceptance criteria/ACCEPTANCE CRITERIA}"
+
 check "a ticket that is not ready-for-agent is not checked" 0 "" \
   "needs-triage" "no sections at all"
 

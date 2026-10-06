@@ -37,7 +37,7 @@ done
 
 # At least one checkbox between the criteria heading and the next heading.
 criteria=$(printf '%s\n' "$body" | awk '
-  /^#{2,3}[[:space:]]+[Aa]cceptance criteria[[:space:]]*$/ { inside = 1; next }
+  tolower($0) ~ /^#{2,3}[[:space:]]+acceptance criteria[[:space:]]*$/ { inside = 1; next }
   /^#{1,3}[[:space:]]/ { inside = 0 }
   inside && /^[[:space:]]*[-*][[:space:]]+\[[ xX]\][[:space:]]+[^[:space:]]/ { count++ }
   END { print count + 0 }
@@ -57,7 +57,7 @@ esac
 
 # The reason is the text under `## Why complex`, up to the next heading.
 reason=$(printf '%s\n' "$body" | awk '
-  /^#{2,3}[[:space:]]+[Ww]hy complex[[:space:]]*$/ { inside = 1; next }
+  tolower($0) ~ /^#{2,3}[[:space:]]+why complex[[:space:]]*$/ { inside = 1; next }
   /^#{1,3}[[:space:]]/ { inside = 0 }
   inside && /[^[:space:]]/ { count++ }
   END { print count + 0 }

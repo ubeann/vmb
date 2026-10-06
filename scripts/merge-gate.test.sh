@@ -18,6 +18,7 @@ failures=0
 checks=0
 
 passing='{
+  "repo": "ubeann/vmb",
   "pr": {
     "number": 300, "baseRefName": "master", "mergeable": "MERGEABLE", "labels": [],
     "body": "Closes #218\n\n## Acceptance criteria\n\n- [x] Footer renders\n\n## Merge Danger\n\n**Door:** two-way",
@@ -29,7 +30,7 @@ passing='{
     ],
     "closingIssuesReferences": [{"number": 218}]
   },
-  "issues": [{"number": 218, "labels": [{"name": "ready-for-agent"}, {"name": "complexity:standard"}]}]
+  "issues": [{"number": 218, "url": "https://github.com/ubeann/vmb/issues/218", "labels": [{"name": "ready-for-agent"}, {"name": "complexity:standard"}]}]
 }'
 
 # check <description> <expected exit> <expected output substring|""> <jq edit>
@@ -77,6 +78,12 @@ check "a ticket without complexity fails" 1 "#218 is not complexity:trivial" \
 
 check "a review:human ticket fails" 1 "#218 is labelled review:human" \
   '.issues[0].labels += [{"name": "review:human"}]'
+
+check "an issue in another repository fails" 1 "#218 is outside ubeann/vmb" \
+  '.issues[0].url = "https://github.com/ubeann/vmb-warehouse/issues/218"'
+
+check "a + task marker counts as unticked" 1 "unticked" \
+  '.pr.body += "\n+ [ ] Screenshots on the preview"'
 
 check "a needs-decision PR fails" 1 "The PR is labelled needs-decision" \
   '.pr.labels = [{"name": "needs-decision"}]'

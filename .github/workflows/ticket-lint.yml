@@ -13,9 +13,11 @@ on:
     # `unlabeled` too: removing a ticket's complexity label must re-check it.
     types: [opened, edited, labeled, unlabeled]
 
+# Queue rather than cancel: the relabel below fires `unlabeled` and `labeled`
+# on this issue, and cancelling would kill this run before it comments.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read

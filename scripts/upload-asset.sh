@@ -24,7 +24,7 @@ repo=${VMB_ASSETS_REPO:-ubeann/vmb-assets}
 if [ "${1:-}" = "--delete" ]; then
   target=${2:?usage: upload-asset.sh --delete <link-or-path>}
   # Accept the printed Markdown link, the bare URL, or the path itself.
-  path=${target#*/blob/main/}
+  path=${target#*/blob/*/}
   path=${path%%\?*}
   path=${path%)}
   sha=$(gh api "repos/$repo/contents/$path" --jq .sha 2>/dev/null) || {
@@ -54,9 +54,11 @@ esac
 }
 
 hash=$(shasum -a 256 "$file" | cut -c1-12)
-name=$(basename "$file" | tr -c 'A-Za-z0-9._\n-' '-')
+name=$(basename "$file")
+name=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '-')
 path="$folder/$hash-$name"
-link="![$name](https://github.com/$repo/blob/main/$path?raw=true)"
+branch=$(gh api "repos/$repo" --jq .default_branch)
+link="![$name](https://github.com/$repo/blob/$branch/$path?raw=true)"
 
 if gh api "repos/$repo/contents/$path" --silent 2>/dev/null; then
   printf '%s\n' "$link"
