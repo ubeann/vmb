@@ -5,13 +5,23 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
-- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
+- **Read an issue**: `gh issue view <number> --json number,title,state,body,labels,comments`. (`--comments` alone prints only the comments, so an issue without any comes back empty.)
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
+
+## Linking a branch to an issue
+
+An issue's Development panel lists the branches and PRs linked to it. `gh issue develop` can only link a branch it creates itself, so pick the step by the branch's state:
+
+- **No commits yet**: `gh issue develop <number> --name <branch> --base master --checkout` creates the branch on GitHub, links it, and checks it out.
+- **Commits, not pushed yet**: `git fetch origin && git rebase origin/master`, then `gh issue develop <number> --name <current-branch> --base master`, then `git push -u origin HEAD`. The linked branch starts at `master`'s tip, so the push fast-forwards it.
+- **Already pushed**: keep the branch as it is. A PR whose body says `Closes #<number>` links itself to the issue.
+
+Confirm with `gh issue develop --list <number>`.
 
 ## Pull requests as a triage surface
 
@@ -31,7 +41,7 @@ Create a GitHub issue.
 
 ## When a skill says "fetch the relevant ticket"
 
-Run `gh issue view <number> --comments`.
+Run `gh issue view <number> --json number,title,state,body,labels,comments`.
 
 ## Wayfinding operations
 
