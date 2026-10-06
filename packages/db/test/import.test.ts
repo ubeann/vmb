@@ -345,8 +345,20 @@ describe("the insert order", () => {
       // the legacy schemas only: Better Auth's tables live in public and are not
       // part of what the pipeline carries
       const legacy = /^(master|warehouse|trucking|expense)\./;
+      // RBAC is rebuilt rather than ported (D-003): the pipeline does not carry
+      // these, so the order has no position for them to violate
+      const rebuilt = new Set([
+        "master.roles",
+        "master.permissions",
+        "master.role_permissions",
+        "master.user_roles"
+      ]);
       const legacyEdges = edges.filter(
-        (edge) => legacy.test(edge.child) && legacy.test(edge.parent)
+        (edge) =>
+          legacy.test(edge.child) &&
+          legacy.test(edge.parent) &&
+          !rebuilt.has(edge.child) &&
+          !rebuilt.has(edge.parent)
       );
 
       // every table the schema connects is in the order

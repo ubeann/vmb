@@ -1,3 +1,4 @@
+import { PERMISSION_CATALOGUE, allPermissionKeys, permissionKey } from "@vmb/types";
 import { ID_GROUPS, atMinute, fixtureId, softStamps, stamps } from "../ids.js";
 import { table } from "../sql.js";
 
@@ -272,6 +273,7 @@ const roles = table(
     "icon_name",
     "description",
     "metadata",
+    "division_id",
     "created_at",
     "updated_at"
   ],
@@ -287,6 +289,7 @@ const roles = table(
       icon_name: "heroicon-o-shield-check",
       description: "Full access to all system features, configurations, and settings.",
       metadata: null,
+      division_id: null,
       ...stamps(1)
     },
     {
@@ -300,6 +303,7 @@ const roles = table(
       icon_name: "heroicon-o-banknotes",
       description: "Responsible for financial planning, budget management, and fiscal oversight.",
       metadata: null,
+      division_id: fixtureId(ID_GROUPS.division, 2),
       ...stamps(2)
     },
     {
@@ -314,6 +318,7 @@ const roles = table(
       description:
         "Ensures operational efficiency, oversees workflows, and manages division activities.",
       metadata: null,
+      division_id: null,
       ...stamps(3)
     },
     {
@@ -327,6 +332,7 @@ const roles = table(
       icon_name: "heroicon-o-user",
       description: "Supports daily operations, office management, and administrative functions.",
       metadata: null,
+      division_id: null,
       ...stamps(4)
     }
   ]
@@ -364,4 +370,61 @@ const users = table(
   })
 );
 
-export const masterTables = [divisions, roles, users];
+/**
+ * The permission catalogue, projected from `@vmb/types`. Descriptions are not
+ * stored: they would only be a second copy of text the code already owns.
+ */
+const permissions = table(
+  "master.permissions",
+  ["key", "resource", "action", "description"],
+  PERMISSION_CATALOGUE.flatMap(({ resource, actions }) =>
+    actions.map((action) => ({
+      key: permissionKey(resource, action),
+      resource,
+      action,
+      description: null
+    }))
+  )
+);
+
+const VIEW_ONLY = ["view_any", "view"] as const;
+
+const MANAGER_KEYS = [
+  ...VIEW_ONLY.map((action) => permissionKey("master-divisions", action)),
+  ...VIEW_ONLY.map((action) => permissionKey("master-users", action)),
+  permissionKey("master-divisions", "manager")
+];
+
+/**
+ * An illustrative matrix, not the real one: the real role-to-permission data is
+ * exported from legacy (D-003). Super Admin holds every key by the same grants
+ * as everyone else, so there is no second "bypass" mechanism to audit.
+ */
+const grants: Array<{ role: number; keys: string[] }> = [
+  { role: 1, keys: allPermissionKeys() },
+  { role: 2, keys: MANAGER_KEYS },
+  { role: 3, keys: MANAGER_KEYS },
+  { role: 4, keys: VIEW_ONLY.map((action) => permissionKey("master-divisions", action)) }
+];
+
+const rolePermissions = table(
+  "master.role_permissions",
+  ["role_id", "permission_key"],
+  grants.flatMap(({ role, keys }) =>
+    keys.map((key) => ({ role_id: fixtureId(ID_GROUPS.role, role), permission_key: key }))
+  )
+);
+
+// The preview user is the Super Admin, so the preview can reach every screen.
+// The next three people each hold one of the other roles, so each role has a user.
+const userRoles = table(
+  "master.user_roles",
+  ["user_id", "role_id", "created_at"],
+  [1, 2, 3, 4].map((role) => ({
+    user_id: fixtureId(ID_GROUPS.user, role),
+    role_id: fixtureId(ID_GROUPS.role, role),
+    created_at: atMinute(role * 10)
+  }))
+);
+
+export const masterTables = [divisions, roles, users, permissions, rolePermissions, userRoles];
