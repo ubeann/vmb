@@ -17,7 +17,7 @@ related_targets:
 
 **Audience and job:** PT. Vifiera Minova Bersaudara staff. `/login`: email and password, optional Remember me. `/activate`: one route, three steps (email → six-digit code → new password); it is both first-time activation and password reset. No register or forgot-password pages.
 
-**Constraints:** ADR-0035 (tokens only, WCAG 2.2 AA), ADR-0036 (palette, Newsreader display + Inter UI), ADR-0040 (CSS and Svelte built-ins only; durations and easings from `app.css` tokens; reduced motion shows the finished state), design-workflow Rules (2.5rem clear zone around text, form first, motion plays once, nothing moves near a focused field). Text must allow for a planned Bahasa Indonesia translation.
+**Constraints:** ADR-0035 (tokens only, WCAG 2.2 AA), ADR-0036 (palette), ADR-0046 (Newsreader display cut, Schibsted Grotesk UI, JetBrains Mono for codes), ADR-0040 (CSS and Svelte built-ins only; durations and easings from `app.css` tokens; reduced motion shows the finished state), design-workflow Rules (2.5rem clear zone around text, form first, motion plays once, no ambient motion near a focused field; one-shot feedback for the user's own action may play there). Text must allow for a planned Bahasa Indonesia translation.
 
 **This round's goals (pilot of impeccable, 2026-10-06):** type that doesn't feel generic; micro-interactions for code sent, submit state, show/hide password, and the code-to-password step change, all within ADR-0040.
 

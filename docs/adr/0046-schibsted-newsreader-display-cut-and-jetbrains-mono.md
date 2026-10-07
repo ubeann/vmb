@@ -1,6 +1,6 @@
 # ADR-0046: Type — Schibsted Grotesk for UI, Newsreader's display cut, JetBrains Mono for codes
 
-**Context:** ADR-0035 set Inter for all text, and ADR-0036 added Newsreader for display headings. The 2026-10-06 critique of the auth pages (the impeccable pilot, `docs/design/etched-login/README.md`) found that the engraved frame is VMB's own, but the type inside the form sheet reads as a stock template. There were three causes:
+**Context:** ADR-0035 set Inter for all text, and ADR-0036 added Newsreader for display headings. The 2026-10-06 critique of the auth pages (the impeccable pilot, `docs/design/impeccable-auth/README.md`) found that the engraved frame is VMB's own, but the type inside the form sheet reads as a stock template. There were three causes:
 
 - **Inter everywhere.** Every role in the sheet was Inter at 14px, told apart only by weight and colour: description, label, input, button, link, hint, error and footer.
 - **Newsreader's text cut at display sizes.** `@fontsource-variable/newsreader` loads only the weight axis, so its optical-size axis stays at 16. The 60px brand line and the 30px headings were drawn with the body-text cut, which has heavier hairlines and looser spacing.
@@ -30,7 +30,7 @@ The owner asked for type that doesn't feel generic, across the whole app.
 
 - **`--font-sans`: Schibsted Grotesk Variable** (weights 400–900), for all UI text. Schibsted is a newspaper grotesque: plain enough for dense forms and tables, with more character than Inter. Its figures switch to tabular with `tabular-nums`, as ADR-0035 rule 5 requires for numeric columns.
 - **`--font-display`: Newsreader Variable, optical-size cut** (`@fontsource-variable/newsreader/opsz.css`). It is for display headings only, never for running text: a description that wraps to two lines or more stays in the UI face. `font-optical-sizing` is the browser default (`auto`), so each heading gets the cut for its size.
-- **`--font-mono`: JetBrains Mono Variable**, for codes and figures that are read character by character: the one-time code, the resend countdown, and Master codes already set in `font-mono`. Its 0/O and 1/l/I are unambiguous.
+- **`--font-mono`: JetBrains Mono Variable**, for codes and figures that are read character by character: the one-time code, the resend countdown, and the codes ADR-0035 rule 5 sets in `font-mono` in data tables (the Master restyle, #172, brings its tables onto that rule). Its 0/O and 1/l/I are unambiguous.
 
 `hooks.server.ts` preloads the latin Schibsted and Newsreader optical-size files on every page, replacing the Inter and Newsreader weight-axis files (the ADR-0036 amendment's rule, with new file names). JetBrains Mono is not preloaded; the browser fetches it only when a page shows `font-mono` text.
 

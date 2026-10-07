@@ -52,4 +52,4 @@ It is the company's own system of record for three separate domains (warehouse, 
 
 ## Accessibility & Inclusion
 
-WCAG 2.2 AA on every page: 4.5:1 text contrast, 3:1 for field boundaries and focus indicators, 44px targets on touch pointers, reduced motion shows finished states, motion plays once and nothing moves near a focused field.
+WCAG 2.2 AA on every page: 4.5:1 text contrast, 3:1 for field boundaries and focus indicators, 44px targets on touch pointers, reduced motion shows finished states, motion plays once, and no ambient motion plays near a focused field (one-shot feedback for the user's own action may).
