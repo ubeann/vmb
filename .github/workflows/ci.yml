@@ -176,6 +176,13 @@ jobs:
       - name: Knip
         run: pnpm knip --reporter github-actions
 
+      # Every installed package must carry a valid npm registry signature, so a
+      # tarball altered after publishing fails here (ADR-0047, #321). Known
+      # advisories are not gated here: a new one would turn unrelated PRs red,
+      # so Dependabot alerts and security updates track those instead.
+      - name: Registry signatures
+        run: pnpm audit signatures
+
       # apps/web's component tests render .svelte files in a real browser
       # (vitest-browser-svelte + @vitest/browser-playwright). CI drives the
       # runner image's preinstalled Chrome (`channel: "chrome"` in the web vite
