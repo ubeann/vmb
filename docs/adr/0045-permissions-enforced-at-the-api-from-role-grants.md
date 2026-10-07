@@ -20,3 +20,13 @@
 - The caller's own access is `GET /api/me`, open to every signed-in user: the shell reads permissions and division from it instead of from the Users and Divisions resources, which only someone permitted to read them may call.
 
 **Trade-offs:** The role check and the write are separate statements (the Neon HTTP driver has no interactive transactions), so a concurrent role change can slip between them; the write removes only the roles the check covered. Nothing stops the last Super Admin removing their own role, and a Finance-scoped manager may grant any role whose permissions they hold, whatever its division. One extra indexed query per protected request (permissions are not cached, so a revoked grant takes effect on the next request, matching ADR-0034's reasoning for sessions). Until roles are assigned to users, nobody holds a permission, so a database without role data refuses every Master route; the legacy RBAC export must run before cutover, and previews are seeded so they work. The web hides what the API would refuse as a courtesy only; the API is the enforcement.
+
+**Amendment (2026-10-07): what a permission check costs.** The "one extra indexed query" above did not hold. `requirePermission` called `getAccess`, which runs three queries one after another (the user's status, their permissions, and their divisions, which a permission check never reads), and `assertCanManageUser` and `assertCanChangeRoles` each called it again for the same caller, so a `PATCH /api/master/users/:id` that changes roles ran the caller's access three times before its write. Now:
+
+- `requirePermission` reads the caller's permissions in one query: the grants of their active roles, and none unless the user is Active and not Trashed.
+- That result is kept for the rest of the request, and the role and user guards take it rather than reading the caller's access again.
+- Nothing is cached across requests, so a revoked grant still takes effect on the next request. If the check ever shows up in latency, the next step is a cache guarded by a version stamp that changes whenever a role's grants or a user's roles change, so each request reads only the stamp. A Bloom filter is not that step: its "maybe" must still go to the database, since treating it as "yes" grants on a false positive, and most requests are allowed ones.
+- A test counts the statements a request runs against PGlite and fixes the budget, so a later change cannot quietly add round trips.
+- `GET /api/me` still returns divisions, with its queries run in parallel.
+
+The race in the trade-offs above, where a concurrent role change slips between the role check and its write, closes when that check and write run in one transaction (ADR-0049).

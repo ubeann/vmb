@@ -107,11 +107,13 @@ vmb/
 - **ORM:** Drizzle, chosen over Prisma because it has no native binary engine — required for compatibility with the Cloudflare Workers edge runtime.
 - **Cold starts:** Neon's free tier autosuspends compute after inactivity. Expect 1–3s latency on the first query after idle. Acceptable for an internal tool with sporadic usage; document this for end users if it comes up.
 - **Migrations:** managed via Drizzle Kit, run as part of CI/CD pipeline or manually before deploy.
+- **Transactions:** single-shot queries go over Neon's HTTP driver, cached per Worker isolate. A use case that must read and write atomically runs in `db.transaction` on a Neon WebSocket connection opened for that request and closed after the reply; store code never uses `db.batch`, so PGlite tests run the same code (ADR-0049). Hyperdrive is not adopted yet; ADR-0016's amendment names when to revisit it.
 
 ## 6. Backend (Hono on Cloudflare Workers)
 
 - Hono chosen for its native fit with the Workers runtime (built for it, minimal cold-start overhead).
 - Structure: routes organized by resource/domain, with middleware for auth, request validation, and error handling.
+- **Error contract:** every error reply, auth included, is `{ code, message, issues? }` with codes from one closed list in `@vmb/types`; stores throw module-neutral domain errors and one root `onError`/`notFound` maps them to statuses. Success replies are not wrapped (ADR-0048).
 - **Free tier constraints to design around:**
   - 100,000 requests/day (Workers Free)
   - 10ms CPU time per request (wall-clock/I/O wait doesn't count, but heavy in-request computation does)
@@ -207,4 +209,4 @@ See `DECISIONS.md` for the rationale behind each finalized choice.
 
 ---
 
-_Last updated: 2026-10-07 (§9: PR previews are Worker Previews with logs, per ADR-0019's 2026-10-07 amendment; §8: password context words and every endpoint that sets one, per ADR-0041's amendment; §8: email sends retried, per ADR-0017's 2026-10-04 amendment; §9: CI jobs sized for per-job billing, per ADR-0043; §8: password rule and auth rate limits, per ADR-0041 and ADR-0042; §8: email sends after the reply, per ADR-0017's amendment; §9: Knip in `Verify`, per ADR-0037; §11: Effect and Alchemy not adopted, per ADR-0038 and ADR-0039; §8: the two session lifetimes behind "Remember me", per ADR-0034's amendment; §7.4: the navy and green palette, per ADR-0036; §2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
+_Last updated: 2026-10-07 (§6: one error contract, per ADR-0048; §5: transactions over a per-request Neon WebSocket, per ADR-0049 and ADR-0016's amendment; §9: PR previews are Worker Previews with logs, per ADR-0019's 2026-10-07 amendment; §8: password context words and every endpoint that sets one, per ADR-0041's amendment; §8: email sends retried, per ADR-0017's 2026-10-04 amendment; §9: CI jobs sized for per-job billing, per ADR-0043; §8: password rule and auth rate limits, per ADR-0041 and ADR-0042; §8: email sends after the reply, per ADR-0017's amendment; §9: Knip in `Verify`, per ADR-0037; §11: Effect and Alchemy not adopted, per ADR-0038 and ADR-0039; §8: the two session lifetimes behind "Remember me", per ADR-0034's amendment; §7.4: the navy and green palette, per ADR-0036; §2 and §7.4: the design system, per ADR-0035; §5: `app` on every environment branch, per-developer local branches; §9: preview aliases named for their PR, fork PRs skip Preview and Cleanup, the web preview registered as a GitHub deployment, and the preview comment's bounded schema diff, per ADR-0029/ADR-0030, ADR-0019 and issue #153)_
