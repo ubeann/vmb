@@ -72,6 +72,8 @@ The thesis: **the mark is printed.** When the user's action brings a step (a cod
 
 **Owner review on the preview (2026-10-07):** a first version put the wait and the send time on a line under the resend button. It wrapped to two lines on a normal sheet, which moved the help text below; it left an empty reserved gap when there was nothing to say; and it set the clock time in mono. It was replaced by the two bullets above. Fixing it made the code step 28px shorter.
 
+**Second review on the preview (2026-10-07), password step:** the status paragraph mixed the confirmation with advice for the field, and the inline check indented only its first line. The status is now one line, "✓ Code confirmed for …", with the check in its own column so a long email wraps under the text. "Choose a password you'll remember." went, since the heading says it. The passphrase advice moved under the field, into the line that was reserved, and empty, for the "Leave … out of your password" warning: the warning now takes the advice's place and gives it back, so the line is never empty and nothing moves. The card got 40px shorter (632 → 592px at 1440).
+
 - **Step status:** the code and password steps' status sentence now sits in `AuthCard`'s description slot, so heading → folio → description spacing is the same on every step.
 - **Strength bar:** animates `clip-path` on `--duration-feedback` instead of `width`, which the detector flagged as a layout transition.
 - **Login notice:** the notice shown on arrival ("Your password is set…") is now the description of the focused heading, because a status region that arrives already filled is often not read out.
@@ -87,7 +89,7 @@ The thesis: **the mark is printed.** When the user's action brings a step (a cod
 | Login         | fits        | fits               | 773 (master 773) | fits       | 956 (960)   |
 | Email step    | fits        | fits               | fits             | fits       | 878 (888)   |
 | Code step     | fits        | 906 (master 940)   | 906 (940)        | fits (940) | 1109 (1147) |
-| Password step | fits        | fits (master fits) | 856 (890)        | fits       | 1039 (1077) |
+| Password step | fits        | fits (master fits) | 816 (890)        | fits       | 1019 (1077) |
 
 No state got taller, and a resend doesn't change the sheet's height (682px at 1440, 702px at 390). The code step already scrolled at 1440 × 900 on `master`; it now fits at 1024 × 923.
 
