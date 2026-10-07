@@ -160,7 +160,7 @@ describe("master API: divisions", () => {
       sort: "name",
       dir: "asc",
       page: 1,
-      perPage: 10
+      perPage: 25
     });
   });
 
@@ -297,7 +297,7 @@ describe("master API: roles", () => {
       sort: "name",
       dir: "asc",
       page: 1,
-      perPage: 10
+      perPage: 25
     });
   });
 
