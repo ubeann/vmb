@@ -14,12 +14,12 @@ overrides:
 minimumReleaseAge: 1440
 # Fail an install when a release carries weaker provenance or trusted-publisher
 # evidence than an earlier release of the same package: the sign of a
-# takeover (#321). Excluded after review, both published by their usual
-# maintainer from a local machine once provenance had lapsed, and pinned by
-# their dependents with no newer release in range:
+# takeover (#321). Excluded after review, both published without provenance
+# by their usual maintainer once it had lapsed, and pinned by their
+# dependents with no newer release in range:
 #   chokidar@4.0.3      4.0.0-4.0.1 had provenance; 4.0.2-4.0.3 (Dec 2024)
 #                       were published by paulmillr without it. svelte-check
-#                       requires ^4.
+#                       requires ^4.0.1.
 #   undici-types@6.21.0 provenance stopped after 6.19.2; matteo.collina has
 #                       published every release since. @types/node@22
 #                       requires ~6.21.0.
