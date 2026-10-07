@@ -35,7 +35,10 @@ describe("the session guard", () => {
     const res = await app.request("/api/master/divisions", {}, bindings);
 
     expect(res.status).toBe(401);
-    await expect(res.json()).resolves.toMatchObject({ error: "Authentication required." });
+    await expect(res.json()).resolves.toEqual({
+      code: "UNAUTHENTICATED",
+      message: "Authentication required."
+    });
     expect(listDivisionsMock).not.toHaveBeenCalled();
     expect(getSessionMock).toHaveBeenCalledWith({ headers: expect.any(Headers) });
   });

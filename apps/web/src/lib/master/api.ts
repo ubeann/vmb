@@ -1,6 +1,7 @@
 import type { ApiClient } from "$lib/api.js";
 import {
   ApiErrorSchema,
+  isApiErrorCode,
   DivisionListResponseSchema,
   DivisionSchema,
   RoleListResponseSchema,
@@ -21,19 +22,28 @@ import {
   type UserCreateInput,
   type UserListQuery,
   type UserListResponse,
-  type UserUpdateInput
+  type UserUpdateInput,
+  type ValidationIssue
 } from "@vmb/types";
 import type { z } from "zod";
 import type { ErrorStatus } from "sveltekit-superforms";
 
 /**
- * A reachable API answered; `ok: false` carries its status and message so the
- * caller can put the message on a form. A transport failure is different and
- * stays owned by the access seam (issue #82), which reports it as a thrown
- * error before this module is reached.
+ * A reachable API answered; `ok: false` carries its status, code, copy and the
+ * issues it named, so the caller can put each issue on its field and the copy
+ * on the form. A transport failure is different and stays owned by the access
+ * seam (issue #82), which reports it as a thrown error before this module is
+ * reached.
  */
-export type ApiResult<T> =
-  { ok: true; value: T } | { ok: false; status: ErrorStatus; error: string };
+export type ApiFailure = {
+  ok: false;
+  status: ErrorStatus;
+  code: string;
+  error: string;
+  issues: ValidationIssue[];
+};
+
+export type ApiResult<T> = { ok: true; value: T } | ApiFailure;
 
 /** What a page does with a failed lookup: a refusal and a miss keep their meaning, the rest is a 500. */
 export function pageErrorStatus(status: number): 403 | 404 | 500 {
@@ -62,14 +72,45 @@ async function readNoContent(response: Response): Promise<ApiResult<null>> {
   return response.ok ? { ok: true, value: null } : failure(response);
 }
 
-async function failure(
-  response: Response
-): Promise<{ ok: false; status: ErrorStatus; error: string }> {
+/** The code and copy for a status when the API's own can't be used. */
+function generic(status: number): { code: string; error: string } {
+  switch (status) {
+    case 400:
+      return { code: "VALIDATION_FAILED", error: "Check the form and try again." };
+    case 401:
+      return { code: "UNAUTHENTICATED", error: "Your session has ended. Sign in again." };
+    case 403:
+      return { code: "FORBIDDEN", error: "You do not have permission to do that." };
+    case 404:
+      return { code: "NOT_FOUND", error: "That record no longer exists." };
+    case 409:
+      return { code: "CONFLICT", error: "That clashes with a record that already exists." };
+    default:
+      return { code: "INTERNAL", error: "Something went wrong. Please try again." };
+  }
+}
+
+/**
+ * The one reader of an API error body (ADR-0048). The API's `message` is the
+ * copy for VMB's own codes; a code this build does not know, or a body that is
+ * not the contract at all, gets the generic handling for its status.
+ */
+async function failure(response: Response): Promise<ApiFailure> {
+  const status = errorStatus(response.status);
   const body = ApiErrorSchema.safeParse(await response.json().catch(() => null));
+
+  if (body.success && isApiErrorCode(body.data.code)) {
+    const { code, message, issues = [] } = body.data;
+    return { ok: false, status, code, error: message, issues };
+  }
+
+  const fallback = generic(status);
   return {
     ok: false,
-    status: errorStatus(response.status),
-    error: body.success ? body.data.error : "Something went wrong. Please try again."
+    status,
+    code: body.success ? body.data.code : fallback.code,
+    error: fallback.error,
+    issues: []
   };
 }
 

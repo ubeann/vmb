@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { rolePermissions, roles, userRoles } from "../schema/master.js";
 import { getAccess } from "./access.js";
 import type { MasterDb } from "./db.js";
-import { MasterForbiddenError, MasterNotFoundError } from "./errors.js";
+import { ForbiddenError, NotFoundError } from "../errors.js";
 
 /** Ids once each and lower-cased, the way Postgres reads a uuid. */
 export function uniqueIds(ids: string[]): string[] {
@@ -38,13 +38,18 @@ export async function assertCanChangeRoles(db: MasterDb, actorId: string, change
 
   const found = await db.select({ id: roles.id }).from(roles).where(inArray(roles.id, changed));
   if (found.length !== changed.length) {
-    throw new MasterNotFoundError("One of the chosen roles no longer exists.");
+    throw new NotFoundError("One of the chosen roles no longer exists.");
   }
 
   const [needed, actor] = await Promise.all([grantedBy(db, changed), getAccess(db, actorId)]);
   const held = new Set(actor.permissions);
 
-  if (needed.some((key) => !held.has(key))) throw new MasterForbiddenError();
+  if (needed.some((key) => !held.has(key))) {
+    throw new ForbiddenError(
+      "PERMISSION_ESCALATION",
+      "You cannot change a role that carries permissions you do not have."
+    );
+  }
 }
 
 /**
@@ -71,7 +76,8 @@ export async function assertCanManageUser(db: MasterDb, actorId: string, targetI
   const mine = new Set(actor.permissions);
 
   if (needed.some((key) => !mine.has(key))) {
-    throw new MasterForbiddenError(
+    throw new ForbiddenError(
+      "PERMISSION_ESCALATION",
       "You cannot change a user who holds permissions you do not have."
     );
   }

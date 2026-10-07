@@ -2,6 +2,7 @@ import { createMiddleware } from "hono/factory";
 import { createAuth } from "./auth.js";
 import type { Bindings } from "./bindings.js";
 import { trustedClientIpHeaders } from "./client-ip.js";
+import { HttpError } from "./http.js";
 
 /**
  * Rejects a request whose Better Auth session does not resolve — the API's
@@ -20,7 +21,7 @@ export const requireSession = createMiddleware<{
   const session = await createAuth(c.env).api.getSession({ headers });
 
   if (!session) {
-    return c.json({ error: "Authentication required." }, 401);
+    throw new HttpError(401, "UNAUTHENTICATED", "Authentication required.");
   }
 
   // the permission checks downstream (ADR-0045) need to know who is asking

@@ -1,6 +1,7 @@
 export * from "./health.js";
 export * from "./inputs.js";
 export * from "./list.js";
+export * from "./api-error.js";
 export * from "./divisions.js";
 export * from "./roles.js";
 export * from "./permissions.js";

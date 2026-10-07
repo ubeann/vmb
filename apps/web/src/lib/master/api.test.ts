@@ -118,13 +118,46 @@ describe("master API client", () => {
     ]);
   });
 
-  it("maps an API failure to its status and message", async () => {
-    const { client } = clientWith(() => json({ error: "Division not found." }, 404));
+  it("maps an API failure to its status, code and message", async () => {
+    const { client } = clientWith(() =>
+      json({ code: "NOT_FOUND", message: "Division not found." }, 404)
+    );
 
     await expect(getDivision(client, ID)).resolves.toEqual({
       ok: false,
       status: 404,
-      error: "Division not found."
+      code: "NOT_FOUND",
+      error: "Division not found.",
+      issues: []
+    });
+  });
+
+  it("carries the issues a conflict names", async () => {
+    const taken = { path: "code", message: "A division with that code already exists." };
+    const { client } = clientWith(() =>
+      json({ code: "CONFLICT", message: taken.message, issues: [taken] }, 409)
+    );
+
+    await expect(getDivision(client, ID)).resolves.toMatchObject({
+      ok: false,
+      status: 409,
+      code: "CONFLICT",
+      error: taken.message,
+      issues: [taken]
+    });
+  });
+
+  it("falls back to the status's generic copy for a code it does not know", async () => {
+    const { client } = clientWith(() =>
+      json({ code: "SOMETHING_NEW", message: "Internal detail nobody should read." }, 403)
+    );
+
+    await expect(deleteDivision(client, ID)).resolves.toEqual({
+      ok: false,
+      status: 403,
+      code: "SOMETHING_NEW",
+      error: "You do not have permission to do that.",
+      issues: []
     });
   });
 
@@ -134,7 +167,9 @@ describe("master API client", () => {
     await expect(deleteDivision(client, ID)).resolves.toMatchObject({
       ok: false,
       status: 500,
-      error: "Something went wrong. Please try again."
+      code: "INTERNAL",
+      error: "Something went wrong. Please try again.",
+      issues: []
     });
   });
 

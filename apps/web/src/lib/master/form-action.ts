@@ -1,15 +1,16 @@
 import type { ApiClient } from "$lib/api.js";
 import { withApiClient } from "$lib/api-access.js";
 import { fail, redirect, type RequestEvent } from "@sveltejs/kit";
-import type { ErrorStatus, Infer } from "sveltekit-superforms";
-import { message, superValidate } from "sveltekit-superforms/server";
+import type { ErrorStatus, FormPathLeavesWithErrors, Infer } from "sveltekit-superforms";
+import { message, setError, superValidate } from "sveltekit-superforms/server";
 import { zod4, type ZodValidationSchema } from "sveltekit-superforms/adapters";
 import type { ApiResult } from "./api.js";
 
 /**
  * The create and edit actions are the same flow — validate the submitted form
- * with the shared schema, call the API, put a domain error on the form or
- * redirect to the record. Each route declares only what differs.
+ * with the shared schema, call the API, put a domain error on the form (and
+ * each issue it names on its field) or redirect to the record. Each route
+ * declares only what differs.
  */
 export function createMasterFormAction<T extends ZodValidationSchema>(config: {
   schema: T;
@@ -33,7 +34,12 @@ export function createMasterFormAction<T extends ZodValidationSchema>(config: {
     }
 
     if (!access.value.ok) {
-      return message(form, access.value.error, { status: access.value.status });
+      const { status, error, issues } = access.value;
+      for (const issue of issues) {
+        // the API validates with the same shared schema, so its paths are this form's
+        setError(form, issue.path as FormPathLeavesWithErrors<Infer<T, "zod4">>, issue.message);
+      }
+      return message(form, error, { status });
     }
 
     redirect(303, config.redirectTo(access.value.value));

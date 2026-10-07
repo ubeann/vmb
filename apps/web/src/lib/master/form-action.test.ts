@@ -110,7 +110,9 @@ describe("createMasterFormAction", () => {
     submit.mockResolvedValue({
       ok: false,
       status: 409,
-      error: "A division with that name already exists."
+      code: "CONFLICT",
+      error: "A division with that name already exists.",
+      issues: []
     });
 
     const result = await action(fakeEvent(submitted));
@@ -118,6 +120,24 @@ describe("createMasterFormAction", () => {
     expect(result).toMatchObject({
       status: 409,
       data: { form: { message: "A division with that name already exists." } }
+    });
+  });
+
+  it("puts each issue the API named on its field", async () => {
+    const taken = { path: "code", message: "A division with that code already exists." };
+    submit.mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "CONFLICT",
+      error: taken.message,
+      issues: [taken]
+    });
+
+    const result = await action(fakeEvent(submitted));
+
+    expect(result).toMatchObject({
+      status: 409,
+      data: { form: { valid: false, errors: { code: [taken.message] } } }
     });
   });
 
@@ -176,7 +196,13 @@ describe("runRowAction", () => {
   });
 
   it("maps a domain failure to its status", async () => {
-    run.mockResolvedValue({ ok: false, status: 403, error: "System roles cannot be modified." });
+    run.mockResolvedValue({
+      ok: false,
+      status: 403,
+      code: "SYSTEM_ROLE",
+      error: "System roles cannot be modified.",
+      issues: []
+    });
 
     const result = await runRowAction(idEvent("d1000000-0000-4000-8000-000000000001"), {
       logLabel: "test",

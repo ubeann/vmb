@@ -1,5 +1,5 @@
 import { UserUpdateInputSchema } from "@vmb/types";
-import { superValidate } from "sveltekit-superforms/server";
+import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
 
@@ -44,5 +44,22 @@ describe("UserForm", () => {
     await expect
       .element(edited.getByRole("textbox", { name: /leave blank to keep the current password/ }))
       .toBeVisible();
+  });
+
+  it("shows the API's email conflict on the email field", async () => {
+    const taken = "A user with that email already exists.";
+    const form = await superValidate(
+      { name: "Rina Wijaya", email: "rina@vmblogistics.id" },
+      zod4(UserUpdateInputSchema)
+    );
+    // what `createMasterFormAction` does with the API's 409 CONFLICT issue on `email`
+    setError(form, "email", taken);
+
+    const screen = await render(UserForm, { form, roles });
+
+    const message = screen.getByText(taken);
+    await expect.element(message).toBeVisible();
+    const field = message.element().closest("label")?.querySelector("input");
+    expect(field?.getAttribute("name")).toBe("email");
   });
 });

@@ -3,6 +3,7 @@ import { allPermissionKeys } from "@vmb/types";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../bindings.js";
+import { withErrorReplies } from "../../error-reply.js";
 import { createMasterRoutes } from "./index.js";
 
 const ID = "d1000000-0000-4000-8000-000000000001";
@@ -48,15 +49,17 @@ function appFor(permissions: string[]) {
             throw new Error(`the store was reached: ${name}`);
           }
   });
-  const app = new Hono<{ Variables: { userId: string } }>()
-    .use("*", async (c, next) => {
-      c.set("userId", "caller");
-      await next();
-    })
-    .route(
-      "/",
-      createMasterRoutes(() => store)
-    );
+  const app = withErrorReplies(
+    new Hono<{ Variables: { userId: string } }>()
+      .use("*", async (c, next) => {
+        c.set("userId", "caller");
+        await next();
+      })
+      .route(
+        "/",
+        createMasterRoutes(() => store)
+      )
+  );
   return { app, getAccess };
 }
 
@@ -76,7 +79,8 @@ describe("master API permissions", () => {
 
     expect(refused.status).toBe(403);
     await expect(refused.json()).resolves.toEqual({
-      error: "You do not have permission to do that."
+      code: "FORBIDDEN",
+      message: "You do not have permission to do that."
     });
     expect(without.getAccess).toHaveBeenCalledWith("caller");
 

@@ -37,7 +37,6 @@ import {
 import type { SignInEligibility, UserStoreOptions } from "./users.js";
 
 export * from "./db.js";
-export * from "./errors.js";
 export type { SignInEligibility, UserStoreOptions } from "./users.js";
 
 /**
