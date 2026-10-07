@@ -49,8 +49,8 @@
 
   {#if verified || activated || loggedOut}
     <Notice id="login-notice" variant="success" class="mb-5">
-      {#if verified}Your email is verified — you can log in now.{/if}
-      {#if activated}Your password is set — log in with it now.{/if}
+      {#if verified}Your email is verified. You can log in now.{/if}
+      {#if activated}Your password is set. You can log in with it now.{/if}
       {#if loggedOut}You have logged out.{/if}
     </Notice>
   {/if}

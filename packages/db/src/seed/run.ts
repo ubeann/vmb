@@ -70,7 +70,7 @@ async function wipeStatement(client: SqlClient): Promise<string> {
   const found = await applicationTables(client);
 
   if (found.length === 0) {
-    throw new Error("no tables to wipe — is this database migrated?");
+    throw new Error("no tables to wipe. Is this database migrated?");
   }
 
   const names = found.map(({ schema, table }) => `"${schema}"."${table}"`).join(", ");

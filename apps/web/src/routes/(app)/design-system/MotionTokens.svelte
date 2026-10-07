@@ -78,7 +78,7 @@
         <li class="grid gap-1 sm:grid-cols-[14rem_1fr] sm:items-center sm:gap-4">
           <div class="text-sm">
             <span class="font-mono text-xs">{easing.utility}</span>
-            <span class="text-muted-foreground"> — {easing.use}</span>
+            <span class="text-muted-foreground"> · {easing.use}</span>
           </div>
           <div class="bg-muted relative h-3 rounded-full">
             <span

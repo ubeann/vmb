@@ -80,7 +80,7 @@ describe("login page", () => {
     await expect.element(screen.getByText(/verified/i)).toBeVisible();
     await expect
       .element(screen.getByRole("status"))
-      .toHaveTextContent("Your email is verified — you can log in now.");
+      .toHaveTextContent("Your email is verified. You can log in now.");
     expect(screen.getByRole("alert").elements()).toHaveLength(0);
   });
 

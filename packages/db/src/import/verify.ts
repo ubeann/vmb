@@ -122,7 +122,7 @@ export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Rep
     errors.push({
       level: "error",
       code: "fk-integrity",
-      message: `${orphans.total} row(s) reference a parent that does not exist — e.g. ${orphans.example}`
+      message: `${orphans.total} row(s) reference a parent that does not exist, for example ${orphans.example}`
     });
   }
 

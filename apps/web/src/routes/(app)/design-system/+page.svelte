@@ -35,7 +35,7 @@
 
   const NOTICES = [
     { variant: "destructive", text: "Unable to reach the server. Try again in a moment." },
-    { variant: "success", text: "Your password is set — log in with it now." },
+    { variant: "success", text: "Your password is set. You can log in with it now." },
     { variant: "default", text: "Codes expire after ten minutes." }
   ] as const;
 
@@ -94,7 +94,7 @@
   <header class="space-y-2">
     <h1 class="text-3xl font-bold tracking-tight">Design system</h1>
     <p class="text-muted-foreground max-w-prose">
-      The primitives every VMB screen composes from — tokens, controls, and the VMB-specific pieces.
+      The primitives every VMB screen composes from: tokens, controls, and the VMB-specific pieces.
       The rules behind them are in ADR-0035.
     </p>
   </header>
@@ -103,7 +103,7 @@
     {@render section(
       "tokens",
       "Colour tokens",
-      "Semantic only — no raw hex or palette classes in pages."
+      "Semantic only. No raw hex or palette classes in pages."
     )}
     <ul class="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {#each TOKENS as token (token.name)}
@@ -125,12 +125,12 @@
     )}
     <div class="space-y-2">
       <p class="font-display text-3xl font-medium tracking-tight">
-        Display heading — Newsreader 30/medium
+        Display heading · Newsreader 30/medium
       </p>
-      <p class="text-3xl font-bold tracking-tight">Page title — 30/bold</p>
-      <p class="text-lg font-semibold">Section title — 18/semibold</p>
-      <p>Body text — 16/regular, line-height 1.5.</p>
-      <p class="text-muted-foreground text-sm">Supporting text — 14/muted.</p>
+      <p class="text-3xl font-bold tracking-tight">Page title · 30/bold</p>
+      <p class="text-lg font-semibold">Section title · 18/semibold</p>
+      <p>Body text · 16/regular, line-height 1.5</p>
+      <p class="text-muted-foreground text-sm">Supporting text · 14/muted</p>
       <div class="flex gap-8 text-sm">
         <div>
           <div class="text-muted-foreground text-xs">proportional</div>
@@ -170,7 +170,7 @@
   </section>
 
   <section class="space-y-4" aria-labelledby="badges">
-    {@render section("badges", "Badges", "Status is text plus tone — never colour alone.")}
+    {@render section("badges", "Badges", "Status is text plus tone, never colour alone.")}
     <div class="flex flex-wrap gap-2">
       <Badge>Default</Badge>
       <Badge variant="secondary">Secondary</Badge>
@@ -183,7 +183,7 @@
     {@render section(
       "alerts",
       "Alerts",
-      "A tinted fill, an icon and text — errors are announced as alerts, notices as status."
+      "A tinted fill, an icon and text. Errors are announced as alerts, notices as status."
     )}
     <div class="grid max-w-xl gap-3">
       {#each NOTICES as { variant, text } (variant)}
@@ -346,7 +346,7 @@
     {@render section(
       "animated-icons",
       "Animated feedback icons",
-      "Vendored moving icons (ADR-0035 rule 3) — used only for state changes, never decoration."
+      "Vendored moving icons (ADR-0035 rule 3), used only for state changes, never decoration."
     )}
     <AnimatedIconsDemo />
   </section>
@@ -355,7 +355,7 @@
     {@render section(
       "dark",
       "Dark tokens",
-      "A .dark subtree — the toggle lives in the account menu of the app shell (#167)."
+      "A .dark subtree. The toggle lives in the account menu of the app shell (#167)."
     )}
     <div class="dark bg-background text-foreground space-y-4 rounded-xl border p-6">
       <div class="flex flex-wrap gap-3">
