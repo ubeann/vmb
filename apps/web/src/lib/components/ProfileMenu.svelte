@@ -24,6 +24,8 @@
     division: { name: string; iconName: string } | null;
   } = $props();
 
+  const divisionName = $derived(division?.name ?? "No division");
+
   function chooseTheme(value: string) {
     if (value === "light" || value === "dark") setMode(value);
     else resetMode();
@@ -42,14 +44,14 @@
       <Button
         {...props}
         variant="ghost"
-        aria-label="{user.name}, account menu"
+        aria-label="{user.name}, {divisionName}, account menu"
         class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent h-auto gap-2.5 rounded-full p-1 sm:h-12 sm:rounded-xl sm:py-0 sm:pr-3 sm:pl-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
       >
         <UserAvatar seed={user.id} image={user.image} />
         <span class="hidden min-w-0 text-left leading-tight sm:grid">
           <span class="max-w-40 truncate text-sm font-medium">{user.name}</span>
           <span class="text-sidebar-foreground/70 max-w-40 truncate text-xs font-normal">
-            {division?.name ?? "No division"}
+            {divisionName}
           </span>
         </span>
         <ChevronDown class="text-sidebar-foreground/70 hidden size-4 sm:block" aria-hidden="true" />
@@ -74,7 +76,7 @@
       </span>
       <div class="grid min-w-0 leading-tight">
         <span class="text-muted-foreground text-xs">Division</span>
-        <span class="truncate text-sm font-medium">{division?.name ?? "No division"}</span>
+        <span class="truncate text-sm font-medium">{divisionName}</span>
       </div>
     </div>
 
