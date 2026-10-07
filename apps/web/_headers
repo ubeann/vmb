@@ -1,0 +1,10 @@
+# Security headers for the static assets Cloudflare Pages serves without the
+# Worker (ADR-0047). They mirror SECURITY_HEADERS in
+# src/lib/server/security-headers.ts, which covers everything the Worker
+# renders, since this file never reaches those responses. adapter-cloudflare
+# copies this file into its output and appends its own cache rules.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY

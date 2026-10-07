@@ -1,5 +1,6 @@
 import { withAuthApiClient } from "$lib/api-access.js";
 import { isPublicRoute } from "$lib/public-routes.js";
+import { withSecurityHeaders } from "$lib/server/security-headers.js";
 import { loadSession } from "$lib/session.js";
 import { redirect, type Handle, type HandleServerError } from "@sveltejs/kit";
 
@@ -37,9 +38,13 @@ export const handle: Handle = async ({ event, resolve }) => {
     redirect(303, "/login");
   }
 
-  return resolve(event, {
-    preload: ({ type, path }) => type === "font" && PRELOADED_FONT.test(path)
-  });
+  // The gate's thrown 303 above skips this: a bodiless redirect needs none of
+  // these headers, and /login sets HSTS on the very next response (ADR-0047).
+  return withSecurityHeaders(
+    await resolve(event, {
+      preload: ({ type, path }) => type === "font" && PRELOADED_FONT.test(path)
+    })
+  );
 };
 
 // An unexpected failure gets a short reference and its time, logged with the

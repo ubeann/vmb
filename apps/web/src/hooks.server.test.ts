@@ -21,6 +21,7 @@ vi.mock("$lib/session.js", () => ({
 // The unit project runs without SvelteKit's Vite plugin, so `$lib` isn't a
 // resolvable alias here — re-export the real module by its path.
 vi.mock("$lib/public-routes.js", () => import("./lib/public-routes.js"));
+vi.mock("$lib/server/security-headers.js", () => import("./lib/server/security-headers.js"));
 
 const { handle, handleError } = await import("./hooks.server.js");
 
@@ -109,7 +110,7 @@ describe("handle", () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
-  it.each(["/login", "/activate", "/logout"])(
+  it.each(["/login", "/activate", "/logout", "/csp-report"])(
     "leaves %s reachable without a session",
     async (pathname) => {
       loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
@@ -132,6 +133,19 @@ describe("handle", () => {
     await handle({ event, resolve } as never);
 
     expect(resolve).toHaveBeenCalledWith(event, resolveOptionsMatcher);
+  });
+});
+
+describe("handle security headers", () => {
+  it("adds the security headers to what it resolves", async () => {
+    loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
+    const resolve = vi.fn().mockResolvedValue(new Response("ok"));
+
+    const res = await handle({ event: fakeEvent("/login"), resolve } as never);
+
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("strict-transport-security")).toMatch(/^max-age=\d+/);
+    expect(res.headers.get("reporting-endpoints")).toBe('csp="/csp-report"');
   });
 });
 
