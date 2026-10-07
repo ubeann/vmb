@@ -28,7 +28,7 @@ function statusOf(error: DomainError): ContentfulStatusCode {
   return 500;
 }
 
-export const errorReply: ErrorHandler = (error, c) => {
+const errorReply: ErrorHandler = (error, c) => {
   if (error instanceof HttpError) {
     return reply(c, error.status, error.code, error.message, error.issues);
   }
@@ -45,7 +45,7 @@ export const errorReply: ErrorHandler = (error, c) => {
   return reply(c, 500, "INTERNAL", "Something went wrong. Please try again.");
 };
 
-export const notFoundReply: NotFoundHandler = (c) =>
+const notFoundReply: NotFoundHandler = (c) =>
   reply(c, 404, "NOT_FOUND", "There is nothing at this address.");
 
 /**

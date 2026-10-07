@@ -35,7 +35,7 @@ import type { ErrorStatus } from "sveltekit-superforms";
  * seam (issue #82), which reports it as a thrown error before this module is
  * reached.
  */
-export type ApiFailure = {
+type ApiFailure = {
   ok: false;
   status: ErrorStatus;
   code: string;
