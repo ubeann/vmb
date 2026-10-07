@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import type { Bindings } from "./bindings.js";
 import { masterStore } from "./master.js";
 import { requireSession } from "./require-session.js";
@@ -8,6 +9,15 @@ import { meRoute } from "./routes/me.js";
 import { createMasterRoutes } from "./routes/master/index.js";
 
 const app = new Hono<{ Bindings: Bindings }>()
+  // ADR-0047: Hono's defaults (HSTS, nosniff, COOP/CORP, no-referrer) plus
+  // OWASP's REST set for a JSON-only API: nothing may load or frame a reply.
+  .use(
+    "*",
+    secureHeaders({
+      xFrameOptions: "DENY",
+      contentSecurityPolicy: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] }
+    })
+  )
   .route("/health", healthRoute)
   // Auth endpoints stay open by construction: Better Auth's handler answers
   // them, and the registered-before-the-guard order means the chain ends
