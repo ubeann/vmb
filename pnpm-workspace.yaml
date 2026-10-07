@@ -11,10 +11,11 @@ overrides:
   # Security fixes for releases a dependent pins below the patch (#326). Each
   # selector matches only the vulnerable version, so it stops applying, and can
   # be deleted, once the dependent moves on.
-  # sharp: librsvg CVE-2026-96889. miniflare pins sharp 0.35.4 exactly.
+  # sharp: librsvg CVE-2026-96889 (GHSA-wq5f-xc86-pv6w). miniflare pins sharp
+  # 0.35.4 exactly.
   "sharp@0.35.4": "0.35.5"
   # cookie: out-of-bounds name, path and domain characters (GHSA-pxg6-pf52-xh8x).
-  # @sveltejs/kit 2 asks for ^0.6.0; kit 3 (#324) drops this.
+  # @sveltejs/kit 2 asks for ^0.6.0; kit 3 (#324) depends on cookie ^2.
   "cookie@<0.7.0": "^0.7.2"
 # Supply chain (ADR-0047). pnpm 12 already waits a day before installing a new
 # release, but falls back to it when nothing older fits; setting the value
