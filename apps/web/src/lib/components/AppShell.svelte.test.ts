@@ -115,7 +115,7 @@ describe("AppShell", () => {
   it("makes the theme choice a comfortable height on desktop", async () => {
     await desktop();
     const screen = await render(AppShell, props());
-    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+    await screen.getByRole("button", { name: "Siti Rahma, Warehouse, account menu" }).click();
 
     const group = screen.getByRole("menuitemradio", { name: "Light" }).element().parentElement!;
     await expect.poll(() => group.getBoundingClientRect().height).toBe(40);
@@ -125,7 +125,7 @@ describe("AppShell", () => {
     await desktop();
     const screen = await render(AppShell, props());
 
-    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+    await screen.getByRole("button", { name: "Siti Rahma, Warehouse, account menu" }).click();
 
     await expect.element(screen.getByText("siti@vmblogistics.id")).toBeVisible();
     await expect.element(screen.getByText("Division", { exact: true })).toBeVisible();
@@ -136,7 +136,7 @@ describe("AppShell", () => {
     await desktop();
     const screen = await render(AppShell, props({ division: null }));
 
-    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+    await screen.getByRole("button", { name: "Siti Rahma, No division, account menu" }).click();
 
     await expect.element(screen.getByText("No division").last()).toBeVisible();
   });
@@ -145,7 +145,7 @@ describe("AppShell", () => {
     await desktop();
     const screen = await render(AppShell, props());
 
-    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+    await screen.getByRole("button", { name: "Siti Rahma, Warehouse, account menu" }).click();
 
     const logOut = screen.getByRole("menuitem", { name: "Log out" });
     await expect.element(logOut).toBeVisible();
@@ -158,7 +158,7 @@ describe("AppShell", () => {
     await desktop();
     const screen = await render(AppShell, props());
 
-    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+    await screen.getByRole("button", { name: "Siti Rahma, Warehouse, account menu" }).click();
     await expect
       .element(screen.getByRole("menuitemradio", { name: "System" }))
       .toHaveAttribute("aria-checked", "true");
@@ -178,7 +178,7 @@ describe("AppShell", () => {
     await desktop();
     const screen = await render(AppShell, props());
 
-    await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+    await screen.getByRole("button", { name: "Siti Rahma, Warehouse, account menu" }).click();
 
     for (const target of [
       screen.getByRole("menuitem", { name: "Log out" }),
@@ -191,7 +191,9 @@ describe("AppShell", () => {
   it("rounds the account button into a circle on a phone and a roomy pill on desktop", async () => {
     await phone();
     const small = await render(AppShell, props());
-    const circle = small.getByRole("button", { name: "Siti Rahma, account menu" }).element();
+    const circle = small
+      .getByRole("button", { name: "Siti Rahma, Warehouse, account menu" })
+      .element();
     const { width, height } = circle.getBoundingClientRect();
 
     expect(width).toBe(height);
@@ -202,7 +204,9 @@ describe("AppShell", () => {
 
     await desktop();
     const large = await render(AppShell, props());
-    const pill = large.getByRole("button", { name: "Siti Rahma, account menu" }).element();
+    const pill = large
+      .getByRole("button", { name: "Siti Rahma, Warehouse, account menu" })
+      .element();
 
     expect(pill.getBoundingClientRect().height).toBeGreaterThanOrEqual(48);
   });
@@ -419,7 +423,9 @@ describe("AppShell", () => {
       return box.top + box.height / 2;
     };
     const panelTop = document.querySelector("#main-content")!.getBoundingClientRect().top;
-    const button = screen.getByRole("button", { name: "Siti Rahma, account menu" }).element();
+    const button = screen
+      .getByRole("button", { name: "Siti Rahma, Warehouse, account menu" })
+      .element();
     const logo = screen.getByRole("link", { name: "VMB, go to the dashboard" }).element();
 
     expect(Math.abs(centre(button) - panelTop / 2)).toBeLessThanOrEqual(1);
@@ -530,7 +536,7 @@ describe("AppShell", () => {
     const screen = await render(AppShell, props({ user: { ...user, image: "/missing.png" } }));
 
     const bots = screen
-      .getByRole("button", { name: "Siti Rahma, account menu" })
+      .getByRole("button", { name: "Siti Rahma, Warehouse, account menu" })
       .element()
       .querySelectorAll("[data-slot='avatar-fallback'] img");
     expect([...bots].map((bot) => bot.getAttribute("src"))).toEqual([
@@ -734,7 +740,7 @@ describe("AppShell", () => {
       await expect.element(screen.getByRole("navigation", { name: "Main" })).toBeVisible();
       expect(await axeViolations(document.body)).toEqual([]);
 
-      await screen.getByRole("button", { name: "Siti Rahma, account menu" }).click();
+      await screen.getByRole("button", { name: "Siti Rahma, Warehouse, account menu" }).click();
       await expect.element(screen.getByRole("menuitem", { name: "Log out" })).toBeVisible();
       // Axe reads the colours it sees: wait out the menu's fade-in.
       await expect
