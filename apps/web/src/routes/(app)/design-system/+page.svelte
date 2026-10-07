@@ -1,13 +1,13 @@
 <script lang="ts">
   import HeroIcon from "$lib/components/HeroIcon.svelte";
   import Notice from "$lib/components/Notice.svelte";
+  import StatusPill from "$lib/components/StatusPill.svelte";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Card from "$lib/components/ui/card/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
-  import { Toaster } from "$lib/components/ui/sonner/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
@@ -30,6 +30,8 @@
     { name: "muted", swatch: "bg-muted", text: "text-muted-foreground" },
     { name: "accent", swatch: "bg-accent", text: "text-accent-foreground" },
     { name: "destructive", swatch: "bg-destructive", text: "text-background" },
+    { name: "success", swatch: "bg-success", text: "text-background" },
+    { name: "warning", swatch: "bg-warning", text: "text-background" },
     { name: "border", swatch: "bg-border", text: "text-foreground" }
   ];
 
@@ -80,8 +82,6 @@
 <svelte:head>
   <title>Design system — VMB</title>
 </svelte:head>
-
-<Toaster richColors closeButton />
 
 {#snippet section(id: string, title: string, description: string)}
   <div class="space-y-1">
@@ -249,9 +249,7 @@
               </Table.Cell>
               <Table.Cell class="text-right tabular-nums">{division.members}</Table.Cell>
               <Table.Cell>
-                <Badge variant={division.active ? "secondary" : "outline"}>
-                  {division.active ? "Active" : "Inactive"}
-                </Badge>
+                <StatusPill status={division.active ? "Active" : "Inactive"} />
               </Table.Cell>
             </Table.Row>
           {/each}

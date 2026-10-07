@@ -1,122 +1,357 @@
+<!--
+  The Divisions list, the pilot of the list kit (#301) that Roles, Users and
+  the domain modules compose from: search, filter chips, an All · Trash switch,
+  sortable columns, paging and a columns menu, with the whole state in the URL.
+  Actions follow the caller's permissions; the API refuses the same things.
+-->
 <script lang="ts">
-  import { pageHref } from "$lib/master/list.js";
+  import { enhance } from "$app/forms";
+  import { invalidateAll } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { navigating, page } from "$app/state";
+  import EmptyState from "$lib/components/EmptyState.svelte";
+  import HeroIcon from "$lib/components/HeroIcon.svelte";
+  import Notice from "$lib/components/Notice.svelte";
+  import RecordTime from "$lib/components/RecordTime.svelte";
+  import StatusPill from "$lib/components/StatusPill.svelte";
+  import ColumnsMenu from "$lib/components/list/ColumnsMenu.svelte";
+  import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
+  import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
+  import ListFooter from "$lib/components/list/ListFooter.svelte";
+  import ListTabs from "$lib/components/list/ListTabs.svelte";
+  import ListToolbar from "$lib/components/list/ListToolbar.svelte";
+  import { postRowAction } from "$lib/components/list/row-action.js";
+  import SortableHead from "$lib/components/list/SortableHead.svelte";
+  import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+  import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
+  import * as Table from "$lib/components/ui/table/index.js";
+  import { listHref } from "$lib/master/list.js";
+  import { cn } from "$lib/utils.js";
+  import type { Division, PermissionKey } from "@vmb/types";
+  import Building2Icon from "@lucide/svelte/icons/building-2";
+  import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+  import PlusIcon from "@lucide/svelte/icons/plus";
+  import SearchXIcon from "@lucide/svelte/icons/search-x";
+  import Trash2Icon from "@lucide/svelte/icons/trash-2";
+  import type { SubmitFunction } from "@sveltejs/kit";
+  import { onMount } from "svelte";
+  import { toast } from "svelte-sonner";
   import type { PageData } from "./$types.js";
 
-  let { data, form }: { data: PageData; form: { error?: string } | null } = $props();
+  let { data }: { data: PageData } = $props();
 
   const base = "/master/divisions";
+  const actionPath = resolve(base);
 
-  let totalPages = $derived(
-    data.divisions ? Math.max(1, Math.ceil(data.divisions.total / data.divisions.perPage)) : 1
-  );
+  const FILTERS: ListFilter[] = [
+    {
+      key: "status",
+      label: "Status",
+      options: [
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" }
+      ]
+    }
+  ];
+
+  const columns = new ColumnVisibility("divisions", [
+    { id: "name", label: "Name", hideable: false },
+    { id: "code", label: "Code" },
+    { id: "description", label: "Description" },
+    { id: "status", label: "Status" },
+    { id: "updatedAt", label: "Updated" },
+    { id: "createdAt", label: "Created", hidden: true }
+  ]);
+  onMount(() => columns.restore());
+
+  const can = (permission: PermissionKey) => data.permissions.includes(permission);
+
+  const inTrash = $derived(data.query.trashed === "only");
+  const filtered = $derived(Boolean(data.query.search) || data.query.status !== "all");
+  const sort = $derived({ sort: data.query.sort, dir: data.query.dir });
+  // a search, filter, sort or page change on this list, still loading
+  const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
+
+  let confirmOpen = $state(false);
+  let target = $state<Division | null>(null);
+  let deleting = $state(false);
+
+  function askDelete(division: Division) {
+    target = division;
+    confirmOpen = true;
+  }
+
+  async function restore(division: Division) {
+    const result = await postRowAction(`${actionPath}?/restore`, division.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`${division.name} restored`);
+    await invalidateAll();
+  }
+
+  const submitDelete: SubmitFunction = () => {
+    const division = target;
+    deleting = true;
+    return async ({ result, update }) => {
+      deleting = false;
+      if (result.type === "failure") {
+        toast.error(String(result.data?.error ?? "Something went wrong. Please try again."));
+        return;
+      }
+      confirmOpen = false;
+      if (result.type === "success" && division) {
+        toast.success(`${division.name} moved to Trash`, {
+          duration: 10_000,
+          action: can("master-divisions.restore")
+            ? { label: "Undo", onClick: () => restore(division) }
+            : undefined
+        });
+      }
+      await update();
+    };
+  };
 </script>
 
 <svelte:head>
   <title>Divisions — VMB</title>
 </svelte:head>
 
-<h2>Divisions</h2>
+<div class="flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="space-y-1">
+      <h1 class="font-display text-3xl font-medium tracking-tight">Divisions</h1>
+      <p class="text-muted-foreground text-sm">
+        A User belongs to one or more Divisions through the Roles they hold.
+      </p>
+    </div>
+    {#if can("master-divisions.create")}
+      <a href={resolve("/master/divisions/new")} class={buttonVariants()}>
+        <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
+      </a>
+    {/if}
+  </header>
 
-{#if form?.error}
-  <p role="alert" class="error">{form.error}</p>
-{/if}
+  <ListTabs {base} label="Division views" trashCount={data.trashCount} countNoun="divisions" />
 
-<form class="filters" method="GET">
-  <label>
-    <span>Search</span>
-    <input type="search" name="search" value={data.query.search ?? ""} />
-  </label>
+  <ListToolbar {base} searchLabel="Search divisions" filters={FILTERS}>
+    {#snippet actions()}
+      <ColumnsMenu {columns} />
+    {/snippet}
+  </ListToolbar>
 
-  <label>
-    <span>Status</span>
-    <select name="status">
-      <option value="all" selected={data.query.status === "all"}>All</option>
-      <option value="active" selected={data.query.status === "active"}>Active</option>
-      <option value="inactive" selected={data.query.status === "inactive"}>Inactive</option>
-    </select>
-  </label>
+  {#if !data.divisions}
+    <Notice variant="destructive">Could not load divisions. Please try again.</Notice>
+  {:else}
+    {@const list = data.divisions}
+    <div
+      class="border-border bg-card relative overflow-hidden rounded-lg border"
+      aria-busy={loading}
+    >
+      {#if loading}
+        <p
+          role="status"
+          class="bg-card text-muted-foreground border-border absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-full border px-3 py-1 text-sm shadow-sm"
+        >
+          Loading…
+        </p>
+      {/if}
 
-  <label>
-    <span>Trashed</span>
-    <select name="trashed">
-      <option value="exclude" selected={data.query.trashed === "exclude"}>Without trashed</option>
-      <option value="only" selected={data.query.trashed === "only"}>Only trashed</option>
-      <option value="include" selected={data.query.trashed === "include"}>With trashed</option>
-      <option value="include" selected={data.query.trashed === "include"}>With trashed</option>
-    </select>
-  </label>
-
-  <button type="submit">Filter</button>
-  <a href={resolve(base)}>Reset</a>
-</form>
-
-<p><a href={resolve("/master/divisions/new")}>New division</a></p>
-
-{#if !data.divisions}
-  <p role="alert" class="error">Could not load divisions. Please try again.</p>
-{:else if data.divisions.items.length === 0}
-  <p>No divisions found.</p>
-{:else}
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Code</th>
-        <th>Description</th>
-        <th>Color</th>
-        <th>Icon</th>
-        <th>Active</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each data.divisions.items as division (division.id)}
-        <tr>
-          <td>
-            <a href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
-              >{division.name}</a
+      {#if list.items.length === 0}
+        {#if list.total > 0}
+          <EmptyState
+            title="Nothing on this page"
+            description="The list is shorter than this page number."
+          >
+            <a
+              href={resolve(listHref(base, page.url.searchParams, { page: 1 }))}
+              class={buttonVariants({ variant: "outline" })}>Go to the first page</a
             >
-            {#if division.deletedAt}<span class="badge">trashed</span>{/if}
-          </td>
-          <td>{division.code}</td>
-          <td class="muted">
-            {division.description
-              ? division.description.slice(0, 40) + (division.description.length > 40 ? "…" : "")
-              : "No description"}
-          </td>
-          <td>
-            <span class="swatch" style="background: {division.colorHex}"></span>
-            {division.colorHex}
-          </td>
-          <td class="muted">{division.iconName}</td>
-          <td>{division.isActive ? "Active" : "Inactive"}</td>
-          <td>
-            <a href={resolve("/(app)/master/divisions/[id]/edit", { id: division.id })}>Edit</a>
-            {#if division.deletedAt}
-              <form class="actions" method="POST" action="?/restore">
-                <input type="hidden" name="id" value={division.id} />
-                <button type="submit">Restore</button>
-              </form>
-            {:else}
-              <form class="actions" method="POST" action="?/delete">
-                <input type="hidden" name="id" value={division.id} />
-                <button type="submit">Delete</button>
-              </form>
+          </EmptyState>
+        {:else if filtered}
+          <EmptyState
+            icon={SearchXIcon}
+            title="No divisions match"
+            description="Try another search, or clear the filters to see every division."
+          >
+            <a
+              href={resolve(listHref(base, page.url.searchParams, { search: null, status: null }))}
+              class={buttonVariants({ variant: "outline" })}>Clear search and filters</a
+            >
+          </EmptyState>
+        {:else if inTrash}
+          <EmptyState
+            icon={Trash2Icon}
+            title="The Trash is empty"
+            description="A division you delete waits here until you restore it."
+          />
+        {:else}
+          <EmptyState
+            icon={Building2Icon}
+            title="No divisions yet"
+            description="Divisions group the company's Roles and Users."
+          >
+            {#if can("master-divisions.create")}
+              <a href={resolve("/master/divisions/new")} class={buttonVariants()}>
+                <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
+              </a>
             {/if}
-          </td>
-        </tr>
-      {/each}
-    </tbody>
-  </table>
+          </EmptyState>
+        {/if}
+      {:else}
+        <Table.Root class={cn("transition-opacity", loading && "opacity-50")}>
+          <Table.Header>
+            <Table.Row class="hover:bg-transparent">
+              <SortableHead
+                {base}
+                column="name"
+                label="Name"
+                current={sort}
+                class="bg-card sticky left-0 z-10"
+              />
+              {#if columns.visible("code")}
+                <SortableHead {base} column="code" label="Code" current={sort} />
+              {/if}
+              {#if columns.visible("description")}
+                <Table.Head scope="col">Description</Table.Head>
+              {/if}
+              {#if columns.visible("status")}
+                <Table.Head scope="col">Status</Table.Head>
+              {/if}
+              {#if inTrash}
+                <Table.Head scope="col">Deleted</Table.Head>
+              {/if}
+              {#if columns.visible("updatedAt")}
+                <SortableHead {base} column="updatedAt" label="Updated" current={sort} />
+              {/if}
+              {#if columns.visible("createdAt")}
+                <SortableHead {base} column="createdAt" label="Created" current={sort} />
+              {/if}
+              <Table.Head scope="col" class="w-0"><span class="sr-only">Actions</span></Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {#each list.items as division (division.id)}
+              <Table.Row class="hover:bg-muted">
+                <Table.Cell class="bg-card [tr:hover>&]:bg-muted sticky left-0 z-10 max-w-64">
+                  <div class="flex items-center gap-2.5">
+                    <span
+                      class="flex size-7 shrink-0 items-center justify-center rounded-md text-white"
+                      style:background-color={division.colorHex}
+                    >
+                      <HeroIcon name={division.iconName} class="size-4" />
+                    </span>
+                    <a
+                      href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
+                      class="truncate font-medium hover:underline">{division.name}</a
+                    >
+                  </div>
+                </Table.Cell>
+                {#if columns.visible("code")}
+                  <Table.Cell class="font-mono text-xs">{division.code}</Table.Cell>
+                {/if}
+                {#if columns.visible("description")}
+                  <Table.Cell class="text-muted-foreground max-w-80 truncate">
+                    {division.description ?? "—"}
+                  </Table.Cell>
+                {/if}
+                {#if columns.visible("status")}
+                  <Table.Cell>
+                    <StatusPill status={division.isActive ? "Active" : "Inactive"} />
+                  </Table.Cell>
+                {/if}
+                {#if inTrash}
+                  <Table.Cell><RecordTime iso={division.deletedAt} /></Table.Cell>
+                {/if}
+                {#if columns.visible("updatedAt")}
+                  <Table.Cell><RecordTime iso={division.updatedAt} /></Table.Cell>
+                {/if}
+                {#if columns.visible("createdAt")}
+                  <Table.Cell><RecordTime iso={division.createdAt} /></Table.Cell>
+                {/if}
+                <Table.Cell class="text-right">
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger>
+                      {#snippet child({ props })}
+                        <Button {...props} variant="ghost" size="sm">
+                          Actions<span class="sr-only"> for {division.name}</span>
+                          <ChevronDownIcon aria-hidden="true" data-icon="inline-end" />
+                        </Button>
+                      {/snippet}
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content align="end" class="w-40">
+                      <DropdownMenu.Item>
+                        {#snippet child({ props })}
+                          <a
+                            {...props}
+                            href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
+                            >View</a
+                          >
+                        {/snippet}
+                      </DropdownMenu.Item>
+                      {#if division.deletedAt}
+                        {#if can("master-divisions.restore")}
+                          <DropdownMenu.Item onSelect={() => restore(division)}>
+                            Restore
+                          </DropdownMenu.Item>
+                        {/if}
+                      {:else}
+                        {#if can("master-divisions.update")}
+                          <DropdownMenu.Item>
+                            {#snippet child({ props })}
+                              <a
+                                {...props}
+                                href={resolve("/(app)/master/divisions/[id]/edit", {
+                                  id: division.id
+                                })}>Edit</a
+                              >
+                            {/snippet}
+                          </DropdownMenu.Item>
+                        {/if}
+                        {#if can("master-divisions.delete")}
+                          <DropdownMenu.Separator />
+                          <DropdownMenu.Item
+                            variant="destructive"
+                            onSelect={() => askDelete(division)}
+                          >
+                            Delete…
+                          </DropdownMenu.Item>
+                        {/if}
+                      {/if}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Root>
+                </Table.Cell>
+              </Table.Row>
+            {/each}
+          </Table.Body>
+        </Table.Root>
+      {/if}
+    </div>
 
-  <div class="pagination">
-    {#if data.divisions.page > 1}
-      <a href={resolve(pageHref(base, data.query, data.divisions.page - 1))}>Previous</a>
-    {/if}
-    <span>Page {data.divisions.page} of {totalPages} ({data.divisions.total} total)</span>
-    {#if data.divisions.page < totalPages}
-      <a href={resolve(pageHref(base, data.query, data.divisions.page + 1))}>Next</a>
-    {/if}
-  </div>
-{/if}
+    <ListFooter {base} {list} noun={inTrash ? "divisions in the Trash" : "divisions"} />
+  {/if}
+</div>
+
+<Dialog.Root bind:open={confirmOpen}>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>Delete {target?.name}?</Dialog.Title>
+      <Dialog.Description>It moves to the Trash. You can restore it from Trash.</Dialog.Description>
+    </Dialog.Header>
+    <form method="POST" action="?/delete" use:enhance={submitDelete}>
+      <input type="hidden" name="id" value={target?.id ?? ""} />
+      <Dialog.Footer>
+        <Dialog.Close>
+          {#snippet child({ props })}
+            <Button {...props} variant="outline">Cancel</Button>
+          {/snippet}
+        </Dialog.Close>
+        <Button type="submit" variant="destructive" disabled={deleting}>
+          {deleting ? "Deleting…" : "Delete"}
+        </Button>
+      </Dialog.Footer>
+    </form>
+  </Dialog.Content>
+</Dialog.Root>

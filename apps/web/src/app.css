@@ -35,6 +35,11 @@
   --accent: oklch(0.93 0.016 91);
   --accent-foreground: oklch(0.247 0.094 267.7);
   --destructive: oklch(0.53 0.207 22.3);
+  /* Status tones (StatusPill, ADR-0036 "Status tones"): text on a 12% wash of itself, 5:1 or more
+   * on paper, white and the muted row hover. Success is a bluer green than --primary, so a
+   * status never reads as a button */
+  --success: oklch(0.45 0.12 152);
+  --warning: oklch(0.47 0.11 62);
   --border: oklch(0.888 0.014 93);
   /* Field boundaries reach 3:1 on paper and white (retires ADR-0035's exception) */
   --input: oklch(0.64 0.037 274.3);
@@ -78,6 +83,8 @@
   --accent: oklch(0.284 0.082 271.7);
   --accent-foreground: oklch(0.954 0.011 95.2);
   --destructive: oklch(0.712 0.181 22.8);
+  --success: oklch(0.78 0.15 152);
+  --warning: oklch(0.82 0.13 75);
   --border: oklch(0.322 0.08 272.6);
   --input: oklch(0.501 0.076 274.2);
   --ring: oklch(0.75 0.165 146.3);
@@ -208,6 +215,8 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -430,13 +439,6 @@
     color: var(--primary);
     text-decoration: underline;
     text-underline-offset: 2px;
-  }
-
-  nav a {
-    margin-inline-end: 1rem;
-  }
-  nav a[aria-current="page"] {
-    font-weight: 600;
   }
 
   table:not([data-slot]) {
