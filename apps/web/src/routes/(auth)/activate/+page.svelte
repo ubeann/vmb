@@ -242,9 +242,14 @@
 {#snippet status()}
   <span id="step-status">
     {#if step === "password"}
-      <MovingCheck animate={printed > 0} size={16} class="text-primary mr-1 align-[-0.2em]" />
-      <span>Code confirmed for</span> <strong class="text-foreground">{email}</strong>. Choose a
-      password you'll remember. Three or four words work well, and spaces are fine.
+      <!-- Status only: the advice for the password sits with its field. The
+           check keeps its own column, so a long email wraps under the text. -->
+      <span class="flex items-start gap-2">
+        <MovingCheck animate={printed > 0} size={16} class="text-primary mt-0.5 shrink-0" />
+        <span class="min-w-0 break-words"
+          >Code confirmed for <strong class="text-foreground">{email}</strong>.</span
+        >
+      </span>
     {:else if resentAt}
       If <strong class="text-foreground">{email}</strong> has VMB access, we sent a new code to it
       at
@@ -343,13 +348,27 @@
             <p class={strength ? "text-foreground" : "text-muted-foreground"}>
               {passwordReading(passwordLength)}
             </p>
-            <!-- Always on the page, so a word to leave out appearing moves
-                 nothing under it. -->
-            <p id="password-context" class="text-destructive min-h-5" aria-live="polite">
-              {#if contextWords.length}
-                Leave {contextWords.map((word) => `"${word}"`).join(" and ")} out of your password
-              {/if}
-            </p>
+            <!-- The advice and a word to leave out share one line: the warning
+                 takes the advice's place, so the line is never empty and
+                 nothing under it moves. Hidden, the advice drops out of the
+                 field's description too. Only the warning is announced. -->
+            <div class="grid">
+              <p
+                class="text-muted-foreground col-start-1 row-start-1 text-pretty"
+                style:visibility={contextWords.length ? "hidden" : undefined}
+              >
+                Three or four words work well, and spaces are fine.
+              </p>
+              <p
+                id="password-context"
+                class="text-destructive col-start-1 row-start-1"
+                aria-live="polite"
+              >
+                {#if contextWords.length}
+                  Leave {contextWords.map((word) => `"${word}"`).join(" and ")} out of your password
+                {/if}
+              </p>
+            </div>
           </div>
         </div>
 

@@ -509,6 +509,16 @@ describe("activate page", () => {
       await expect.element(screen.getByText(/Code confirmed/)).toBeVisible();
     });
 
+    // Status only at the top; the advice is at the field.
+    it("says the code was confirmed, and nothing more, under the heading", async () => {
+      const screen = await render(Page, passwordStep);
+
+      const status = screen.container.querySelector("#step-status")!;
+      expect(status.textContent?.replace(/\s+/g, " ").trim()).toBe(
+        "Code confirmed for a@example.com."
+      );
+    });
+
     it("only sets the password, for the email whose code was checked", async () => {
       const screen = await render(Page, passwordStep);
 
@@ -771,6 +781,22 @@ describe("activate page", () => {
         await password.fill("a passphrase with nothing in it");
         expect(screen.getByText(/Leave .* out of your password/).elements()).toHaveLength(0);
         await expect.element(password).not.toHaveAttribute("aria-invalid");
+      });
+
+      // One line, never empty: the warning takes the advice's place and gives it back.
+      it("shows the warning in the advice's place, then the advice again", async () => {
+        const screen = await render(Page, rina);
+        const password = screen.getByLabelText("New password");
+        const advice = screen.getByText("Three or four words work well, and spaces are fine.");
+        await expect.element(advice).toBeVisible();
+
+        await password.fill("my rina.wijaya passphrase");
+        await expect.element(advice).not.toBeVisible();
+        await expect.element(password).not.toHaveAccessibleDescription(/Three or four words/);
+
+        await password.fill("a passphrase with nothing in it");
+        await expect.element(advice).toBeVisible();
+        await expect.element(password).toHaveAccessibleDescription(/Three or four words/);
       });
 
       it("forgets what was typed when the step is left, so a blank field is not read as the old one", async () => {
