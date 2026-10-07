@@ -20,6 +20,10 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # pnpm refuses a release younger than a day (minimumReleaseAge,
+    # ADR-0047), so a bump to one could only fail its install.
+    cooldown:
+      default-days: 1
     groups:
       npm-minor-patch:
         patterns:
