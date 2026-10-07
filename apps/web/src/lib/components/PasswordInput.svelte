@@ -23,29 +23,38 @@
 
   // Set when a pointer presses the toggle while the field has focus: the press
   // then doesn't take focus, and the caret goes back where it was. Switching
-  // the type resets the selection, so it is put back after the swap.
+  // the type resets the selection, so it is put back after the swap. Only the
+  // click that ends that press uses it: each press starts afresh, a cancelled
+  // one drops it, and a click from the keyboard (detail 0) never reads it.
   let caret: [number | null, number | null] | undefined;
 
+  const field = () => {
+    const element = document.getElementById(id);
+    return element instanceof HTMLInputElement ? element : undefined;
+  };
+
   function keepFocus(event: PointerEvent) {
-    const field = document.getElementById(id);
-    if (!(field instanceof HTMLInputElement) || document.activeElement !== field) return;
+    caret = undefined;
+    const input = field();
+    if (!input || document.activeElement !== input) return;
     event.preventDefault();
-    caret = [field.selectionStart, field.selectionEnd];
+    caret = [input.selectionStart, input.selectionEnd];
   }
 
-  async function toggle() {
+  async function toggle(event: MouseEvent) {
     visible = !visible;
-    if (!caret) return;
-    const [start, end] = caret;
+    const saved = event.detail > 0 ? caret : undefined;
     caret = undefined;
+    if (!saved) return;
+    const [start, end] = saved;
     // The browser rebuilds the field for its new type and resets the
     // selection a frame later, so the caret is put back after that frame.
     await tick();
     await new Promise(requestAnimationFrame);
-    const field = document.getElementById(id);
-    if (!(field instanceof HTMLInputElement)) return;
-    field.focus();
-    field.setSelectionRange(start, end);
+    const input = field();
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(start, end);
   }
 </script>
 
@@ -65,6 +74,7 @@
       aria-controls={id}
       aria-pressed={visible}
       onpointerdown={keepFocus}
+      onpointercancel={() => (caret = undefined)}
       onclick={toggle}
     >
       <EyeToggleIcon off={visible} class="size-4" />

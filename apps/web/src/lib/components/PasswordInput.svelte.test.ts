@@ -89,4 +89,23 @@ describe("PasswordInput", () => {
     await expect.element(toggle).toHaveFocus();
     expect(field().type).toBe("text");
   });
+
+  // A press dragged off the toggle never clicks; what it saved must not leak
+  // into a later keyboard use, which keeps focus on the toggle.
+  it("keeps focus on the toggle from the keyboard after a press that never clicked", async () => {
+    const { field, toggle } = await renderField();
+    field().focus();
+    toggle
+      .element()
+      .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+    toggle.element().dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }));
+
+    toggle.element().focus();
+    (toggle.element() as HTMLButtonElement).click();
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+
+    await expect.element(toggle).toHaveFocus();
+    expect(field().type).toBe("text");
+  });
 });

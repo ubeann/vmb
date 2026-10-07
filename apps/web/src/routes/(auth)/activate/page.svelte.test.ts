@@ -276,6 +276,16 @@ describe("activate page", () => {
       await expect.element(verify).not.toHaveAttribute("aria-busy", "true");
     });
 
+    it('shows "Use a different email" working while it sends', async () => {
+      const screen = await render(Page, codeStep);
+      const restart = screen.getByRole("button", { name: "Use a different email" });
+
+      await restart.click();
+
+      await expect.element(restart).toHaveAttribute("aria-busy", "true");
+      expect(restart.element().querySelector(".animate-spin")).not.toBeNull();
+    });
+
     it("turns away a second send while one is under way", async () => {
       const screen = await render(Page, codeStep);
 

@@ -136,7 +136,7 @@ describe("createSubmission", () => {
 
   it("names the form that is being sent", async () => {
     const { form } = formWithField();
-    const submission = createSubmission();
+    const submission = createSubmission<"resend">();
 
     const { reply } = submit(submission.enhance(undefined, undefined, "resend"), form);
     expect(submission.pending).toBe("resend");

@@ -61,8 +61,6 @@
   // Pasted "123 456" or "123-456" keeps the digits.
   const digitsOnly = (text: string) => text.replace(/\D/g, "");
 
-  // Each digit is read off an email and checked by eye, so it is set large in
-  // the mono face, whose 0, O, 1 and l can't be confused (ADR-0046).
   // The registry's slot colours an invalid box through `aria-invalid`, which a
   // box (a div) must not carry. The field's own `aria-invalid` is on the input,
   // and the box says so through `data-invalid`, which app.css reads for the
@@ -87,6 +85,8 @@
     {#snippet children({ cells })}
       <InputOTP.Group class="w-full gap-2">
         {#each cells as cell, index (index)}
+          <!-- Each digit is read off an email and checked by eye, so it is set
+               large in the mono face, whose 0, O, 1 and l can't be confused (ADR-0046). -->
           <InputOTP.Slot
             {cell}
             data-invalid={invalid ? "" : undefined}

@@ -3,6 +3,7 @@
   import { resolve } from "$app/paths";
   import ArrowLeft from "@lucide/svelte/icons/arrow-left";
   import Check from "@lucide/svelte/icons/check";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mail from "@lucide/svelte/icons/mail";
   import PencilLine from "@lucide/svelte/icons/pencil-line";
   import Send from "@lucide/svelte/icons/send";
@@ -62,12 +63,13 @@
     password: "new-password"
   };
 
-  const submission = createSubmission();
+  // The page's forms, one send at a time; each button shows only its own.
+  const submission = createSubmission<"request" | "verify" | "resend" | "restart" | "reset">();
 
   // How many times an action of the user's has brought a step's mark: a code
   // sent, a code confirmed, a new code sent. The mark is printed in each time,
   // as feedback; a mark that is there on arrival (a reload) is not.
-  let printed = $state(0);
+  let printCount = $state(0);
 
   // What each form does with an action's reply, besides the button reporting
   // progress until it settles. A reply that names another step swaps the steps
@@ -86,7 +88,7 @@
         ? transitionUpdate(async () => {
             await update();
             code = "";
-            printed += 1;
+            printCount += 1;
           })
         : update());
       if (step !== from) document.getElementById(firstField[step])?.focus();
@@ -115,7 +117,7 @@
   function afterResend() {
     code = "";
     resentAt = new Date();
-    printed += 1;
+    printCount += 1;
   }
 
   // The last digit sends Verify. Not while a send is under way: a second one
@@ -141,11 +143,12 @@
   // page so a change is announced. It is built from the length of the wait,
   // not the time left, so it changes when the wait starts and when it ends,
   // not every second.
+  // A new code is announced whether or not a wait follows it.
   let resendStatus = $derived.by(() => {
     if (step !== "code") return "";
-    if (resendWait.remaining === 0)
-      return resendWait.finished ? "You can send a new code now." : "";
     const sent = resentAt ? "A new code is on its way. " : "";
+    if (resendWait.remaining === 0)
+      return resendWait.finished ? `${sent}You can send a new code now.` : sent.trim();
     return resendWait.total === 1
       ? `${sent}You can send a new code in 1 second.`
       : `${sent}You can send a new code in ${resendWait.total} seconds.`;
@@ -245,7 +248,7 @@
       <!-- Status only: the advice for the password sits with its field. The
            check keeps its own column, so a long email wraps under the text. -->
       <span class="flex items-start gap-2">
-        <MovingCheck animate={printed > 0} size={16} class="text-primary mt-0.5 shrink-0" />
+        <MovingCheck animate={printCount > 0} size={16} class="text-primary mt-0.5 shrink-0" />
         <span class="min-w-0 break-words"
           >Code confirmed for <strong class="text-foreground">{email}</strong>.</span
         >
@@ -298,7 +301,7 @@
 
         <!-- Etched art, as on the code step: its own band, in the flow with a
              fixed ratio. -->
-        <EtchedMark art={ACTIVATE_ART.padlock} reveal={printed > 0} class="mx-auto w-20" />
+        <EtchedMark art={ACTIVATE_ART.padlock} reveal={printCount > 0} class="mx-auto w-20" />
 
         <div class="space-y-2">
           <Label for="new-password">New password</Label>
@@ -393,8 +396,8 @@
         <!-- Etched art (#273): its own band above the boxes, in the flow with a
              fixed ratio, so nothing moves when the mask loads. -->
         <!-- Printed again for each new code sent. -->
-        {#key printed}
-          <EtchedMark art={ACTIVATE_ART.slip} reveal={printed > 0} class="mx-auto w-28" />
+        {#key printCount}
+          <EtchedMark art={ACTIVATE_ART.slip} reveal={printCount > 0} class="mx-auto w-28" />
         {/key}
 
         <div class="space-y-2">
@@ -531,7 +534,12 @@
             class="{linkClass} gap-1.5 border-0 bg-transparent p-0"
             aria-busy={submission.pending === "restart"}
           >
-            <PencilLine class="size-4" aria-hidden="true" />Use a different email
+            {#if submission.pending === "restart"}
+              <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
+            {:else}
+              <PencilLine class="size-4" aria-hidden="true" />
+            {/if}
+            Use a different email
           </button>
         </form>
       {/if}

@@ -34,11 +34,12 @@ export const SLOW_AFTER_MS = 8000;
  * One send at a time per page: a second one while the first is under way is
  * turned away, so a button can show its progress at full colour and keep focus
  * instead of being disabled. `pending` names the form being sent, for a page
- * with more than one (give `name`), and `slow` turns true once a send has taken
+ * with more than one: list the names as `Name` and give each form its `name`,
+ * so a misspelt one is a type error. `slow` turns true once a send has taken
  * `SLOW_AFTER_MS`.
  */
-export function createSubmission() {
-  let pending = $state<string | undefined>();
+export function createSubmission<Name extends string = "form">() {
+  let pending = $state<Name | undefined>();
   let slow = $state(false);
 
   return {
@@ -51,7 +52,7 @@ export function createSubmission() {
     get slow() {
       return slow;
     },
-    enhance(validation?: Validation, handle: Handle = focusAfterFailure, name = "form") {
+    enhance(validation?: Validation, handle: Handle = focusAfterFailure, name = "form" as Name) {
       return (input: { formElement: HTMLFormElement; cancel: () => void }) => {
         if (pending !== undefined) return input.cancel();
         if (validation && !validation.validate(input.formElement)) return input.cancel();
