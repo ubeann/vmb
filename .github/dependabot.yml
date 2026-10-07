@@ -3,9 +3,14 @@ updates:
   # Actions are pinned to moving major tags. Without a bump mechanism, a new
   # action runtime only surfaces here once GitHub starts force-running the old
   # one (the Node 20 deprecation warnings, issue #33). Grouped so the whole
-  # workflow surface arrives as one PR a week rather than a trickle.
+  # workflow surface arrives as one PR a week rather than a trickle. The
+  # composite actions under .github/actions are listed too: `directory: "/"`
+  # only scans .github/workflows, which once left the setup action a major
+  # behind the drift workflow (#322).
   - package-ecosystem: github-actions
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: weekly
     groups:
