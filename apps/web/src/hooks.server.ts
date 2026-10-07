@@ -15,6 +15,14 @@ const PRELOADED_FONT =
   /\/(?:schibsted-grotesk-latin-wght|newsreader-latin-opsz)-normal\.[^/]+\.woff2$/;
 
 export const handle: Handle = async ({ event, resolve }) => {
+  // CSP reports are public and need no user, so they skip the session lookup:
+  // otherwise each anonymous report would cost a vmb-api call (ADR-0047).
+  if (event.url.pathname === "/csp-report") {
+    event.locals.session = null;
+    event.locals.user = null;
+    return withSecurityHeaders(await resolve(event));
+  }
+
   // withAuthApiClient owns URL resolution and the transport-failure path, but
   // this hook runs on every request — a config mistake or an API outage should
   // degrade to "logged out" instead of taking the whole site down.

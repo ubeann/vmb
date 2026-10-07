@@ -19,6 +19,35 @@ export type CspViolation = {
   sample: string;
 };
 
+// The body as text, or null once it passes `limit` bytes. Read as a stream, so
+// a body with no Content-Length (chunked) is never buffered past the cap.
+export async function readCapped(
+  body: ReadableStream<Uint8Array> | null,
+  limit = MAX_REPORT_BYTES
+): Promise<string | null> {
+  if (!body) return "";
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 type Fields = Record<string, unknown>;
 
 function isFields(value: unknown): value is Fields {
@@ -29,14 +58,15 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.slice(0, MAX_FIELD) : "";
 }
 
-// `blockedURL` is often a keyword (`inline`, `eval`), not a URL; keep those.
+// `blockedURL` is often a keyword (`inline`, `eval`), not a URL, and a report
+// may carry a relative URL; both keep only what precedes any query or fragment.
 function location(value: unknown): string {
   const raw = text(value);
   try {
     const url = new URL(raw);
     return url.protocol === "data:" ? "data:" : `${url.origin}${url.pathname}`.slice(0, MAX_FIELD);
   } catch {
-    return raw;
+    return raw.split(/[?#]/)[0]!;
   }
 }
 

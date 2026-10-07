@@ -28,6 +28,15 @@ describe("static assets", () => {
     for (const script of scripts) expect(script).toContain('nonce="%sveltekit.nonce%"');
   });
 
+  // The first-paint script colours the browser chrome through this meta, so it
+  // must already be parsed when the script runs.
+  it("puts the theme-color meta ahead of the first-paint script", () => {
+    const meta = appHtml.indexOf('<meta name="theme-color"');
+
+    expect(meta).toBeGreaterThan(-1);
+    expect(meta).toBeLessThan(appHtml.indexOf("<script"));
+  });
+
   it("keeps every page out of search indexes", () => {
     expect(appHtml).toContain('<meta name="robots" content="noindex, nofollow" />');
   });

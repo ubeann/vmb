@@ -110,7 +110,19 @@ describe("handle", () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
-  it.each(["/login", "/activate", "/logout", "/csp-report"])(
+  it("answers a CSP report without looking up a session", async () => {
+    const event = fakeEvent("/csp-report", "/csp-report");
+    const resolve = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    const res = await handle({ event, resolve } as never);
+
+    expect(withAuthApiClientMock).not.toHaveBeenCalled();
+    expect(event.locals.user).toBeNull();
+    expect(res.status).toBe(204);
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it.each(["/login", "/activate", "/logout"])(
     "leaves %s reachable without a session",
     async (pathname) => {
       loadSessionMock.mockResolvedValueOnce({ session: null, user: null });
