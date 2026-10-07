@@ -80,7 +80,7 @@ describe("login page", () => {
     await expect.element(screen.getByText(/verified/i)).toBeVisible();
     await expect
       .element(screen.getByRole("status"))
-      .toHaveTextContent("Your email is verified — you can log in now.");
+      .toHaveTextContent("Your email is verified. You can log in now.");
     expect(screen.getByRole("alert").elements()).toHaveLength(0);
   });
 
@@ -90,6 +90,17 @@ describe("login page", () => {
     const screen = await render(Page, { form: null });
 
     await expect.element(screen.getByRole("status")).toHaveTextContent("You have logged out.");
+  });
+
+  // Arriving from /activate focuses the heading; a filled status region is often not read.
+  it("reads the arrival notice with the heading", async () => {
+    mockPage.url = new URL("http://localhost/login?activated=true");
+
+    const screen = await render(Page, { form: null });
+
+    await expect
+      .element(screen.getByRole("heading", { name: "Log in" }))
+      .toHaveAccessibleDescription(/password is set/i);
   });
 
   it("shows an activated banner when arriving via ?activated=true", async () => {

@@ -41,3 +41,8 @@ Revisit the decision when:
 - **New art is line work rather than hatching:** SVG with stroke drawing becomes cheap.
 
 **Trade-offs:** There is no timeline API, so choreography is `animation-delay` arithmetic in CSS. There is no path morphing or mesh deformation either, so the water's light is a gradient sweep, not a ripple. The real cost of #235 is the art split: Recraft credits for the hole fills, whose price per call is not yet known, times three breakpoints. In return, the scenes paint and move before any JS loads and work without JS, keep one art set coloured by `--etching` in both schemes, and inherit the reduced-motion rule for free. The auth and error pages also carry no runtime several times heavier than the art it would move.
+
+**Amendment (2026-10-07, #314):**
+
+- "Nothing moves near a focused field" covers ambient motion only. One-shot feedback for the user's own action may play there, within the tokens. Examples: a step's mark printed in when a code is sent, a check drawn when a code is confirmed, a toggle's icon changing. `docs/agents/design-workflow.md` carries the rule.
+- `--duration-etch-print` (640ms) joins the tokens, for that print-in (`EtchedMark`'s `reveal`).

@@ -2,7 +2,6 @@
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
-  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import LogIn from "@lucide/svelte/icons/log-in";
   import Mail from "@lucide/svelte/icons/mail";
   import { LoginInputSchema } from "@vmb/types";
@@ -11,7 +10,7 @@
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
-  import { Button } from "$lib/components/ui/button/index.js";
+  import SubmitButton from "$lib/components/SubmitButton.svelte";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { createFieldValidation } from "$lib/field-validation.svelte.js";
@@ -42,13 +41,16 @@
   description="Log in to VMB, where warehouse items, trucking orders and division expenses are kept on record."
 />
 
-<AuthCard heading="Log in">
+<AuthCard
+  heading="Log in"
+  describedby={verified || activated || loggedOut ? "login-notice" : undefined}
+>
   {#snippet description()}Use the email and password for your VMB access.{/snippet}
 
   {#if verified || activated || loggedOut}
-    <Notice variant="success" class="mb-5">
-      {#if verified}Your email is verified — you can log in now.{/if}
-      {#if activated}Your password is set — log in with it now.{/if}
+    <Notice id="login-notice" variant="success" class="mb-5">
+      {#if verified}Your email is verified. You can log in now.{/if}
+      {#if activated}Your password is set. You can log in with it now.{/if}
       {#if loggedOut}You have logged out.{/if}
     </Notice>
   {/if}
@@ -110,20 +112,12 @@
       Remember me
     </Label>
 
-    <Button
-      type="submit"
-      class="min-h-11 w-full"
-      disabled={submission.submitting}
-      aria-busy={submission.submitting}
+    <SubmitButton
+      icon={LogIn}
+      pending={submission.submitting}
+      slow={submission.slow}
+      pendingLabel="Signing in…">Log in</SubmitButton
     >
-      {#if submission.submitting}
-        <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
-        Signing in…
-      {:else}
-        <LogIn class="size-4" aria-hidden="true" />
-        Log in
-      {/if}
-    </Button>
   </form>
 
   {#snippet footer()}

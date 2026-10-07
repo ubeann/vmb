@@ -1,9 +1,11 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { resolve } from "$app/paths";
+  import ArrowLeft from "@lucide/svelte/icons/arrow-left";
   import Check from "@lucide/svelte/icons/check";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Mail from "@lucide/svelte/icons/mail";
+  import PencilLine from "@lucide/svelte/icons/pencil-line";
   import Send from "@lucide/svelte/icons/send";
   import ShieldCheck from "@lucide/svelte/icons/shield-check";
   import {
@@ -21,7 +23,8 @@
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
-  import { Button } from "$lib/components/ui/button/index.js";
+  import SubmitButton from "$lib/components/SubmitButton.svelte";
+  import MovingCheck from "$lib/components/movingicons/check.svelte";
   import { Label } from "$lib/components/ui/label/index.js";
   import { transitionUpdate } from "$lib/card-transition.js";
   import { Countdown, formatClock } from "$lib/countdown.svelte.js";
@@ -60,7 +63,13 @@
     password: "new-password"
   };
 
-  const submission = createSubmission();
+  // The page's forms, one send at a time; each button shows only its own.
+  const submission = createSubmission<"request" | "verify" | "resend" | "restart" | "reset">();
+
+  // How many times an action of the user's has brought a step's mark: a code
+  // sent, a code confirmed, a new code sent. The mark is printed in each time,
+  // as feedback; a mark that is there on arrival (a reload) is not.
+  let printCount = $state(0);
 
   // What each form does with an action's reply, besides the button reporting
   // progress until it settles. A reply that names another step swaps the steps
@@ -79,6 +88,7 @@
         ? transitionUpdate(async () => {
             await update();
             code = "";
+            printCount += 1;
           })
         : update());
       if (step !== from) document.getElementById(firstField[step])?.focus();
@@ -96,6 +106,18 @@
   function afterCodeFailure() {
     code = "";
     codeInput?.focus();
+  }
+
+  // When "Send a new code" last worked, said in the step's sentence until the step changes.
+  // A derived that is written to, as `password` is below.
+  let resentAt: Date | undefined = $derived.by(() => {
+    void step;
+    return undefined;
+  });
+  function afterResend() {
+    code = "";
+    resentAt = new Date();
+    printCount += 1;
   }
 
   // The last digit sends Verify. Not while a send is under way: a second one
@@ -121,13 +143,15 @@
   // page so a change is announced. It is built from the length of the wait,
   // not the time left, so it changes when the wait starts and when it ends,
   // not every second.
+  // A new code is announced whether or not a wait follows it.
   let resendStatus = $derived.by(() => {
     if (step !== "code") return "";
+    const sent = resentAt ? "A new code is on its way. " : "";
     if (resendWait.remaining === 0)
-      return resendWait.finished ? "You can send a new code now." : "";
+      return resendWait.finished ? `${sent}You can send a new code now.` : sent.trim();
     return resendWait.total === 1
-      ? "You can send a new code in 1 second."
-      : `You can send a new code in ${resendWait.total} seconds.`;
+      ? `${sent}You can send a new code in 1 second.`
+      : `${sent}You can send a new code in ${resendWait.total} seconds.`;
   });
 
   // A link inside a sentence keeps the line's height; one on its own line gets
@@ -198,8 +222,8 @@
     }[step]
   );
 
-  const headings: Record<Step, string> = {
-    request: "Get a code",
+  // The email step's heading is the page's own ("Set your password").
+  const headings: Record<Exclude<Step, "request">, string> = {
     code: "Enter your code",
     password: "Choose a new password"
   };
@@ -214,51 +238,50 @@
   First time here or forgot your password? We will email you a one-time code to set a new one.
 {/snippet}
 
-<!-- The code and password steps are each about one thing, so their heading is
-     the step's own and the page's intro, which explains the email step, steps
-     aside (#273, #256). -->
-<AuthCard
-  heading={step === "request" ? "Set your password" : headings[step]}
-  description={step === "request" ? intro : undefined}
->
-  {#if step === "request"}
-    <h2 class="text-base font-semibold">{headings[step]}</h2>
-  {/if}
-  <!-- The same words whether or not the email belongs to a user: a reply that
-       differed would show which emails are registered (#232). -->
-  <p class="text-muted-foreground mt-1 text-sm text-pretty">
+<!-- The same words whether or not the email belongs to a user: a reply that
+     differed would show which emails are registered (#232). It is read with
+     the step's field, so a screen reader hears where the code went and that it
+     was confirmed, not just the field's name. -->
+{#snippet status()}
+  <span id="step-status">
     {#if step === "password"}
-      Code confirmed for <strong class="text-foreground">{email}</strong>. Choose a password you'll
-      remember. Three or four words work well, and spaces are fine.
-    {:else if step === "code"}
+      <!-- Status only: the advice for the password sits with its field. The
+           check keeps its own column, so a long email wraps under the text. -->
+      <span class="flex items-start gap-2">
+        <MovingCheck animate={printCount > 0} size={16} class="text-primary mt-0.5 shrink-0" />
+        <span class="min-w-0 break-words"
+          >Code confirmed for <strong class="text-foreground">{email}</strong>.</span
+        >
+      </span>
+    {:else if resentAt}
+      If <strong class="text-foreground">{email}</strong> has VMB access, we sent a new code to it
+      at
+      <time class="whitespace-nowrap" datetime={resentAt.toISOString()}
+        >{resentAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time
+      >. It expires in 5 minutes.
+    {:else}
       If <strong class="text-foreground">{email}</strong> has VMB access, we sent a code to it. It expires
       in 5 minutes.
-    {:else}
-      Enter the email associated with your VMB access.
     {/if}
-  </p>
-  {#if step !== "request"}
-    <!-- A form, not a link: starting over drops the sent or checked code, which
-         only the server can reach, and it works without JavaScript. It still
-         looks like a link; the base layer's bordered button would read as a
-         second Set password. -->
-    <form
-      method="POST"
-      action="?/restart"
-      novalidate
-      use:enhance={submission.enhance(undefined, track)}
-    >
-      <!-- For a page left open past the cookies' life, which hold the email too. -->
-      <input type="hidden" name="email" value={email} />
-      <button
-        type="submit"
-        class="{linkClass} border-0 bg-transparent p-0 text-sm"
-        disabled={submission.submitting}>Use a different email</button
-      >
-    </form>
+  </span>
+{/snippet}
+
+<!-- The code and password steps are each about one thing, so their heading is
+     the step's own, and their status takes the place of the page's intro,
+     which explains the email step (#273, #256). The folio under the heading
+     says where in the three steps the page is (ADR-0046). -->
+<AuthCard
+  heading={step === "request" ? "Set your password" : headings[step]}
+  description={step === "request" ? intro : status}
+  step={{ at: STEPS.indexOf(step) + 1, of: STEPS.length }}
+>
+  {#if step === "request"}
+    <p class="text-muted-foreground text-sm text-pretty">
+      Enter the email associated with your VMB access.
+    </p>
   {/if}
 
-  <div class="mt-5 space-y-5">
+  <div class={["space-y-5", step === "request" && "mt-5"]}>
     {#if form?.error && !codeError && (!fieldErrors || (step === "code" && fieldErrors.email))}
       <Notice variant="destructive">{form.error}</Notice>
     {/if}
@@ -269,7 +292,7 @@
         action="?/reset"
         novalidate
         oninput={onPasswordFormInput}
-        use:enhance={submission.enhance(passwordCheck, track)}
+        use:enhance={submission.enhance(passwordCheck, track, "reset")}
         class="space-y-5"
       >
         <!-- Tells a password manager which email the new password is saved
@@ -278,7 +301,7 @@
 
         <!-- Etched art, as on the code step: its own band, in the flow with a
              fixed ratio. -->
-        <EtchedMark art={ACTIVATE_ART.padlock} class="mx-auto w-20" />
+        <EtchedMark art={ACTIVATE_ART.padlock} reveal={printCount > 0} class="mx-auto w-20" />
 
         <div class="space-y-2">
           <Label for="new-password">New password</Label>
@@ -288,8 +311,8 @@
             autocomplete="new-password"
             aria-invalid={fieldErrors?.password || contextWords.length ? "true" : undefined}
             aria-describedby={fieldErrors?.password
-              ? "password-error password-rules password-context"
-              : "password-rules password-context"}
+              ? "password-error step-status password-rules password-context"
+              : "step-status password-rules password-context"}
             required
           />
           {#if fieldErrors?.password}
@@ -314,10 +337,11 @@
             >
               <div
                 class={[
-                  "h-full rounded-full transition-[width,background-color] duration-150 motion-reduce:transition-none",
+                  "h-full transition-[clip-path,background-color] duration-(--duration-feedback) ease-(--easing-standard) motion-reduce:transition-none",
                   strength ? "bg-primary" : "bg-muted-foreground"
                 ]}
-                style="width: {passwordBarFill(passwordLength) * 100}%"
+                style="clip-path: inset(0 {100 -
+                  passwordBarFill(passwordLength) * 100}% 0 0 round 9999px)"
               ></div>
               <div
                 class="bg-card absolute inset-y-0 w-0.5"
@@ -327,30 +351,36 @@
             <p class={strength ? "text-foreground" : "text-muted-foreground"}>
               {passwordReading(passwordLength)}
             </p>
-            <!-- Always on the page, so a word to leave out appearing moves
-                 nothing under it. -->
-            <p id="password-context" class="text-destructive min-h-5" aria-live="polite">
-              {#if contextWords.length}
-                Leave {contextWords.map((word) => `"${word}"`).join(" and ")} out of your password
-              {/if}
-            </p>
+            <!-- The advice and a word to leave out share one line: the warning
+                 takes the advice's place, so the line is never empty and
+                 nothing under it moves. Hidden, the advice drops out of the
+                 field's description too. Only the warning is announced. -->
+            <div class="grid">
+              <p
+                class="text-muted-foreground col-start-1 row-start-1 text-pretty"
+                style:visibility={contextWords.length ? "hidden" : undefined}
+              >
+                Three or four words work well, and spaces are fine.
+              </p>
+              <p
+                id="password-context"
+                class="text-destructive col-start-1 row-start-1"
+                aria-live="polite"
+              >
+                {#if contextWords.length}
+                  Leave {contextWords.map((word) => `"${word}"`).join(" and ")} out of your password
+                {/if}
+              </p>
+            </div>
           </div>
         </div>
 
-        <Button
-          type="submit"
-          class="min-h-11 w-full"
-          disabled={submission.submitting}
-          aria-busy={submission.submitting}
+        <SubmitButton
+          icon={Check}
+          pending={submission.pending === "reset"}
+          slow={submission.slow}
+          pendingLabel="Saving…">Set password</SubmitButton
         >
-          {#if submission.submitting}
-            <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
-            Saving…
-          {:else}
-            <Check class="size-4" aria-hidden="true" />
-            Set password
-          {/if}
-        </Button>
       </form>
     {:else if step === "code"}
       <form
@@ -358,14 +388,17 @@
         action="?/verify"
         novalidate
         oninput={verifyValidation.oninput}
-        use:enhance={submission.enhance(verifyValidation, trackWith(afterCodeFailure))}
+        use:enhance={submission.enhance(verifyValidation, trackWith(afterCodeFailure), "verify")}
         class="space-y-5"
       >
         <input type="hidden" name="email" value={email} />
 
         <!-- Etched art (#273): its own band above the boxes, in the flow with a
              fixed ratio, so nothing moves when the mask loads. -->
-        <EtchedMark art={ACTIVATE_ART.slip} class="mx-auto w-28" />
+        <!-- Printed again for each new code sent. -->
+        {#key printCount}
+          <EtchedMark art={ACTIVATE_ART.slip} reveal={printCount > 0} class="mx-auto w-28" />
+        {/key}
 
         <div class="space-y-2">
           <Label for="otp">Code</Label>
@@ -375,7 +408,7 @@
             bind:value={code}
             bind:inputRef={codeInput}
             invalid={!!fieldErrors?.otp}
-            aria-describedby={fieldErrors?.otp || codeError ? "otp-error" : "otp-hint"}
+            aria-describedby={fieldErrors?.otp || codeError ? "otp-error" : "step-status otp-hint"}
             onComplete={sendOnComplete}
           />
           <!-- An error takes the hint's place, as the password field's does. -->
@@ -390,43 +423,44 @@
           {/if}
         </div>
 
-        <Button
-          type="submit"
-          class="min-h-11 w-full"
-          disabled={submission.submitting}
-          aria-busy={submission.submitting}
+        <SubmitButton
+          icon={ShieldCheck}
+          pending={submission.pending === "verify"}
+          slow={submission.slow}
+          pendingLabel="Verifying…">Verify code</SubmitButton
         >
-          {#if submission.submitting}
-            <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
-            Verifying…
-          {:else}
-            <ShieldCheck class="size-4" aria-hidden="true" />
-            Verify code
-          {/if}
-        </Button>
       </form>
 
       <form
         method="POST"
         action="?/resend"
         novalidate
-        use:enhance={submission.enhance(
-          undefined,
-          trackWith(undefined, () => (code = ""))
-        )}
+        use:enhance={submission.enhance(undefined, trackWith(undefined, afterResend), "resend")}
       >
         <input type="hidden" name="email" value={email} />
-        <Button
-          type="submit"
+        <!-- The wait is in the label, read at full opacity in the muted ink
+             rather than faded like other disabled buttons, so it stays legible
+             outdoors. The time is hidden from the button's name: screen readers
+             get the wait from the status region below, which changes when it
+             starts and ends, not every second. When the last code went out is
+             in the step's sentence above. -->
+        <SubmitButton
           variant="outline"
-          class="min-h-11 w-full"
-          disabled={submission.submitting || resendWait.remaining > 0}
-          aria-busy={submission.submitting}
+          class="disabled:text-muted-foreground disabled:opacity-100"
+          pending={submission.pending === "resend"}
+          slow={submission.slow}
+          pendingLabel="Sending…"
+          disabled={resendWait.remaining > 0}
         >
-          Send a new code{#if resendWait.remaining > 0}<span aria-hidden="true"
-              >&nbsp;in {formatClock(resendWait.remaining)}</span
-            >{/if}
-        </Button>
+          <!-- One span, so the button's flex gap doesn't widen the space before "in". -->
+          <span
+            >Send a new code{#if resendWait.remaining > 0}<span aria-hidden="true"
+                >&nbsp;in <span class="font-mono tabular-nums"
+                  >{formatClock(resendWait.remaining)}</span
+                ></span
+              >{/if}</span
+          >
+        </SubmitButton>
       </form>
 
       <p class="text-muted-foreground text-sm text-pretty">
@@ -439,7 +473,7 @@
         action="?/request"
         novalidate
         oninput={requestValidation.oninput}
-        use:enhance={submission.enhance(requestValidation, track)}
+        use:enhance={submission.enhance(requestValidation, track, "request")}
         class="space-y-5"
       >
         <div class="space-y-2">
@@ -462,26 +496,53 @@
             </p>
           {/if}
         </div>
-        <Button
-          type="submit"
-          class="min-h-11 w-full"
-          disabled={submission.submitting}
-          aria-busy={submission.submitting}
+        <SubmitButton
+          icon={Send}
+          pending={submission.pending === "request"}
+          slow={submission.slow}
+          pendingLabel="Sending…">Send code</SubmitButton
         >
-          {#if submission.submitting}
-            <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
-            Sending…
-          {:else}
-            <Send class="size-4" aria-hidden="true" />
-            Send code
-          {/if}
-        </Button>
       </form>
     {/if}
     <p role="status" class="sr-only">{resendStatus}</p>
   </div>
 
+  <!-- Starting over sits with leaving, under the rule: both step out of the
+       task, and neither should sit between the step's status and its field.
+       "Back to log in" keeps the left on every step, its arrow pointing the
+       way it goes; the pencil says "change what you typed". -->
   {#snippet footer()}
-    <a href={resolve("/login")} class={linkClass}>Back to log in</a>
+    <div class="flex flex-wrap items-center justify-between gap-x-6">
+      <a href={resolve("/login")} class="{linkClass} gap-1.5">
+        <ArrowLeft class="size-4" aria-hidden="true" />Back to log in
+      </a>
+      {#if step !== "request"}
+        <!-- A form, not a link: starting over drops the sent or checked code,
+             which only the server can reach, and it works without JavaScript.
+             It still looks like a link; the base layer's bordered button would
+             read as a second Set password. -->
+        <form
+          method="POST"
+          action="?/restart"
+          novalidate
+          use:enhance={submission.enhance(undefined, track, "restart")}
+        >
+          <!-- For a page left open past the cookies' life, which hold the email too. -->
+          <input type="hidden" name="email" value={email} />
+          <button
+            type="submit"
+            class="{linkClass} gap-1.5 border-0 bg-transparent p-0"
+            aria-busy={submission.pending === "restart"}
+          >
+            {#if submission.pending === "restart"}
+              <LoaderCircle class="size-4 animate-spin" aria-hidden="true" />
+            {:else}
+              <PencilLine class="size-4" aria-hidden="true" />
+            {/if}
+            Use a different email
+          </button>
+        </form>
+      {/if}
+    </div>
   {/snippet}
 </AuthCard>

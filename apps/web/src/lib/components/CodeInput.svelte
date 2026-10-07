@@ -85,11 +85,13 @@
     {#snippet children({ cells })}
       <InputOTP.Group class="w-full gap-2">
         {#each cells as cell, index (index)}
+          <!-- Each digit is read off an email and checked by eye, so it is set
+               large in the mono face, whose 0, O, 1 and l can't be confused (ADR-0046). -->
           <InputOTP.Slot
             {cell}
             data-invalid={invalid ? "" : undefined}
             class={cn(
-              "border-input size-auto h-11 min-w-0 flex-1 rounded-lg border text-base",
+              "border-input size-auto h-11 min-w-0 flex-1 rounded-lg border font-mono text-[1.375rem] font-medium tabular-nums",
               invalid && invalidSlotClass
             )}
           />

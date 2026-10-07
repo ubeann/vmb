@@ -23,10 +23,24 @@ describe("EtchedMark", () => {
     expect(style.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   });
 
-  it("does not move, so nothing animates beside the step's focused field", async () => {
+  it("does not move unless asked to", async () => {
     const screen = await render(EtchedMark, { art: { image: "/mark.webp", ratio: 2 } });
     const mark = screen.container.querySelector<HTMLElement>("[data-etched-mark]")!;
 
     expect(mark.getAnimations()).toHaveLength(0);
+  });
+
+  it("is printed in once when revealed, and then rests", async () => {
+    const screen = await render(EtchedMark, {
+      art: { image: "/mark.webp", ratio: 2 },
+      reveal: true
+    });
+    const mark = screen.container.querySelector<HTMLElement>("[data-etched-mark]")!;
+
+    const [print, ...rest] = mark.getAnimations();
+    expect(rest).toHaveLength(0);
+    expect(print!.effect!.getTiming().iterations).toBe(1);
+    await print!.finished;
+    expect(print!.playState).toBe("finished");
   });
 });

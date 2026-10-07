@@ -18,7 +18,8 @@
     { name: "--delay-etch-clouds", use: "Before the cloud bank drifts in" },
     { name: "--delay-etch-birds", use: "Before the seabirds arc in" },
     { name: "--delay-etch-water", use: "Before light crosses the water" },
-    { name: "--stagger-etch", use: "Between parts of one group, such as the trucks" }
+    { name: "--stagger-etch", use: "Between parts of one group, such as the trucks" },
+    { name: "--duration-etch-print", use: "A step's mark printed in on the auth sheet" }
   ];
 
   const EASINGS = [
@@ -78,7 +79,7 @@
         <li class="grid gap-1 sm:grid-cols-[14rem_1fr] sm:items-center sm:gap-4">
           <div class="text-sm">
             <span class="font-mono text-xs">{easing.utility}</span>
-            <span class="text-muted-foreground"> — {easing.use}</span>
+            <span class="text-muted-foreground"> · {easing.use}</span>
           </div>
           <div class="bg-muted relative h-3 rounded-full">
             <span
