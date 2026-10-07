@@ -92,6 +92,8 @@ git commit --no-verify -m "..."
 
 A hook that fails is a bug to fix, not a flag to reach for reflexively.
 
+**Partly staged files in a linked worktree (git 2.56).** With a file partly staged, lefthook first saves the unstaged changes with `git diff --output <main checkout>/.git/info/lefthook-unstaged-all.patch`, and in a linked worktree that git exits 129 ("Not a git repository"), so the commit fails before any check runs. Until it is fixed, stage whole files: set the other hunks aside in the working tree, commit, then put them back.
+
 ## Co-authoring AI-assisted work
 
 When a change was written or substantially drafted by an AI model, add a `Co-Authored-By` trailer naming the model's display name — not an internal model ID, and not the harness: `GPT-6.1 Sol <noreply@openai.com>`, not `Codex <noreply@openai.com>`, because the routing audit reads the name to tell which tier did the work. The address is the vendor's: `noreply@anthropic.com` for Claude, `noreply@openai.com` for GPT, and `noreply@vmblogistics.id` for providers with no documented address (Gemini, DeepSeek), e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.

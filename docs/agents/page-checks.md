@@ -1,6 +1,6 @@
 # Page checks: screenshots and Lighthouse
 
-Look at a page yourself before asking the user to: after a UI change, before handing over a preview link, and whenever a performance question comes up. Both scripts below run against a deployed page, signed in or not.
+Look at a page yourself before asking the user to: after a UI change, before handing over a preview link, and whenever a performance question comes up. The scripts below run against a deployed page or local dev, signed in or not.
 
 ## Where to point them
 
@@ -10,11 +10,29 @@ Look at a page yourself before asking the user to: after a UI change, before han
 
 ## Signed-in pages
 
-Pass `--login` to either script. It signs in through `/login` as the seeded preview user, `preview@vmblogistics.id` / `preview-password` (`packages/db/src/seed/data/master.ts`; override with `VMB_LOGIN_EMAIL` / `VMB_LOGIN_PASSWORD`). That user exists on every preview and on a seeded local branch, never on production. Without `--login`, a signed-in URL redirects to `/login`, and both scripts stop with an error rather than capture the login page.
+Pass `--login` to any of the scripts. It signs in through `/login` as the seeded preview user, `preview@vmblogistics.id` / `preview-password` (`packages/db/src/seed/data/master.ts`; override with `VMB_LOGIN_EMAIL` / `VMB_LOGIN_PASSWORD`). That user exists on every preview and on a seeded local branch, never on production. Without `--login`, a signed-in URL redirects to `/login`, and the scripts stop with an error rather than capture the login page.
+
+## States
+
+`--state <name>` opens a page partway through a flow, so a check reaches what a user sees after acting: `activate:code`, `activate:resent`, `activate:password`, `activate:password-warning` and `login:errors` (`apps/web/scripts/page-states.mjs`; add a state there when a screen grows one). It sets the step cookies the server reads and stubs a form's reply where the state needs one, so it works on a preview and on local dev without the API running. The screenshot, probe and contrast scripts all take it; `<url>` then only gives the origin.
 
 ## Screenshots
 
-`node apps/web/scripts/design-screenshots.mjs <url> <out-dir> [--login]` captures the review viewports in light and dark. Read every capture. T3's preview tools are fine for a quick look, but a hidden preview tab pauses CSS animations, so use the script for anything with entrance motion. Keep one-off probe scripts and captures in a temp directory, outside the repo, and upload the captures a PR cites as evidence with `scripts/upload-asset.sh <file> prs/<pr-number>`.
+`node apps/web/scripts/design-screenshots.mjs <url> <out-dir> [--state <name>] [--login]` captures the review viewports in light and dark. Read every capture. T3's preview tools are fine for a quick look, but a hidden preview tab pauses CSS animations, so use the script for anything with entrance motion. Keep one-off probe scripts and captures in a temp directory, outside the repo, and upload the captures a PR cites as evidence with `scripts/upload-asset.sh <file> prs/<pr-number>`.
+
+## Fit and contrast
+
+- `node apps/web/scripts/design-probe.mjs <url> [--state <name>] [--baseline <url>]` prints a Markdown table of each review viewport's page height, whether it scrolls, and the auth sheet's height (`--selector` for another element). With `--baseline`, cells show the baseline's value where it differs.
+- `node apps/web/scripts/contrast.mjs <url> <selector>... [--state <name>]` measures each element's rendered contrast in light and dark against the pixels behind it, and exits 1 when a pair is under 4.5:1 (3:1 for large text and icons).
+- `node apps/web/scripts/contact-sheet.mjs <out.png> <width> "Label=file.png"...` lays captures side by side for a README or a review.
+
+## A preview's one-time code
+
+Previews never send email (`EMAIL_TRANSPORT=log`, ADR-0019): the API logs it, code included. Request the code on the preview, then open the PR's Worker Preview of `vmb-api` in the Cloudflare dashboard, go to **Observability**, and search `suppressed outbound email`. Codes expire after 5 minutes.
+
+## Local dev servers
+
+Several worktrees often run at once, so start each `vite dev` on its own port (`--port <n> --strictPort`) and fail fast rather than reach another worktree's server. Start it as a background task with a long timeout; a short one stops it mid-check.
 
 ## Lighthouse
 
