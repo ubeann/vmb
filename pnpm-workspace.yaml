@@ -8,3 +8,7 @@ allowBuilds:
 overrides:
   "@cloudflare/workers-types": "^5.20260911.1"
   "@neondatabase/serverless": "^1.1.0"
+# Supply chain (ADR-0047). pnpm 12 already waits a day before installing a new
+# release, but falls back to it when nothing older fits; setting the value
+# makes the wait strict.
+minimumReleaseAge: 1440

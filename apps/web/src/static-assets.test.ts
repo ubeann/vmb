@@ -20,6 +20,23 @@ describe("static assets", () => {
     expect(existsSync(`${staticDir}${path}`)).toBe(true);
   });
 
+  // ADR-0047: a script without the per-request nonce is blocked by the CSP.
+  it("gives every inline script in app.html the CSP nonce", () => {
+    const scripts = [...appHtml.matchAll(/<script\b[^>]*>/g)].map((match) => match[0]);
+
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const script of scripts) expect(script).toContain('nonce="%sveltekit.nonce%"');
+  });
+
+  // The first-paint script colours the browser chrome through this meta, so it
+  // must already be parsed when the script runs.
+  it("puts the theme-color meta ahead of the first-paint script", () => {
+    const meta = appHtml.indexOf('<meta name="theme-color"');
+
+    expect(meta).toBeGreaterThan(-1);
+    expect(meta).toBeLessThan(appHtml.indexOf("<script"));
+  });
+
   it("keeps every page out of search indexes", () => {
     expect(appHtml).toContain('<meta name="robots" content="noindex, nofollow" />');
   });

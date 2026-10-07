@@ -20,6 +20,19 @@ describe("GET /health", () => {
     await expect(res.json()).resolves.toMatchObject({ status: "ok", db: "connected" });
   });
 
+  it("carries the security headers (ADR-0047)", async () => {
+    executeMock.mockResolvedValueOnce(undefined);
+
+    const res = await app.request("/health", {}, { DATABASE_URL: "postgres://test" });
+
+    expect(res.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; frame-ancestors 'none'"
+    );
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("strict-transport-security")).toMatch(/^max-age=\d+/);
+  });
+
   it("returns 503 with status error when the db query fails", async () => {
     executeMock.mockRejectedValueOnce(new Error("connection refused"));
 

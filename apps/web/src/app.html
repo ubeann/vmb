@@ -8,15 +8,36 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
-    <!-- mode-watcher 1.1.0 sets System's initial theme-color to dark on a light OS.
-         Its head script has already resolved the class, so correct the meta before body paint. -->
-    <script>
-      document
-        .querySelector('meta[name="theme-color"]')
-        ?.setAttribute(
-          "content",
-          document.documentElement.classList.contains("dark") ? "#0a1030" : "#faf8f3"
-        );
+    <!-- The browser-chrome colour the script below sets. <ModeWatcher> renders its own theme-color
+         meta in the body once its head script is disabled, too late for this script; this one comes
+         first in the document, so it is the one browsers read and mode-watcher updates later. -->
+    <meta name="theme-color" content="#0a1030" />
+    <!-- mode-watcher 1.1.0's setInitialMode, run before body paint so the page never flashes the
+         wrong scheme. It lives here rather than in <ModeWatcher>'s injected head script because only
+         app.html can carry the CSP nonce (ADR-0047). Changes from upstream: System's theme-color
+         follows the resolved scheme, where 1.1.0 sets it to dark on a light OS; an unknown stored
+         mode reads as System, as <ModeWatcher> does once mounted; and blocked storage falls back
+         to System instead of aborting the script. -->
+    <script nonce="%sveltekit.nonce%">
+      (() => {
+        const root = document.documentElement;
+        let stored = null;
+        try {
+          stored = localStorage.getItem("mode-watcher-mode");
+        } catch {}
+        const mode = ["light", "dark", "system"].includes(stored) ? stored : "system";
+        const light =
+          mode === "light" ||
+          (mode === "system" && window.matchMedia("(prefers-color-scheme: light)").matches);
+        root.classList.toggle("dark", !light);
+        root.style.colorScheme = light ? "light" : "dark";
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute("content", light ? "#faf8f3" : "#0a1030");
+        try {
+          localStorage.setItem("mode-watcher-mode", mode);
+        } catch {}
+      })();
     </script>
   </head>
   <body data-sveltekit-preload-data="hover">
