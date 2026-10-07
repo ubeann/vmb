@@ -37,7 +37,7 @@ jobs:
       # upstream what the newest release is. It never needs the tools
       # themselves, so there is no reason to install a whole toolchain — nor to
       # fail here because one pin can't be installed.
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
         with:
           experimental: true
           install: false
