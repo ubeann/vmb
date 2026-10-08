@@ -101,9 +101,11 @@
   <div
     class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
   >
+    <!-- The clip keeps the scrolled shadow below the bar: unclipped it also blurs over the
+         sidebar to its left, and the bar reads as a card floating beside it. -->
     <header
       data-scrolled={scrollY > 0}
-      class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border data-[scrolled=true]:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-transparent px-3 transition-[border-color,box-shadow] duration-(--duration-panel) ease-(--easing-standard) data-[scrolled=true]:shadow-sm sm:px-4"
+      class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border data-[scrolled=true]:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-transparent px-3 transition-[border-color,box-shadow] duration-(--duration-panel) ease-(--easing-standard) [clip-path:inset(0_0_-1rem_0)] data-[scrolled=true]:shadow-sm sm:px-4"
     >
       <SidebarToggle />
       <div class="ml-auto">
