@@ -46,7 +46,7 @@
 
   const groups = visibleGroups(NAV_GROUPS);
 
-  const trail = $derived(trailFor(page.url.pathname, page.data.crumb));
+  const trail = $derived(trailFor(page.url.pathname, page.data.crumb, groups));
 
   // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);
