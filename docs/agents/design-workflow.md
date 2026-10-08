@@ -36,7 +36,7 @@ Checked 2026-10-06 against impeccable 4.5.0. Three design skill sets are install
 
 - **Brief it in Operate mode.** impeccable defaults to "go all out"; its rule that the brief wins only protects VMB when `PRODUCT.md` pins the app surfaces to its Operate mode and the chosen territory.
 - **One check per concern.** In step 6, `better-*` owns accessibility, contrast and copy; don't also run `/impeccable audit`, `typeset` or `colorize` on the same pass. Finish with `/impeccable polish`.
-- **`DESIGN.md` points, it doesn't restate.** If `/impeccable document` writes one, keep it to pointers at `app.css`, `/design-system` and the ADRs, so the token rules live in one place.
+- **`DESIGN.md` mirrors, it doesn't own.** `apps/web/DESIGN.md` gives impeccable the visual system without re-deriving it from CSS: a token header copied from `app.css` (the live panel draws its swatches from it) and short sections that point at the ADRs. `design-md.test.ts` fails when the header drifts from `app.css`. Change a token in `app.css` and its ADR first, then the header. Don't let `/impeccable document` rewrite the file.
 
 ## Tools
 
