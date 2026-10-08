@@ -29,7 +29,7 @@
     <Tooltip.Root onOpenChange={(open) => open && (now = new Date())}>
       <Tooltip.Trigger>
         {#snippet child({ props })}
-          <time {...props} tabindex="-1" datetime={iso} class="whitespace-nowrap tabular-nums"
+          <time {...props} tabindex="-1" datetime={iso} class="whitespace-nowrap"
             >{absolute}{timeZone ? ` ${timeZone}` : ""}</time
           >
         {/snippet}

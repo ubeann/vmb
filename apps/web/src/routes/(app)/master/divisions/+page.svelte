@@ -229,7 +229,10 @@
               {#if columns.visible("createdAt")}
                 <SortableHead {base} column="createdAt" label="Created" current={sort} />
               {/if}
-              <Table.Head scope="col" class="w-0"><span class="sr-only">Actions</span></Table.Head>
+              <!-- pinned at the right as Name is at the left, so a scrolled table keeps its actions in view -->
+              <Table.Head scope="col" class="bg-card sticky right-0 z-10 w-0"
+                ><span class="sr-only">Actions</span></Table.Head
+              >
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -253,8 +256,11 @@
                   <Table.Cell class="font-mono text-xs">{division.code}</Table.Cell>
                 {/if}
                 {#if columns.visible("description")}
-                  <Table.Cell class="text-muted-foreground max-w-80 truncate">
-                    {division.description ?? "—"}
+                  <Table.Cell class="text-muted-foreground">
+                    <!-- a cell ignores max-width in an auto-layout table, so the span truncates -->
+                    <span class="block max-w-64 truncate xl:max-w-80" title={division.description}
+                      >{division.description ?? "—"}</span
+                    >
                   </Table.Cell>
                 {/if}
                 {#if columns.visible("status")}
@@ -271,12 +277,14 @@
                 {#if columns.visible("createdAt")}
                   <Table.Cell><RecordTime iso={division.createdAt} /></Table.Cell>
                 {/if}
-                <Table.Cell class="text-right">
+                <Table.Cell class="bg-card [tr:hover>&]:bg-muted sticky right-0 z-10 text-right">
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger>
                       {#snippet child({ props })}
                         <Button {...props} variant="ghost" size="sm">
-                          Actions<span class="sr-only"> for {division.name}</span>
+                          <span class="max-sm:sr-only">Actions</span><span class="sr-only">
+                            for {division.name}</span
+                          >
                           <ChevronDownIcon aria-hidden="true" data-icon="inline-end" />
                         </Button>
                       {/snippet}
