@@ -38,7 +38,7 @@
     data-sveltekit-noscroll
     data-sveltekit-keepfocus
     class={cn(
-      "hover:text-foreground focus-visible:ring-ring -ml-1 inline-flex items-center gap-1 rounded px-1 py-1 focus-visible:ring-2 focus-visible:outline-none",
+      "hover:text-foreground focus-visible:ring-ring -ml-1 inline-flex items-center gap-1 rounded px-1 py-1 focus-visible:ring-2 focus-visible:outline-none pointer-coarse:min-h-11",
       sorting.ariaSort !== "none" && "text-foreground"
     )}
   >

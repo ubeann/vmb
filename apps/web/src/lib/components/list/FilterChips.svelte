@@ -46,14 +46,14 @@
 <ul class={cn("flex flex-wrap items-center gap-2", className)} aria-label="Filters">
   {#each active as { filter, option } (filter.key)}
     <li
-      class="border-border bg-secondary text-secondary-foreground inline-flex h-8 items-center gap-1 rounded-full border pr-1 pl-3 text-sm pointer-coarse:h-11"
+      class="border-border bg-secondary text-secondary-foreground inline-flex h-8 items-center gap-1 rounded-full border pr-1 pl-3 text-sm pointer-coarse:h-11 pointer-coarse:pr-0"
     >
       <span><span class="text-muted-foreground">{filter.label}:</span> {option.label}</span>
       <a
         href={resolve(listHref(base, page.url.searchParams, { [filter.key]: null }))}
         data-sveltekit-noscroll
         aria-label="Remove filter {filter.label}: {option.label}"
-        class="hover:bg-accent focus-visible:ring-ring inline-flex size-6 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-9"
+        class="hover:bg-accent focus-visible:ring-ring inline-flex size-6 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-11"
       >
         <XIcon aria-hidden="true" class="size-3.5" />
       </a>
