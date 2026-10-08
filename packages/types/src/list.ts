@@ -39,17 +39,3 @@ export function listResponse<T extends z.ZodType>(item: T) {
     perPage: z.number().int().positive()
   });
 }
-
-/** One validation failure, flattened for a form or an API error body. */
-export const ValidationIssueSchema = z.object({
-  path: z.string(),
-  message: z.string()
-});
-
-export const ApiErrorSchema = z.object({
-  error: z.string(),
-  issues: z.array(ValidationIssueSchema).optional()
-});
-
-export type ApiError = z.infer<typeof ApiErrorSchema>;
-export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;

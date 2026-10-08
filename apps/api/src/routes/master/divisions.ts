@@ -6,7 +6,8 @@ import {
 } from "@vmb/types";
 import { Hono } from "hono";
 import { requirePermission } from "./permission.js";
-import { jsonBody, pathId, queryParams, type MasterEnv } from "./http.js";
+import { jsonBody, pathId, queryParams } from "../../http.js";
+import type { MasterEnv } from "./env.js";
 
 export const divisionRoutes = new Hono<MasterEnv>()
   .get("/", requirePermission("master-divisions.view_any"), async (c) => {

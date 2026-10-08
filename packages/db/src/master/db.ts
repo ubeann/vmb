@@ -1,6 +1,6 @@
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { DatabaseSchema } from "../schema/index.js";
-import { MasterConflictError } from "./errors.js";
+import { ConflictError } from "../errors.js";
 
 /**
  * The database surface the Master store speaks to: Drizzle's query builders
@@ -49,18 +49,20 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof candidate.message === "string" && candidate.message.includes("duplicate key value");
 }
 
+/** The field a unique constraint guards, and what the admin should read on it. */
+export type UniqueField = { path: string; message: string };
+
 /**
- * Translate a unique-constraint violation into the message the admin should
- * see, falling back to a generic one when the driver does not name the
- * constraint. Anything that is not a unique violation is rethrown untouched.
+ * Translate a unique-constraint violation into a conflict naming the field it
+ * is about, so a form shows the message on that field (ADR-0048), falling back
+ * to a generic one when the driver does not name the constraint. Anything that
+ * is not a unique violation is rethrown untouched.
  */
-export function conflictFrom(error: unknown, byConstraint: Record<string, string>): never {
+export function conflictFrom(error: unknown, byConstraint: Record<string, UniqueField>): never {
   if (!isUniqueViolation(error)) throw error;
 
   const constraint = pgError(error)?.constraint;
-  const message =
-    (typeof constraint === "string" ? byConstraint[constraint] : undefined) ??
-    "That value is already taken.";
+  const field = typeof constraint === "string" ? byConstraint[constraint] : undefined;
 
-  throw new MasterConflictError(message);
+  throw field ? new ConflictError(field.message, { issues: [field] }) : new ConflictError();
 }

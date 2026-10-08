@@ -97,7 +97,13 @@ describe("the app shell layout", () => {
 
   it("degrades when the API refuses the lookup", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    getMyAccessMock.mockResolvedValue({ ok: false, status: 500, error: "Something went wrong." });
+    getMyAccessMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      code: "INTERNAL",
+      error: "Something went wrong.",
+      issues: []
+    });
 
     await expect(load(event())).resolves.toEqual({
       division: null,

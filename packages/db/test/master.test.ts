@@ -1,6 +1,7 @@
 import type { DivisionInput, RoleInput, UserCreateInput, UserUpdateInput } from "@vmb/types";
 import { describe, expect, it } from "vitest";
-import { createMasterStore, MasterSystemRoleError } from "../src/master/index.js";
+import { ForbiddenError } from "../src/errors.js";
+import { createMasterStore } from "../src/master/index.js";
 import type { MasterStore } from "../src/master/index.js";
 import type { SqlClient } from "../src/sql-client.js";
 import { count, scalar, withMigratedDb } from "./harness.js";
@@ -306,10 +307,10 @@ describe("roles store", () => {
 
       await expect(
         store.updateRole("00000000-0000-4000-8000-000000000002", role())
-      ).rejects.toBeInstanceOf(MasterSystemRoleError);
-      await expect(store.deleteRole("00000000-0000-4000-8000-000000000002")).rejects.toBeInstanceOf(
-        MasterSystemRoleError
-      );
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(store.deleteRole("00000000-0000-4000-8000-000000000002")).rejects.toMatchObject({
+        code: "SYSTEM_ROLE"
+      });
       expect(await count(client, "select count(*)::int as value from master.roles")).toBe(1);
     });
   });
@@ -717,7 +718,10 @@ describe("users store", () => {
       const first = await store.createUser(input(), ACTOR);
       await expect(
         store.createUser(input({ name: "Other", email: "rina@vmblogistics.id" }), ACTOR)
-      ).rejects.toThrow("A user with that email already exists.");
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        issues: [{ path: "email", message: "A user with that email already exists." }]
+      });
 
       const second = await store.createUser(
         input({ name: "Agus", email: "agus@vmblogistics.id" }),

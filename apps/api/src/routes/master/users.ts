@@ -1,4 +1,5 @@
 import {
+  PASSWORD_BREACHED_CODE,
   PASSWORD_BREACHED_MESSAGE,
   UserCreateInputSchema,
   UserListQuerySchema,
@@ -8,13 +9,14 @@ import {
 } from "@vmb/types";
 import { Hono, type Context } from "hono";
 import { requirePermission } from "./permission.js";
-import { HttpError, jsonBody, pathId, queryParams, type MasterEnv } from "./http.js";
+import { HttpError, jsonBody, pathId, queryParams } from "../../http.js";
+import type { MasterEnv } from "./env.js";
 
 // The Master CRUD hashes the password itself, so Better Auth's own check never
 // sees it (ADR-0041). An empty password means "leave the credential alone".
 async function refuseBreachedPassword(c: Context<MasterEnv>, password: string) {
   if (password !== "" && (await c.get("isPasswordBreached")(password))) {
-    throw new HttpError(400, PASSWORD_BREACHED_MESSAGE, [
+    throw new HttpError(400, PASSWORD_BREACHED_CODE, PASSWORD_BREACHED_MESSAGE, [
       { path: "password", message: PASSWORD_BREACHED_MESSAGE }
     ]);
   }

@@ -24,7 +24,7 @@ import { session as authSession, user as authUser } from "../schema/auth.js";
 import { users } from "../schema/master.js";
 import { assertCanChangeRoles, assertCanManageUser, currentRoleIds, uniqueIds } from "./guards.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { MasterNotFoundError } from "./errors.js";
+import { NotFoundError } from "../errors.js";
 
 // A user's columns plus whether Better Auth has verified the email: the
 // identity owns verification (ADR-0032), so it is read from there rather than
@@ -63,9 +63,10 @@ const SORT_COLUMNS = {
   updatedAt: users.updatedAt
 } as const;
 
+const EMAIL_TAKEN = { path: "email", message: "A user with that email already exists." };
 const EMAIL_CONFLICT = {
-  master_users_email_unique: "A user with that email already exists.",
-  user_email_unique: "A user with that email already exists."
+  master_users_email_unique: EMAIL_TAKEN,
+  user_email_unique: EMAIL_TAKEN
 };
 
 function toUser(row: UserRow): User {
@@ -135,7 +136,7 @@ export async function listUsers(db: MasterDb, query: UserListQuery): Promise<Use
 export async function getUser(db: MasterDb, id: string): Promise<User> {
   const rows = await selectUsers(db).where(eq(users.id, id)).limit(1);
   const row = rows[0];
-  if (!row) throw new MasterNotFoundError("User not found.");
+  if (!row) throw new NotFoundError("User not found.");
   return toUser(row);
 }
 
@@ -225,7 +226,7 @@ export async function updateUser(
   actorId: string
 ): Promise<User> {
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
-  if (!existing[0]) throw new MasterNotFoundError("User not found.");
+  if (!existing[0]) throw new NotFoundError("User not found.");
 
   await assertCanManageUser(db, actorId, id);
 
@@ -348,7 +349,7 @@ export async function deleteUser(db: MasterDb, id: string, actorId: string): Pro
     .where(and(eq(users.id, id), isNull(users.deletedAt)))
     .returning({ id: users.id });
 
-  if (!rows[0]) throw new MasterNotFoundError("User not found.");
+  if (!rows[0]) throw new NotFoundError("User not found.");
 
   // The sign-in gate reads this row (#7): soft-deleting it blocks future
   // sessions, and ending the current ones here closes the window for cookies
@@ -366,6 +367,6 @@ export async function restoreUser(db: MasterDb, id: string, actorId: string): Pr
     .where(and(eq(users.id, id), isNotNull(users.deletedAt)))
     .returning({ id: users.id });
 
-  if (!rows[0]) throw new MasterNotFoundError("Deleted user not found.");
+  if (!rows[0]) throw new NotFoundError("Deleted user not found.");
   return getUser(db, id);
 }

@@ -1,6 +1,7 @@
 import type { PermissionKey } from "@vmb/types";
 import { createMiddleware } from "hono/factory";
-import { HttpError, type MasterEnv } from "./http.js";
+import { HttpError } from "../../http.js";
+import type { MasterEnv } from "./env.js";
 
 /**
  * Refuses the request unless one of the caller's active roles grants `key`.
@@ -13,7 +14,7 @@ export function requirePermission(key: PermissionKey) {
     const access = await c.get("store").getAccess(c.get("userId"));
 
     if (!access.permissions.includes(key)) {
-      throw new HttpError(403, "You do not have permission to do that.");
+      throw new HttpError(403, "FORBIDDEN", "You do not have permission to do that.");
     }
 
     await next();

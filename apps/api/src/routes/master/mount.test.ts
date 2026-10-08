@@ -28,10 +28,15 @@ describe("the master API mount", () => {
       },
       { DATABASE_URL: "postgresql://user:password@localhost:5432/app" }
     );
-    const body = (await response.json()) as { error: string; issues: { path: string }[] };
+    const body = (await response.json()) as {
+      code: string;
+      message: string;
+      issues: { path: string }[];
+    };
 
     expect(response.status).toBe(400);
-    expect(body.error).toBe("Validation failed.");
+    expect(body.code).toBe("VALIDATION_FAILED");
+    expect(body.message).toBe("Validation failed.");
     expect(body.issues.map((issue) => issue.path).sort()).toEqual(["code", "name"]);
   });
 });

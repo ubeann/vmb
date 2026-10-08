@@ -2,11 +2,17 @@ import type { Division, DivisionInput, DivisionListQuery, DivisionListResponse }
 import { and, asc, count, desc, eq, ilike, isNotNull, isNull, or, type SQL } from "drizzle-orm";
 import { divisions } from "../schema/master.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { MasterNotFoundError } from "./errors.js";
+import { NotFoundError } from "../errors.js";
 
 const DIVISION_CONFLICTS = {
-  master_divisions_name_unique: "A division with that name already exists.",
-  master_divisions_code_unique: "A division with that code already exists."
+  master_divisions_name_unique: {
+    path: "name",
+    message: "A division with that name already exists."
+  },
+  master_divisions_code_unique: {
+    path: "code",
+    message: "A division with that code already exists."
+  }
 };
 
 type DivisionRow = typeof divisions.$inferSelect;
@@ -83,7 +89,7 @@ export async function listDivisions(
 export async function getDivision(db: MasterDb, id: string): Promise<Division> {
   const rows = await db.select().from(divisions).where(eq(divisions.id, id)).limit(1);
   const row = rows[0];
-  if (!row) throw new MasterNotFoundError("Division not found.");
+  if (!row) throw new NotFoundError("Division not found.");
   return toDivision(row);
 }
 
@@ -119,7 +125,7 @@ export async function updateDivision(
       .where(eq(divisions.id, id))
       .returning();
     const row = rows[0];
-    if (!row) throw new MasterNotFoundError("Division not found.");
+    if (!row) throw new NotFoundError("Division not found.");
     return toDivision(row);
   } catch (error) {
     return conflictFrom(error, DIVISION_CONFLICTS);
@@ -133,7 +139,7 @@ export async function deleteDivision(db: MasterDb, id: string): Promise<void> {
     .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
     .returning({ id: divisions.id });
 
-  if (!rows[0]) throw new MasterNotFoundError("Division not found.");
+  if (!rows[0]) throw new NotFoundError("Division not found.");
 }
 
 export async function restoreDivision(db: MasterDb, id: string): Promise<Division> {
@@ -145,7 +151,7 @@ export async function restoreDivision(db: MasterDb, id: string): Promise<Divisio
       .returning();
 
     const row = rows[0];
-    if (!row) throw new MasterNotFoundError("Deleted division not found.");
+    if (!row) throw new NotFoundError("Deleted division not found.");
     return toDivision(row);
   } catch (error) {
     // its name or code may have been taken while it was Trashed
