@@ -12,10 +12,13 @@
   import EmptyState from "$lib/components/EmptyState.svelte";
   import HeroIcon from "$lib/components/HeroIcon.svelte";
   import Notice from "$lib/components/Notice.svelte";
+  import Page from "$lib/components/Page.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import RecordTime from "$lib/components/RecordTime.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import ColumnsMenu from "$lib/components/list/ColumnsMenu.svelte";
   import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
+  import { columnClass, TEXT_CAP } from "$lib/components/list/columns.js";
   import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
   import ListFooter from "$lib/components/list/ListFooter.svelte";
   import ListTabs from "$lib/components/list/ListTabs.svelte";
@@ -119,20 +122,19 @@
   <title>Divisions — VMB</title>
 </svelte:head>
 
-<div class="flex flex-col gap-5">
-  <header class="flex flex-wrap items-end justify-between gap-3">
-    <div class="space-y-1">
-      <h1 class="font-display text-3xl font-medium tracking-tight">Divisions</h1>
-      <p class="text-muted-foreground text-sm">
-        A User belongs to one or more Divisions through the Roles they hold.
-      </p>
-    </div>
-    {#if can("master-divisions.create")}
-      <a href={resolve("/master/divisions/new")} class={buttonVariants()}>
-        <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
-      </a>
-    {/if}
-  </header>
+<Page width="default" class="flex flex-col gap-5">
+  <PageHeader
+    title="Divisions"
+    description="A User belongs to one or more Divisions through the Roles they hold."
+  >
+    {#snippet action()}
+      {#if can("master-divisions.create")}
+        <a href={resolve("/master/divisions/new")} class={buttonVariants()}>
+          <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
+        </a>
+      {/if}
+    {/snippet}
+  </PageHeader>
 
   <ListTabs {base} label="Division views" trashCount={data.trashCount} countNoun="divisions" />
 
@@ -209,28 +211,48 @@
                 column="name"
                 label="Name"
                 current={sort}
-                class="bg-card pinned-start sticky left-0 z-10"
+                class={cn("bg-card pinned-start sticky left-0 z-10", columnClass("identity"))}
               />
               {#if columns.visible("code")}
-                <SortableHead {base} column="code" label="Code" current={sort} />
+                <SortableHead
+                  {base}
+                  column="code"
+                  label="Code"
+                  current={sort}
+                  class={columnClass("utility")}
+                />
               {/if}
               {#if columns.visible("description")}
-                <Table.Head scope="col">Description</Table.Head>
+                <Table.Head scope="col" class={columnClass("text")}>Description</Table.Head>
               {/if}
               {#if columns.visible("status")}
-                <Table.Head scope="col">Status</Table.Head>
+                <Table.Head scope="col" class={columnClass("utility")}>Status</Table.Head>
               {/if}
               {#if inTrash}
-                <Table.Head scope="col">Deleted</Table.Head>
+                <Table.Head scope="col" class={columnClass("utility")}>Deleted</Table.Head>
               {/if}
               {#if columns.visible("updatedAt")}
-                <SortableHead {base} column="updatedAt" label="Updated" current={sort} />
+                <SortableHead
+                  {base}
+                  column="updatedAt"
+                  label="Updated"
+                  current={sort}
+                  class={columnClass("utility")}
+                />
               {/if}
               {#if columns.visible("createdAt")}
-                <SortableHead {base} column="createdAt" label="Created" current={sort} />
+                <SortableHead
+                  {base}
+                  column="createdAt"
+                  label="Created"
+                  current={sort}
+                  class={columnClass("utility")}
+                />
               {/if}
               <!-- pinned at the right as Name is at the left, so a scrolled table keeps its actions in view -->
-              <Table.Head scope="col" class="bg-card pinned-end sticky right-0 z-10 w-0"
+              <Table.Head
+                scope="col"
+                class={cn("bg-card pinned-end sticky right-0 z-10", columnClass("utility"))}
                 ><span class="sr-only">Actions</span></Table.Head
               >
             </Table.Row>
@@ -239,7 +261,10 @@
             {#each list.items as division (division.id)}
               <Table.Row class="hover:bg-muted">
                 <Table.Cell
-                  class="bg-card [tr:hover>&]:bg-muted pinned-start sticky left-0 z-10 max-w-64"
+                  class={cn(
+                    "bg-card [tr:hover>&]:bg-muted pinned-start sticky left-0 z-10 max-w-64",
+                    columnClass("identity")
+                  )}
                 >
                   <div class="flex items-center gap-2.5">
                     <span
@@ -255,32 +280,42 @@
                   </div>
                 </Table.Cell>
                 {#if columns.visible("code")}
-                  <Table.Cell class="font-mono text-xs">{division.code}</Table.Cell>
+                  <Table.Cell class={cn("font-mono text-xs", columnClass("utility"))}
+                    >{division.code}</Table.Cell
+                  >
                 {/if}
                 {#if columns.visible("description")}
-                  <Table.Cell class="text-muted-foreground">
-                    <!-- a cell ignores max-width in an auto-layout table, so the span truncates -->
-                    <span class="block max-w-64 truncate xl:max-w-80" title={division.description}
+                  <Table.Cell class={cn("text-muted-foreground", columnClass("text"))}>
+                    <span class={TEXT_CAP} title={division.description ?? undefined}
                       >{division.description ?? "—"}</span
                     >
                   </Table.Cell>
                 {/if}
                 {#if columns.visible("status")}
-                  <Table.Cell>
+                  <Table.Cell class={columnClass("utility")}>
                     <StatusPill status={division.isActive ? "Active" : "Inactive"} />
                   </Table.Cell>
                 {/if}
                 {#if inTrash}
-                  <Table.Cell><RecordTime iso={division.deletedAt} /></Table.Cell>
+                  <Table.Cell class={columnClass("utility")}
+                    ><RecordTime iso={division.deletedAt} /></Table.Cell
+                  >
                 {/if}
                 {#if columns.visible("updatedAt")}
-                  <Table.Cell><RecordTime iso={division.updatedAt} /></Table.Cell>
+                  <Table.Cell class={columnClass("utility")}
+                    ><RecordTime iso={division.updatedAt} /></Table.Cell
+                  >
                 {/if}
                 {#if columns.visible("createdAt")}
-                  <Table.Cell><RecordTime iso={division.createdAt} /></Table.Cell>
+                  <Table.Cell class={columnClass("utility")}
+                    ><RecordTime iso={division.createdAt} /></Table.Cell
+                  >
                 {/if}
                 <Table.Cell
-                  class="bg-card [tr:hover>&]:bg-muted pinned-end sticky right-0 z-10 text-right"
+                  class={cn(
+                    "bg-card [tr:hover>&]:bg-muted pinned-end sticky right-0 z-10 text-right",
+                    columnClass("utility")
+                  )}
                 >
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger>
@@ -344,7 +379,7 @@
 
     <ListFooter {base} {list} noun={inTrash ? "divisions in the Trash" : "divisions"} />
   {/if}
-</div>
+</Page>
 
 <Dialog.Root bind:open={confirmOpen}>
   <Dialog.Content>

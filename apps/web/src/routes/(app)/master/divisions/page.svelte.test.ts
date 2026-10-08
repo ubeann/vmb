@@ -161,6 +161,34 @@ describe("divisions list", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
+  it("fits utility columns to their content and truncates a long description (ADR-0050)", async () => {
+    await browser.viewport(2400, 900);
+    const text =
+      "Accounts payable and receivable, payroll, tax filings, month-end close and board reporting";
+    const screen = await render(
+      Page,
+      props("/master/divisions", { items: [{ ...division, description: text }] })
+    );
+
+    // the body is capped at 90rem and centred, so the header's action stays at its edge
+    const body = screen
+      .getByRole("heading", { name: "Divisions", level: 1 })
+      .element()
+      .closest("header")!.parentElement!;
+    expect(body.getBoundingClientRect().width).toBe(1440);
+
+    const cell = (name: RegExp) => screen.getByRole("columnheader", { name }).element();
+    expect(cell(/^Code/).getBoundingClientRect().width).toBeLessThan(120);
+    expect(cell(/^Status/).getBoundingClientRect().width).toBeLessThan(120);
+
+    const description = screen.getByText(text).element();
+    expect(description.getAttribute("title")).toBe(text);
+    expect(description.getBoundingClientRect().width).toBeLessThanOrEqual(
+      parseFloat(getComputedStyle(description).fontSize) * 48
+    );
+    expect(description.scrollWidth).toBeGreaterThan(description.clientWidth);
+  });
+
   it("moves the chips into a Filters sheet on a narrow screen", async () => {
     const screen = await render(Page, props("/master/divisions?status=active"));
 

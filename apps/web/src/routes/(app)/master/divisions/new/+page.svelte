@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Page from "$lib/components/Page.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import DivisionForm from "$lib/master/DivisionForm.svelte";
   import { resolve } from "$app/paths";
   import type { PageData } from "./$types.js";
@@ -10,8 +12,10 @@
   <title>New division — VMB</title>
 </svelte:head>
 
-<h2>New division</h2>
+<Page width="narrow" class="flex flex-col gap-4">
+  <PageHeader title="New division" />
 
-<DivisionForm form={data.form} submitLabel="Create division" />
+  <DivisionForm form={data.form} submitLabel="Create division" />
 
-<p><a href={resolve("/master/divisions")}>Back to divisions</a></p>
+  <p><a href={resolve("/master/divisions")}>Back to divisions</a></p>
+</Page>

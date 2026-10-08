@@ -10,6 +10,7 @@ import { URL } from "node:url";
 
 /** design-workflow.md's review viewports, [width, height]. */
 export const VIEWPORTS = [
+  [2560, 1440],
   [1920, 1080],
   [1680, 1000],
   [1440, 900],
