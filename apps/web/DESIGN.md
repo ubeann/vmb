@@ -9,13 +9,13 @@ colors:
   primary-hover: "oklch(0.46 0.15 143.6)"
   primary-foreground: "oklch(0.982 0.01 145.5)"
   secondary: "oklch(0.95 0.01 273.4)"
-  muted: "oklch(0.946 0.012 91.5)"
+  muted: "oklch(0.946 0.004 90)"
   muted-foreground: "oklch(0.488 0.052 273.5)"
-  accent: "oklch(0.93 0.016 91)"
+  accent: "oklch(0.93 0.005 90)"
   success: "oklch(0.45 0.12 152)"
   warning: "oklch(0.47 0.11 62)"
   destructive: "oklch(0.53 0.207 22.3)"
-  border: "oklch(0.888 0.014 93)"
+  border: "oklch(0.888 0.005 90)"
   input: "oklch(0.64 0.037 274.3)"
   ring: "oklch(0.51 0.164 143.6)"
   etching: "oklch(0.36 0.12 266)"
@@ -85,7 +85,7 @@ Review viewports and layout rules are in `docs/agents/design-workflow.md`. The f
 
 ## Elevation & Depth
 
-Depth is mostly flat: a white card on warm paper, a navy card on deep navy in dark mode, separated by a `border` rule. The auth sheet is framed like a plate, with a double rule (`card`, then `border`) and one soft shadow tinted with `etching` (`AuthShell.svelte`).
+Depth is mostly flat: a white card on warm paper, a navy card on deep navy in dark mode, separated by a `border` rule. A signed-in page in light mode is two layers: the warm frame (sidebar, top bar, footer) round a white panel (`card`), with its tables on the same white (ADR-0036, "Signed-in panel"). The auth sheet is framed like a plate, with a double rule (`card`, then `border`) and one soft shadow tinted with `etching` (`AuthShell.svelte`).
 
 ## Shapes
 

@@ -93,6 +93,28 @@ describe("AppShell", () => {
     expect(dark.b).toBeGreaterThan(dark.g);
   });
 
+  // ADR-0036, "Signed-in panel": a white sheet on the warm frame in light mode; in dark mode
+  // the card is the sidebar's colour, so the panel keeps the background to stay apart from it.
+  it("paints the panel as a card in light mode and the background in dark", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+    const panel = screen.container.querySelector("#main-content")!;
+    const painted = (token: string) => {
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = `var(${token})`;
+      document.body.append(probe);
+      const colour = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return colour;
+    };
+
+    expect(getComputedStyle(panel).backgroundColor).toBe(painted("--card"));
+
+    document.documentElement.classList.add("dark");
+    expect(getComputedStyle(panel).backgroundColor).toBe(painted("--background"));
+    expect(painted("--card")).not.toBe(painted("--background"));
+  });
+
   it("gives the sidebar rows room, and keeps their rhythm as a square when it collapses", async () => {
     await desktop();
     for (const [sidebarOpen, size] of [

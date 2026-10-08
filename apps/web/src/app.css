@@ -28,11 +28,13 @@
   --primary-foreground: oklch(0.982 0.01 145.5);
   --secondary: oklch(0.95 0.01 273.4);
   --secondary-foreground: oklch(0.247 0.094 267.7);
-  --muted: oklch(0.946 0.012 91.5);
+  /* Muted, accent and border are near-neutral greys (ADR-0036, "Signed-in panel"): they sit on
+   * the white panel among the cool navy text, where the paper's warmth read as cream stripes.
+   * Same lightness as the paper-tinted values they replace, so every measured pair holds */
+  --muted: oklch(0.946 0.004 90);
   --muted-foreground: oklch(0.488 0.052 273.5);
-  /* The hover wash: paper one step deeper, warm like the paper it sits on (a cool tint reads as
-   * a stray hue there). 12.5:1 under the navy text, 4.1:1 against the green focus ring */
-  --accent: oklch(0.93 0.016 91);
+  /* The hover wash: 13.3:1 under the navy text, 4.4:1 against the green focus ring */
+  --accent: oklch(0.93 0.005 90);
   --accent-foreground: oklch(0.247 0.094 267.7);
   --destructive: oklch(0.53 0.207 22.3);
   /* Status tones (StatusPill, ADR-0036 "Status tones"): text on a 12% wash of itself, 5:1 or more
@@ -40,7 +42,7 @@
    * status never reads as a button */
   --success: oklch(0.45 0.12 152);
   --warning: oklch(0.47 0.11 62);
-  --border: oklch(0.888 0.014 93);
+  --border: oklch(0.888 0.005 90);
   /* Field boundaries reach 3:1 on paper and white (retires ADR-0035's exception) */
   --input: oklch(0.64 0.037 274.3);
   --ring: oklch(0.51 0.164 143.6);
@@ -58,6 +60,8 @@
   --sidebar-foreground: oklch(0.247 0.094 267.7);
   --sidebar-primary: oklch(0.51 0.164 143.6);
   --sidebar-primary-foreground: oklch(0.982 0.01 145.5);
+  /* The frame keeps the paper's warmth: its hover and rules sit on the warm sidebar, where a
+   * neutral grey reads as a stray hue */
   --sidebar-accent: oklch(0.93 0.016 91);
   --sidebar-accent-foreground: oklch(0.247 0.094 267.7);
   --sidebar-border: oklch(0.888 0.014 93);
