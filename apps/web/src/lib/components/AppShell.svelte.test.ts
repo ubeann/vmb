@@ -8,7 +8,10 @@ import "../../app.css";
 
 import { axeViolations } from "$lib/a11y-support.js";
 
-const mockPage = { url: new URL("http://localhost/") };
+const mockPage: { url: URL; data: Record<string, unknown> } = {
+  url: new URL("http://localhost/"),
+  data: {}
+};
 
 vi.mock("$app/paths", () => ({
   resolve: (path: string, params: Record<string, string> = {}) =>
@@ -45,6 +48,7 @@ const phone = () => browser.viewport(390, 844);
 afterEach(() => {
   resetMode();
   mockPage.url = new URL("http://localhost/");
+  mockPage.data = {};
   document.documentElement.classList.remove("dark");
 });
 
@@ -793,6 +797,67 @@ describe("AppShell", () => {
       await userEvent.unhover(browser.elementLocator(container()));
       await userEvent.hover(browser.elementLocator(container()));
       await expect.poll(peeking).toBe("true");
+    });
+  });
+
+  describe("the top bar", () => {
+    it("orders its slots: menu button, breadcrumb trail, then the user's menu at the right edge", async () => {
+      await desktop();
+      mockPage.url = new URL("http://localhost/master/divisions/d-1");
+      mockPage.data = {
+        crumb: { label: "Finance", tile: { iconName: "heroicon-o-banknotes", colorHex: "#0f766e" } }
+      };
+      const screen = await render(AppShell, props());
+
+      const header = document.querySelector("header")!;
+      const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+      await expect.element(trail).toBeVisible();
+      expect(trail.element().querySelector("[aria-current='page']")?.textContent?.trim()).toBe(
+        "Finance"
+      );
+
+      const x = (el: Element) => el.getBoundingClientRect();
+      const toggle = header.querySelector("button")!;
+      const profile = header.querySelector("[aria-label$='account menu']")!;
+      expect(x(toggle).right).toBeLessThanOrEqual(x(trail.element()).left);
+      expect(x(trail.element()).right).toBeLessThanOrEqual(x(profile).left);
+      expect(x(profile).right).toBeGreaterThan(header.getBoundingClientRect().right - 32);
+    });
+
+    it("shows a single crumb on the dashboard", async () => {
+      await desktop();
+      const screen = await render(AppShell, props());
+
+      const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+      expect(trail.element().querySelectorAll("li")).toHaveLength(1);
+      await expect.element(trail.getByText("Dashboard")).toBeVisible();
+    });
+
+    it("keeps the bar inside a phone, with a long record name truncated", async () => {
+      await phone();
+      mockPage.url = new URL("http://localhost/master/divisions/d-1/edit");
+      mockPage.data = { crumb: { label: "A division with a remarkably long name ".repeat(4) } };
+      const screen = await render(AppShell, props());
+
+      const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+      await expect.element(trail.getByRole("link", { name: "Divisions" })).toBeVisible();
+      await expect.element(trail.getByText("Edit")).not.toBeVisible();
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+      const header = document.querySelector("header")!;
+      expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
+    });
+
+    it("truncates a long record name on a desktop without pushing the user's menu away", async () => {
+      await desktop();
+      mockPage.url = new URL("http://localhost/master/divisions/d-1");
+      mockPage.data = { crumb: { label: "A division with a remarkably long name ".repeat(8) } };
+      const screen = await render(AppShell, props());
+
+      const profile = document.querySelector("header [aria-label$='account menu']")!;
+      await expect.element(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeVisible();
+      expect(profile.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth);
+      const header = document.querySelector("header")!;
+      expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
     });
   });
 

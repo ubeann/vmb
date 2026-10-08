@@ -7,9 +7,10 @@
   four corners; nothing there needs a scrolled state. Below 48rem the sidebar
   becomes a sheet behind the bar's menu button and the window scrolls as usual:
   the bar keeps a line under it, since there is no panel edge to part it from
-  the page, and a shadow once the page has scrolled under it. Search and
-  notifications take the space in the bar
-  when those features exist. Sidebar state persists in the `sidebar_state`
+  the page, and a shadow once the page has scrolled under it. The bar's slots, left
+  to right (ADR-0050): the menu button, the breadcrumb trail, then at the right edge
+  the user's menu, where search (#282) and notifications (#283) will join it, with no
+  placeholder until they exist. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
   without a flash. The footer strip (#218) closes the column below the panel.
 -->
@@ -17,16 +18,15 @@
   import { afterNavigate } from "$app/navigation";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
+  import AppBreadcrumbs from "$lib/components/AppBreadcrumbs.svelte";
   import AppSidebar from "$lib/components/AppSidebar.svelte";
   import ProfileMenu from "$lib/components/ProfileMenu.svelte";
   import SidebarToggle from "$lib/components/SidebarToggle.svelte";
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-  import { isCurrent, NAV_GROUPS, visibleGroups, type NavIcon } from "$lib/nav.js";
-  import Building2 from "@lucide/svelte/icons/building-2";
-  import KeyRound from "@lucide/svelte/icons/key-round";
-  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
-  import Users from "@lucide/svelte/icons/users";
+  import { trailFor } from "$lib/breadcrumbs.js";
+  import { isCurrent, NAV_GROUPS, visibleGroups } from "$lib/nav.js";
+  import { NAV_ICONS } from "$lib/nav-icons.js";
   import type { Snippet } from "svelte";
 
   let {
@@ -44,14 +44,9 @@
     children: Snippet;
   } = $props();
 
-  const ICONS: Record<NavIcon, typeof LayoutDashboard> = {
-    dashboard: LayoutDashboard,
-    divisions: Building2,
-    roles: KeyRound,
-    users: Users
-  };
-
   const groups = visibleGroups(NAV_GROUPS);
+
+  const trail = $derived(trailFor(page.url.pathname, page.data.crumb));
 
   // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);
@@ -92,7 +87,7 @@
             <Sidebar.Menu class="gap-1">
               {#each group.items as item (item.href)}
                 {@const current = isCurrent(page.url.pathname, item.href)}
-                {@const Icon = ICONS[item.icon]}
+                {@const Icon = NAV_ICONS[item.icon]}
                 <Sidebar.MenuItem class="transition-[padding] group-data-[collapsible=icon]:py-1">
                   <Sidebar.MenuButton
                     isActive={current}
@@ -126,7 +121,8 @@
       class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 px-3 transition-shadow duration-(--duration-panel) ease-(--easing-standard) max-md:border-b max-md:data-[scrolled=true]:shadow-sm sm:px-4"
     >
       <SidebarToggle />
-      <div class="ml-auto">
+      <AppBreadcrumbs {trail} />
+      <div class="ml-auto shrink-0">
         <ProfileMenu {user} {division} />
       </div>
     </header>

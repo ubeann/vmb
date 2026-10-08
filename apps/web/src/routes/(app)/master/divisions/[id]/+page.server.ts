@@ -15,7 +15,14 @@ export const load: PageServerLoad = async (event) => {
     error(pageErrorStatus(access.value.status), access.value.error);
   }
 
-  return { division: access.value.value };
+  const division = access.value.value;
+  return {
+    division,
+    crumb: {
+      label: division.name,
+      tile: { iconName: division.iconName, colorHex: division.colorHex }
+    }
+  };
 };
 
 export const actions: Actions = {

@@ -21,6 +21,7 @@ export const load: PageServerLoad = async (event) => {
 
   return {
     role: access.value.value,
+    crumb: { label: access.value.value.name },
     form: await superValidate(roleFormData(access.value.value), zod4(RoleInputSchema))
   };
 };

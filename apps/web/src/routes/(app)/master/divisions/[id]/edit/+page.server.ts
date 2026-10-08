@@ -21,6 +21,10 @@ export const load: PageServerLoad = async (event) => {
 
   return {
     division: access.value.value,
+    crumb: {
+      label: access.value.value.name,
+      tile: { iconName: access.value.value.iconName, colorHex: access.value.value.colorHex }
+    },
     form: await superValidate(divisionFormData(access.value.value), zod4(DivisionInputSchema))
   };
 };

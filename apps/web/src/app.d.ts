@@ -1,5 +1,6 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 import type { AuthSession, AuthUser } from "$lib/auth.js";
+import type { RecordCrumb } from "$lib/breadcrumbs.js";
 
 declare global {
   // Injected at build time by CI (issue #23) so each per-PR web preview can
@@ -31,6 +32,8 @@ declare global {
     // which has no `data` prop of its own and reads `page.data` instead.
     interface PageData {
       user: AuthUser | null;
+      // A record's page names the record for the top bar's trail (#349).
+      crumb?: RecordCrumb;
     }
     interface Platform {
       env: {
