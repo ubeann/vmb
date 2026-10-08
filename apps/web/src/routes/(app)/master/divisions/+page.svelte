@@ -75,7 +75,8 @@
     "96": "max-w-[96rem]",
     off: "max-w-none"
   };
-  const capClass = $derived(CAP_CLASS[page.url.searchParams.get("cap") ?? ""] ?? "");
+  let cap = $state("90");
+  const capClass = $derived(CAP_CLASS[cap] ?? "");
 
   const can = (permission: PermissionKey) => data.permissions.includes(permission);
 
@@ -132,7 +133,7 @@
 </svelte:head>
 
 <Page width="default" class={cn("flex flex-col gap-5", capClass)}>
-  <CapToggle />
+  <CapToggle bind:cap />
   <PageHeader
     title="Divisions"
     description="A User belongs to one or more Divisions through the Roles they hold."
