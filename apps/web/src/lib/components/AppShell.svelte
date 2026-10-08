@@ -131,12 +131,12 @@
       </div>
     </header>
 
-    <!-- app.css still gives every <main> auto side margins and a max width (the legacy
-         page styles). On a phone those make the panel as wide as its widest content,
-         which widens the page; `m-0 w-auto max-w-none` opt out, and the panel scrolls
-         wide content itself; from 48rem up it scrolls tall content too, between the bar
-         and the footer, and `*:shrink-0` keeps its column from squeezing a child (one
-         with `overflow-hidden` has no content floor) instead of scrolling. In light mode the panel is a white sheet on the warm frame,
+    <!-- `w-auto` replaces the inset's `w-full`, which with the panel's margins would overflow.
+         The panel scrolls wide content itself on a phone, and from 48rem up tall content
+         too, between the bar and the footer; `*:shrink-0` keeps its column from squeezing
+         a child (one with `overflow-hidden` has no content floor) instead of scrolling.
+         A page caps and centres its own content with `Page` (ADR-0050), so the panel
+         stays full width. In light mode the panel is a white sheet on the warm frame,
          so the page is two layers and its tables sit on the same white (ADR-0036,
          "Signed-in panel"); dark mode keeps the background, since its card is the
          sidebar's colour and would merge the panel into the frame. -->
@@ -144,7 +144,7 @@
       bind:ref={panel}
       id="main-content"
       tabindex={-1}
-      class="bg-card dark:bg-background m-0 w-auto max-w-none min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:min-h-0 md:overflow-y-auto md:rounded-xl md:shadow-sm md:*:shrink-0"
+      class="bg-card dark:bg-background w-auto min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:min-h-0 md:overflow-y-auto md:rounded-xl md:shadow-sm md:*:shrink-0"
     >
       {@render children()}
     </Sidebar.Inset>

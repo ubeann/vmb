@@ -14,7 +14,7 @@ Each design round gets its own folder, `docs/design/<round>/`, holding the round
 6. **Verify with numbers.** Capture every state the change touches, not just the page as it loads: `design-screenshots.mjs <url> <out-dir> --state <name>` covers the review viewports × light/dark, and its states reach a flow's later steps (`page-checks.md`). Look at every capture. Measure each text pair with `contrast.mjs`, including text that sits near ornaments, and each state's fit with `design-probe.mjs --baseline <master preview>`. Probe layout shift by inserting an element after each input, as a password manager would. Run `better-accessibility`, `better-colors` and `better-writing`, the last for the copy. _Done when_ every touched state has been looked at, every _Rules_ item below holds, and the measurements are in the round README.
 7. **Owner review in their own browser.** Ask the user to try the screen at their native size, with their extensions installed. In the pilot this caught two bugs the automated checks missed: a plate cropped at 1680px wide, and a password-manager icon that grew the form. Loop fixes back through step 6. When the user confirms, upload the round's contact sheet and its last `/impeccable critique` snapshot (`.impeccable/critique/`, which git ignores) with `scripts/upload-asset.sh <file> prs/<number>`, and link them in the PR body. _Done when_ the user confirms the screen and the PR links its evidence.
 
-**Review viewports:** 1920×1080, 1680×1000, 1440×900, 1366×768, 1024×923, 390×844.
+**Review viewports:** 2560×1440, 1920×1080, 1680×1000, 1440×900, 1366×768, 1024×923, 390×844.
 
 ## Rules
 
