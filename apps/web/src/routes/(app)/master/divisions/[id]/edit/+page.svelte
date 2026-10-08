@@ -1,5 +1,6 @@
 <script lang="ts">
   import Page from "$lib/components/Page.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import DivisionForm from "$lib/master/DivisionForm.svelte";
   import { resolve } from "$app/paths";
   import type { PageData } from "./$types.js";
@@ -11,8 +12,8 @@
   <title>Edit division — VMB</title>
 </svelte:head>
 
-<Page width="narrow">
-  <h2>Edit division</h2>
+<Page width="narrow" class="flex flex-col gap-4">
+  <PageHeader title="Edit division" />
 
   <DivisionForm form={data.form} />
 

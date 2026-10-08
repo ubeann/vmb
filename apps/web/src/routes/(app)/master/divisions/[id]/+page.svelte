@@ -1,5 +1,6 @@
 <script lang="ts">
   import Page from "$lib/components/Page.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import type { PageData } from "./$types.js";
   import { resolve } from "$app/paths";
 
@@ -10,11 +11,11 @@
   <title>{data.division.name} — VMB</title>
 </svelte:head>
 
-<Page width="narrow">
-  <h2>
-    {data.division.name}
-    {#if data.division.deletedAt}<span class="badge">trashed</span>{/if}
-  </h2>
+<Page width="narrow" class="flex flex-col gap-4">
+  <PageHeader
+    title={data.division.name}
+    description={data.division.deletedAt ? "In the Trash" : undefined}
+  />
 
   {#if form?.error}
     <p role="alert" class="error">{form.error}</p>
