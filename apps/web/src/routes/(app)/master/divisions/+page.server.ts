@@ -1,9 +1,9 @@
 import { withApiClient } from "$lib/api-access.js";
 import { deleteDivision, listDivisions, restoreDivision } from "$lib/master/api.js";
 import { runRowAction } from "$lib/master/form-action.js";
-import { parseListQuery } from "$lib/master/list.js";
+import { canonicalListSearch, parseListQuery } from "$lib/master/list.js";
 import { DivisionListQuerySchema } from "@vmb/types";
-import { error } from "@sveltejs/kit";
+import { error, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
 
 // How many Divisions sit in the Trash, for the tab's count. It ignores the
@@ -15,6 +15,8 @@ export const load: PageServerLoad = async (event) => {
   const parsed = parseListQuery(DivisionListQuerySchema, event.url);
   // `include` (live and Trashed rows together) backs no view: the tabs offer All or Trash
   const query = parsed.trashed === "include" ? { ...parsed, trashed: "exclude" as const } : parsed;
+  const search = canonicalListSearch(DivisionListQuerySchema, event.url, query);
+  if (search !== event.url.search) redirect(307, `${event.url.pathname}${search}`);
   const access = await withApiClient(event, (client) =>
     Promise.all([
       listDivisions(client, query),

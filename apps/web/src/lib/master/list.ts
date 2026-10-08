@@ -5,12 +5,43 @@ export type MasterListPathname = "/master/divisions" | "/master/roles" | "/maste
 
 /**
  * A list page's query parameters, coerced and defaulted by the shared schema.
- * A malformed query falls back to the schema's own defaults rather than
- * failing the page — a hand-typed URL should not be a 500.
+ * A parameter the schema refuses falls back to its default and the rest still
+ * apply, rather than failing the page — a hand-typed URL should not be a 500.
+ * A repeated parameter takes its last value.
  */
 export function parseListQuery<T extends z.ZodType>(schema: T, url: URL): z.infer<T> {
-  const parsed = schema.safeParse(Object.fromEntries(url.searchParams));
+  const raw: Record<string, string> = Object.fromEntries(url.searchParams);
+  let parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) delete raw[String(issue.path[0])];
+    parsed = schema.safeParse(raw);
+  }
   return (parsed.success ? parsed.data : schema.parse({})) as z.infer<T>;
+}
+
+/**
+ * The query string a list URL should have once parsed: each parameter the
+ * schema took, once, in its parsed form, with defaults left implicit. A list
+ * redirects to it when the URL differs (#301), because the controls build
+ * their links from the URL and would otherwise carry values the server
+ * ignored, such as an invalid `perPage` or the losing copy of a repeated one.
+ */
+export function canonicalListSearch<T extends z.ZodType>(
+  schema: T,
+  url: URL,
+  query: z.infer<T>
+): string {
+  const defaults = schema.parse({}) as Record<string, unknown>;
+  const values = query as Record<string, unknown>;
+  const params = new URLSearchParams();
+  for (const key of new Set(url.searchParams.keys())) {
+    const value = values[key];
+    if (value === undefined || value === null || value === "") continue;
+    if (String(value) === String(defaults[key])) continue;
+    params.set(key, String(value));
+  }
+  const search = params.toString();
+  return search ? `?${search}` : "";
 }
 
 /**

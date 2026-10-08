@@ -1,5 +1,44 @@
+import { DivisionListQuerySchema } from "@vmb/types";
 import { describe, expect, it } from "vitest";
-import { listHref, pageWindow, showingRange, sortState } from "./list.js";
+import {
+  canonicalListSearch,
+  listHref,
+  pageWindow,
+  parseListQuery,
+  showingRange,
+  sortState
+} from "./list.js";
+
+const parse = (search: string) => {
+  const url = new URL(`https://vmb.test/master/divisions${search}`);
+  const query = parseListQuery(DivisionListQuerySchema, url);
+  return { query, canonical: canonicalListSearch(DivisionListQuerySchema, url, query) };
+};
+
+describe("parseListQuery and canonicalListSearch", () => {
+  it("leave a well-formed query as it is", () => {
+    expect(parse("?search=ops&sort=code&page=2")).toMatchObject({
+      query: { search: "ops", sort: "code", page: 2, perPage: 25 },
+      canonical: "?search=ops&sort=code&page=2"
+    });
+  });
+
+  it("drop only the parameter the schema refuses", () => {
+    expect(parse("?perPage=7&status=inactive")).toMatchObject({
+      query: { perPage: 25, status: "inactive" },
+      canonical: "?status=inactive"
+    });
+  });
+
+  it("take the last copy of a repeated parameter, once", () => {
+    expect(parse("?status=active&status=inactive").canonical).toBe("?status=inactive");
+  });
+
+  it("leave defaults and empty values implicit, and normalise the rest", () => {
+    expect(parse("?page=1&perPage=25&search=&sort=name&dir=asc").canonical).toBe("");
+    expect(parse("?page=02&search=%20ops%20").canonical).toBe("?page=2&search=ops");
+  });
+});
 
 const base = "/master/divisions";
 

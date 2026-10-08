@@ -82,16 +82,25 @@ describe("the divisions list load", () => {
     });
   });
 
-  it("shows All for the `include` view no tab offers", async () => {
-    listDivisionsMock.mockResolvedValue({ ok: true, value: page(40) });
-
-    await expect(load(event("?trashed=include"))).resolves.toMatchObject({
-      query: { trashed: "exclude" }
+  it("sends the `include` view no tab offers to All", async () => {
+    await expect(load(event("?trashed=include&search=ops"))).rejects.toMatchObject({
+      status: 307,
+      location: "/master/divisions?search=ops"
     });
-    expect(listDivisionsMock).toHaveBeenCalledWith(
-      {},
-      expect.objectContaining({ trashed: "exclude", perPage: 25 })
-    );
+    expect(listDivisionsMock).not.toHaveBeenCalled();
+  });
+
+  it("drops a parameter the list can't use and keeps the rest", async () => {
+    await expect(load(event("?perPage=7&status=inactive"))).rejects.toMatchObject({
+      status: 307,
+      location: "/master/divisions?status=inactive"
+    });
+  });
+
+  it("keeps the value of a repeated parameter that the list reads", async () => {
+    await expect(load(event("?status=active&status=inactive"))).rejects.toMatchObject({
+      location: "/master/divisions?status=inactive"
+    });
   });
 
   it("answers 403 when the API refuses the list", async () => {
