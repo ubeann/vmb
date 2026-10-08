@@ -9,6 +9,7 @@
   import { invalidateAll } from "$app/navigation";
   import { resolve } from "$app/paths";
   import { navigating, page } from "$app/state";
+  import CapToggle from "$lib/components/CapToggle.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import HeroIcon from "$lib/components/HeroIcon.svelte";
   import Notice from "$lib/components/Notice.svelte";
@@ -68,6 +69,14 @@
   ]);
   onMount(() => columns.restore());
 
+  // TEMPORARY (#348): the width cap under review
+  const CAP_CLASS: Record<string, string> = {
+    "80": "max-w-[80rem]",
+    "96": "max-w-[96rem]",
+    off: "max-w-none"
+  };
+  const capClass = $derived(CAP_CLASS[page.url.searchParams.get("cap") ?? ""] ?? "");
+
   const can = (permission: PermissionKey) => data.permissions.includes(permission);
 
   const inTrash = $derived(data.query.trashed === "only");
@@ -122,7 +131,8 @@
   <title>Divisions — VMB</title>
 </svelte:head>
 
-<Page width="default" class="flex flex-col gap-5">
+<Page width="default" class={cn("flex flex-col gap-5", capClass)}>
+  <CapToggle />
   <PageHeader
     title="Divisions"
     description="A User belongs to one or more Divisions through the Roles they hold."
