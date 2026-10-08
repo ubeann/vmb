@@ -8,7 +8,7 @@ import {
   UserUpdateInputSchema
 } from "@vmb/types";
 import { Hono, type Context } from "hono";
-import { requirePermission } from "./permission.js";
+import { actor, requirePermission } from "./permission.js";
 import { HttpError, jsonBody, pathId, queryParams } from "../../http.js";
 import type { MasterEnv } from "./env.js";
 
@@ -35,7 +35,7 @@ export const userRoutes = new Hono<MasterEnv>()
     async (c) => {
       const input = c.req.valid("json");
       await refuseBreachedPassword(c, input.password);
-      const user = await c.get("store").createUser(input, c.get("userId"));
+      const user = await c.get("store").createUser(input, actor(c));
       return c.json(UserSchema.parse(user), 201);
     }
   )
@@ -51,15 +51,15 @@ export const userRoutes = new Hono<MasterEnv>()
       const id = pathId(c);
       const input = c.req.valid("json");
       await refuseBreachedPassword(c, input.password);
-      const user = await c.get("store").updateUser(id, input, c.get("userId"));
+      const user = await c.get("store").updateUser(id, input, actor(c));
       return c.json(UserSchema.parse(user));
     }
   )
   .delete("/:id", requirePermission("master-users.delete"), async (c) => {
-    await c.get("store").deleteUser(pathId(c), c.get("userId"));
+    await c.get("store").deleteUser(pathId(c), actor(c));
     return c.body(null, 204);
   })
   .post("/:id/restore", requirePermission("master-users.restore"), async (c) => {
-    const user = await c.get("store").restoreUser(pathId(c), c.get("userId"));
+    const user = await c.get("store").restoreUser(pathId(c), actor(c));
     return c.json(UserSchema.parse(user));
   });

@@ -39,9 +39,9 @@ const ROUTES = [
 const concrete = (path: string) => path.replace(":id", ID);
 
 function appFor(permissions: string[]) {
-  const getAccess = vi.fn(async () => ({ permissions, divisions: [] }));
+  const getPermissions = vi.fn(async () => permissions);
   // any other store method a request reaches is a failure: it throws
-  const store = new Proxy({ getAccess } as unknown as MasterStore, {
+  const store = new Proxy({ getPermissions } as unknown as MasterStore, {
     get: (target, name: string) =>
       name in target
         ? target[name as keyof MasterStore]
@@ -60,7 +60,7 @@ function appFor(permissions: string[]) {
         createMasterRoutes(() => store)
       )
   );
-  return { app, getAccess };
+  return { app, getPermissions };
 }
 
 function request(method: string) {
@@ -82,7 +82,7 @@ describe("master API permissions", () => {
       code: "FORBIDDEN",
       message: "You do not have permission to do that."
     });
-    expect(without.getAccess).toHaveBeenCalledWith("caller");
+    expect(without.getPermissions).toHaveBeenCalledWith("caller");
 
     const only = appFor([key]);
     const allowed = await only.app.request(concrete(path), request(method), env);
@@ -97,6 +97,35 @@ describe("master API permissions", () => {
     const response = await app.request("/users", {}, env);
 
     expect(response.status).toBe(403);
+  });
+
+  it("reads the caller's permissions once per request, and again on the next", async () => {
+    // a grant that exists for the first request and is removed before the second
+    const granted = new Set<string>(["master-users.view_any"]);
+    const getPermissions = vi.fn(async () => [...granted]);
+    const store = {
+      getPermissions,
+      listUsers: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 }))
+    } as unknown as MasterStore;
+    const app = withErrorReplies(
+      new Hono<{ Variables: { userId: string } }>()
+        .use("*", async (c, next) => {
+          c.set("userId", "caller");
+          await next();
+        })
+        .route(
+          "/",
+          createMasterRoutes(() => store)
+        )
+    );
+
+    expect((await app.request("/users", {}, env)).status).toBe(200);
+    expect(getPermissions).toHaveBeenCalledTimes(1);
+
+    granted.delete("master-users.view_any");
+
+    expect((await app.request("/users", {}, env)).status).toBe(403);
+    expect(getPermissions).toHaveBeenCalledTimes(2);
   });
 
   it("lists every registered route", () => {

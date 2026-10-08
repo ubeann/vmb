@@ -23,7 +23,8 @@ import {
   restoreDivision,
   updateDivision
 } from "./divisions.js";
-import { getAccess } from "./access.js";
+import { getAccess, getPermissions } from "./access.js";
+import type { Actor } from "./guards.js";
 import { createRole, deleteRole, getRole, listRoles, updateRole } from "./roles.js";
 import {
   createUser,
@@ -37,6 +38,7 @@ import {
 import type { SignInEligibility, UserStoreOptions } from "./users.js";
 
 export * from "./db.js";
+export type { Actor } from "./guards.js";
 export type { SignInEligibility, UserStoreOptions } from "./users.js";
 
 /**
@@ -45,6 +47,8 @@ export type { SignInEligibility, UserStoreOptions } from "./users.js";
  * run against embedded Postgres.
  */
 export type MasterStore = {
+  /** The caller's permission keys, in one statement; read once per request. */
+  getPermissions(userId: string): Promise<string[]>;
   getAccess(userId: string): Promise<Access>;
 
   listDivisions(query: DivisionListQuery): Promise<DivisionListResponse>;
@@ -63,14 +67,15 @@ export type MasterStore = {
   listUsers(query: UserListQuery): Promise<UserListResponse>;
   getUser(id: string): Promise<User>;
   getSignInEligibility(id: string): Promise<SignInEligibility>;
-  createUser(input: UserCreateInput, actorId: string): Promise<User>;
-  updateUser(id: string, input: UserUpdateInput, actorId: string): Promise<User>;
-  deleteUser(id: string, actorId: string): Promise<void>;
-  restoreUser(id: string, actorId: string): Promise<User>;
+  createUser(input: UserCreateInput, actor: Actor): Promise<User>;
+  updateUser(id: string, input: UserUpdateInput, actor: Actor): Promise<User>;
+  deleteUser(id: string, actor: Actor): Promise<void>;
+  restoreUser(id: string, actor: Actor): Promise<User>;
 };
 
 export function createMasterStore(db: MasterDb, options: UserStoreOptions): MasterStore {
   return {
+    getPermissions: (userId) => getPermissions(db, userId),
     getAccess: (userId) => getAccess(db, userId),
 
     listDivisions: (query) => listDivisions(db, query),
@@ -89,9 +94,9 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     listUsers: (query) => listUsers(db, query),
     getUser: (id) => getUser(db, id),
     getSignInEligibility: (id) => getSignInEligibility(db, id),
-    createUser: (input, actorId) => createUser(db, options, input, actorId),
-    updateUser: (id, input, actorId) => updateUser(db, options, id, input, actorId),
-    deleteUser: (id, actorId) => deleteUser(db, id, actorId),
-    restoreUser: (id, actorId) => restoreUser(db, id, actorId)
+    createUser: (input, actor) => createUser(db, options, input, actor),
+    updateUser: (id, input, actor) => updateUser(db, options, id, input, actor),
+    deleteUser: (id, actor) => deleteUser(db, id, actor),
+    restoreUser: (id, actor) => restoreUser(db, id, actor)
   };
 }

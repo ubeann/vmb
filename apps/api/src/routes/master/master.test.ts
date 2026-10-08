@@ -20,6 +20,8 @@ const ID = "d1000000-0000-4000-8000-000000000001";
 const OTHER_ID = "d1000000-0000-4000-8000-000000000002";
 const STAMP = "2026-01-05T01:10:00.000Z";
 const env = { DATABASE_URL: "postgres://test" } as Bindings;
+// who the routes say is asking: the caller, with what `requirePermission` read
+const CALLER = { id: ID, permissions: allPermissionKeys() };
 
 const division: Division = {
   id: ID,
@@ -64,6 +66,7 @@ const user: User = {
 function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
   return {
     // the caller may do everything unless a test narrows it (permissions.test.ts)
+    getPermissions: vi.fn(async () => allPermissionKeys()),
     getAccess: vi.fn(async () => ({ permissions: allPermissionKeys(), divisions: [] })),
     listDivisions: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
     getDivision: vi.fn(async () => division),
@@ -406,7 +409,7 @@ describe("master API: users", () => {
         password: "a-long-enough-password",
         passwordConfirmation: "a-long-enough-password"
       },
-      ID
+      CALLER
     );
   });
 
@@ -561,7 +564,7 @@ describe("master API: users", () => {
     expect(store.updateUser).toHaveBeenCalledWith(
       ID,
       expect.objectContaining({ password: "" }),
-      ID
+      CALLER
     );
 
     await appWith(store).request(
@@ -576,7 +579,7 @@ describe("master API: users", () => {
     expect(store.updateUser).toHaveBeenLastCalledWith(
       ID,
       expect.objectContaining({ password: "newa-long-enough-password" }),
-      ID
+      CALLER
     );
   });
 
@@ -600,12 +603,12 @@ describe("master API: users", () => {
     await expect(
       appWith(store).request(`/users/${ID}`, { method: "DELETE" }, env)
     ).resolves.toMatchObject({ status: 204 });
-    expect(store.deleteUser).toHaveBeenCalledWith(ID, ID);
+    expect(store.deleteUser).toHaveBeenCalledWith(ID, CALLER);
 
     await expect(
       appWith(store).request(`/users/${ID}/restore`, { method: "POST" }, env)
     ).resolves.toMatchObject({ status: 200 });
-    expect(store.restoreUser).toHaveBeenCalledWith(ID, ID);
+    expect(store.restoreUser).toHaveBeenCalledWith(ID, CALLER);
   });
 
   it("maps a duplicate email to 409 CONFLICT naming the email field", async () => {
