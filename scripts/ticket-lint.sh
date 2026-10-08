@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
 # Check that a `ready-for-agent` ticket has the shape an AFK agent can build
-# from: the `/to-tickets` sections, at least one acceptance-criterion checkbox,
-# exactly one `complexity:*` label, a stated reason when that label is
-# `complex`, and no second state label. The contract lives in
+# from: the `/to-tickets` sections (the research form's, for a `research`
+# ticket), at least one checkbox in its checklist, exactly one `complexity:*`
+# label, a stated reason when that label is `complex`, and no second state
+# label. The contract lives in
 # `docs/agents/triage-labels.md` and `docs/agents/ticket-loop.md`.
 #
 # Run by `.github/workflows/ticket-lint.yml`, which moves a failing ticket back
@@ -31,19 +32,32 @@ has_heading() {
   grep -Eiq "^#{2,3}[[:space:]]+$1[[:space:]]*$" <<<"$body"
 }
 
-for heading in "What to build" "Acceptance criteria" "Blocked by"; do
+# A `research` ticket answers questions rather than building something: its
+# sections are the research issue form's, and its checklist is the questions.
+case "$labels" in
+  *,research,*)
+    headings=("What to find out" "Questions" "Done when" "Blocked by")
+    checklist="Questions"
+    ;;
+  *)
+    headings=("What to build" "Acceptance criteria" "Blocked by")
+    checklist="Acceptance criteria"
+    ;;
+esac
+
+for heading in "${headings[@]}"; do
   has_heading "$heading" || problems+=("Missing a \`## $heading\` section.")
 done
 
-# At least one checkbox between the criteria heading and the next heading.
-criteria=$(printf '%s\n' "$body" | awk '
-  tolower($0) ~ /^#{2,3}[[:space:]]+acceptance criteria[[:space:]]*$/ { inside = 1; next }
+# At least one checkbox between the checklist heading and the next heading.
+items=$(printf '%s\n' "$body" | awk -v heading="$checklist" '
+  tolower($0) ~ ("^#{2,3}[[:space:]]+" tolower(heading) "[[:space:]]*$") { inside = 1; next }
   /^#{1,3}[[:space:]]/ { inside = 0 }
   inside && /^[[:space:]]*[-*][[:space:]]+\[[ xX]\][[:space:]]+[^[:space:]]/ { count++ }
   END { print count + 0 }
 ')
-if has_heading "Acceptance criteria" && [ "$criteria" -eq 0 ]; then
-  problems+=("\`## Acceptance criteria\` has no \`- [ ]\` checkbox items.")
+if has_heading "$checklist" && [ "$items" -eq 0 ]; then
+  problems+=("\`## $checklist\` has no \`- [ ]\` checkbox items.")
 fi
 
 complexity=$(printf '%s\n' "${labels//,/$'\n'}" | grep -c '^complexity:' || true)

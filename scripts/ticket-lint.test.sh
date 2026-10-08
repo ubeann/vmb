@@ -127,5 +127,34 @@ It sets the list design every later module follows."
 check "a second state label conflicts" 1 "conflicts with \`needs-info\`" \
   "ready-for-agent,needs-info,complexity:standard" "$good"
 
+research='### What to find out
+
+Where the web test time goes.
+
+### Questions
+
+- [ ] Which project dominates the worker time?
+
+### Done when
+
+Findings in docs/research/web-test-runtime.md.
+
+### Blocked by
+
+None'
+
+check "a research-form ticket passes" 0 "" \
+  "research,ready-for-agent,complexity:standard" "$research"
+
+check "a research ticket is not held to the build sections" 1 "Missing a \`## Done when\` section." \
+  "research,ready-for-agent,complexity:standard" "$good"
+
+check "a build ticket is not held to the research sections" 1 "Missing a \`## What to build\` section." \
+  "enhancement,ready-for-agent,complexity:standard" "$research"
+
+check "research questions without checkboxes fail" 1 "\`## Questions\` has no \`- [ ]\` checkbox items" \
+  "research,ready-for-agent,complexity:standard" \
+  "${research//- \[ \] /}"
+
 printf '\n%d checks, %d failed\n' "$checks" "$failures"
 [ "$failures" -eq 0 ]

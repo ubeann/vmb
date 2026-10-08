@@ -14,7 +14,7 @@ When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the 
 
 ## The rest of the vocabulary
 
-A ticket carries one category (`bug` or `enhancement`) and one state from the table above. A `ready-for-agent` ticket also needs:
+A ticket carries one category (`bug`, `enhancement` or `research`) and one state from the table above. A `ready-for-agent` ticket also needs:
 
 - **Exactly one `complexity:*` label**: `trivial`, `standard` or `complex`, chosen when the ticket is created (criteria in `model-routing.md`). A `complex` ticket states its reason under a `## Why complex` heading.
 - **`review:human`** when an acceptance criterion needs the owner's eyes: a design call, a look on a real device, anything no check can settle. The agent still builds it; the PR just never merges without the owner.
@@ -22,3 +22,8 @@ A ticket carries one category (`bug` or `enhancement`) and one state from the ta
 `.github/workflows/ticket-lint.yml` checks those rules on every `ready-for-agent` ticket and moves one that fails back to `needs-triage`.
 
 On a PR, **`needs-decision`** means the merge gate stopped it or the agent needs the owner's call; the PR's last comment says which. An **assignee** on a `ready-for-agent` ticket means an agent has claimed it. How the labels move through a build is in `ticket-loop.md`.
+
+## Research and wayfinder
+
+- **`research`**: one sharp question answered by reading, filed with the Research issue form. It moves through the same states as a build ticket; once `ready-for-agent`, the night loop runs it with `/research` and its findings land in `docs/research/<slug>.md`. A research ticket that waits on other work carries native blocking links, so the wait shows in the tracker.
+- **`wayfinder:*`**: an idea with several open questions is a `/wayfinder` map (`wayfinder:map`), and each child carries `wayfinder:research`, `wayfinder:prototype`, `wayfinder:grilling` or `wayfinder:task`. These sit outside the states above: no state or `complexity:*` label, and the night loop never takes them; a wayfinder session claims them by assignee. A `research` ticket that turns out to hold several questions becomes a map when someone starts on it.

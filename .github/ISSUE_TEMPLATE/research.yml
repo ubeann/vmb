@@ -1,0 +1,44 @@
+# One sharp question answered by reading, not building. A foggy idea with
+# several open questions is a `/wayfinder` map instead (docs/agents/triage-labels.md).
+# `scripts/ticket-lint.sh` checks these sections once the ticket is `ready-for-agent`.
+name: Research
+description: A question to answer from docs, APIs or the codebase, with findings written up in the repo.
+labels: [research, needs-triage]
+body:
+  - type: textarea
+    id: find-out
+    attributes:
+      label: What to find out
+      description: What prompted the question, and the decision that waits on the answer.
+    validations:
+      required: true
+  - type: textarea
+    id: questions
+    attributes:
+      label: Questions
+      description: One checkbox each. Paste screenshots here; GitHub uploads them.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      value: |
+        Findings in `docs/research/<slug>.md`, an ADR if one decision shapes the rest, and any build work filed as tickets; the closing comment links them.
+    validations:
+      required: true
+  - type: textarea
+    id: blocked
+    attributes:
+      label: Blocked by
+      description: The issues that must close first, or "None". Triage turns these into native blocking links.
+      value: None (can start immediately)
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Related issues and ADRs, references, anything already known.

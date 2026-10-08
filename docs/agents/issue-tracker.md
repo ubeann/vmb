@@ -27,6 +27,11 @@ An issue's Development panel lists the branches and PRs linked to it. `gh issue 
 
 Confirm with `gh issue develop --list <number>`.
 
+## Grouping: parent issues and the focus milestone
+
+- **Parent issues** group work by domain (Master, RBAC, Trucking, Warehouse, Expense, Cutover), with each ticket attached as a native sub-issue: `gh api --method POST repos/ubeann/vmb/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>`. A parent carries no state label and is never built itself.
+- **The open milestone** is the current focus: one at a time, named for what it delivers, closed when its issues close. The dispatcher builds inside it first (`ticket-loop.md`). Add a ticket with `gh issue edit <n> --milestone "<title>"`.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
@@ -57,3 +62,5 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+- **Research findings**: a `wayfinder:research` ticket's findings go in `docs/research/<slug>.md`, in a draft PR that says `Refs #<n>` (wayfinder closes the ticket itself), and the resolution comment links the doc. Every research doc lives there, so other docs can point at it.
+- **Build tickets stay off the map.** The frontier query reads every open child of the map, so the build tickets `/to-tickets` files once the destination is reached go under the domain parent (Grouping, above). The map's Decisions-so-far links them.

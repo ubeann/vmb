@@ -13,9 +13,9 @@ Labels are defined in `triage-labels.md`; this doc says when they move.
 
 ## Shape
 
-`/grill-with-docs` → `/to-spec` → `/to-tickets`, as in `/ask-matt`. Raw issues someone else filed go through `/triage` instead. Every ticket leaves this phase as `ready-for-agent` with:
+`/grill-with-docs` → `/to-spec` → `/to-tickets`, as in `/ask-matt`. An idea with several open questions starts as a `/wayfinder` map whose destination is the spec. Raw issues someone else filed go through `/triage` instead. Every ticket leaves this phase as `ready-for-agent` with:
 
-- the `/to-tickets` sections, with criteria a reviewer can check from the diff, the preview and CI;
+- the `/to-tickets` sections (the Research form's, for a `research` ticket), with criteria a reviewer can check from the diff, the preview and CI;
 - one `complexity:*` label, and a `## Why complex` heading when it is `complex`;
 - `review:human` when a criterion needs the owner's eyes;
 - the reference images it was shaped from, uploaded (`issue-tracker.md`, "Images").
@@ -28,7 +28,7 @@ You are a thread launched on one ticket, in your own worktree on a branch the di
 
 1. **Claim.** If the ticket has no assignee (you were started by hand), `gh issue edit <n> --add-assignee @me`.
 2. **Refresh.** Read the ticket and its comments (`issue-tracker.md`). Confirm every blocker is closed and each criterion still makes sense on current `master`: things it asks you to create may already exist, files or components it names may have moved. If the ticket is **stale** in a way that changes what to build, comment what changed, run `gh issue edit <n> --remove-label ready-for-agent --add-label needs-triage --remove-assignee @me`, and stop. Small drift that doesn't change the outcome goes in the PR's Evidence and you continue.
-3. **Build** with `/implement`. Keep the branch you were given; the PR's `Closes #<n>` links it to the ticket, so skip `gh issue develop`.
+3. **Build** with `/implement`, or `/research` for a `research` ticket: its questions are the criteria, and the findings land in `docs/research/<slug>.md`. Keep the branch you were given; the PR's `Closes #<n>` links it to the ticket, so skip `gh issue develop`.
 4. **Open a draft PR** (`git-workflow.md`, PR body). Link it to your thread with `link_pull_request`, then `watch_pull_request`. T3 wakes you when checks finish or someone comments.
 5. **Prove each criterion.** For a UI change, once the preview is up, run the page checks (`page-checks.md`) and upload the captures you cite. Tick a criterion only with its evidence next to it. One you can't verify, such as the owner's review, stays unticked.
 6. **Review** at the ticket's tier (`model-routing.md`, Review). Fix what holds up, push, and wait for green checks.
@@ -57,11 +57,11 @@ A T3 scheduled task runs this in the night windows (17:10–22:10 and 22:15–03
 
 1. **Room left.** If less than 90 minutes remain before the window ends, report that and stop: a build launched now would run out of usage mid-way.
 2. **Count slots.** Builds in flight are open `ready-for-agent` tickets with an assignee. Run at most **2**. With no free slot, report and stop.
-3. **Find the frontier.** `gh issue list --label ready-for-agent --state open --json number,title,labels,assignees`, keep the unassigned ones, and drop any with an open blocker (`gh api repos/ubeann/vmb/issues/<n> --jq .issue_dependencies_summary.blocked_by` above 0, or an open issue in a `Blocked by` line), and any that fail `scripts/ticket-lint.sh` (body on stdin, labels comma-joined as the argument): ticket-lint only runs when a ticket changes, so older tickets can still lack a tier. Lowest number first.
+3. **Find the frontier.** `gh issue list --label ready-for-agent --state open --json number,title,labels,assignees,milestone`, keep the unassigned ones, and drop any with an open blocker (`gh api repos/ubeann/vmb/issues/<n> --jq .issue_dependencies_summary.blocked_by` above 0, or an open issue in a `Blocked by` line), and any that fail `scripts/ticket-lint.sh` (body on stdin, labels comma-joined as the argument): ticket-lint only runs when a ticket changes, so older tickets can still lack a tier. Tickets in the open milestone come first, then the rest; lowest number first within each.
 4. **Claim and launch**, one ticket per free slot:
    - `gh issue edit <n> --add-assignee @me`;
-   - `t3_thread_launch` with title `#<n> <ticket title>`, `workspaceStrategy` `{"type":"worktree","baseRef":"master","startFromOrigin":true,"branch":"<type>/<scope>/<slug>"}` (type `fix` for a `bug`, otherwise `feature`; scope and slug from the ticket, as in `git-workflow.md`), and the model for the ticket's tier: the Claude model from `model-routing.md`'s tier table on the named Claude instance for `standard` and `complex`, and the Codex `fast` model for `trivial`. Resolve the IDs with `orchestrator_capabilities`;
-   - message: `/mattpocock-skills:implement #<n>` on its first line, then `Unattended build: follow docs/agents/ticket-loop.md, Build, to an end state.`;
+   - `t3_thread_launch` with title `#<n> <ticket title>`, `workspaceStrategy` `{"type":"worktree","baseRef":"master","startFromOrigin":true,"branch":"<type>/<scope>/<slug>"}` (type `fix` for a `bug`, `docs` for a `research` ticket, otherwise `feature`; scope and slug from the ticket, as in `git-workflow.md`), and the model for the ticket's tier: the Claude model from `model-routing.md`'s tier table on the named Claude instance for `standard` and `complex`, and the Codex `fast` model for `trivial`. Resolve the IDs with `orchestrator_capabilities`;
+   - message: `/mattpocock-skills:implement #<n>` on its first line (`/mattpocock-skills:research #<n>` for a `research` ticket), then `Unattended build: follow docs/agents/ticket-loop.md, Build, to an end state.`;
    - comment on the ticket with the thread id;
    - if the launch fails, release the claim (`gh issue edit <n> --remove-assignee @me`) and report the error, so the slot frees for the next run.
 5. **Report** one line per launch (ticket, tier, thread), or why nothing launched.
@@ -76,4 +76,4 @@ A T3 scheduled task at 07:00 WIB. It only reads; the owner acts on it. List, new
 2. **Merged overnight**: PRs merged since 17:00 yesterday, with the ticket each closed.
 3. **Bounced**: tickets that moved to `needs-triage` since then, with the reason from their last comment.
 4. **Stalled**: claimed `ready-for-agent` tickets with no open PR whose claim comment is older than 6 hours. Name the thread so the owner can look.
-5. **Next up**: the frontier as the dispatcher would see it tonight, and how many `ready-for-agent` tickets fail ticket-lint or lack a tier.
+5. **Next up**: the frontier as the dispatcher would see it tonight, the open milestone's progress (closed of total), and how many `ready-for-agent` tickets fail ticket-lint or lack a tier.
