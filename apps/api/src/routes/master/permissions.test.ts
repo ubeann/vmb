@@ -128,6 +128,81 @@ describe("master API permissions", () => {
     expect(getPermissions).toHaveBeenCalledTimes(2);
   });
 
+  // The request half of the statement budget: routes reach the database only
+  // through the store, so pinning the store calls a role-changing PATCH makes,
+  // with the statements each costs (packages/db/test/rbac.test.ts, "what a
+  // request costs"), pins the request's total.
+  it("changes a user's roles reading the caller's permissions once, and handing them on", async () => {
+    const permissions = allPermissionKeys();
+    const calls: string[] = [];
+    const getPermissions = vi.fn(async () => permissions);
+    const updateUser = vi.fn(async () => ({
+      id: ID,
+      name: "Rina Wijaya",
+      status: "active",
+      roles: [],
+      phone: "+628111000001",
+      email: "rina@vmblogistics.id",
+      emailVerified: false,
+      profilePhotoPath: "",
+      createdAt: "2026-01-05T01:10:00.000Z",
+      updatedAt: "2026-01-05T01:10:00.000Z",
+      deletedAt: null
+    }));
+    const methods = { getPermissions, updateUser } as Record<string, unknown>;
+    const store = new Proxy({} as MasterStore, {
+      get: (_target, name: string) => {
+        calls.push(name);
+        return (
+          methods[name] ??
+          (() => {
+            throw new Error(`the store was reached: ${name}`);
+          })
+        );
+      }
+    });
+    const app = withErrorReplies(
+      new Hono<{ Variables: { userId: string } }>()
+        .use("*", async (c, next) => {
+          c.set("userId", "caller");
+          await next();
+        })
+        .route(
+          "/",
+          createMasterRoutes(
+            () => store,
+            async () => false
+          )
+        )
+    );
+
+    const response = await app.request(
+      concrete("/users/:id"),
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Rina Wijaya",
+          email: "rina@vmblogistics.id",
+          phone: "0811-1000-0001",
+          roleIds: [ID],
+          status: "active",
+          profilePhotoPath: "",
+          password: "",
+          passwordConfirmation: ""
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(calls).toEqual(["getPermissions", "updateUser"]);
+    expect(updateUser).toHaveBeenCalledWith(ID, expect.objectContaining({ roleIds: [ID] }), {
+      id: "caller",
+      permissions
+    });
+  });
+
   it("lists every registered route", () => {
     // each route registers once per handler (guard, validator, handler)
     const registered = [
