@@ -7,7 +7,8 @@ import {
 import { describe, expect, it } from "vitest";
 import { ID_GROUPS, fixtureId } from "../src/seed/ids.js";
 import { seed } from "../src/seed/run.js";
-import { createMasterStore, MasterForbiddenError } from "../src/master/index.js";
+import { ForbiddenError } from "../src/errors.js";
+import { createMasterStore } from "../src/master/index.js";
 import { count, rejects, withMigratedDatabase, withMigratedDb } from "./harness.js";
 
 const SUPER_ADMIN = fixtureId(ID_GROUPS.role, 1);
@@ -253,13 +254,13 @@ describe("assigning roles to users", () => {
       // but Super Admin carries keys the manager lacks
       await expect(
         store(db).updateUser(target.id, edit(target, [SUPER_ADMIN]), MANAGER_USER)
-      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      ).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
       await expect(
         store(db).createUser(
           newUser({ email: "x@vmblogistics.id", roleIds: [SUPER_ADMIN] }),
           MANAGER_USER
         )
-      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      ).rejects.toBeInstanceOf(ForbiddenError);
     });
   });
 
@@ -270,7 +271,7 @@ describe("assigning roles to users", () => {
 
       await expect(
         store(db).updateUser(admin.id, edit(admin, []), MANAGER_USER)
-      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      ).rejects.toBeInstanceOf(ForbiddenError);
       // nothing changed
       expect((await store(db).getUser(admin.id)).roles.map((role) => role.name)).toEqual([
         "Super Admin"
@@ -334,9 +335,10 @@ describe("deleting a role", () => {
                                                                   ('${fixtureId(ID_GROUPS.user, 6)}', '${staff}')`
       );
 
-      await expect(store.deleteRole(staff)).rejects.toThrow(
-        "3 users hold this role. Remove it from them first."
-      );
+      await expect(store.deleteRole(staff)).rejects.toMatchObject({
+        code: "ROLE_IN_USE",
+        message: "3 users hold this role. Remove it from them first."
+      });
 
       await client.exec(`delete from master.user_roles where role_id = '${staff}'`);
       await expect(store.deleteRole(staff)).resolves.toBeUndefined();
@@ -382,13 +384,13 @@ describe("reaching a more privileged user", () => {
       // roleIds omitted: only the credential changes, yet it is still account takeover
       await expect(
         store(db).updateUser(ADMIN, resetPassword(admin), MANAGER)
-      ).rejects.toBeInstanceOf(MasterForbiddenError);
-      await expect(store(db).deleteUser(ADMIN, MANAGER)).rejects.toBeInstanceOf(
-        MasterForbiddenError
-      );
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(store(db).deleteUser(ADMIN, MANAGER)).rejects.toMatchObject({
+        code: "PERMISSION_ESCALATION"
+      });
       await expect(
         store(db).updateUser(ADMIN, { ...resetPassword(admin), status: "suspended" }, MANAGER)
-      ).rejects.toBeInstanceOf(MasterForbiddenError);
+      ).rejects.toBeInstanceOf(ForbiddenError);
       expect(
         await count(
           client,
@@ -398,9 +400,7 @@ describe("reaching a more privileged user", () => {
       ).toBe(0);
 
       await client.exec(`update master.users set deleted_at = now() where id = '${ADMIN}'`);
-      await expect(store(db).restoreUser(ADMIN, MANAGER)).rejects.toBeInstanceOf(
-        MasterForbiddenError
-      );
+      await expect(store(db).restoreUser(ADMIN, MANAGER)).rejects.toBeInstanceOf(ForbiddenError);
     });
   });
 

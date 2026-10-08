@@ -2,7 +2,10 @@ import type { Role, RoleInput, RoleListQuery, RoleListResponse } from "@vmb/type
 import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { roles, userRoles } from "../schema/master.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { MasterConflictError, MasterNotFoundError, MasterSystemRoleError } from "./errors.js";
+import { ConflictError, ForbiddenError, NotFoundError } from "../errors.js";
+
+/** The legacy policy refuses to modify a system role (`RolePolicy.php`). */
+const SYSTEM_ROLE_MESSAGE = "System roles cannot be modified or deleted.";
 
 type RoleRow = typeof roles.$inferSelect;
 
@@ -12,7 +15,7 @@ const SORT_COLUMNS = {
 } as const;
 
 const ROLE_NAME_CONFLICT = {
-  master_roles_name_unique: "A role with that name already exists."
+  master_roles_name_unique: { path: "name", message: "A role with that name already exists." }
 };
 
 function toRole(row: RoleRow): Role {
@@ -71,7 +74,7 @@ export async function listRoles(db: MasterDb, query: RoleListQuery): Promise<Rol
 export async function getRole(db: MasterDb, id: string): Promise<Role> {
   const rows = await db.select().from(roles).where(eq(roles.id, id)).limit(1);
   const row = rows[0];
-  if (!row) throw new MasterNotFoundError("Role not found.");
+  if (!row) throw new NotFoundError("Role not found.");
   return toRole(row);
 }
 
@@ -106,7 +109,7 @@ export async function updateRole(db: MasterDb, id: string, input: RoleInput): Pr
       .where(and(eq(roles.id, id), eq(roles.isSystem, false)))
       .returning();
     const row = rows[0];
-    if (!row) throw new MasterNotFoundError("Role not found.");
+    if (!row) throw new NotFoundError("Role not found.");
     return toRole(row);
   } catch (error) {
     return conflictFrom(error, ROLE_NAME_CONFLICT);
@@ -124,8 +127,9 @@ export async function deleteRole(db: MasterDb, id: string): Promise<void> {
     .where(eq(userRoles.roleId, id));
   const held = holders[0]?.value ?? 0;
   if (held > 0) {
-    throw new MasterConflictError(
-      `${held} ${held === 1 ? "user holds" : "users hold"} this role. Remove it from them first.`
+    throw new ConflictError(
+      `${held} ${held === 1 ? "user holds" : "users hold"} this role. Remove it from them first.`,
+      { code: "ROLE_IN_USE" }
     );
   }
 
@@ -134,7 +138,7 @@ export async function deleteRole(db: MasterDb, id: string): Promise<void> {
     .where(and(eq(roles.id, id), eq(roles.isSystem, false)))
     .returning({ id: roles.id });
 
-  if (!rows[0]) throw new MasterNotFoundError("Role not found.");
+  if (!rows[0]) throw new NotFoundError("Role not found.");
 }
 
 async function assertMutable(db: MasterDb, id: string): Promise<void> {
@@ -145,6 +149,6 @@ async function assertMutable(db: MasterDb, id: string): Promise<void> {
     .limit(1);
 
   const row = rows[0];
-  if (!row) throw new MasterNotFoundError("Role not found.");
-  if (row.isSystem) throw new MasterSystemRoleError();
+  if (!row) throw new NotFoundError("Role not found.");
+  if (row.isSystem) throw new ForbiddenError("SYSTEM_ROLE", SYSTEM_ROLE_MESSAGE);
 }

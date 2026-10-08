@@ -9,15 +9,11 @@ import type {
 } from "@vmb/types";
 import { allPermissionKeys } from "@vmb/types";
 import { Hono } from "hono";
-import {
-  MasterConflictError,
-  MasterForbiddenError,
-  MasterNotFoundError,
-  MasterSystemRoleError
-} from "@vmb/db";
+import { ConflictError, ForbiddenError, NotFoundError } from "@vmb/db";
 import type { MasterStore } from "@vmb/db";
 import { describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../bindings.js";
+import { withErrorReplies } from "../../error-reply.js";
 import { createMasterRoutes } from "./index.js";
 
 const ID = "d1000000-0000-4000-8000-000000000001";
@@ -93,15 +89,17 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
 
 // Never the real Pwned Passwords lookup: a test makes no network call.
 function appWith(store: MasterStore, isPasswordBreached = async (_password: string) => false) {
-  return new Hono<{ Variables: { userId: string } }>()
-    .use("*", async (c, next) => {
-      c.set("userId", ID);
-      await next();
-    })
-    .route(
-      "/",
-      createMasterRoutes(() => store, isPasswordBreached)
-    );
+  return withErrorReplies(
+    new Hono<{ Variables: { userId: string } }>()
+      .use("*", async (c, next) => {
+        c.set("userId", ID);
+        await next();
+      })
+      .route(
+        "/",
+        createMasterRoutes(() => store, isPasswordBreached)
+      )
+  );
 }
 
 function json(method: string, body: unknown) {
@@ -167,10 +165,15 @@ describe("master API: divisions", () => {
   it("rejects an unsupported page size with the issue list", async () => {
     const store = fakeStore();
     const response = await appWith(store).request("/divisions?perPage=7", {}, env);
-    const body = (await response.json()) as { error: string; issues: { path: string }[] };
+    const body = (await response.json()) as {
+      code: string;
+      message: string;
+      issues: { path: string }[];
+    };
 
     expect(response.status).toBe(400);
-    expect(body.error).toBe("Invalid query parameters.");
+    expect(body.code).toBe("VALIDATION_FAILED");
+    expect(body.message).toBe("Invalid query parameters.");
     expect(body.issues[0]?.path).toBe("perPage");
     expect(store.listDivisions).not.toHaveBeenCalled();
   });
@@ -217,6 +220,10 @@ describe("master API: divisions", () => {
     );
 
     expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      code: "MALFORMED_REQUEST",
+      message: "The request body is not valid JSON."
+    });
   });
 
   it("reads, updates, deletes and restores by id", async () => {
@@ -256,16 +263,21 @@ describe("master API: divisions", () => {
   it("maps a missing record to 404 and a duplicate to 409", async () => {
     const missing = fakeStore({
       getDivision: vi.fn(async () => {
-        throw new MasterNotFoundError("Division not found.");
+        throw new NotFoundError("Division not found.");
       })
     });
-    await expect(appWith(missing).request(`/divisions/${ID}`, {}, env)).resolves.toMatchObject({
-      status: 404
+    const notFound = await appWith(missing).request(`/divisions/${ID}`, {}, env);
+    expect(notFound.status).toBe(404);
+    await expect(notFound.json()).resolves.toEqual({
+      code: "NOT_FOUND",
+      message: "Division not found."
     });
 
     const duplicate = fakeStore({
       createDivision: vi.fn(async () => {
-        throw new MasterConflictError("A division with that name already exists.");
+        throw new ConflictError("A division with that name already exists.", {
+          issues: [{ path: "name", message: "A division with that name already exists." }]
+        });
       })
     });
     const response = await appWith(duplicate).request(
@@ -275,8 +287,10 @@ describe("master API: divisions", () => {
     );
 
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toMatchObject({
-      error: "A division with that name already exists."
+    await expect(response.json()).resolves.toEqual({
+      code: "CONFLICT",
+      message: "A division with that name already exists.",
+      issues: [{ path: "name", message: "A division with that name already exists." }]
     });
   });
 });
@@ -330,17 +344,35 @@ describe("master API: roles", () => {
     ).resolves.toMatchObject({ status: 204 });
   });
 
-  it("maps a system role to 403", async () => {
+  it("maps a system role to 403 SYSTEM_ROLE", async () => {
     const store = fakeStore({
       deleteRole: vi.fn(async () => {
-        throw new MasterSystemRoleError();
+        throw new ForbiddenError("SYSTEM_ROLE", "System roles cannot be modified or deleted.");
       })
     });
     const response = await appWith(store).request(`/roles/${ID}`, { method: "DELETE" }, env);
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({
-      error: "System roles cannot be modified or deleted."
+    await expect(response.json()).resolves.toEqual({
+      code: "SYSTEM_ROLE",
+      message: "System roles cannot be modified or deleted."
+    });
+  });
+
+  it("maps deleting a role users hold to 409 ROLE_IN_USE", async () => {
+    const store = fakeStore({
+      deleteRole: vi.fn(async () => {
+        throw new ConflictError("3 users hold this role. Remove it from them first.", {
+          code: "ROLE_IN_USE"
+        });
+      })
+    });
+    const response = await appWith(store).request(`/roles/${ID}`, { method: "DELETE" }, env);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "ROLE_IN_USE",
+      message: "3 users hold this role. Remove it from them first."
     });
   });
 });
@@ -378,16 +410,32 @@ describe("master API: users", () => {
     );
   });
 
-  it("answers 403 when the caller may not grant a chosen role", async () => {
+  it("answers 403 PERMISSION_ESCALATION when the caller may not grant a chosen role", async () => {
+    const message = "You cannot change a role that carries permissions you do not have.";
     const store = fakeStore({
       createUser: vi.fn(async () => {
-        throw new MasterForbiddenError();
+        throw new ForbiddenError("PERMISSION_ESCALATION", message);
       })
     });
 
     const response = await appWith(store).request("/users", json("POST", body), env);
 
     expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ code: "PERMISSION_ESCALATION", message });
+  });
+
+  it("answers 403 PERMISSION_ESCALATION when the caller may not change the user", async () => {
+    const message = "You cannot change a user who holds permissions you do not have.";
+    const store = fakeStore({
+      updateUser: vi.fn(async () => {
+        throw new ForbiddenError("PERMISSION_ESCALATION", message);
+      })
+    });
+
+    const response = await appWith(store).request(`/users/${ID}`, json("PATCH", body), env);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ code: "PERMISSION_ESCALATION", message });
   });
 
   it.each([
@@ -451,7 +499,8 @@ describe("master API: users", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "This password appeared in a data leak. Choose a different one.",
+      code: "PASSWORD_BREACHED",
+      message: "This password appeared in a data leak. Choose a different one.",
       issues: [
         {
           path: "password",
@@ -487,9 +536,13 @@ describe("master API: users", () => {
       json("POST", { ...body, passwordConfirmation: "a-different-long-password" }),
       env
     );
-    const parsed = (await response.json()) as { issues: { path: string; message: string }[] };
+    const parsed = (await response.json()) as {
+      code: string;
+      issues: { path: string; message: string }[];
+    };
 
     expect(response.status).toBe(400);
+    expect(parsed.code).toBe("VALIDATION_FAILED");
     expect(parsed.issues).toContainEqual({
       path: "passwordConfirmation",
       message: "Passwords do not match."
@@ -555,14 +608,20 @@ describe("master API: users", () => {
     expect(store.restoreUser).toHaveBeenCalledWith(ID, ID);
   });
 
-  it("maps a duplicate email to 409", async () => {
+  it("maps a duplicate email to 409 CONFLICT naming the email field", async () => {
+    const taken = { path: "email", message: "A user with that email already exists." };
     const store = fakeStore({
       createUser: vi.fn(async () => {
-        throw new MasterConflictError("A user with that email already exists.");
+        throw new ConflictError(taken.message, { issues: [taken] });
       })
     });
     const response = await appWith(store).request("/users", json("POST", body), env);
 
     expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "CONFLICT",
+      message: taken.message,
+      issues: [taken]
+    });
   });
 });
