@@ -13,6 +13,8 @@
 
   let { iso }: { iso: string | null } = $props();
 
+  const EMPTY = "—";
+
   let timeZone = $state<string | undefined>("UTC");
   onMount(() => {
     timeZone = undefined;
@@ -38,5 +40,5 @@
     </Tooltip.Root>
   </Tooltip.Provider>
 {:else}
-  <span class="text-muted-foreground">—</span>
+  <span class="text-muted-foreground">{EMPTY}</span>
 {/if}
