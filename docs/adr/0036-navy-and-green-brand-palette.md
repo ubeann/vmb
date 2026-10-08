@@ -25,3 +25,14 @@ Measured text pairs (WCAG 2.2 AA, target 4.5:1): foreground on paper 15.4:1, on 
 **Amendment (2026-10-06, #289):** `hooks.server.ts` now preloads the `latin` Inter and Newsreader files on every page, through the `preload` option of `resolve`. The browser only found them after reading the stylesheet, so the login headline's largest paint waited 1.8 s on a font it could have been fetching. The `latin-ext` files stay lazy. **Trade-off:** the "loaded only by pages that use `font-display`" line above no longer holds for the download itself: a page without a display heading still fetches Newsreader's 58 kB. Accepted because the auth pages, the error page and the dashboard all use `font-display`, and the files are immutable, so a repeat visit pays nothing.
 
 **Amendment (2026-10-06):** `--font-display` now loads Newsreader's optical-size cut (132 kB latin), and the preloaded files are that cut and Schibsted Grotesk ([ADR-0046](0046-schibsted-newsreader-display-cut-and-jetbrains-mono.md)).
+
+**Amendment (2026-10-07, #301): status tones.** The list kit's `StatusPill` needs a success and a warning tone, which the trade-off above deferred. Two new tokens, in `:root` and `.dark`:
+
+| Token       | Light                  | Dark                   | Used for                        |
+| ----------- | ---------------------- | ---------------------- | ------------------------------- |
+| `--success` | `oklch(0.45 0.12 152)` | `oklch(0.78 0.15 152)` | Active                          |
+| `--warning` | `oklch(0.47 0.11 62)`  | `oklch(0.82 0.13 75)`  | none yet (Suspended, with #304) |
+
+- Success is a bluer green (hue 152) than `--primary` (143.6) and darker in light mode, so an Active pill doesn't read as a green button.
+- A pill is the tone's text on a 12% wash of the same tone with a 30% border; neutral statuses (Inactive) use `--muted-foreground` on `--muted`. Status stays text plus tone (ADR-0035 rule 5), and `StatusPill.svelte` holds the one status→tone map.
+- Measured (WCAG 2.2 AA, target 4.5:1), the text against the pill's own wash on each surface it sits on: light success 5.50:1 on paper, 5.82:1 on white, 5.01:1 on the `--muted` row hover; light warning 5.55, 5.87 and 5.06:1. Dark success 8.02:1 on the background, 7.08:1 on cards, 6.33:1 on `--muted`; dark warning 8.53, 7.53 and 6.73:1. The bare tone as text: light success 6.60:1 on paper, warning 6.64:1; dark 9.85 and 10.48:1.

@@ -3,13 +3,16 @@ import { z } from "zod";
 /** The page sizes the legacy tables offered; the UI only ever offers these. */
 export const PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;
 
+/** One default for every list, so the API and the list kit's footer agree (#301). */
+export const DEFAULT_PER_PAGE = 25;
+
 export const PerPageSchema = z.coerce
   .number()
   .int()
   .refine((value) => (PER_PAGE_OPTIONS as readonly number[]).includes(value), {
     message: `perPage must be one of ${PER_PAGE_OPTIONS.join(", ")}.`
   })
-  .default(10);
+  .default(DEFAULT_PER_PAGE);
 
 export const PageSchema = z.coerce.number().int().min(1).default(1);
 
