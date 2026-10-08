@@ -6,7 +6,7 @@
   warm paper (ADR-0036) mixes warm neutrals (hue 88-93) with cool navy ones
   (hue 273) and stacks three near-identical surfaces: shell, panel, table.
 
-  Four palettes, switchable via `?palette=a|b|c|d` on any page (the login page
+  Five palettes, switchable via `?palette=a|b|c|d|e` on any page (the login page
   and /master/divisions are the two to judge). The variants differ only in
   light-mode tokens on purpose: colour is the question here, not layout. Dark
   mode is untouched in every variant. ← and → cycle, `m` toggles light and
@@ -39,6 +39,11 @@
       key: "d",
       name: "Neutral, framed panel",
       surfaces: { shell: "#f6f5f3", panel: "#fefdfd", table: "#fefdfd" }
+    },
+    {
+      key: "e",
+      name: "Warm paper, white panel",
+      surfaces: { shell: "#f6f3ed", panel: "#ffffff", table: "#ffffff" }
     }
   ] as const;
   type Key = (typeof VARIANTS)[number]["key"];
@@ -137,6 +142,12 @@
     --border: oklch(0.9 0.005 90);
     --sidebar-accent: oklch(0.94 0.005 90);
     --sidebar-border: oklch(0.9 0.005 90);
+  }
+
+  /* E: A's tokens untouched; only the signed-in panel takes --card (white)
+     instead of --background, so the auth pages keep the warm paper. */
+  :global(html[data-palette="e"]:not(.dark) [data-slot="sidebar-inset"]) {
+    background-color: var(--card);
   }
 
   /* Deliberately off-system colours, so the bar never reads as part of the design. */
