@@ -16,6 +16,12 @@ vi.mock("$app/paths", () => ({
 }));
 vi.mock("$app/state", () => ({ page: mockPage }));
 
+type Navigation = { type: string; from: { url: URL } | null; to: { url: URL } | null };
+let navigated: (navigation: Navigation) => void = () => {};
+vi.mock("$app/navigation", () => ({
+  afterNavigate: (callback: typeof navigated) => (navigated = callback)
+}));
+
 const { render } = await import("vitest-browser-svelte");
 const { modeStorageKey, resetMode } = await import("mode-watcher");
 const { default: AppShell } = await import("./AppShell.svelte");
@@ -245,9 +251,7 @@ describe("AppShell", () => {
     await desktop();
     const large = await render(AppShell, props());
 
-    expect(getComputedStyle(large.getByRole("banner").element()).borderBottomColor).toBe(
-      "rgba(0, 0, 0, 0)"
-    );
+    expect(getComputedStyle(large.getByRole("banner").element()).borderBottomWidth).toBe("0px");
   });
 
   it("puts the logo at the top of the sidebar, and in the menu sheet on a phone", async () => {
@@ -419,8 +423,8 @@ describe("AppShell", () => {
     await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("lifts the bar off the page once the page has scrolled under it", async () => {
-    await desktop();
+  it("lifts the bar off the page on a phone once the page has scrolled under it", async () => {
+    await phone();
     const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
     const screen = await render(AppShell, props({ children: tall }));
     const bar = screen.getByRole("banner").element();
@@ -431,10 +435,49 @@ describe("AppShell", () => {
     window.scrollTo(0, 200);
     await expect.poll(() => bar.getAttribute("data-scrolled")).toBe("true");
     await expect.poll(() => getComputedStyle(bar).boxShadow).not.toBe("none");
-    await expect.poll(() => getComputedStyle(bar).borderBottomColor).not.toBe("rgba(0, 0, 0, 0)");
 
     window.scrollTo(0, 0);
     await expect.poll(() => bar.getAttribute("data-scrolled")).toBe("false");
+  });
+
+  it("scrolls the panel, not the page, on desktop, so nothing slides under the bar", async () => {
+    await desktop();
+    const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
+    const screen = await render(AppShell, props({ children: tall }));
+    const panel = document.querySelector("#main-content")!;
+
+    expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(window.innerHeight);
+    expect(panel.scrollHeight).toBeGreaterThan(panel.clientHeight);
+    expect(panel.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight);
+
+    panel.scrollTop = 200;
+    await expect.poll(() => panel.scrollTop).toBe(200);
+    expect(getComputedStyle(screen.getByRole("banner").element()).boxShadow).toBe("none");
+  });
+
+  it("starts the panel at the top for another screen or page, and keeps it otherwise", async () => {
+    await desktop();
+    const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
+    await render(AppShell, props({ children: tall }));
+    const panel = document.querySelector("#main-content")!;
+    const go = (type: string, from: string, to: string) =>
+      navigated({
+        type,
+        from: { url: new URL(from, "http://localhost") },
+        to: { url: new URL(to, "http://localhost") }
+      });
+
+    for (const [type, from, to, top] of [
+      ["link", "/master/divisions", "/master/divisions?sort=code", 300],
+      ["goto", "/master/divisions", "/master/divisions?perPage=50", 300],
+      ["popstate", "/master/roles", "/master/divisions", 300],
+      ["link", "/master/divisions", "/master/divisions?page=2", 0],
+      ["link", "/master/divisions", "/master/roles", 0]
+    ] as const) {
+      panel.scrollTop = 300;
+      go(type, from, to);
+      expect(panel.scrollTop, `${type} ${from} -> ${to}`).toBe(top);
+    }
   });
 
   it("centres the account button and the logo in the space above the panel", async () => {

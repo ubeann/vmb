@@ -2,15 +2,19 @@
   The frame of every signed-in screen (#167): a sidebar down the left edge
   (`AppSidebar`: the logo, the navigation, the collapse button), a top bar over
   the page (the user's menu; the menu button on a phone), and the page in a
-  rounded panel. Below 48rem the sidebar becomes a sheet behind the bar's menu
-  button, and the bar keeps a line under it, since there is no panel edge to
-  part it from the page; on desktop the line and a shadow appear once the page
-  has scrolled under the bar. Search and notifications take the space in the bar
+  rounded panel. From 48rem up the shell fills the window and the panel scrolls
+  inside itself, so the page never slides under the bar and the sheet keeps all
+  four corners; nothing there needs a scrolled state. Below 48rem the sidebar
+  becomes a sheet behind the bar's menu button and the window scrolls as usual:
+  the bar keeps a line under it, since there is no panel edge to part it from
+  the page, and a shadow once the page has scrolled under it. Search and
+  notifications take the space in the bar
   when those features exist. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
   without a flash. The footer strip (#218) closes the column below the panel.
 -->
 <script lang="ts">
+  import { afterNavigate } from "$app/navigation";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import AppSidebar from "$lib/components/AppSidebar.svelte";
@@ -29,11 +33,14 @@
     user,
     division,
     sidebarOpen,
+    panel = $bindable(null),
     children
   }: {
     user: { id: string; name: string; email: string; image?: string | null };
     division: { name: string; iconName: string } | null;
     sidebarOpen: boolean;
+    /** The scrolling panel, for the layout's snapshot to keep its place across history. */
+    panel?: HTMLElement | null;
     children: Snippet;
   } = $props();
 
@@ -46,8 +53,21 @@
 
   const groups = visibleGroups(NAV_GROUPS);
 
-  // The bar lifts off the page once the page has scrolled under it.
+  // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);
+
+  // SvelteKit resets and restores the window's scroll, which never moves on desktop, so
+  // the panel needs the same: another screen or another page of a list starts at the
+  // top. Refining a list in place (sort, filter, tab, search, page size) keeps the
+  // place, as their `noscroll` asks, and those already send the list back to page 1.
+  // Back and forward are the layout's snapshot, so `popstate` is left alone.
+  afterNavigate(({ type, from, to }) => {
+    if (!panel || type === "enter" || type === "popstate" || !from || !to) return;
+    const samePage =
+      from.url.pathname === to.url.pathname &&
+      from.url.searchParams.get("page") === to.url.searchParams.get("page");
+    if (!samePage && !to.url.hash) panel.scrollTop = 0;
+  });
 </script>
 
 <a
@@ -99,13 +119,11 @@
   </AppSidebar>
 
   <div
-    class="flex min-w-0 flex-1 flex-col md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
+    class="flex min-w-0 flex-1 flex-col md:h-svh md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
   >
-    <!-- The clip keeps the scrolled shadow below the bar: unclipped it also blurs over the
-         sidebar to its left, and the bar reads as a card floating beside it. -->
     <header
       data-scrolled={scrollY > 0}
-      class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border data-[scrolled=true]:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-transparent px-3 transition-[border-color,box-shadow] duration-(--duration-panel) ease-(--easing-standard) [clip-path:inset(0_0_-1rem_0)] data-[scrolled=true]:shadow-sm sm:px-4"
+      class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 px-3 transition-shadow duration-(--duration-panel) ease-(--easing-standard) max-md:border-b max-md:data-[scrolled=true]:shadow-sm sm:px-4"
     >
       <SidebarToggle />
       <div class="ml-auto">
@@ -116,14 +134,17 @@
     <!-- app.css still gives every <main> auto side margins and a max width (the legacy
          page styles). On a phone those make the panel as wide as its widest content,
          which widens the page; `m-0 w-auto max-w-none` opt out, and the panel scrolls
-         wide content itself. In light mode the panel is a white sheet on the warm frame,
+         wide content itself; from 48rem up it scrolls tall content too, between the bar
+         and the footer, and `*:shrink-0` keeps its column from squeezing a child (one
+         with `overflow-hidden` has no content floor) instead of scrolling. In light mode the panel is a white sheet on the warm frame,
          so the page is two layers and its tables sit on the same white (ADR-0036,
          "Signed-in panel"); dark mode keeps the background, since its card is the
          sidebar's colour and would merge the panel into the frame. -->
     <Sidebar.Inset
+      bind:ref={panel}
       id="main-content"
       tabindex={-1}
-      class="bg-card dark:bg-background m-0 w-auto max-w-none min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm"
+      class="bg-card dark:bg-background m-0 w-auto max-w-none min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:min-h-0 md:overflow-y-auto md:rounded-xl md:shadow-sm md:*:shrink-0"
     >
       {@render children()}
     </Sidebar.Inset>
