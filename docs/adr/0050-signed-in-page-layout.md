@@ -38,7 +38,7 @@ The decisions came from a grilling session with the owner on 2026-10-08. 4K moni
    - `default`, 90rem: lists.
    - `full`, uncapped: tables wider than the default.
 
-   The content is capped inside the white panel and centred in it; the panel stays full width. The 90rem default is confirmed by the owner from screenshots in #348; if another value is chosen, this line is amended.
+   The content is capped inside the white panel and centred in it; the panel stays full width. The owner confirmed 90rem from screenshots at 80, 90, 96rem and uncapped, at 1440, 1920 and 2560 wide, in #348. A per-user choice of width is a setting for #347, not a toggle on a page.
 
 2. **Page header.** `PageHeader` (named in ADR-0035 rule 2) holds the title, the description and the one primary action, at the content's edges, not the window's.
 3. **The list column rule.** In a list-kit table, utility columns (codes, status, dates, actions) shrink to their content (`w-px whitespace-nowrap`). The identity column and free-text columns share the rest; free text is capped at about 48ch and truncated, with its full text in `title`. A page states which kind each column is, through the list kit, instead of tuning widths by hand. ADR-0035 rule 5 still holds: the table scrolls horizontally inside its frame on narrow screens.
