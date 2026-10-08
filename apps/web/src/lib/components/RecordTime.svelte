@@ -18,12 +18,15 @@
     timeZone = undefined;
   });
 
+  // read when the tooltip opens, so a page left open still says how long ago
+  let now = $state(new Date());
+
   const absolute = $derived(iso ? formatAbsolute(iso, timeZone) : null);
 </script>
 
 {#if iso && absolute}
   <Tooltip.Provider delayDuration={300}>
-    <Tooltip.Root>
+    <Tooltip.Root onOpenChange={(open) => open && (now = new Date())}>
       <Tooltip.Trigger>
         {#snippet child({ props })}
           <time {...props} tabindex="-1" datetime={iso} class="whitespace-nowrap tabular-nums"
@@ -31,7 +34,7 @@
           >
         {/snippet}
       </Tooltip.Trigger>
-      <Tooltip.Content>{formatRelative(iso)}</Tooltip.Content>
+      <Tooltip.Content>{formatRelative(iso, now)}</Tooltip.Content>
     </Tooltip.Root>
   </Tooltip.Provider>
 {:else}

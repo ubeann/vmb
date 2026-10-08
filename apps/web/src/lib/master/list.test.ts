@@ -76,4 +76,8 @@ describe("showingRange", () => {
   it("shows nothing for an empty list", () => {
     expect(showingRange({ page: 1, perPage: 25, total: 0 })).toEqual({ from: 0, to: 0 });
   });
+
+  it("shows nothing for a page past the end, rather than an impossible range", () => {
+    expect(showingRange({ page: 4, perPage: 25, total: 60 })).toEqual({ from: 0, to: 0 });
+  });
 });

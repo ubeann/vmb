@@ -83,7 +83,8 @@
 <svelte:window {onkeydown} />
 
 <form method="GET" role="search" class="relative {className}" {onsubmit}>
-  {#each carried as [key, carriedValue] (key)}
+  <!-- a hand-written URL can repeat a parameter, so the key can't be the name alone -->
+  {#each carried as [key, carriedValue], index (`${index}:${key}`)}
     <input type="hidden" name={key} value={carriedValue} />
   {/each}
   <SearchIcon

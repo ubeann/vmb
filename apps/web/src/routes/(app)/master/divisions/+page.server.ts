@@ -12,9 +12,18 @@ import type { Actions, PageServerLoad } from "./$types.js";
 const TRASH_COUNT_QUERY = DivisionListQuerySchema.parse({ trashed: "only", perPage: "10" });
 
 export const load: PageServerLoad = async (event) => {
-  const query = parseListQuery(DivisionListQuerySchema, event.url);
+  const parsed = parseListQuery(DivisionListQuerySchema, event.url);
+  // `include` (live and Trashed rows together) backs no view: the tabs offer All or Trash
+  const query = parsed.trashed === "include" ? { ...parsed, trashed: "exclude" as const } : parsed;
   const access = await withApiClient(event, (client) =>
-    Promise.all([listDivisions(client, query), listDivisions(client, TRASH_COUNT_QUERY)])
+    Promise.all([
+      listDivisions(client, query),
+      // the count is optional, so a transport failure here must not take the list down with it
+      listDivisions(client, TRASH_COUNT_QUERY).catch((error: unknown) => ({
+        ok: false as const,
+        error
+      }))
+    ])
   );
 
   if (!access.ok) {

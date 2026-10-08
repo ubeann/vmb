@@ -70,6 +70,30 @@ describe("the divisions list load", () => {
     });
   });
 
+  it("still shows the list when the count can't reach the API", async () => {
+    listDivisionsMock.mockImplementation(async (_client, query: { trashed: string }) => {
+      if (query.trashed === "only") throw new TypeError("fetch failed");
+      return { ok: true, value: page(40) };
+    });
+
+    await expect(load(event())).resolves.toMatchObject({
+      divisions: { total: 40 },
+      trashCount: null
+    });
+  });
+
+  it("shows All for the `include` view no tab offers", async () => {
+    listDivisionsMock.mockResolvedValue({ ok: true, value: page(40) });
+
+    await expect(load(event("?trashed=include"))).resolves.toMatchObject({
+      query: { trashed: "exclude" }
+    });
+    expect(listDivisionsMock).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ trashed: "exclude", perPage: 25 })
+    );
+  });
+
   it("answers 403 when the API refuses the list", async () => {
     listDivisionsMock.mockResolvedValue({
       ok: false,

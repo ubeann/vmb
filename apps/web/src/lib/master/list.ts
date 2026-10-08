@@ -94,12 +94,16 @@ export function pageWindow(page: number, totalPages: number): (number | "gap")[]
   return [1, "gap", page - 1, page, page + 1, "gap", totalPages];
 }
 
-/** The rows a page shows, for "Showing x–y of n". */
+/**
+ * The rows a page shows, for "Showing x–y of n"; `0–0` when there are none,
+ * including a page past the end (a hand-typed URL, or the last rows deleted).
+ */
 export function showingRange(list: { page: number; perPage: number; total: number }): {
   from: number;
   to: number;
 } {
   if (list.total === 0) return { from: 0, to: 0 };
   const from = (list.page - 1) * list.perPage + 1;
+  if (from > list.total) return { from: 0, to: 0 };
   return { from, to: Math.min(list.total, from + list.perPage - 1) };
 }

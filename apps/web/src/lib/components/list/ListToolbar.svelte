@@ -11,6 +11,7 @@
   import type { MasterListPathname } from "$lib/master/list.js";
   import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
   import type { Snippet } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import FilterChips, { activeFilters, type ListFilter } from "./FilterChips.svelte";
   import ListSearch from "./ListSearch.svelte";
 
@@ -27,6 +28,11 @@
   } = $props();
 
   let sheetOpen = $state(false);
+  // the sheet is the narrow screen's view of the chips; widened past `sm`, the chips are back in the bar
+  const wide = new MediaQuery("min-width: 40rem");
+  $effect(() => {
+    if (wide.current) sheetOpen = false;
+  });
   const activeCount = $derived(activeFilters(filters, page.url.searchParams).length);
 </script>
 

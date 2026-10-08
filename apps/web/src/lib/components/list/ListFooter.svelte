@@ -29,7 +29,9 @@
 
   const totalPages = $derived(Math.max(1, Math.ceil(list.total / list.perPage)));
   const range = $derived(showingRange(list));
-  const pages = $derived(pageWindow(Math.min(list.page, totalPages), totalPages));
+  // a page past the end (the URL asked for it) still pages back to one that exists
+  const current = $derived(Math.min(list.page, totalPages));
+  const pages = $derived(pageWindow(current, totalPages));
 
   const to = (changes: Record<string, string | number | null>) =>
     listHref(base, page.url.searchParams, changes);
@@ -42,6 +44,8 @@
   <p role="status" class="text-muted-foreground tabular-nums">
     {#if list.total === 0}
       No {noun}
+    {:else if range.from === 0}
+      {list.total} {noun} in all, none on this page
     {:else}
       Showing {range.from}–{range.to} of {list.total}
     {/if}
@@ -74,7 +78,7 @@
             {#if list.page > 1}
               <a
                 class={cn(pageLink, "hover:bg-accent")}
-                href={resolve(to({ page: list.page - 1 }))}
+                href={resolve(to({ page: Math.min(list.page - 1, totalPages) }))}
               >
                 <ChevronLeftIcon aria-hidden="true" class="size-4" /><span class="sr-only"
                   >Previous page</span

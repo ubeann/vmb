@@ -66,6 +66,17 @@ describe("ListSearch", () => {
     );
   });
 
+  it("carries a parameter the URL repeats without breaking", async () => {
+    mockPage.url = new URL("http://localhost/master/divisions?status=active&status=inactive");
+    const screen = await render(ListSearch, props);
+
+    expect(
+      [...screen.container.querySelectorAll<HTMLInputElement>("input[type=hidden]")].map(
+        (input) => `${input.name}=${input.value}`
+      )
+    ).toEqual(["status=active", "status=inactive"]);
+  });
+
   it("focuses on / from anywhere outside a field", async () => {
     mockPage.url = new URL("http://localhost/master/divisions");
     const screen = await render(ListSearch, props);
