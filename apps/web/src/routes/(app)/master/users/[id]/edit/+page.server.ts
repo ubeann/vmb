@@ -23,6 +23,7 @@ export const load: PageServerLoad = async (event) => {
 
   return {
     user: access.value.value,
+    crumb: { label: access.value.value.name },
     form: await superValidate(userFormData(access.value.value), zod4(UserUpdateInputSchema)),
     // the options, plus any role the user holds that the list did not return
     roles: mergeRoles(await options, access.value.value.roles)

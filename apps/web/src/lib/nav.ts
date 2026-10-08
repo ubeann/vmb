@@ -5,6 +5,8 @@ export type NavIcon = "dashboard" | "divisions" | "roles" | "users";
 
 export type NavItem = {
   label: string;
+  // The item's singular, lowercase, for the trail's "New division".
+  noun: string;
   href: "/" | "/master/divisions" | "/master/roles" | "/master/users";
   icon: NavIcon;
 };
@@ -12,13 +14,16 @@ export type NavItem = {
 export type NavGroup = { label: string; items: NavItem[] };
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: "Overview", items: [{ label: "Dashboard", href: "/", icon: "dashboard" }] },
+  {
+    label: "Overview",
+    items: [{ label: "Dashboard", noun: "dashboard", href: "/", icon: "dashboard" }]
+  },
   {
     label: "Master",
     items: [
-      { label: "Divisions", href: "/master/divisions", icon: "divisions" },
-      { label: "Roles", href: "/master/roles", icon: "roles" },
-      { label: "Users", href: "/master/users", icon: "users" }
+      { label: "Divisions", noun: "division", href: "/master/divisions", icon: "divisions" },
+      { label: "Roles", noun: "role", href: "/master/roles", icon: "roles" },
+      { label: "Users", noun: "user", href: "/master/users", icon: "users" }
     ]
   }
 ];

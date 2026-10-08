@@ -15,7 +15,7 @@ export const load: PageServerLoad = async (event) => {
     error(pageErrorStatus(access.value.status), access.value.error);
   }
 
-  return { user: access.value.value };
+  return { user: access.value.value, crumb: { label: access.value.value.name } };
 };
 
 export const actions: Actions = {
