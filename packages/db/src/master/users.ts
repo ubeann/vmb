@@ -22,7 +22,13 @@ import {
 } from "drizzle-orm";
 import { session as authSession, user as authUser } from "../schema/auth.js";
 import { users } from "../schema/master.js";
-import { assertCanChangeRoles, assertCanManageUser, currentRoleIds, uniqueIds } from "./guards.js";
+import {
+  assertCanChangeRoles,
+  assertCanManageUser,
+  currentRoleIds,
+  uniqueIds,
+  type Actor
+} from "./guards.js";
 import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
 import { NotFoundError } from "../errors.js";
 
@@ -176,10 +182,10 @@ export async function createUser(
   db: MasterDb,
   options: UserStoreOptions,
   input: UserCreateInput,
-  actorId: string
+  actor: Actor
 ): Promise<User> {
   const roleIds = uniqueIds(input.roleIds);
-  await assertCanChangeRoles(db, actorId, roleIds);
+  await assertCanChangeRoles(db, actor.permissions, roleIds);
 
   const id = crypto.randomUUID();
   const passwordHash = await options.hashPassword(input.password);
@@ -223,12 +229,12 @@ export async function updateUser(
   options: UserStoreOptions,
   id: string,
   input: UserUpdateInput,
-  actorId: string
+  actor: Actor
 ): Promise<User> {
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
   if (!existing[0]) throw new NotFoundError("User not found.");
 
-  await assertCanManageUser(db, actorId, id);
+  await assertCanManageUser(db, actor, id);
 
   // No `roleIds` means "leave the roles alone"; a list is the whole new set.
   // The change is worked out here, from what was checked, and applied as
@@ -240,7 +246,7 @@ export async function updateUser(
     const before = await currentRoleIds(db, id);
     const added = next.filter((role) => !before.includes(role));
     const removed = before.filter((role) => !next.includes(role));
-    await assertCanChangeRoles(db, actorId, [...added, ...removed]);
+    await assertCanChangeRoles(db, actor.permissions, [...added, ...removed]);
 
     roleSync = sql`, role_removal as (
           delete from master.user_roles
@@ -340,8 +346,8 @@ export async function updateUser(
   return getUser(db, id);
 }
 
-export async function deleteUser(db: MasterDb, id: string, actorId: string): Promise<void> {
-  await assertCanManageUser(db, actorId, id);
+export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promise<void> {
+  await assertCanManageUser(db, actor, id);
 
   const rows = await db
     .update(users)
@@ -358,8 +364,8 @@ export async function deleteUser(db: MasterDb, id: string, actorId: string): Pro
   await db.delete(authSession).where(eq(authSession.userId, id));
 }
 
-export async function restoreUser(db: MasterDb, id: string, actorId: string): Promise<User> {
-  await assertCanManageUser(db, actorId, id);
+export async function restoreUser(db: MasterDb, id: string, actor: Actor): Promise<User> {
+  await assertCanManageUser(db, actor, id);
 
   const rows = await db
     .update(users)

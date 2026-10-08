@@ -6,13 +6,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const getAccessMock = vi.fn();
+const getPermissionsMock = vi.fn();
 
 vi.mock("./auth.js", () => ({
   createAuth: () => ({ api: { getSession: getSessionMock } })
 }));
 
 vi.mock("./master.js", () => ({
-  masterStore: () => ({ getAccess: getAccessMock }) as never
+  masterStore: () => ({ getAccess: getAccessMock, getPermissions: getPermissionsMock }) as never
 }));
 
 const { default: app } = await import("./index.js");
@@ -28,6 +29,7 @@ async function errorBody(response: Response) {
 beforeEach(() => {
   getSessionMock.mockReset();
   getAccessMock.mockReset();
+  getPermissionsMock.mockReset();
 });
 
 describe("the API error contract", () => {
@@ -60,7 +62,7 @@ describe("the API error contract", () => {
 
   it("answers a malformed JSON body 400 MALFORMED_REQUEST", async () => {
     getSessionMock.mockResolvedValue(signedIn);
-    getAccessMock.mockResolvedValue({ permissions: ["master-divisions.create"], divisions: [] });
+    getPermissionsMock.mockResolvedValue(["master-divisions.create"]);
 
     const response = await app.request(
       "/api/master/divisions",
@@ -83,7 +85,7 @@ describe("the API error contract", () => {
 
   it("answers a missing permission 403 FORBIDDEN", async () => {
     getSessionMock.mockResolvedValue(signedIn);
-    getAccessMock.mockResolvedValue({ permissions: [], divisions: [] });
+    getPermissionsMock.mockResolvedValue([]);
 
     const response = await app.request("/api/master/divisions", {}, bindings);
 
@@ -93,7 +95,7 @@ describe("the API error contract", () => {
 
   it("answers a schema failure 400 VALIDATION_FAILED with issues", async () => {
     getSessionMock.mockResolvedValue(signedIn);
-    getAccessMock.mockResolvedValue({ permissions: ["master-divisions.create"], divisions: [] });
+    getPermissionsMock.mockResolvedValue(["master-divisions.create"]);
 
     const response = await app.request(
       "/api/master/divisions",

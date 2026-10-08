@@ -29,6 +29,12 @@ export type TestDatabase = {
   /** The same database through Drizzle, for the stores built on it. */
   db: MasterDb;
   /**
+   * Every statement `db` has sent, in order, so a test can fix how many round
+   * trips a use case costs (ADR-0045's amendment). `client` is not logged: a
+   * test's own setup through it does not count.
+   */
+  statements: string[];
+  /**
    * Replay the chain with drizzle's own migrator — the independent oracle the
    * migration module is checked against, not what a deployment runs
    * (`packages/db/src/migration/apply.ts` is).
@@ -71,24 +77,34 @@ export async function withMigratedDatabase<T>(fn: (client: SqlClient) => Promise
   }
 }
 
-/** The same, handing the test the Drizzle client the Master store speaks to. */
+/**
+ * The same, handing the test the Drizzle client the Master store speaks to,
+ * and the log of the statements it has sent.
+ */
 export async function withMigratedDb<T>(
-  fn: (db: MasterDb, client: SqlClient) => Promise<T>
+  fn: (db: MasterDb, client: SqlClient, statements: string[]) => Promise<T>
 ): Promise<T> {
   const database = await createDatabase();
   try {
     await database.migrate();
-    return await fn(database.db, database.client);
+    return await fn(database.db, database.client, database.statements);
   } finally {
     await database.close();
   }
 }
 
+/** A Drizzle logger that records each statement into `statements`. */
+function recordInto(statements: string[]) {
+  return { logQuery: (query: string) => void statements.push(query) };
+}
+
 function createEmbedded(): TestDatabase {
   const pglite = new PGlite();
+  const statements: string[] = [];
   return {
     client: pgliteClient(pglite),
-    db: drizzleEmbedded(pglite, { schema }),
+    db: drizzleEmbedded(pglite, { schema, logger: recordInto(statements) }),
+    statements,
     migrate: async (folder = migrationsFolder) => {
       await migrateEmbedded(drizzleEmbedded(pglite), { migrationsFolder: folder });
       await resetSearchPath(pgliteClient(pglite));
@@ -129,10 +145,12 @@ async function createPostgres(url: string): Promise<TestDatabase> {
 
     const client = new Client({ connectionString: databaseUrl(url, name) });
     await client.connect();
+    const statements: string[] = [];
 
     return {
       client: pgClient(client),
-      db: drizzle(client, { schema }),
+      db: drizzle(client, { schema, logger: recordInto(statements) }),
+      statements,
       migrate: async (folder = migrationsFolder) => {
         await migrate(drizzle(client), { migrationsFolder: folder });
         await resetSearchPath(pgClient(client));

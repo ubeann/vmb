@@ -328,8 +328,8 @@ describe("roles store", () => {
 });
 
 describe("users store", () => {
-  // an actor who holds no roles: enough to create and edit users that get none
-  const ACTOR = "00000000-0000-4000-8000-0000000000aa";
+  // an actor who holds no permissions: enough to create and edit users that get none
+  const ACTOR = { id: "00000000-0000-4000-8000-0000000000aa", permissions: [] };
 
   const input = (overrides: Partial<UserCreateInput> = {}): UserCreateInput => ({
     name: "Rina Wijaya",

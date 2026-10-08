@@ -39,9 +39,9 @@ const ROUTES = [
 const concrete = (path: string) => path.replace(":id", ID);
 
 function appFor(permissions: string[]) {
-  const getAccess = vi.fn(async () => ({ permissions, divisions: [] }));
+  const getPermissions = vi.fn(async () => permissions);
   // any other store method a request reaches is a failure: it throws
-  const store = new Proxy({ getAccess } as unknown as MasterStore, {
+  const store = new Proxy({ getPermissions } as unknown as MasterStore, {
     get: (target, name: string) =>
       name in target
         ? target[name as keyof MasterStore]
@@ -60,7 +60,7 @@ function appFor(permissions: string[]) {
         createMasterRoutes(() => store)
       )
   );
-  return { app, getAccess };
+  return { app, getPermissions };
 }
 
 function request(method: string) {
@@ -82,7 +82,7 @@ describe("master API permissions", () => {
       code: "FORBIDDEN",
       message: "You do not have permission to do that."
     });
-    expect(without.getAccess).toHaveBeenCalledWith("caller");
+    expect(without.getPermissions).toHaveBeenCalledWith("caller");
 
     const only = appFor([key]);
     const allowed = await only.app.request(concrete(path), request(method), env);
@@ -97,6 +97,110 @@ describe("master API permissions", () => {
     const response = await app.request("/users", {}, env);
 
     expect(response.status).toBe(403);
+  });
+
+  it("reads the caller's permissions once per request, and again on the next", async () => {
+    // a grant that exists for the first request and is removed before the second
+    const granted = new Set<string>(["master-users.view_any"]);
+    const getPermissions = vi.fn(async () => [...granted]);
+    const store = {
+      getPermissions,
+      listUsers: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 }))
+    } as unknown as MasterStore;
+    const app = withErrorReplies(
+      new Hono<{ Variables: { userId: string } }>()
+        .use("*", async (c, next) => {
+          c.set("userId", "caller");
+          await next();
+        })
+        .route(
+          "/",
+          createMasterRoutes(() => store)
+        )
+    );
+
+    expect((await app.request("/users", {}, env)).status).toBe(200);
+    expect(getPermissions).toHaveBeenCalledTimes(1);
+
+    granted.delete("master-users.view_any");
+
+    expect((await app.request("/users", {}, env)).status).toBe(403);
+    expect(getPermissions).toHaveBeenCalledTimes(2);
+  });
+
+  // The request half of the statement budget: routes reach the database only
+  // through the store, so pinning the store calls a role-changing PATCH makes,
+  // with the statements each costs (packages/db/test/rbac.test.ts, "what a
+  // request costs"), pins the request's total.
+  it("changes a user's roles reading the caller's permissions once, and handing them on", async () => {
+    const permissions = allPermissionKeys();
+    const calls: string[] = [];
+    const getPermissions = vi.fn(async () => permissions);
+    const updateUser = vi.fn(async () => ({
+      id: ID,
+      name: "Rina Wijaya",
+      status: "active",
+      roles: [],
+      phone: "+628111000001",
+      email: "rina@vmblogistics.id",
+      emailVerified: false,
+      profilePhotoPath: "",
+      createdAt: "2026-01-05T01:10:00.000Z",
+      updatedAt: "2026-01-05T01:10:00.000Z",
+      deletedAt: null
+    }));
+    const methods = { getPermissions, updateUser } as Record<string, unknown>;
+    const store = new Proxy({} as MasterStore, {
+      get: (_target, name: string) => {
+        calls.push(name);
+        return (
+          methods[name] ??
+          (() => {
+            throw new Error(`the store was reached: ${name}`);
+          })
+        );
+      }
+    });
+    const app = withErrorReplies(
+      new Hono<{ Variables: { userId: string } }>()
+        .use("*", async (c, next) => {
+          c.set("userId", "caller");
+          await next();
+        })
+        .route(
+          "/",
+          createMasterRoutes(
+            () => store,
+            async () => false
+          )
+        )
+    );
+
+    const response = await app.request(
+      concrete("/users/:id"),
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Rina Wijaya",
+          email: "rina@vmblogistics.id",
+          phone: "0811-1000-0001",
+          roleIds: [ID],
+          status: "active",
+          profilePhotoPath: "",
+          password: "",
+          passwordConfirmation: ""
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(calls).toEqual(["getPermissions", "updateUser"]);
+    expect(updateUser).toHaveBeenCalledWith(ID, expect.objectContaining({ roleIds: [ID] }), {
+      id: "caller",
+      permissions
+    });
   });
 
   it("lists every registered route", () => {

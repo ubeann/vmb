@@ -14,6 +14,7 @@ vi.mock("./master.js", () => ({
   masterStore: () =>
     ({
       listDivisions: listDivisionsMock,
+      getPermissions: async () => ["master-divisions.view_any"],
       getAccess: async () => ({ permissions: ["master-divisions.view_any"], divisions: [] })
     }) as never
 }));

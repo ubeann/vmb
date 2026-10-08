@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { ID_GROUPS, fixtureId } from "../src/seed/ids.js";
 import { seed } from "../src/seed/run.js";
 import { ForbiddenError } from "../src/errors.js";
-import { createMasterStore } from "../src/master/index.js";
+import { createMasterStore, type Actor, type MasterDb } from "../src/master/index.js";
 import { count, rejects, withMigratedDatabase, withMigratedDb } from "./harness.js";
 
 const SUPER_ADMIN = fixtureId(ID_GROUPS.role, 1);
@@ -106,6 +106,89 @@ describe("role-based access tables", () => {
         `delete from master.divisions where id = '${FINANCE}'`,
         /master_roles_division_id_foreign/
       );
+    });
+  });
+});
+
+/** The caller as a request sees them: their id and the permissions it read once. */
+async function actor(db: MasterDb, id: string): Promise<Actor> {
+  const store = createMasterStore(db, { hashPassword: async (password) => password });
+  return { id, permissions: await store.getPermissions(id) };
+}
+
+describe("a user's permissions", () => {
+  const store = (db: MasterDb) =>
+    createMasterStore(db, { hashPassword: async (password) => password });
+  const ADMIN = fixtureId(ID_GROUPS.user, 1); // Super Admin
+  const MANAGER = fixtureId(ID_GROUPS.user, 2); // Manager Finance, their only role
+
+  it("are their active roles' grants, sorted and once each, read in one statement", async () => {
+    await withMigratedDb(async (db, client, statements) => {
+      await seed(client);
+      statements.length = 0;
+
+      const permissions = await store(db).getPermissions(ADMIN);
+
+      expect(statements).toHaveLength(1);
+      expect(permissions).toEqual([...allPermissionKeys()].sort());
+    });
+  });
+
+  it.each(["suspended", "inactive"])("are none for a %s user", async (status) => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      expect((await store(db).getPermissions(ADMIN)).length).toBeGreaterThan(0);
+
+      await client.exec(`update master.users set status = '${status}' where id = '${ADMIN}'`);
+
+      expect(await store(db).getPermissions(ADMIN)).toEqual([]);
+    });
+  });
+
+  it("are none for a Trashed user", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      await client.exec(`update master.users set deleted_at = now() where id = '${ADMIN}'`);
+
+      expect(await store(db).getPermissions(ADMIN)).toEqual([]);
+    });
+  });
+
+  it("are none when the user's only role is inactive", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      expect((await store(db).getPermissions(MANAGER)).length).toBeGreaterThan(0);
+
+      await client.exec(
+        `update master.roles set is_active = false where id = '${MANAGER_FINANCE}'`
+      );
+
+      expect(await store(db).getPermissions(MANAGER)).toEqual([]);
+    });
+  });
+
+  it("are none for a user with no roles, and for one that does not exist", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      expect(await store(db).getPermissions(fixtureId(ID_GROUPS.user, 9))).toEqual([]);
+      expect(await store(db).getPermissions(fixtureId(ID_GROUPS.user, 99))).toEqual([]);
+    });
+  });
+
+  it("lose a grant as soon as it is removed: nothing is kept between reads", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const shared = store(db);
+      expect(await shared.getPermissions(MANAGER)).toContain("master-divisions.view");
+
+      await client.exec(
+        `delete from master.role_permissions
+          where role_id = '${MANAGER_FINANCE}' and permission_key = 'master-divisions.view'`
+      );
+
+      expect(await shared.getPermissions(MANAGER)).not.toContain("master-divisions.view");
     });
   });
 });
@@ -212,7 +295,7 @@ describe("assigning roles to users", () => {
 
       const created = await store(db).createUser(
         newUser({ roleIds: [STAFF_ROLE, MANAGER_FINANCE] }),
-        SUPER_ADMIN_USER
+        await actor(db, SUPER_ADMIN_USER)
       );
 
       expect(created.roles.map((role) => role.name)).toEqual(["Manager Finance", "Staff"]);
@@ -224,19 +307,27 @@ describe("assigning roles to users", () => {
       await seed(client);
       const created = await store(db).createUser(
         newUser({ roleIds: [STAFF_ROLE] }),
-        SUPER_ADMIN_USER
+        await actor(db, SUPER_ADMIN_USER)
       );
 
       const updated = await store(db).updateUser(
         created.id,
         edit(created, [MANAGER_FINANCE]),
-        SUPER_ADMIN_USER
+        await actor(db, SUPER_ADMIN_USER)
       );
       expect(updated.roles.map((role) => role.name)).toEqual(["Manager Finance"]);
 
       // saving the same set again is harmless, and an empty set clears the roles
-      await store(db).updateUser(created.id, edit(created, [MANAGER_FINANCE]), SUPER_ADMIN_USER);
-      const cleared = await store(db).updateUser(created.id, edit(created, []), SUPER_ADMIN_USER);
+      await store(db).updateUser(
+        created.id,
+        edit(created, [MANAGER_FINANCE]),
+        await actor(db, SUPER_ADMIN_USER)
+      );
+      const cleared = await store(db).updateUser(
+        created.id,
+        edit(created, []),
+        await actor(db, SUPER_ADMIN_USER)
+      );
       expect(cleared.roles).toEqual([]);
     });
   });
@@ -244,21 +335,21 @@ describe("assigning roles to users", () => {
   it("lets a caller grant only roles whose permissions they hold themselves", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const target = await store(db).createUser(newUser(), SUPER_ADMIN_USER);
+      const target = await store(db).createUser(newUser(), await actor(db, SUPER_ADMIN_USER));
 
       // the Finance manager holds master-divisions.view*, so may grant Staff
       await expect(
-        store(db).updateUser(target.id, edit(target, [STAFF_ROLE]), MANAGER_USER)
+        store(db).updateUser(target.id, edit(target, [STAFF_ROLE]), await actor(db, MANAGER_USER))
       ).resolves.toMatchObject({ roles: [{ name: "Staff" }] });
 
       // but Super Admin carries keys the manager lacks
       await expect(
-        store(db).updateUser(target.id, edit(target, [SUPER_ADMIN]), MANAGER_USER)
+        store(db).updateUser(target.id, edit(target, [SUPER_ADMIN]), await actor(db, MANAGER_USER))
       ).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
       await expect(
         store(db).createUser(
           newUser({ email: "x@vmblogistics.id", roleIds: [SUPER_ADMIN] }),
-          MANAGER_USER
+          await actor(db, MANAGER_USER)
         )
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
@@ -270,7 +361,7 @@ describe("assigning roles to users", () => {
       const admin = await store(db).getUser(SUPER_ADMIN_USER);
 
       await expect(
-        store(db).updateUser(admin.id, edit(admin, []), MANAGER_USER)
+        store(db).updateUser(admin.id, edit(admin, []), await actor(db, MANAGER_USER))
       ).rejects.toBeInstanceOf(ForbiddenError);
       // nothing changed
       expect((await store(db).getUser(admin.id)).roles.map((role) => role.name)).toEqual([
@@ -285,7 +376,7 @@ describe("assigning roles to users", () => {
 
       const created = await store(db).createUser(
         newUser({ roleIds: [SUPER_ADMIN] }),
-        SUPER_ADMIN_USER
+        await actor(db, SUPER_ADMIN_USER)
       );
 
       expect(created.roles.map((role) => role.name)).toEqual(["Super Admin"]);
@@ -299,7 +390,7 @@ describe("assigning roles to users", () => {
       await expect(
         store(db).createUser(
           newUser({ roleIds: ["00000000-0000-4000-8000-0000000000ee"] }),
-          SUPER_ADMIN_USER
+          await actor(db, SUPER_ADMIN_USER)
         )
       ).rejects.toThrow("One of the chosen roles no longer exists.");
     });
@@ -383,13 +474,17 @@ describe("reaching a more privileged user", () => {
 
       // roleIds omitted: only the credential changes, yet it is still account takeover
       await expect(
-        store(db).updateUser(ADMIN, resetPassword(admin), MANAGER)
+        store(db).updateUser(ADMIN, resetPassword(admin), await actor(db, MANAGER))
       ).rejects.toBeInstanceOf(ForbiddenError);
-      await expect(store(db).deleteUser(ADMIN, MANAGER)).rejects.toMatchObject({
+      await expect(store(db).deleteUser(ADMIN, await actor(db, MANAGER))).rejects.toMatchObject({
         code: "PERMISSION_ESCALATION"
       });
       await expect(
-        store(db).updateUser(ADMIN, { ...resetPassword(admin), status: "suspended" }, MANAGER)
+        store(db).updateUser(
+          ADMIN,
+          { ...resetPassword(admin), status: "suspended" },
+          await actor(db, MANAGER)
+        )
       ).rejects.toBeInstanceOf(ForbiddenError);
       expect(
         await count(
@@ -400,7 +495,9 @@ describe("reaching a more privileged user", () => {
       ).toBe(0);
 
       await client.exec(`update master.users set deleted_at = now() where id = '${ADMIN}'`);
-      await expect(store(db).restoreUser(ADMIN, MANAGER)).rejects.toBeInstanceOf(ForbiddenError);
+      await expect(store(db).restoreUser(ADMIN, await actor(db, MANAGER))).rejects.toBeInstanceOf(
+        ForbiddenError
+      );
     });
   });
 
@@ -411,18 +508,18 @@ describe("reaching a more privileged user", () => {
       const manager = await store(db).getUser(MANAGER);
 
       await expect(
-        store(db).updateUser(STAFF_USER, resetPassword(staff), MANAGER)
+        store(db).updateUser(STAFF_USER, resetPassword(staff), await actor(db, MANAGER))
       ).resolves.toMatchObject({
         id: STAFF_USER
       });
       await expect(
-        store(db).updateUser(MANAGER, resetPassword(manager), MANAGER)
+        store(db).updateUser(MANAGER, resetPassword(manager), await actor(db, MANAGER))
       ).resolves.toMatchObject({
         id: MANAGER
       });
       // a Super Admin may manage anyone
       await expect(
-        store(db).updateUser(MANAGER, resetPassword(manager), ADMIN)
+        store(db).updateUser(MANAGER, resetPassword(manager), await actor(db, ADMIN))
       ).resolves.toMatchObject({
         id: MANAGER
       });
@@ -436,7 +533,11 @@ describe("reaching a more privileged user", () => {
       const before = manager.roles.map((role) => role.name);
       expect(before.length).toBeGreaterThan(0);
 
-      const updated = await store(db).updateUser(MANAGER, resetPassword(manager), ADMIN);
+      const updated = await store(db).updateUser(
+        MANAGER,
+        resetPassword(manager),
+        await actor(db, ADMIN)
+      );
 
       expect(updated.roles.map((role) => role.name)).toEqual(before);
     });
@@ -450,10 +551,50 @@ describe("reaching a more privileged user", () => {
       const updated = await store(db).updateUser(
         STAFF_USER,
         { ...resetPassword(target), roleIds: [fixtureId(ID_GROUPS.role, 4).toUpperCase()] },
-        ADMIN
+        await actor(db, ADMIN)
       );
 
       expect(updated.roles).toHaveLength(1);
+    });
+  });
+});
+
+describe("what a request costs (ADR-0045's amendment)", () => {
+  const ADMIN = fixtureId(ID_GROUPS.user, 1);
+  const STAFF_USER = fixtureId(ID_GROUPS.user, 4);
+  // the read `getPermissions` sends: the only statement that joins the caller's
+  // own user row to the grants
+  const PERMISSION_READ = /from "master"\."users" inner join "master"\."user_roles"/;
+
+  // A role-changing PATCH /api/master/users/:id: `requirePermission` reads the
+  // caller's permissions, then the store checks and writes. 17 statements before
+  // the amendment, three of those reads of the caller's access at three apiece.
+  it("changes a user's roles in 9 statements, reading the caller's permissions once", async () => {
+    await withMigratedDb(async (db, client, statements) => {
+      await seed(client);
+      const store = createMasterStore(db, { hashPassword: async (password) => password });
+      const target = await store.getUser(STAFF_USER);
+      statements.length = 0;
+
+      const caller = await actor(db, ADMIN);
+      const updated = await store.updateUser(
+        STAFF_USER,
+        {
+          name: target.name,
+          email: target.email,
+          phone: target.phone ?? "+628111000077",
+          status: target.status,
+          roleIds: [MANAGER_FINANCE],
+          profilePhotoPath: "",
+          password: "",
+          passwordConfirmation: ""
+        },
+        caller
+      );
+
+      expect(updated.roles.map((role) => role.name)).toEqual(["Manager Finance"]);
+      expect(statements.filter((statement) => PERMISSION_READ.test(statement))).toHaveLength(1);
+      expect(statements).toHaveLength(9);
     });
   });
 });
