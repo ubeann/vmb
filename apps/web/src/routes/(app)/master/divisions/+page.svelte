@@ -209,7 +209,7 @@
                 column="name"
                 label="Name"
                 current={sort}
-                class="bg-card sticky left-0 z-10"
+                class="bg-card pinned-start sticky left-0 z-10"
               />
               {#if columns.visible("code")}
                 <SortableHead {base} column="code" label="Code" current={sort} />
@@ -230,7 +230,7 @@
                 <SortableHead {base} column="createdAt" label="Created" current={sort} />
               {/if}
               <!-- pinned at the right as Name is at the left, so a scrolled table keeps its actions in view -->
-              <Table.Head scope="col" class="bg-card sticky right-0 z-10 w-0"
+              <Table.Head scope="col" class="bg-card pinned-end sticky right-0 z-10 w-0"
                 ><span class="sr-only">Actions</span></Table.Head
               >
             </Table.Row>
@@ -238,7 +238,9 @@
           <Table.Body>
             {#each list.items as division (division.id)}
               <Table.Row class="hover:bg-muted">
-                <Table.Cell class="bg-card [tr:hover>&]:bg-muted sticky left-0 z-10 max-w-64">
+                <Table.Cell
+                  class="bg-card [tr:hover>&]:bg-muted pinned-start sticky left-0 z-10 max-w-64"
+                >
                   <div class="flex items-center gap-2.5">
                     <span
                       class="flex size-7 shrink-0 items-center justify-center rounded-md text-white"
@@ -277,7 +279,9 @@
                 {#if columns.visible("createdAt")}
                   <Table.Cell><RecordTime iso={division.createdAt} /></Table.Cell>
                 {/if}
-                <Table.Cell class="bg-card [tr:hover>&]:bg-muted sticky right-0 z-10 text-right">
+                <Table.Cell
+                  class="bg-card [tr:hover>&]:bg-muted pinned-end sticky right-0 z-10 text-right"
+                >
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger>
                       {#snippet child({ props })}

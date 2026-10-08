@@ -400,6 +400,39 @@
   ):not([data-disabled]) {
     cursor: pointer;
   }
+
+  /* A list's pinned columns (#301) draw an edge only while rows scroll beneath
+   * them: the first once the table has scrolled from its start, the last until
+   * it reaches its end. A table that fits has no scroll timeline, so it gets no
+   * edges; neither does a browser without scroll-driven animations. */
+  .pinned-start {
+    animation: pinned-start-edge linear both;
+    animation-timeline: scroll(nearest inline);
+  }
+  .pinned-end {
+    animation: pinned-end-edge linear both;
+    animation-timeline: scroll(nearest inline);
+  }
+}
+
+@keyframes pinned-start-edge {
+  0% {
+    box-shadow: none;
+  }
+  1%,
+  100% {
+    box-shadow: inset -1px 0 0 var(--border);
+  }
+}
+
+@keyframes pinned-end-edge {
+  0%,
+  99% {
+    box-shadow: inset 1px 0 0 var(--border);
+  }
+  100% {
+    box-shadow: none;
+  }
 }
 
 /*
