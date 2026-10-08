@@ -13,9 +13,9 @@ const emailColors = {
   primary: "#087c16",
   foreground: "#0e1b4d",
   mutedForeground: "#565e7e",
-  muted: "#f0ede4",
+  muted: "#eeedea",
   card: "#ffffff",
-  border: "#dddad0"
+  border: "#dbdad6"
 };
 
 function escapeHtml(value: string) {

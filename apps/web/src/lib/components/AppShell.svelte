@@ -116,11 +116,14 @@
     <!-- app.css still gives every <main> auto side margins and a max width (the legacy
          page styles). On a phone those make the panel as wide as its widest content,
          which widens the page; `m-0 w-auto max-w-none` opt out, and the panel scrolls
-         wide content itself. -->
+         wide content itself. In light mode the panel is a white sheet on the warm frame,
+         so the page is two layers and its tables sit on the same white (ADR-0036,
+         "Signed-in panel"); dark mode keeps the background, since its card is the
+         sidebar's colour and would merge the panel into the frame. -->
     <Sidebar.Inset
       id="main-content"
       tabindex={-1}
-      class="m-0 w-auto max-w-none min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm"
+      class="bg-card dark:bg-background m-0 w-auto max-w-none min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm"
     >
       {@render children()}
     </Sidebar.Inset>
