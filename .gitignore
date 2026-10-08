@@ -132,6 +132,14 @@ fnox.local.toml
 # fnox-exported plaintext secrets for local `wrangler dev` (ADR-0011)
 .dev.vars
 
+# impeccable's scratch for one design round: critique snapshots, live-session
+# logs. A PR links what it needs through scripts/upload-asset.sh. Live mode's
+# setup is shared by every worktree, so it stays tracked.
+.impeccable/*
+!.impeccable/live/
+.impeccable/live/*
+!.impeccable/live/config.json
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
