@@ -1,5 +1,6 @@
 <script lang="ts">
   import "../app.css";
+  import PrototypePaletteSwitcher from "$lib/components/PrototypePaletteSwitcher.svelte";
   import { ModeWatcher } from "mode-watcher";
   import type { Snippet } from "svelte";
 
@@ -12,3 +13,6 @@
 
 <!-- The signed-in frame is the (app) group's layout; the signed-out pages bring their own. -->
 {@render children()}
+
+<!-- PROTOTYPE, throwaway: the light-mode palette switcher. Never merge. -->
+<PrototypePaletteSwitcher />
