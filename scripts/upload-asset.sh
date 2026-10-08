@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
-# Upload an image to the private `ubeann/vmb-assets` repo and print a Markdown
-# image link for an issue or PR body. `gh` cannot attach files to issues, so
-# this is how a ticket keeps the screenshots it was shaped from, and how a PR
-# shows its evidence. Only people with access to vmb-assets see the images.
+# Upload a file to the private `ubeann/vmb-assets` repo and print a Markdown
+# link for an issue or PR body: an image link for an image, a plain link for
+# anything else (a design critique, say), which GitHub then renders. `gh`
+# cannot attach files to issues, so this is how a ticket keeps the screenshots
+# it was shaped from, and how a PR shows its evidence. Only people with access
+# to vmb-assets can open the links.
 #
 # The file name gets a content-hash prefix, so uploading the same file twice
 # prints the same link without writing a second copy, and a link never changes
@@ -13,8 +15,8 @@
 #   <folder>  where it goes in vmb-assets, e.g. `issues/301` or `prs/320`
 #             (default `misc`)
 #        scripts/upload-asset.sh --delete <link-or-path>
-#   Removes an image uploaded by mistake. It stays in vmb-assets' git history;
-#   an image that leaked a secret needs that history rewritten as well.
+#   Removes a file uploaded by mistake. It stays in vmb-assets' git history;
+#   a file that leaked a secret needs that history rewritten as well.
 # Override the repo with VMB_ASSETS_REPO=<owner>/<name>.
 
 set -euo pipefail
@@ -58,7 +60,13 @@ name=$(basename "$file")
 name=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '-')
 path="$folder/$hash-$name"
 branch=$(gh api "repos/$repo" --jq .default_branch)
-link="![$name](https://github.com/$repo/blob/$branch/$path?raw=true)"
+url="https://github.com/$repo/blob/$branch/$path"
+case "$name" in
+  *.[Pp][Nn][Gg] | *.[Jj][Pp][Gg] | *.[Jj][Pp][Ee][Gg] | *.[Gg][Ii][Ff] | *.[Ww][Ee][Bb][Pp] | *.[Aa][Vv][Ii][Ff] | *.[Ss][Vv][Gg])
+    link="![$name]($url?raw=true)"
+    ;;
+  *) link="[$name]($url)" ;;
+esac
 
 if gh api "repos/$repo/contents/$path" --silent 2>/dev/null; then
   printf '%s\n' "$link"
