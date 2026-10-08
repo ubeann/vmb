@@ -81,7 +81,7 @@ Three faces, app-wide (ADR-0046): Schibsted Grotesk for UI text, Newsreader's op
 
 ## Layout
 
-Review viewports and layout rules are in `docs/agents/design-workflow.md`. The form comes first: usable before its art loads, each input in its own wrapper so extension-injected elements don't move it. Touch pointers get 44px targets.
+Review viewports and layout rules are in `docs/agents/design-workflow.md`. Signed-in pages take one of three widths, centred inside the white panel, list tables fit their utility columns to content, and the top bar's slot order is fixed (ADR-0050). The form comes first: usable before its art loads, each input in its own wrapper so extension-injected elements don't move it. Touch pointers get 44px targets.
 
 ## Elevation & Depth
 
