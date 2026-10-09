@@ -5,6 +5,7 @@ import {
   type UserUpdateInput
 } from "@vmb/types";
 import { describe, expect, it } from "vitest";
+import { sql } from "drizzle-orm";
 import { ID_GROUPS, fixtureId } from "../src/seed/ids.js";
 import { seed } from "../src/seed/run.js";
 import { ConflictError, ForbiddenError } from "../src/errors.js";
@@ -272,6 +273,22 @@ describe("a user's access", () => {
   });
 });
 
+/**
+ * The statement another connection to this database is blocked on, waiting
+ * for a lock; polled until one appears, for at most ten seconds.
+ */
+async function waitingQuery(observer: MasterDb): Promise<string> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const { rows } = (await observer.execute(sql`
+      select query from pg_stat_activity
+       where datname = current_database() and wait_event_type = 'Lock'
+    `)) as unknown as { rows: Array<{ query: string }> };
+    if (rows[0]) return rows[0].query;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("no connection started waiting for a lock");
+}
+
 describe("assigning roles to users", () => {
   const store = (db: Parameters<typeof createMasterStore>[0]) =>
     createMasterStore(db, {
@@ -481,26 +498,30 @@ describe("assigning roles to users", () => {
           hashPassword: async (password) => password,
           transaction: holding
         }).updateUser(target.id, edit(target, [STAFF_ROLE, SUPER_ADMIN]), admin);
-        await adminWorked;
 
-        // The Finance manager may manage the target as it was (Staff only), and
-        // without the lock their check would pass against that.
-        const managerSave = store(db).updateUser(
-          target.id,
-          edit(target, [STAFF_ROLE, MANAGER_FINANCE]),
-          await actor(db, MANAGER_USER)
-        );
-        const settled = managerSave.then(
-          () => "settled",
-          () => "settled"
-        );
-        const waiting = new Promise((resolve) => setTimeout(() => resolve("waiting"), 500));
-        expect(await Promise.race([settled, waiting])).toBe("waiting");
+        try {
+          await adminWorked;
 
-        commit();
-        await adminSave;
-        // it now sees the Super Admin role the first change granted
-        await expect(managerSave).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
+          // The Finance manager may manage the target as it was (Staff only),
+          // and without the lock their check would pass against that.
+          const managerSave = store(db).updateUser(
+            target.id,
+            edit(target, [STAFF_ROLE, MANAGER_FINANCE]),
+            await actor(db, MANAGER_USER)
+          );
+          managerSave.catch(() => undefined);
+
+          // ...so it must be waiting on the row lock, before any check, while
+          // the first change is still open
+          expect(await waitingQuery(await connect!())).toMatch(/for update/i);
+
+          commit();
+          await adminSave;
+          // it now sees the Super Admin role the first change granted
+          await expect(managerSave).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
+        } finally {
+          commit();
+        }
         expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
           "Staff",
           "Super Admin"
