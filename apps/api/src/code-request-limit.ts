@@ -4,6 +4,9 @@ import { createAuthMiddleware } from "better-auth/api";
 
 export const CODE_REQUEST_PATH = "/email-otp/request-password-reset";
 
+/** Better Auth's own copy for a per-IP 429, which the per-email limit repeats. */
+export const RATE_LIMITED_MESSAGE = "Too many requests. Please try again later.";
+
 export function codeRequestLimit(db: Db, secret: string): BetterAuthPlugin {
   // Import once per auth instance. Only the HMAC goes into rate_limit, never
   // the address or a guessable unkeyed digest of it.
@@ -37,9 +40,10 @@ export function codeRequestLimit(db: Db, secret: string): BetterAuthPlugin {
             ).join("");
             const result = await consumeCodeRequest(db, `code-request:${digest}`);
             if (!result.allowed) {
-              // Same body and header convention as Better Auth's per-IP 429.
+              // Same body and header convention as the per-IP 429, which
+              // authRoute rewrites to this body.
               return new Response(
-                JSON.stringify({ message: "Too many requests. Please try again later." }),
+                JSON.stringify({ code: "RATE_LIMITED", message: RATE_LIMITED_MESSAGE }),
                 {
                   status: 429,
                   statusText: "Too Many Requests",

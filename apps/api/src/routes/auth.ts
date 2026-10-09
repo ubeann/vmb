@@ -1,9 +1,10 @@
+import { ApiErrorSchema } from "@vmb/types";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createAuth } from "../auth.js";
 import type { Bindings } from "../bindings.js";
 import { trustedClientIpHeaders } from "../client-ip.js";
-import { CODE_REQUEST_PATH } from "../code-request-limit.js";
+import { CODE_REQUEST_PATH, RATE_LIMITED_MESSAGE } from "../code-request-limit.js";
 
 // A function origin (rather than passing `c.env.WEB_URL` as the `origin`
 // string directly) lets this middleware be built once at module scope while
@@ -16,6 +17,21 @@ const authCors = cors({
 
 export const authRoute = new Hono<{ Bindings: Bindings }>()
   .use("*", authCors)
+  .use("*", async (c, next) => {
+    await next();
+    // Better Auth's per-IP limiter answers `{ message }` with no code; give it
+    // the contract's body (ADR-0048). A 429 that already has a code is left be.
+    if (c.res.status !== 429) return;
+    const body: unknown = await c.res
+      .clone()
+      .json()
+      .catch(() => null);
+    if (typeof body === "object" && body !== null && "code" in body) return;
+    c.res = c.json(
+      ApiErrorSchema.parse({ code: "RATE_LIMITED", message: RATE_LIMITED_MESSAGE }),
+      429
+    );
+  })
   .use(CODE_REQUEST_PATH, async (c, next) => {
     await next();
     // An hour versus a minute would identify which limit was hit (#252).
