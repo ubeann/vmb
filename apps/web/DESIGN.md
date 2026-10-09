@@ -8,6 +8,7 @@ colors:
   primary: "oklch(0.51 0.164 143.6)"
   primary-hover: "oklch(0.46 0.15 143.6)"
   primary-foreground: "oklch(0.982 0.01 145.5)"
+  primary-edge: "oklch(0.42 0.135 143.6)"
   secondary: "oklch(0.95 0.01 273.4)"
   muted: "oklch(0.946 0.004 90)"
   muted-foreground: "oklch(0.488 0.052 273.5)"
@@ -26,6 +27,7 @@ colors:
   primary-dark: "oklch(0.75 0.165 146.3)"
   primary-hover-dark: "oklch(0.79 0.16 146.3)"
   primary-foreground-dark: "oklch(0.237 0.062 146.7)"
+  primary-edge-dark: "oklch(0.6 0.14 146.3)"
   secondary-dark: "oklch(0.284 0.082 271.7)"
   muted-dark: "oklch(0.274 0.084 272.2)"
   muted-foreground-dark: "oklch(0.754 0.04 273.9)"
@@ -85,7 +87,7 @@ Review viewports and layout rules are in `docs/agents/design-workflow.md`. Signe
 
 ## Elevation & Depth
 
-Depth is mostly flat: a white card on warm paper, a navy card on deep navy in dark mode, separated by a `border` rule. A signed-in page in light mode is two layers: the warm frame (sidebar, top bar, footer) round a white panel (`card`), with its tables on the same white (ADR-0036, "Signed-in panel"). The auth sheet is framed like a plate, with a double rule (`card`, then `border`) and one soft shadow tinted with `etching` (`AuthShell.svelte`).
+Depth is mostly flat: a white card on warm paper, a navy card on deep navy in dark mode, separated by a `border` rule. The one raised element is the primary button: a sheen over the green, a lit top edge and a darker `primary-edge` border (ADR-0036, "Primary button texture"). Other buttons stay flat. A signed-in page in light mode is two layers: the warm frame (sidebar, top bar, footer) round a white panel (`card`), with its tables on the same white (ADR-0036, "Signed-in panel"). The auth sheet is framed like a plate, with a double rule (`card`, then `border`) and one soft shadow tinted with `etching` (`AuthShell.svelte`).
 
 ## Shapes
 

@@ -129,9 +129,9 @@
   >
     {#snippet action()}
       {#if can("master-divisions.create")}
-        <a href={resolve("/master/divisions/new")} class={buttonVariants()}>
+        <Button href={resolve("/master/divisions/new")}>
           <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
-        </a>
+        </Button>
       {/if}
     {/snippet}
   </PageHeader>
@@ -196,9 +196,9 @@
             description="Divisions group the company's Roles and Users."
           >
             {#if can("master-divisions.create")}
-              <a href={resolve("/master/divisions/new")} class={buttonVariants()}>
+              <Button href={resolve("/master/divisions/new")}>
                 <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
-              </a>
+              </Button>
             {/if}
           </EmptyState>
         {/if}

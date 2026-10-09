@@ -26,6 +26,13 @@
   --primary: oklch(0.51 0.164 143.6);
   --primary-hover: oklch(0.46 0.15 143.6);
   --primary-foreground: oklch(0.982 0.01 145.5);
+  /* The primary button's texture (ADR-0036, "Primary button texture"): a sheen over the fill,
+   * a lit top edge and a darker ink border. Light mode only darkens downward, so the label never
+   * sits on a lighter green than --primary: 5.4:1 across its band, 6.7:1 on hover */
+  --primary-sheen-top: oklch(1 0 0 / 0);
+  --primary-sheen-bottom: oklch(0 0 0 / 0.14);
+  --primary-highlight: oklch(1 0 0 / 0.24);
+  --primary-edge: oklch(0.42 0.135 143.6);
   --secondary: oklch(0.95 0.01 273.4);
   --secondary-foreground: oklch(0.247 0.094 267.7);
   /* Muted, accent and border are near-neutral greys (ADR-0036, "Signed-in panel"): they sit on
@@ -80,6 +87,11 @@
   --primary: oklch(0.75 0.165 146.3);
   --primary-hover: oklch(0.79 0.16 146.3);
   --primary-foreground: oklch(0.237 0.062 146.7);
+  /* Dark text on a light green, so the sheen lifts the top instead: 7.0:1 across the label */
+  --primary-sheen-top: oklch(1 0 0 / 0.16);
+  --primary-sheen-bottom: oklch(0 0 0 / 0.07);
+  --primary-highlight: oklch(1 0 0 / 0.45);
+  --primary-edge: oklch(0.6 0.14 146.3);
   --secondary: oklch(0.284 0.082 271.7);
   --secondary-foreground: oklch(0.954 0.011 95.2);
   --muted: oklch(0.274 0.084 272.2);
@@ -321,6 +333,21 @@
 @layer utilities {
   :is([data-slot="button"], a[data-slot="badge"]).bg-primary:hover {
     background-color: var(--primary-hover);
+  }
+
+  /* The primary button's texture, after Cloudflare's Kumo (ADR-0036). The sheen is a layer over
+   * the fill, so the hover shade above takes it too. The lit edge goes in Tailwind's inset-shadow
+   * slot of the same box-shadow list the focus ring uses, so the two compose; focus keeps the
+   * registry's ring-coloured border. */
+  [data-slot="button"].bg-primary {
+    --tw-inset-shadow: inset 0 1px 0 0 var(--primary-highlight);
+    background-image: linear-gradient(var(--primary-sheen-top), var(--primary-sheen-bottom));
+    box-shadow:
+      var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow),
+      var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  [data-slot="button"].bg-primary:not(:focus-visible) {
+    border-color: var(--primary-edge);
   }
 
   /* The registry's focus ring is the ring colour at half strength, which reads
