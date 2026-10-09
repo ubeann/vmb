@@ -5,10 +5,19 @@ import { ConflictError } from "../errors.js";
 /**
  * The database surface the Master store speaks to: Drizzle's query builders
  * that both the Neon HTTP driver (production, previews) and embedded PGlite
- * (tests) implement. Driver-only features — `batch`, interactive
- * transactions — are deliberately not used, so the same store runs on both.
+ * (tests) implement. `batch` is deliberately not used, so the same store runs
+ * on both; and the HTTP driver has no interactive transactions, so a use case
+ * that needs one asks an `OpenTransaction` for it instead (ADR-0049).
  */
 export type MasterDb = PgDatabase<PgQueryResultHKT, DatabaseSchema>;
+
+/**
+ * Run `work` in one transaction: committed when it resolves, rolled back when
+ * it throws. The store receives this as a dependency, so it never names a
+ * driver: the Worker opens a Neon WebSocket connection for it, tests use
+ * PGlite's `db.transaction` (ADR-0049).
+ */
+export type OpenTransaction = <T>(work: (tx: MasterDb) => Promise<T>) => Promise<T>;
 
 /** Timestamps reach the store as `Date`s and leave as ISO strings on the wire. */
 export function toIso(value: Date | null | undefined): string | null {

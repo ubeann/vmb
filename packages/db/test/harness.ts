@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
-import type { MasterDb } from "../src/master/db.js";
+import type { MasterDb, OpenTransaction } from "../src/master/db.js";
 import { migrationsFolder } from "../src/migrations-path.js";
 import { schema } from "../src/schema/index.js";
 import { pgClient, pgliteClient, type SqlClient } from "../src/sql-client.js";
@@ -43,6 +43,12 @@ export type TestDatabase = {
    * behind when it stopped part-way.
    */
   migrate(folder?: string): Promise<void>;
+  /**
+   * Another connection to the same database, open alongside `db`, for a test
+   * that needs two at once: one holding a lock while the other waits. Only a
+   * real Postgres has one; PGlite is a single connection.
+   */
+  connect?: () => Promise<MasterDb>;
   close(): Promise<void>;
 };
 
@@ -82,15 +88,28 @@ export async function withMigratedDatabase<T>(fn: (client: SqlClient) => Promise
  * and the log of the statements it has sent.
  */
 export async function withMigratedDb<T>(
-  fn: (db: MasterDb, client: SqlClient, statements: string[]) => Promise<T>
+  fn: (
+    db: MasterDb,
+    client: SqlClient,
+    statements: string[],
+    connect: TestDatabase["connect"]
+  ) => Promise<T>
 ): Promise<T> {
   const database = await createDatabase();
   try {
     await database.migrate();
-    return await fn(database.db, database.client, database.statements);
+    return await fn(database.db, database.client, database.statements, database.connect);
   } finally {
     await database.close();
   }
+}
+
+/**
+ * The transaction opener the Master store takes, on the test's own database:
+ * PGlite's `db.transaction`, as ADR-0049 has it, or the same on real Postgres.
+ */
+export function transactionsOn(db: MasterDb): OpenTransaction {
+  return (work) => db.transaction(work);
 }
 
 /** A Drizzle logger that records each statement into `statements`. */
@@ -146,6 +165,7 @@ async function createPostgres(url: string): Promise<TestDatabase> {
     const client = new Client({ connectionString: databaseUrl(url, name) });
     await client.connect();
     const statements: string[] = [];
+    const others: InstanceType<typeof Client>[] = [];
 
     return {
       client: pgClient(client),
@@ -155,9 +175,15 @@ async function createPostgres(url: string): Promise<TestDatabase> {
         await migrate(drizzle(client), { migrationsFolder: folder });
         await resetSearchPath(pgClient(client));
       },
+      connect: async () => {
+        const other = new Client({ connectionString: databaseUrl(url, name) });
+        await other.connect();
+        others.push(other);
+        return drizzle(other, { schema });
+      },
       close: async () => {
         try {
-          await client.end();
+          await Promise.all([client, ...others].map((open) => open.end()));
         } finally {
           await drop(admin, name);
         }

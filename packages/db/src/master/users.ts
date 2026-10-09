@@ -29,7 +29,7 @@ import {
   uniqueIds,
   type Actor
 } from "./guards.js";
-import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
+import { conflictFrom, nullIfEmpty, toIso, type MasterDb, type OpenTransaction } from "./db.js";
 import { NotFoundError } from "../errors.js";
 
 // A user's columns plus whether Better Auth has verified the email: the
@@ -60,6 +60,8 @@ function selectUsers(db: MasterDb) {
 
 export type UserStoreOptions = {
   hashPassword: (password: string) => Promise<string>;
+  /** Opens the transactions a use case needs (ADR-0049); see `OpenTransaction`. */
+  transaction: OpenTransaction;
 };
 
 const SORT_COLUMNS = {
@@ -224,6 +226,14 @@ export async function createUser(
   return getUser(db, id);
 }
 
+/**
+ * Whether the role sets differ. Both are lower-cased ids, once each, as
+ * `uniqueIds` and Postgres give them.
+ */
+function sameRoles(next: string[], before: string[]): boolean {
+  return next.length === before.length && next.every((role) => before.includes(role));
+}
+
 export async function updateUser(
   db: MasterDb,
   options: UserStoreOptions,
@@ -231,110 +241,61 @@ export async function updateUser(
   input: UserUpdateInput,
   actor: Actor
 ): Promise<User> {
-  const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
-  if (!existing[0]) throw new NotFoundError("User not found.");
-
-  await assertCanManageUser(db, actor, id);
+  // Before any transaction opens, so it holds its connection only for SQL.
+  const passwordHash =
+    input.password === "" ? undefined : await options.hashPassword(input.password);
 
   // No `roleIds` means "leave the roles alone"; a list is the whole new set.
-  // The change is worked out here, from what was checked, and applied as
-  // exactly that: a role someone else grants between the check and the write
-  // is not removed by this save.
-  let roleSync = sql``;
-  if (input.roleIds !== undefined) {
-    const next = uniqueIds(input.roleIds);
-    const before = await currentRoleIds(db, id);
-    const added = next.filter((role) => !before.includes(role));
-    const removed = before.filter((role) => !next.includes(role));
-    await assertCanChangeRoles(db, actor.permissions, [...added, ...removed]);
+  // A save that keeps the set the user already holds (the form always sends
+  // it) writes no roles, so it needs no transaction and stays on the cached
+  // HTTP driver.
+  const next = input.roleIds === undefined ? undefined : uniqueIds(input.roleIds);
+  if (next === undefined || sameRoles(next, await currentRoleIds(db, id))) {
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+    if (!existing[0]) throw new NotFoundError("User not found.");
 
-    roleSync = sql`, role_removal as (
-          delete from master.user_roles
-           where user_id = ${id}::uuid and role_id = any(${uuidArray(removed)})
-          returning 1
-        ), role_addition as (
+    await assertCanManageUser(db, actor, id);
+    try {
+      await writeUser(db, id, input, passwordHash);
+    } catch (error) {
+      return conflictFrom(error, EMAIL_CONFLICT);
+    }
+  } else {
+    try {
+      // The checks and the writes they guard commit together or not at all,
+      // and the lock on the user's row makes a concurrent role change on the
+      // same user wait for this one: it then checks what this one wrote,
+      // rather than what was there before (ADR-0045's race, closed by
+      // ADR-0049).
+      await options.transaction(async (tx) => {
+        const locked = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, id))
+          .for("update");
+        if (!locked[0]) throw new NotFoundError("User not found.");
+
+        await assertCanManageUser(tx, actor, id);
+
+        const before = await currentRoleIds(tx, id);
+        const added = next.filter((role) => !before.includes(role));
+        const removed = before.filter((role) => !next.includes(role));
+        await assertCanChangeRoles(tx, actor.permissions, [...added, ...removed]);
+
+        await tx.execute(sql`
+          with role_removal as (
+            delete from master.user_roles
+             where user_id = ${id}::uuid and role_id = any(${uuidArray(removed)})
+          )
           insert into master.user_roles (user_id, role_id)
           select ${id}::uuid, r from unnest(${uuidArray(added)}) as r
           on conflict do nothing
-          returning 1
-        )`;
-  }
-
-  const photo = nullIfEmpty(input.profilePhotoPath);
-
-  try {
-    if (input.password === "") {
-      // One statement, so an existing Better Auth identity cannot drift from
-      // the business row when either side refuses the change (a duplicate
-      // email, most likely). An identity that does not exist yet is #7's
-      // transform to create.
-      await db.execute(sql`
-        with business_user as (
-          update master.users
-             set name = ${input.name},
-                 status = ${input.status},
-                 phone = ${input.phone},
-                 email = ${input.email},
-                 profile_photo_path = ${photo},
-                 updated_at = now()
-           where id = ${id}
-          returning id
-        )${roleSync}
-        update public."user"
-           set name = ${input.name},
-               email = ${input.email},
-               image = ${photo},
-               updated_at = now()
-         where id = (select id::text from business_user)
-      `);
-    } else {
-      const passwordHash = await options.hashPassword(input.password);
-
-      // The same statement also upserts the credential, so a legacy-imported
-      // user (a business row with no Better Auth identity) becomes able to
-      // sign in, and a refused write aborts every part of the change together.
-      await db.execute(sql`
-        with business_user as (
-          update master.users
-             set name = ${input.name},
-                 status = ${input.status},
-                 phone = ${input.phone},
-                 email = ${input.email},
-                 profile_photo_path = ${photo},
-                 updated_at = now()
-           where id = ${id}
-          returning id, name, email, profile_photo_path
-        ), auth_update as (
-          update public."user"
-             set name = ${input.name},
-                 email = ${input.email},
-                 image = ${photo},
-                 updated_at = now()
-           where id = (select id::text from business_user)
-          returning id
-        ), auth_insert as (
-          insert into public."user" (id, name, email, email_verified, image, created_at, updated_at)
-          select b.id::text, b.name, b.email, false, b.profile_photo_path, now(), now()
-            from business_user b
-           where not exists (select 1 from auth_update)
-          returning id
-        ), credential_update as (
-          update public.account
-             set password = ${passwordHash}, updated_at = now()
-           where account_id = (select id::text from business_user)
-             and provider_id = 'credential'
-          returning id
-        )${roleSync}
-        insert into public.account
-          (id, account_id, provider_id, user_id, password, created_at, updated_at)
-        select ${crypto.randomUUID()}, b.id::text, 'credential', b.id::text,
-               ${passwordHash}, now(), now()
-          from business_user b
-         where not exists (select 1 from credential_update)
-      `);
+        `);
+        await writeUser(tx, id, input, passwordHash);
+      });
+    } catch (error) {
+      return conflictFrom(error, EMAIL_CONFLICT);
     }
-  } catch (error) {
-    return conflictFrom(error, EMAIL_CONFLICT);
   }
 
   // The gate reads status when a session is created; ending the current ones
@@ -344,6 +305,89 @@ export async function updateUser(
   }
 
   return getUser(db, id);
+}
+
+/**
+ * Write a user's own fields, with their Better Auth identity and, given a
+ * hash, their credential, in one statement.
+ */
+async function writeUser(
+  db: MasterDb,
+  id: string,
+  input: UserUpdateInput,
+  passwordHash: string | undefined
+): Promise<void> {
+  const photo = nullIfEmpty(input.profilePhotoPath);
+
+  if (passwordHash === undefined) {
+    // One statement, so an existing Better Auth identity cannot drift from
+    // the business row when either side refuses the change (a duplicate
+    // email, most likely). An identity that does not exist yet is #7's
+    // transform to create.
+    await db.execute(sql`
+      with business_user as (
+        update master.users
+           set name = ${input.name},
+               status = ${input.status},
+               phone = ${input.phone},
+               email = ${input.email},
+               profile_photo_path = ${photo},
+               updated_at = now()
+         where id = ${id}
+        returning id
+      )
+      update public."user"
+         set name = ${input.name},
+             email = ${input.email},
+             image = ${photo},
+             updated_at = now()
+       where id = (select id::text from business_user)
+    `);
+    return;
+  }
+
+  // The same statement also upserts the credential, so a legacy-imported
+  // user (a business row with no Better Auth identity) becomes able to
+  // sign in, and a refused write aborts every part of the change together.
+  await db.execute(sql`
+    with business_user as (
+      update master.users
+         set name = ${input.name},
+             status = ${input.status},
+             phone = ${input.phone},
+             email = ${input.email},
+             profile_photo_path = ${photo},
+             updated_at = now()
+       where id = ${id}
+      returning id, name, email, profile_photo_path
+    ), auth_update as (
+      update public."user"
+         set name = ${input.name},
+             email = ${input.email},
+             image = ${photo},
+             updated_at = now()
+       where id = (select id::text from business_user)
+      returning id
+    ), auth_insert as (
+      insert into public."user" (id, name, email, email_verified, image, created_at, updated_at)
+      select b.id::text, b.name, b.email, false, b.profile_photo_path, now(), now()
+        from business_user b
+       where not exists (select 1 from auth_update)
+      returning id
+    ), credential_update as (
+      update public.account
+         set password = ${passwordHash}, updated_at = now()
+       where account_id = (select id::text from business_user)
+         and provider_id = 'credential'
+      returning id
+    )
+    insert into public.account
+      (id, account_id, provider_id, user_id, password, created_at, updated_at)
+    select ${crypto.randomUUID()}, b.id::text, 'credential', b.id::text,
+           ${passwordHash}, now(), now()
+      from business_user b
+     where not exists (select 1 from credential_update)
+  `);
 }
 
 export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promise<void> {

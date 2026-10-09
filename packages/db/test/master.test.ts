@@ -4,12 +4,12 @@ import { ForbiddenError } from "../src/errors.js";
 import { createMasterStore } from "../src/master/index.js";
 import type { MasterStore } from "../src/master/index.js";
 import type { SqlClient } from "../src/sql-client.js";
-import { count, scalar, withMigratedDb } from "./harness.js";
+import { count, scalar, transactionsOn, withMigratedDb } from "./harness.js";
 
 const hashPassword = async (password: string) => `hashed:${password}`;
 
 function storeFor(db: Parameters<typeof createMasterStore>[0]): MasterStore {
-  return createMasterStore(db, { hashPassword });
+  return createMasterStore(db, { hashPassword, transaction: transactionsOn(db) });
 }
 
 const division = (overrides: Partial<DivisionInput> = {}): DivisionInput => ({
