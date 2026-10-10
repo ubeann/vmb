@@ -26,7 +26,8 @@
     { key: "C3v", name: "C3s + View panel and row shortcuts" },
     { key: "C3w", name: "C3v, Clear all beside the chips" },
     { key: "C3x", name: "C3v, the count leads the strip" },
-    { key: "C3y", name: "C3w + reworked search" }
+    { key: "C3y", name: "C3w + reworked search" },
+    { key: "C3r", name: "C3y + responsive card" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -47,6 +48,18 @@
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
 {:else if variant === "C3w"}
   <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" view strip="inline" />
+{:else if variant === "C3r"}
+  <VariantB
+    {data}
+    tile="tint"
+    toolbar="card"
+    chip="green"
+    dates="beside"
+    view
+    strip="inline"
+    searchBox
+    responsive
+  />
 {:else if variant === "C3y"}
   <VariantB
     {data}

@@ -82,7 +82,8 @@
     dates = "inline",
     view = false,
     strip = "end",
-    searchBox = false
+    searchBox = false,
+    responsive = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -100,6 +101,9 @@
     strip?: "end" | "inline" | "lead";
     // Round 14: the reworked search box, and the matched text marked in the rows
     searchBox?: boolean;
+    // Round 15: the list card answers to its own width (container queries): Description goes
+    // first, then rows fold to two lines, the name over "code · updated"
+    responsive?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -183,6 +187,13 @@
   const noun = (n: number) => `${inTrash ? "deleted " : ""}${n === 1 ? "division" : "divisions"}`;
   // Round 13: a row action's hover must stand out from the hovered row, which is already the
   // ghost button's grey: it lifts to the page colour with a hairline instead
+  // Round 15: which columns give way as the card narrows; `@container/list` is the card
+  const FOLD = $derived({
+    card: responsive && "@container/list",
+    description: responsive && "@max-2xl/list:hidden",
+    meta: responsive && "@max-lg/list:hidden",
+    name: responsive && "@max-lg/list:w-full @max-lg/list:max-w-none"
+  });
   const ROW_ACTION =
     "hover:bg-background dark:hover:bg-background hover:ring-border hover:text-foreground hover:shadow-xs hover:ring-1";
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
@@ -446,7 +457,12 @@
 
 <!-- Round 11: the search is a condition too, so it gets a chip like the filters -->
 {#snippet searchChip()}
-  <div class={cn("inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm", look.chip)}>
+  <div
+    class={cn(
+      "inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm pointer-coarse:h-11",
+      look.chip
+    )}
+  >
     <button
       type="button"
       data-slot="filter-chip"
@@ -465,8 +481,11 @@
       href={href({ search: null })}
       data-sveltekit-noscroll
       aria-label="Clear the search"
-      class={cn("inline-flex w-7 items-center justify-center border-l", look.part, look.seam)}
-      ><XIcon aria-hidden="true" class="size-3.5" /></a
+      class={cn(
+        "inline-flex w-7 items-center justify-center border-l pointer-coarse:w-11",
+        look.part,
+        look.seam
+      )}><XIcon aria-hidden="true" class="size-3.5" /></a
     >
   </div>
 {/snippet}
@@ -509,17 +528,26 @@
 <!-- Round 10: View — the columns and the page size, the footer keeps only the page links -->
 {#snippet viewPanel()}
   <Popover.Root>
-    <Popover.Trigger
-      class={cn(buttonVariants({ variant: "outline" }), "relative max-sm:hidden")}
-      aria-label={viewChanged ? "View, changed" : "View"}
-    >
-      <Settings2Icon aria-hidden="true" data-icon="inline-start" />View
-      {#if viewChanged}
-        <span
-          aria-hidden="true"
-          class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
-        ></span>
-      {/if}
+    <!-- Round 16: triggers render through Button, so touch screens give them 44px like the
+         search field (app.css sizes [data-slot=button] and [data-slot=input] for coarse pointers) -->
+    <Popover.Trigger>
+      {#snippet child({ props })}
+        <Button
+          {...props}
+          data-slot="button"
+          variant="outline"
+          class="relative max-sm:hidden"
+          aria-label={viewChanged ? "View, changed" : "View"}
+        >
+          <Settings2Icon aria-hidden="true" data-icon="inline-start" />View
+          {#if viewChanged}
+            <span
+              aria-hidden="true"
+              class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
+            ></span>
+          {/if}
+        </Button>
+      {/snippet}
     </Popover.Trigger>
     <Popover.Content
       align="end"
@@ -633,7 +661,12 @@
   {@const chosen = chosenOf(filter)}
   {#if chosen}
     <!-- a filter in use: one chip, the menu to change it and an × to drop it -->
-    <div class={cn("inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm", look.chip)}>
+    <div
+      class={cn(
+        "inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm pointer-coarse:h-11",
+        look.chip
+      )}
+    >
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
           class={cn(
@@ -652,8 +685,11 @@
         href={href({ [filter.key]: null })}
         data-sveltekit-noscroll
         aria-label="Clear filter {filter.label}"
-        class={cn("inline-flex w-7 items-center justify-center border-l", look.part, look.seam)}
-        ><XIcon aria-hidden="true" class="size-3.5" /></a
+        class={cn(
+          "inline-flex w-7 items-center justify-center border-l pointer-coarse:w-11",
+          look.part,
+          look.seam
+        )}><XIcon aria-hidden="true" class="size-3.5" /></a
       >
     </div>
   {:else}
@@ -801,7 +837,12 @@
 
 <!-- Round 5: a chip in use; clicking it opens the Filter panel, × drops it -->
 {#snippet panelChip(filter: Filter)}
-  <div class={cn("inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm", look.chip)}>
+  <div
+    class={cn(
+      "inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm pointer-coarse:h-11",
+      look.chip
+    )}
+  >
     <button
       type="button"
       data-slot="filter-chip"
@@ -815,8 +856,11 @@
       href={href({ [filter.key]: null })}
       data-sveltekit-noscroll
       aria-label="Clear filter {filter.label}"
-      class={cn("inline-flex w-7 items-center justify-center border-l", look.part, look.seam)}
-      ><XIcon aria-hidden="true" class="size-3.5" /></a
+      class={cn(
+        "inline-flex w-7 items-center justify-center border-l pointer-coarse:w-11",
+        look.part,
+        look.seam
+      )}><XIcon aria-hidden="true" class="size-3.5" /></a
     >
   </div>
 {/snippet}
@@ -824,8 +868,12 @@
 <!-- Round 5: the Filter panel, a popover on desktop and the same body in the phone sheet -->
 {#snippet filterPanel()}
   <Popover.Root bind:open={panelOpen}>
-    <Popover.Trigger class={cn(buttonVariants({ variant: "outline" }), "max-sm:hidden")}>
-      <ListFilterIcon aria-hidden="true" data-icon="inline-start" />Filter{@render countBadge()}
+    <Popover.Trigger>
+      {#snippet child({ props })}
+        <Button {...props} data-slot="button" variant="outline" class="max-sm:hidden">
+          <ListFilterIcon aria-hidden="true" data-icon="inline-start" />Filter{@render countBadge()}
+        </Button>
+      {/snippet}
     </Popover.Trigger>
     <Popover.Content
       align="end"
@@ -848,7 +896,7 @@
   <Popover.Root open={pickerFor === filter.key} onOpenChange={(open) => openPicker(filter, open)}>
     <Popover.Trigger
       data-slot="filter-date-row"
-      class="hover:bg-muted aria-expanded:bg-muted -mx-2 flex h-9 w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 text-sm"
+      class="hover:bg-muted aria-expanded:bg-muted -mx-2 flex h-9 w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 text-sm pointer-coarse:h-11"
     >
       <filter.icon aria-hidden="true" class="text-muted-foreground size-4" />{filter.label}
       <span
@@ -1158,7 +1206,7 @@
   {/if}
 
   {@const list = data.divisions}
-  <div class="border-border bg-card relative overflow-hidden rounded-lg border">
+  <div class={cn("border-border bg-card relative overflow-hidden rounded-lg border", FOLD.card)}>
     {#if toolbar === "card"}
       <!-- C3 In the card: the views are tabs on the table's own top edge, the controls beside them -->
       <div class="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3">
@@ -1182,8 +1230,15 @@
             </a>
           {/each}
         </nav>
-        <div class="ml-auto flex items-center gap-2 py-2 max-sm:w-full">
-          {@render search("max-sm:flex-1 sm:w-80")}
+        <div
+          class={cn(
+            "ml-auto flex items-center gap-2 py-2 max-sm:w-full",
+            responsive && "@max-3xl/list:w-full"
+          )}
+        >
+          {@render search(
+            responsive ? "flex-1 @3xl/list:w-80 @3xl/list:flex-none" : "max-sm:flex-1 sm:w-80"
+          )}
           {@render filterPanel()}
           {@render phoneFilters()}
           {#if view}
@@ -1192,17 +1247,25 @@
             <!-- Round 9: Columns is a panel like Filter: a header with Reset, checkbox rows, and
                the pinned Name listed as locked so its absence from the choices is explained -->
             <Popover.Root>
-              <Popover.Trigger
-                class={cn(buttonVariants({ variant: "outline", size: "icon" }), "relative")}
-                aria-label={hiddenColumns ? `Columns, ${hiddenColumns} hidden` : "Columns"}
-              >
-                <Columns3Icon aria-hidden="true" />
-                {#if hiddenColumns}
-                  <span
-                    aria-hidden="true"
-                    class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
-                  ></span>
-                {/if}
+              <Popover.Trigger>
+                {#snippet child({ props })}
+                  <Button
+                    {...props}
+                    data-slot="button"
+                    variant="outline"
+                    size="icon"
+                    class="relative"
+                    aria-label={hiddenColumns ? `Columns, ${hiddenColumns} hidden` : "Columns"}
+                  >
+                    <Columns3Icon aria-hidden="true" />
+                    {#if hiddenColumns}
+                      <span
+                        aria-hidden="true"
+                        class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
+                      ></span>
+                    {/if}
+                  </Button>
+                {/snippet}
               </Popover.Trigger>
               <Popover.Content
                 align="end"
@@ -1257,7 +1320,10 @@
             <a
               href={clearHref}
               data-sveltekit-noscroll
-              class={cn(buttonVariants({ variant: "ghost" }), "text-muted-foreground")}>Clear all</a
+              class={cn(
+                buttonVariants({ variant: "ghost" }),
+                "text-muted-foreground pointer-coarse:h-11"
+              )}>Clear all</a
             >
           {/if}
         </div>
@@ -1288,7 +1354,11 @@
               column="name"
               label="Name"
               current={sort}
-              class={cn("bg-card pinned-start sticky left-0 z-10", columnClass("identity"))}
+              class={cn(
+                "bg-card pinned-start sticky left-0 z-10",
+                columnClass("identity"),
+                FOLD.name
+              )}
             />
             {#if columns.visible("code")}
               <SortableHead
@@ -1296,12 +1366,14 @@
                 column="code"
                 label="Code"
                 current={sort}
-                class={columnClass("utility")}
+                class={cn(columnClass("utility"), FOLD.meta)}
               />
             {/if}
             {#if columns.visible("description")}
               <!-- Q11: free text absorbs the spare width and truncates, down to ~16ch -->
-              <Table.Head scope="col" class="w-full max-w-0 min-w-[16ch]">Description</Table.Head>
+              <Table.Head scope="col" class={cn("w-full max-w-0 min-w-[16ch]", FOLD.description)}
+                >Description</Table.Head
+              >
             {/if}
             {#if columns.visible("updatedAt")}
               <SortableHead
@@ -1309,7 +1381,7 @@
                 column="updatedAt"
                 label={inTrash ? "Deleted" : "Updated"}
                 current={sort}
-                class={columnClass("utility")}
+                class={cn(columnClass("utility"), FOLD.meta)}
               />
             {/if}
             <Table.Head
@@ -1332,7 +1404,8 @@
                 class={cn(
                   PINNED_BG,
                   "pinned-start sticky left-0 z-10 max-w-72",
-                  columnClass("identity")
+                  columnClass("identity"),
+                  FOLD.name
                 )}
               >
                 <div class="flex items-center gap-2.5">
@@ -1349,24 +1422,42 @@
                       class={tile === "glyph" ? "size-5" : "size-4"}
                     />
                   </span>
-                  <a
-                    href="#{division.code}"
-                    class="truncate font-medium hover:underline"
-                    onclick={(e) => openName(e, division)}>{@render marked(division.name)}</a
-                  >
-                  {#if !isActive(division)}
-                    <!-- Q1: only the exception gets a pill -->
-                    <StatusPill status="Inactive" class="shrink-0" />
-                  {/if}
+                  <div class="flex min-w-0 flex-col">
+                    <div class="flex min-w-0 items-center gap-2.5">
+                      <a
+                        href="#{division.code}"
+                        class="truncate font-medium hover:underline"
+                        onclick={(e) => openName(e, division)}>{@render marked(division.name)}</a
+                      >
+                      {#if !isActive(division)}
+                        <!-- Q1: only the exception gets a pill -->
+                        <StatusPill status="Inactive" class="shrink-0" />
+                      {/if}
+                    </div>
+                    {#if responsive}
+                      <!-- Round 15: the folded columns, under the name -->
+                      <p
+                        class="text-muted-foreground hidden items-center gap-1 truncate text-xs @max-lg/list:flex"
+                      >
+                        {#if columns.visible("code")}
+                          <span class="font-mono">{@render marked(division.code)}</span> ·
+                        {/if}
+                        {inTrash ? "Deleted" : "Updated"}
+                        <RecordTime iso={inTrash ? division.deletedAt : division.updatedAt} />
+                      </p>
+                    {/if}
+                  </div>
                 </div>
               </Table.Cell>
               {#if columns.visible("code")}
-                <Table.Cell class={cn("font-mono text-xs", columnClass("utility"))}
+                <Table.Cell class={cn("font-mono text-xs", columnClass("utility"), FOLD.meta)}
                   >{@render marked(division.code)}</Table.Cell
                 >
               {/if}
               {#if columns.visible("description")}
-                <Table.Cell class="text-muted-foreground w-full max-w-0 min-w-[16ch]">
+                <Table.Cell
+                  class={cn("text-muted-foreground w-full max-w-0 min-w-[16ch]", FOLD.description)}
+                >
                   <span class="block truncate" title={division.description ?? undefined}
                     >{#if division.description}{@render marked(
                         division.description
@@ -1375,7 +1466,7 @@
                 </Table.Cell>
               {/if}
               {#if columns.visible("updatedAt")}
-                <Table.Cell class={columnClass("utility")}
+                <Table.Cell class={cn(columnClass("utility"), FOLD.meta)}
                   ><RecordTime
                     iso={inTrash ? division.deletedAt : division.updatedAt}
                   /></Table.Cell
