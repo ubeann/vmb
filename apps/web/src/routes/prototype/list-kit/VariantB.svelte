@@ -83,7 +83,8 @@
     view = false,
     strip = "end",
     searchBox = false,
-    responsive = false
+    responsive = false,
+    compactTools = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -104,6 +105,9 @@
     // Round 15: the list card answers to its own width (container queries): Description goes
     // first, then rows fold to two lines, the name over "code · updated"
     responsive?: boolean;
+    // Round 17: under 42rem of card (where Description folds too), Filter and View shrink to icons (the count badge and the
+    // changed dot move to the corner), so the search keeps the row
+    compactTools?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -193,6 +197,15 @@
     description: responsive && "@max-2xl/list:hidden",
     meta: responsive && "@max-lg/list:hidden",
     name: responsive && "@max-lg/list:w-full @max-lg/list:max-w-none"
+  });
+  // Round 17: the toolbar buttons fold to icons when the card is narrow
+  const TOOL = $derived({
+    button:
+      compactTools && "relative @max-2xl/list:w-8 @max-2xl/list:justify-center @max-2xl/list:px-0!",
+    label: compactTools && "@max-2xl/list:sr-only",
+    badge:
+      compactTools &&
+      "@max-2xl/list:absolute @max-2xl/list:-top-1.5 @max-2xl/list:-right-1.5 @max-2xl/list:h-4 @max-2xl/list:min-w-4 @max-2xl/list:px-1 @max-2xl/list:text-[0.65rem] @max-2xl/list:ring-2 @max-2xl/list:ring-background"
   });
   const ROW_ACTION =
     "hover:bg-background dark:hover:bg-background hover:ring-border hover:text-foreground hover:shadow-xs hover:ring-1";
@@ -536,10 +549,13 @@
           {...props}
           data-slot="button"
           variant="outline"
-          class="relative max-sm:hidden"
+          class={cn("relative max-sm:hidden", TOOL.button)}
           aria-label={viewChanged ? "View, changed" : "View"}
+          title={compactTools ? "View" : undefined}
         >
-          <Settings2Icon aria-hidden="true" data-icon="inline-start" />View
+          <Settings2Icon aria-hidden="true" data-icon="inline-start" /><span
+            class={TOOL.label || undefined}>View</span
+          >
           {#if viewChanged}
             <span
               aria-hidden="true"
@@ -704,12 +720,13 @@
   {/if}
 {/snippet}
 
-{#snippet countBadge()}
+{#snippet countBadge(extra: string | false = false)}
   {#if activeCount}
     <span
       class={cn(
         "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums",
-        look.badge
+        look.badge,
+        extra
       )}>{activeCount}<span class="sr-only"> in use</span></span
     >
   {/if}
@@ -759,6 +776,7 @@
       {base}
       label="Search divisions"
       placeholder="Search name, code or description"
+      shortPlaceholder="Search divisions"
       class={cls}
     />
   {:else}
@@ -870,8 +888,16 @@
   <Popover.Root bind:open={panelOpen}>
     <Popover.Trigger>
       {#snippet child({ props })}
-        <Button {...props} data-slot="button" variant="outline" class="max-sm:hidden">
-          <ListFilterIcon aria-hidden="true" data-icon="inline-start" />Filter{@render countBadge()}
+        <Button
+          {...props}
+          data-slot="button"
+          variant="outline"
+          class={cn("max-sm:hidden", TOOL.button)}
+          title={compactTools ? "Filter" : undefined}
+        >
+          <ListFilterIcon aria-hidden="true" data-icon="inline-start" /><span
+            class={TOOL.label || undefined}>Filter</span
+          >{@render countBadge(TOOL.badge)}
         </Button>
       {/snippet}
     </Popover.Trigger>
@@ -1082,12 +1108,30 @@
   <Sheet.Root bind:open={sheetOpen}>
     <Sheet.Trigger>
       {#snippet child({ props })}
-        <Button {...props} variant="outline" class="sm:hidden">
-          <SlidersHorizontalIcon
-            aria-hidden="true"
-            data-icon="inline-start"
-          />Filters{@render countBadge()}
-        </Button>
+        {#if compactTools}
+          <!-- Round 18: the phone's Filters is the tablet's icon button: the same funnel, the
+               count in its corner, the name kept for screen readers -->
+          <Button
+            {...props}
+            data-slot="button"
+            variant="outline"
+            size="icon"
+            class="relative sm:hidden"
+            title="Filters"
+          >
+            <ListFilterIcon aria-hidden="true" /><span class="sr-only">Filters</span
+            >{@render countBadge(
+              "absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[0.65rem] ring-2 ring-background"
+            )}
+          </Button>
+        {:else}
+          <Button {...props} variant="outline" class="sm:hidden">
+            <SlidersHorizontalIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+            />Filters{@render countBadge()}
+          </Button>
+        {/if}
       {/snippet}
     </Sheet.Trigger>
     <Sheet.Content side="bottom" class="max-h-[85svh] gap-0 overflow-y-auto rounded-t-xl">

@@ -4,6 +4,7 @@
     (the browser's blue cancel button is hidden)
   - a spinner in place of the magnifier while a search is on its way
   - Esc clears the text first, then leaves the field
+  - round 19: `shortPlaceholder` takes over when the full one would be cut off
 -->
 <script lang="ts">
   import { goto } from "$app/navigation";
@@ -21,8 +22,15 @@
     base,
     label,
     placeholder = "Search…",
+    shortPlaceholder,
     class: className = ""
-  }: { base: MasterListPathname; label: string; placeholder?: string; class?: string } = $props();
+  }: {
+    base: MasterListPathname;
+    label: string;
+    placeholder?: string;
+    shortPlaceholder?: string;
+    class?: string;
+  } = $props();
 
   const DEBOUNCE_MS = 300;
 
@@ -35,7 +43,26 @@
   let input = $state<HTMLInputElement | null>(null);
   let focused = $state(false);
   let busy = $state(false);
+  let formWidth = $state(0);
   let sent: string | null = null;
+
+  // The full placeholder when it fits the field, measured in the field's own font (16px on
+  // phones, 14px from md up), else the short one
+  let canvas: HTMLCanvasElement | undefined;
+  // measured again once the web fonts are in; the fallback font is narrower
+  let fontsReady = $state(false);
+  $effect(() => {
+    document.fonts.ready.then(() => (fontsReady = true));
+  });
+  const shownPlaceholder = $derived.by(() => {
+    if (!shortPlaceholder || !input || !formWidth || !fontsReady) return placeholder;
+    const style = getComputedStyle(input);
+    const context = (canvas ??= document.createElement("canvas")).getContext("2d");
+    if (!context) return placeholder;
+    context.font = style.font;
+    const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return context.measureText(placeholder).width <= room ? placeholder : shortPlaceholder;
+  });
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
@@ -104,7 +131,13 @@
 
 <svelte:window {onkeydown} />
 
-<form method="GET" role="search" class="relative {className}" {onsubmit}>
+<form
+  method="GET"
+  role="search"
+  class="relative {className}"
+  {onsubmit}
+  bind:clientWidth={formWidth}
+>
   {#each carried as [key, carriedValue], index (`${index}:${key}`)}
     <input type="hidden" name={key} value={carriedValue} />
   {/each}
@@ -127,7 +160,7 @@
     aria-label={label}
     aria-keyshortcuts="/"
     aria-busy={busy}
-    {placeholder}
+    placeholder={shownPlaceholder}
     autocomplete="off"
     class="pr-9 pl-8 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
     {oninput}
