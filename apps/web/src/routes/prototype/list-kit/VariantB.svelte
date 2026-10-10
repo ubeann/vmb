@@ -120,7 +120,8 @@
     steadyPanel = false,
     roomWidth = false,
     dialogFrom480 = false,
-    globalShortcuts = false
+    globalShortcuts = false,
+    pageDescription = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -237,6 +238,10 @@
     // Round 50: the shortcut sheet is the app's, opened by ? anywhere and from the sidebar
     // footer; this list registers its own sections in it, and the footer hint goes
     globalShortcuts?: boolean;
+    // Round 51: a one-sentence description under the title (Q8 revisited): what a division is
+    // and why it matters, muted, a measure of ~60ch, two lines at most on phones; the action
+    // stays on the title's row
+    pageDescription?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -2245,12 +2250,27 @@
 
 <Page width="default" class={cn("flex flex-col gap-4", RADIUS)}>
   <!-- Q8, Q9: no description; a smaller title with the action on its row -->
-  <header class="flex items-center justify-between gap-3">
-    <h1 class="font-display text-2xl font-medium tracking-tight">Divisions</h1>
-    <Button onclick={stub("New division")}>
-      <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
-    </Button>
-  </header>
+  {#if pageDescription}
+    <!-- the title and its action share a row; the sentence has the full width under them -->
+    <header class="flex flex-col gap-1">
+      <div class="flex items-center justify-between gap-4">
+        <h1 class="font-display text-2xl leading-8 font-medium tracking-tight">Divisions</h1>
+        <Button class="shrink-0" onclick={stub("New division")}>
+          <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
+        </Button>
+      </div>
+      <p class="text-muted-foreground max-w-[60ch] text-sm text-pretty">
+        Business units. A user belongs to a division through the roles they hold.
+      </p>
+    </header>
+  {:else}
+    <header class="flex items-center justify-between gap-3">
+      <h1 class="font-display text-2xl font-medium tracking-tight">Divisions</h1>
+      <Button onclick={stub("New division")}>
+        <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
+      </Button>
+    </header>
+  {/if}
 
   {#if toolbar === "row"}
     <!-- C1 One row: views, search, a button per filter, More filters, status, columns -->
