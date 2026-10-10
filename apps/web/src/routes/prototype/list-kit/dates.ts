@@ -33,10 +33,38 @@ const DAY = new Intl.DateTimeFormat("en-GB", {
 });
 const date = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
-/** "8 Jan 2026", "2 – 8 Jan 2026", "28 Dec 2025 – 8 Jan 2026" */
+const DAY_MONTH_ONLY = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC"
+});
+
+/** "8 Jan 2026", "2 – 8 Jan 2026", "1 Nov – 31 Dec 2025", "28 Dec 2025 – 8 Jan 2026" */
 export function formatRange([start, end]: [string, string]): string {
   if (start === end) return DAY.format(date(start));
   if (start.slice(0, 7) === end.slice(0, 7))
     return `${Number(start.slice(8))} – ${DAY.format(date(end))}`;
+  // round 36: one year when both ends share it
+  if (start.slice(0, 4) === end.slice(0, 4))
+    return `${DAY_MONTH_ONLY.format(date(start))} – ${DAY.format(date(end))}`;
   return `${DAY.format(date(start))} – ${DAY.format(date(end))}`;
+}
+
+const DAY_MONTH = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC"
+});
+
+/**
+ * Round 35: a button's short form. A recent range (ending this year, starting within the year
+ * before its end) drops the years: "2 – 5 Jan", "29 Dec – 4 Jan". An older one keeps them.
+ */
+export function formatShortRange([start, end]: [string, string]): string {
+  const yearAgo = `${Number(end.slice(0, 4)) - 1}${end.slice(4)}`;
+  if (end.slice(0, 4) !== TODAY.slice(0, 4) || start < yearAgo) return formatRange([start, end]);
+  if (start === end) return DAY_MONTH.format(date(start));
+  if (start.slice(0, 7) === end.slice(0, 7))
+    return `${Number(start.slice(8))} – ${DAY_MONTH.format(date(end))}`;
+  return `${DAY_MONTH.format(date(start))} – ${DAY_MONTH.format(date(end))}`;
 }

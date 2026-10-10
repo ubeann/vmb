@@ -47,6 +47,7 @@
   import CirclePlusIcon from "@lucide/svelte/icons/circle-plus";
   import Columns3Icon from "@lucide/svelte/icons/columns-3";
   import EllipsisVerticalIcon from "@lucide/svelte/icons/ellipsis-vertical";
+  import CalendarCheckIcon from "@lucide/svelte/icons/calendar-check";
   import CalendarClockIcon from "@lucide/svelte/icons/calendar-clock";
   import CalendarPlusIcon from "@lucide/svelte/icons/calendar-plus";
   import CircleDotIcon from "@lucide/svelte/icons/circle-dot";
@@ -69,7 +70,7 @@
   import { parseDate } from "@internationalized/date";
   import type { DateRange } from "bits-ui";
   import { DEFAULT_PER_PAGE, PER_PAGE_OPTIONS, type Division } from "@vmb/types";
-  import { dateRange, formatRange, PRESET_RANGE, TODAY } from "./dates.js";
+  import { dateRange, formatRange, formatShortRange, PRESET_RANGE, TODAY } from "./dates.js";
   import { onMount, type Component } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { toast } from "svelte-sonner";
@@ -101,7 +102,8 @@
     sheetSteps = false,
     rangeStep = false,
     wideActions = false,
-    alignRows = false
+    alignRows = false,
+    actionIcons = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -174,6 +176,9 @@
     // Round 33: the date step's ticks lead every row so the dates form one column, only Custom
     // range carries a chevron; a custom range that equals a preset is saved as that preset
     alignRows?: boolean;
+    // Round 34: the sheet's and picker's main actions carry the icon of what they confirm, the
+    // funnel on "Show n divisions", a ticked calendar on Apply
+    actionIcons?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -1296,6 +1301,19 @@
       role="dialog"
       aria-label="{filter.label} dates"
       onInteractOutside={closeAllOutside}
+      onOpenAutoFocus={(event: Event) => {
+        if (!actionIcons) return;
+        // round 36: the first preset's focus ring read as a selection; start on the calendar
+        event.preventDefault();
+        // the calendar mounts after this fires: wait a frame, then take the day it marks as current
+        requestAnimationFrame(() =>
+          document
+            .querySelector<HTMLElement>(
+              `[aria-label="${filter.label} dates"] [data-range-calendar-day]:is([data-focused], [data-range-start], [data-today])`
+            )
+            ?.focus()
+        );
+      }}
     >
       <div class="border-border bg-muted/40 flex w-64 flex-col gap-0.5 border-r p-2">
         {#each [{ value: null, label: filter.any }, ...filter.options] as option (option.value)}
@@ -1321,34 +1339,75 @@
             {/if}
           </button>
         {/each}
+        {#if actionIcons && hasRange(filter)}
+          <!-- round 36: the list always says what is applied, a custom range included -->
+          <div
+            aria-current="true"
+            class="bg-primary/10 ring-primary/30 dark:bg-primary/15 flex h-9 items-center justify-between gap-3 rounded-md px-2.5 text-sm font-medium whitespace-nowrap ring-1 ring-inset"
+          >
+            <span class="shrink-0">Custom</span>
+            <span
+              class="text-muted-foreground min-w-0 truncate text-xs font-normal tabular-nums"
+              title={describe(filter)}>{describe(filter)}</span
+            >
+          </div>
+        {/if}
       </div>
-      <div class="flex flex-col">
+      <div class={cn("flex flex-col", actionIcons && "w-min")}>
         <RangeCalendar
           bind:value={draft}
           placeholder={parseDate(TODAY)}
           maxValue={parseDate(TODAY)}
           weekStartsOn={1}
-          class="p-3 [--cell-size:--spacing(9)]"
+          class={cn(
+            "p-3",
+            actionIcons ? "[--cell-size:--spacing(10)]" : "[--cell-size:--spacing(9)]"
+          )}
         />
-        <div class="border-border flex items-center justify-between gap-3 border-t p-3">
-          <span class="text-muted-foreground text-xs tabular-nums">
-            {draft?.start && draft.end
-              ? formatRange([draft.start.toString(), draft.end.toString()])
-              : "Pick a start and an end"}
-          </span>
-          <div class="flex gap-2">
+        {#if actionIcons}
+          <!-- Round 34: the phone's pattern: no caption, Apply fills the row and names the range,
+               its icon only once it can be pressed -->
+          <!-- the footer fills the column without widening it: the calendar sets the width -->
+          <div class="border-border flex w-0 min-w-full items-center gap-2 border-t p-3">
             <Button
-              variant="ghost"
-              class={cn(wideActions && "min-w-20")}
-              onclick={() => (pickerFor = null)}>Cancel</Button
-            >
-            <Button
-              class={cn(wideActions && "min-w-20")}
+              class="min-w-0 flex-1 tabular-nums"
+              title={draft?.start && draft.end
+                ? `Apply ${formatRange([draft.start.toString(), draft.end.toString()])}`
+                : undefined}
               disabled={!draft?.start || !draft.end}
-              onclick={() => applyDraft(filter)}>Apply</Button
+              onclick={() => applyDraft(filter)}
             >
+              {#if draft?.start && draft.end}
+                <CalendarCheckIcon aria-hidden="true" data-icon="inline-start" />
+                <span class="truncate"
+                  >Apply {formatShortRange([draft.start.toString(), draft.end.toString()])}</span
+                >
+              {:else}
+                Pick a start and an end
+              {/if}
+            </Button>
           </div>
-        </div>
+        {:else}
+          <div class="border-border flex items-center justify-between gap-3 border-t p-3">
+            <span class="text-muted-foreground text-xs tabular-nums">
+              {draft?.start && draft.end
+                ? formatRange([draft.start.toString(), draft.end.toString()])
+                : "Pick a start and an end"}
+            </span>
+            <div class="flex gap-2">
+              <Button
+                variant="ghost"
+                class={cn(wideActions && "min-w-20")}
+                onclick={() => (pickerFor = null)}>Cancel</Button
+              >
+              <Button
+                class={cn(wideActions && "min-w-20")}
+                disabled={!draft?.start || !draft.end}
+                onclick={() => applyDraft(filter)}>Apply</Button
+              >
+            </div>
+          </div>
+        {/if}
       </div>
     </Popover.Content>
   </Popover.Root>
@@ -1569,8 +1628,13 @@
               sheetStep = null;
             }}
           >
+            {#if actionIcons && draft?.start && draft.end}
+              <CalendarCheckIcon aria-hidden="true" data-icon="inline-start" />
+            {/if}
             {draft?.start && draft.end
-              ? `Apply · ${formatRange([draft.start.toString(), draft.end.toString()])}`
+              ? actionIcons
+                ? `Apply ${formatShortRange([draft.start.toString(), draft.end.toString()])}`
+                : `Apply · ${formatRange([draft.start.toString(), draft.end.toString()])}`
               : "Pick a start and an end"}
           </Button>
         {:else}
@@ -1784,6 +1848,7 @@
         >
       {/if}
       <Button data-slot="button" class="h-11 flex-1" onclick={() => (sheetOpen = false)}>
+        {#if actionIcons}<ListFilterIcon aria-hidden="true" data-icon="inline-start" />{/if}
         Show {data.divisions.total}
         {noun(data.divisions.total)}
       </Button>
