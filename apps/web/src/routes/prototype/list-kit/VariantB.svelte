@@ -57,6 +57,7 @@
   import PowerOffIcon from "@lucide/svelte/icons/power-off";
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
+  import SearchIcon from "@lucide/svelte/icons/search";
   import SearchXIcon from "@lucide/svelte/icons/search-x";
   import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
   import XIcon from "@lucide/svelte/icons/x";
@@ -77,7 +78,8 @@
     toolbar = "row",
     chip = "green",
     dates = "inline",
-    view = false
+    view = false,
+    strip = "end"
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -89,6 +91,10 @@
     // Round 10: a View panel (columns and rows per page) instead of Columns, a slim pager,
     // and row shortcuts shown in the row menu
     view?: boolean;
+    // Round 11: where the in-use strip puts Clear all and the count. "end": the count and Clear
+    // all at the far right; "inline": Clear all right after the chips, the search as a chip too,
+    // the count in the footer; "lead": the count opens the strip, Clear all after the chips
+    strip?: "end" | "inline" | "lead";
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -425,6 +431,33 @@
       ></DropdownMenu.Shortcut
     >
   {/if}
+{/snippet}
+
+<!-- Round 11: the search is a condition too, so it gets a chip like the filters -->
+{#snippet searchChip()}
+  <div class={cn("inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm", look.chip)}>
+    <button
+      type="button"
+      data-slot="filter-chip"
+      class={cn(
+        "inline-flex max-w-64 items-center gap-1.5 pr-2 pl-2 font-medium outline-none",
+        look.part
+      )}
+      onclick={() => document.querySelector<HTMLInputElement>("input[type=search]")?.focus()}
+    >
+      <SearchIcon aria-hidden="true" class={cn("size-4 shrink-0", look.icon)} />
+      <span class={cn("font-normal", look.label)}>Search</span><span class="truncate"
+        >“{data.query.search}”</span
+      >
+    </button>
+    <a
+      href={href({ search: null })}
+      data-sveltekit-noscroll
+      aria-label="Clear the search"
+      class={cn("inline-flex w-7 items-center justify-center border-l", look.part, look.seam)}
+      ><XIcon aria-hidden="true" class="size-3.5" /></a
+    >
+  </div>
 {/snippet}
 
 {#snippet columnRows()}
@@ -1166,8 +1199,23 @@
         <div
           class="bg-muted/40 border-border hidden flex-wrap items-center gap-2 border-b px-3 py-2 sm:flex"
         >
-          {@render chips()}
-          <div class="ml-auto">{@render statusLine()}</div>
+          {#if strip === "end"}
+            {@render chips()}
+            <div class="ml-auto">{@render statusLine()}</div>
+          {:else}
+            {#if strip === "lead"}
+              <p role="status" class="text-muted-foreground mr-1 text-sm tabular-nums">
+                {data.divisions.total} of {of}
+              </p>
+            {/if}
+            {#if data.query.search}{@render searchChip()}{/if}
+            {@render chips()}
+            <a
+              href={clearHref}
+              data-sveltekit-noscroll
+              class={cn(buttonVariants({ variant: "ghost" }), "text-muted-foreground")}>Clear all</a
+            >
+          {/if}
         </div>
       {/if}
     {/if}
@@ -1357,6 +1405,10 @@
   {#if fits}
     {#if !filtered && list.total > 0}
       <p class="text-muted-foreground text-sm tabular-nums">{list.total} divisions</p>
+    {:else if filtered && strip === "inline" && list.total > 0}
+      <p role="status" class="text-muted-foreground text-sm tabular-nums">
+        {list.total} of {of} divisions
+      </p>
     {/if}
   {:else if view}
     {@render pager()}
