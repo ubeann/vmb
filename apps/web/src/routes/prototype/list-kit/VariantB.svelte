@@ -37,7 +37,9 @@
   import * as Table from "$lib/components/ui/table/index.js";
   import { listHref, pageWindow, showingRange, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
+  import ArrowDownIcon from "@lucide/svelte/icons/arrow-down";
   import ArrowUpDownIcon from "@lucide/svelte/icons/arrow-up-down";
+  import ArrowUpIcon from "@lucide/svelte/icons/arrow-up";
   import CheckIcon from "@lucide/svelte/icons/check";
   import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
@@ -94,7 +96,8 @@
     middle = "name",
     rowNav = false,
     polish = false,
-    inactive = "dot"
+    inactive = "dot",
+    sortStyle = "list"
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -149,6 +152,10 @@
     // gone, the tile greyed and the name muted. Wider rows keep the pill and nothing else: one
     // signal at each width, the word always there (status is never colour alone, ADR-0035 rule 5)
     inactive?: "dot" | "word" | "dim";
+    // Round 28: View's Sort by on narrow lists. "list": six rows, a field and a direction each;
+    // "split": a row of fields and a row of directions, labelled for the field;
+    // "sections" (round 29): two check lists, Sort by (the column) and Order (its direction)
+    sortStyle?: "list" | "split" | "sections";
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -304,6 +311,26 @@
     month: "short",
     year: "numeric"
   });
+  // Round 28: the split sort. Each field starts in its natural direction, the direction's
+  // words follow the field
+  const SORT_FIELDS = $derived([
+    { sort: "name", label: "Name", start: "asc", asc: "A–Z", desc: "Z–A" },
+    { sort: "code", label: "Code", start: "asc", asc: "A–Z", desc: "Z–A" },
+    {
+      sort: "updatedAt",
+      label: inTrash ? "Deleted" : "Updated",
+      start: "desc",
+      asc: "Oldest first",
+      desc: "Newest first"
+    }
+  ]);
+  const sortField = $derived(
+    SORT_FIELDS.find((f) => f.sort === data.query.sort) ?? SORT_FIELDS[0]!
+  );
+  const PILL =
+    "inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-sm ring-1 ring-inset pointer-coarse:h-10";
+  const PILL_ON = "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium";
+  const PILL_OFF = "ring-border text-muted-foreground hover:bg-muted hover:text-foreground";
   const ROW_ACTION =
     "hover:bg-background dark:hover:bg-background hover:ring-border hover:text-foreground hover:shadow-xs hover:ring-1";
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
@@ -745,7 +772,68 @@
           >
         {/if}
       </div>
-      {#if folded}
+      {#if folded && sortStyle === "sections"}
+        {@const checkRow =
+          "hover:bg-muted flex h-8 w-full items-center justify-between rounded-md px-2 text-sm pointer-coarse:h-11"}
+        <section aria-labelledby="view-sort" class="border-border border-t px-4 py-3">
+          <h3
+            id="view-sort"
+            class="text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium"
+          >
+            <ArrowUpDownIcon aria-hidden="true" class="size-3.5" />Sort by
+          </h3>
+          <div role="radiogroup" aria-labelledby="view-sort" class="-mx-2 flex flex-col">
+            {#each SORT_FIELDS as field (field.sort)}
+              {@const on = field.sort === sortField.sort}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={on}
+                data-slot="view-sort"
+                onclick={() => !on && pickSort(`${field.sort}:${field.start}`)}
+                class={cn(checkRow, on && "font-medium")}
+              >
+                {field.sort === "updatedAt"
+                  ? inTrash
+                    ? "Date deleted"
+                    : "Last updated"
+                  : field.label}
+                {#if on}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
+              </button>
+            {/each}
+          </div>
+        </section>
+        <section aria-labelledby="view-order" class="border-border border-t px-4 py-3">
+          <h3
+            id="view-order"
+            class="text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium"
+          >
+            <ArrowDownIcon aria-hidden="true" class="size-3.5" />Order
+          </h3>
+          <div role="radiogroup" aria-labelledby="view-order" class="-mx-2 flex flex-col">
+            {#each sortField.sort === "updatedAt" ? ["desc", "asc"] : ["asc", "desc"] as dir (dir)}
+              {@const on = data.query.dir === dir}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={on}
+                data-slot="view-sort"
+                onclick={() => !on && pickSort(`${sortField.sort}:${dir}`)}
+                class={cn(checkRow, on && "font-medium")}
+              >
+                {sortField.sort === "updatedAt"
+                  ? dir === "desc"
+                    ? "Newest first"
+                    : "Oldest first"
+                  : dir === "asc"
+                    ? "A to Z"
+                    : "Z to A"}
+                {#if on}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
+              </button>
+            {/each}
+          </div>
+        </section>
+      {:else if folded}
         <section aria-labelledby="view-sort" class="border-border border-t px-4 py-3">
           <h3
             id="view-sort"
@@ -753,24 +841,59 @@
           >
             <ArrowUpDownIcon aria-hidden="true" class="size-3.5" />Sort by
           </h3>
-          <div class="-mx-2 flex flex-col">
-            {#each SORTS as option (`${option.sort}:${option.dir}`)}
-              {@const on = option.sort === data.query.sort && option.dir === data.query.dir}
-              <button
-                type="button"
-                data-slot="view-sort"
-                aria-pressed={on}
-                onclick={() => pickSort(`${option.sort}:${option.dir}`)}
-                class={cn(
-                  "hover:bg-muted flex h-8 items-center justify-between rounded-md px-2 text-sm pointer-coarse:h-11",
-                  on && "font-medium"
-                )}
-              >
-                {option.label}
-                {#if on}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
-              </button>
-            {/each}
-          </div>
+          {#if sortStyle === "split"}
+            <div class="flex flex-col gap-1.5">
+              <div class="flex gap-1.5" role="group" aria-label="Sort field">
+                {#each SORT_FIELDS as field (field.sort)}
+                  {@const on = field.sort === sortField.sort}
+                  <button
+                    type="button"
+                    data-slot="view-sort"
+                    aria-pressed={on}
+                    onclick={() => !on && pickSort(`${field.sort}:${field.start}`)}
+                    class={cn(PILL, on ? PILL_ON : PILL_OFF)}>{field.label}</button
+                  >
+                {/each}
+              </div>
+              <div class="flex gap-1.5" role="group" aria-label="Sort direction">
+                {#each [["asc", sortField.sort === "updatedAt" ? "desc" : "asc"], ["desc", sortField.sort === "updatedAt" ? "asc" : "desc"]] as [, dir] (dir)}
+                  {@const on = data.query.dir === dir}
+                  <button
+                    type="button"
+                    data-slot="view-sort"
+                    aria-pressed={on}
+                    onclick={() => !on && pickSort(`${sortField.sort}:${dir}`)}
+                    class={cn(PILL, on ? PILL_ON : PILL_OFF)}
+                  >
+                    {#if dir === "asc"}<ArrowUpIcon
+                        aria-hidden="true"
+                        class="size-3.5"
+                      />{:else}<ArrowDownIcon aria-hidden="true" class="size-3.5" />{/if}
+                    {dir === "asc" ? sortField.asc : sortField.desc}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {:else}
+            <div class="-mx-2 flex flex-col">
+              {#each SORTS as option (`${option.sort}:${option.dir}`)}
+                {@const on = option.sort === data.query.sort && option.dir === data.query.dir}
+                <button
+                  type="button"
+                  data-slot="view-sort"
+                  aria-pressed={on}
+                  onclick={() => pickSort(`${option.sort}:${option.dir}`)}
+                  class={cn(
+                    "hover:bg-muted flex h-8 items-center justify-between rounded-md px-2 text-sm pointer-coarse:h-11",
+                    on && "font-medium"
+                  )}
+                >
+                  {option.label}
+                  {#if on}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </section>
       {:else}
         <section aria-labelledby="view-columns" class="border-border border-t px-4 py-3">
