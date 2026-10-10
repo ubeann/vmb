@@ -113,7 +113,8 @@
     followRoom = false,
     freshOpen = false,
     settleFirst = false,
-    compactPager = false
+    compactPager = false,
+    steadyPanel = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -218,6 +219,9 @@
     // Round 46: on phones the pager is "‹ Previous · Page 5 of 10 · Next ›" under a centred
     // count; nobody taps page 7 on a phone, they page on or back
     compactPager?: boolean;
+    // Round 47: the Filter panel keeps one width (22rem) on every step, so opening a date step
+    // inside it on a tablet no longer moves its left edge
+    steadyPanel?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -1534,7 +1538,7 @@
       align="end"
       class={cn(
         "max-h-(--bits-floating-available-height) w-80 gap-0 overflow-y-auto p-0",
-        panelSteps && stepFilter && "w-[22rem]"
+        (steadyPanel || (panelSteps && stepFilter)) && "w-[22rem]"
       )}
       role="dialog"
       aria-label="Filters"
