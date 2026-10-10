@@ -28,7 +28,11 @@
     { key: "C3x", name: "C3v, the count leads the strip" },
     { key: "C3y", name: "C3w + reworked search" },
     { key: "C3r", name: "C3y + responsive card" },
-    { key: "C3t", name: "C3r + icon tools when narrow" }
+    { key: "C3t", name: "C3r + icon tools when narrow" },
+    { key: "C3h", name: "C3t + sort menu for two-line rows" },
+    { key: "C3p", name: "C3t + 16px tablet padding" },
+    { key: "C3q", name: "C3p + icon-rail sidebar under 1024px" },
+    { key: "C3k", name: "C3q + View holds sort on narrow" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -49,6 +53,49 @@
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
 {:else if variant === "C3w"}
   <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" view strip="inline" />
+{:else if variant === "C3k"}
+  <VariantB
+    {data}
+    tile="tint"
+    toolbar="card"
+    chip="green"
+    dates="beside"
+    view
+    strip="inline"
+    searchBox
+    responsive
+    compactTools
+    tabletPadding
+    sortInView
+  />
+{:else if variant === "C3h"}
+  <VariantB
+    {data}
+    tile="tint"
+    toolbar="card"
+    chip="green"
+    dates="beside"
+    view
+    strip="inline"
+    searchBox
+    responsive
+    compactTools
+    sortBar
+  />
+{:else if variant === "C3p" || variant === "C3q"}
+  <VariantB
+    {data}
+    tile="tint"
+    toolbar="card"
+    chip="green"
+    dates="beside"
+    view
+    strip="inline"
+    searchBox
+    responsive
+    compactTools
+    tabletPadding
+  />
 {:else if variant === "C3t"}
   <VariantB
     {data}

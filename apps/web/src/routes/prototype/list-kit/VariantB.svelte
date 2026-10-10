@@ -37,6 +37,7 @@
   import * as Table from "$lib/components/ui/table/index.js";
   import { listHref, pageWindow, showingRange, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
+  import ArrowUpDownIcon from "@lucide/svelte/icons/arrow-up-down";
   import CheckIcon from "@lucide/svelte/icons/check";
   import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
@@ -84,7 +85,10 @@
     strip = "end",
     searchBox = false,
     responsive = false,
-    compactTools = false
+    compactTools = false,
+    sortBar = false,
+    tabletPadding = false,
+    sortInView = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -108,6 +112,14 @@
     // Round 17: under 42rem of card (where Description folds too), Filter and View shrink to icons (the count badge and the
     // changed dot move to the corner), so the search keeps the row
     compactTools?: boolean;
+    // Round 20: in two-line rows the header row (only "Name ↑" left) gives way to a sort menu
+    // that also reaches the folded Code and Updated
+    sortBar?: boolean;
+    // Round 20: 16px of page padding instead of 24 between sm and lg
+    tabletPadding?: boolean;
+    // Round 21: View shows on phones too; once rows fold to two lines it trades Columns for
+    // Sort by, and the header row goes
+    sortInView?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -207,6 +219,34 @@
       compactTools &&
       "@max-2xl/list:absolute @max-2xl/list:-top-1.5 @max-2xl/list:-right-1.5 @max-2xl/list:h-4 @max-2xl/list:min-w-4 @max-2xl/list:px-1 @max-2xl/list:text-[0.65rem] @max-2xl/list:ring-2 @max-2xl/list:ring-background"
   });
+  // Round 20: the sort menu's choices, each a column and a direction
+  const SORTS = $derived([
+    { sort: "name", dir: "asc", label: "Name, A–Z" },
+    { sort: "name", dir: "desc", label: "Name, Z–A" },
+    { sort: "code", dir: "asc", label: "Code, A–Z" },
+    { sort: "code", dir: "desc", label: "Code, Z–A" },
+    {
+      sort: "updatedAt",
+      dir: "desc",
+      label: inTrash ? "Deleted, newest first" : "Updated, newest first"
+    },
+    {
+      sort: "updatedAt",
+      dir: "asc",
+      label: inTrash ? "Deleted, oldest first" : "Updated, oldest first"
+    }
+  ]);
+  const sortLabel = $derived(
+    SORTS.find((o) => o.sort === data.query.sort && o.dir === data.query.dir)?.label ?? "Name, A–Z"
+  );
+  function pickSort(value: string) {
+    const [sortKey, dir] = value.split(":");
+    const isDefault = sortKey === "name" && dir === "asc";
+    goto(href({ sort: isDefault ? null : sortKey!, dir: isDefault ? null : dir! }), {
+      noScroll: true,
+      keepFocus: true
+    });
+  }
   const ROW_ACTION =
     "hover:bg-background dark:hover:bg-background hover:ring-border hover:text-foreground hover:shadow-xs hover:ring-1";
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
@@ -282,10 +322,20 @@
   // Round 10: the View panel. Rows per page moves here from the footer, which keeps only the
   // page links; Reset brings back every column and the default page size.
   const perPage = $derived(data.divisions.perPage);
-  const viewChanged = $derived(hiddenColumns > 0 || perPage !== DEFAULT_PER_PAGE);
+  // Round 21: the card's width, for what the View panel (portalled, so outside the card's
+  // container queries) offers: Sort by replaces Columns once rows fold to two lines
+  let cardWidth = $state(0);
+  const folded = $derived(sortInView && cardWidth > 0 && cardWidth < 512);
+  const sortChanged = $derived(data.query.sort !== "name" || data.query.dir !== "asc");
+  const viewChanged = $derived(
+    hiddenColumns > 0 || perPage !== DEFAULT_PER_PAGE || (folded && sortChanged)
+  );
   function resetView() {
     showAllColumns();
-    goto(href({ perPage: null }), { noScroll: true, keepFocus: true });
+    goto(href({ perPage: null, ...(folded ? { sort: null, dir: null } : {}) }), {
+      noScroll: true,
+      keepFocus: true
+    });
   }
 
   // Round 10: row shortcuts. E edits, D deactivates, A activates, ⌫ deletes, R restores. They
@@ -549,7 +599,7 @@
           {...props}
           data-slot="button"
           variant="outline"
-          class={cn("relative max-sm:hidden", TOOL.button)}
+          class={cn("relative", !sortInView && "max-sm:hidden", TOOL.button)}
           aria-label={viewChanged ? "View, changed" : "View"}
           title={compactTools ? "View" : undefined}
         >
@@ -583,15 +633,44 @@
           >
         {/if}
       </div>
-      <section aria-labelledby="view-columns" class="border-border border-t px-4 py-3">
-        <h3
-          id="view-columns"
-          class="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium"
-        >
-          <Columns3Icon aria-hidden="true" class="size-3.5" />Columns
-        </h3>
-        <div class="-mx-2 flex flex-col">{@render columnRows()}</div>
-      </section>
+      {#if folded}
+        <section aria-labelledby="view-sort" class="border-border border-t px-4 py-3">
+          <h3
+            id="view-sort"
+            class="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium"
+          >
+            <ArrowUpDownIcon aria-hidden="true" class="size-3.5" />Sort by
+          </h3>
+          <div class="-mx-2 flex flex-col">
+            {#each SORTS as option (`${option.sort}:${option.dir}`)}
+              {@const on = option.sort === data.query.sort && option.dir === data.query.dir}
+              <button
+                type="button"
+                data-slot="view-sort"
+                aria-pressed={on}
+                onclick={() => pickSort(`${option.sort}:${option.dir}`)}
+                class={cn(
+                  "hover:bg-muted flex h-8 items-center justify-between rounded-md px-2 text-sm pointer-coarse:h-11",
+                  on && "font-medium"
+                )}
+              >
+                {option.label}
+                {#if on}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
+              </button>
+            {/each}
+          </div>
+        </section>
+      {:else}
+        <section aria-labelledby="view-columns" class="border-border border-t px-4 py-3">
+          <h3
+            id="view-columns"
+            class="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium"
+          >
+            <Columns3Icon aria-hidden="true" class="size-3.5" />Columns
+          </h3>
+          <div class="-mx-2 flex flex-col">{@render columnRows()}</div>
+        </section>
+      {/if}
       <section aria-labelledby="view-rows" class="border-border border-t px-4 py-3">
         <h3
           id="view-rows"
@@ -1151,6 +1230,19 @@
   </Sheet.Root>
 {/snippet}
 
+<!-- Round 20: the shell's 24px page padding drops to 16px on tablets -->
+<svelte:head>
+  {#if tabletPadding}
+    <style>
+      @media (min-width: 640px) and (max-width: 1023.98px) {
+        #main-content {
+          padding: 1rem;
+        }
+      }
+    </style>
+  {/if}
+</svelte:head>
+
 <Page width="default" class="flex flex-col gap-4">
   <!-- Q8, Q9: no description; a smaller title with the action on its row -->
   <header class="flex items-center justify-between gap-3">
@@ -1250,7 +1342,10 @@
   {/if}
 
   {@const list = data.divisions}
-  <div class={cn("border-border bg-card relative overflow-hidden rounded-lg border", FOLD.card)}>
+  <div
+    class={cn("border-border bg-card relative overflow-hidden rounded-lg border", FOLD.card)}
+    bind:clientWidth={cardWidth}
+  >
     {#if toolbar === "card"}
       <!-- C3 In the card: the views are tabs on the table's own top edge, the controls beside them -->
       <div class="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3">
@@ -1373,6 +1468,41 @@
         </div>
       {/if}
     {/if}
+    {#if sortBar && list.items.length > 0}
+      <!-- Round 20: the sort menu stands in for the header row once rows fold to two lines -->
+      <div class="border-border hidden items-center border-b px-2 py-1.5 @max-lg/list:flex">
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <Button
+                {...props}
+                data-slot="button"
+                variant="ghost"
+                size="sm"
+                class="text-muted-foreground"
+              >
+                <ArrowUpDownIcon aria-hidden="true" data-icon="inline-start" />Sort:
+                <span class="text-foreground font-medium">{sortLabel}</span>
+                <ChevronDownIcon aria-hidden="true" data-icon="inline-end" />
+              </Button>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="start" class="w-56">
+            <DropdownMenu.RadioGroup
+              value={`${data.query.sort}:${data.query.dir}`}
+              onValueChange={pickSort}
+            >
+              <DropdownMenu.GroupHeading>Sort by</DropdownMenu.GroupHeading>
+              {#each SORTS as option (`${option.sort}:${option.dir}`)}
+                <DropdownMenu.RadioItem value={`${option.sort}:${option.dir}`}
+                  >{option.label}</DropdownMenu.RadioItem
+                >
+              {/each}
+            </DropdownMenu.RadioGroup>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+      </div>
+    {/if}
     {#if list.items.length === 0 && view && inTrash && !filtered}
       <EmptyState
         icon={Trash2Icon}
@@ -1391,7 +1521,7 @@
       </EmptyState>
     {:else}
       <Table.Root>
-        <Table.Header>
+        <Table.Header class={cn((sortBar || sortInView) && "@max-lg/list:hidden")}>
           <Table.Row class="hover:bg-transparent">
             <SortableHead
               {base}
