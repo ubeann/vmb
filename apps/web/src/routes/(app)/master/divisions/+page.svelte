@@ -71,7 +71,10 @@
   const can = (permission: PermissionKey) => data.permissions.includes(permission);
 
   const inTrash = $derived(data.query.trashed === "only");
-  const filtered = $derived(Boolean(data.query.search) || data.query.status !== "all");
+  const filtered = $derived(
+    Boolean(data.query.search || data.query.updated || data.query.created) ||
+      data.query.status.length > 0
+  );
   const sort = $derived({ sort: data.query.sort, dir: data.query.dir });
   // a search, filter, sort or page change on this list, still loading
   const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
@@ -179,7 +182,14 @@
             description="Try another search, or clear the filters to see every division."
           >
             <a
-              href={resolve(listHref(base, page.url.searchParams, { search: null, status: null }))}
+              href={resolve(
+                listHref(base, page.url.searchParams, {
+                  search: null,
+                  status: null,
+                  updated: null,
+                  created: null
+                })
+              )}
               class={buttonVariants({ variant: "outline" })}>Clear search and filters</a
             >
           </EmptyState>

@@ -1,3 +1,4 @@
+import { splitListParam } from "@vmb/types";
 import type { z } from "zod";
 
 /** The list pages that page through a filtered query. */
@@ -7,16 +8,39 @@ export type MasterListPathname = "/master/divisions" | "/master/roles" | "/maste
  * A list page's query parameters, coerced and defaulted by the shared schema.
  * A parameter the schema refuses falls back to its default and the rest still
  * apply, rather than failing the page — a hand-typed URL should not be a 500.
+ * In a value filter (`status=active,archived`) only the refused value goes.
  * A repeated parameter takes its last value.
  */
 export function parseListQuery<T extends z.ZodType>(schema: T, url: URL): z.infer<T> {
   const raw: Record<string, string> = Object.fromEntries(url.searchParams);
   let parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    for (const issue of parsed.error.issues) delete raw[String(issue.path[0])];
+    // a value filter's issue names the value's index after `splitListParam`
+    const refused = new Map<string, Set<number> | "all">();
+    for (const [key, index] of parsed.error.issues.map((issue) => issue.path)) {
+      const name = String(key);
+      const known = refused.get(name);
+      if (typeof index !== "number") refused.set(name, "all");
+      else if (known !== "all") refused.set(name, (known ?? new Set()).add(index));
+    }
+    for (const [key, indexes] of refused) {
+      if (indexes === "all") delete raw[key];
+      else
+        raw[key] = splitListParam(raw[key] ?? "")
+          .filter((_, index) => !indexes.has(index))
+          .join(",");
+    }
     parsed = schema.safeParse(raw);
   }
   return (parsed.success ? parsed.data : schema.parse({})) as z.infer<T>;
+}
+
+/**
+ * A query string with the commas of a value filter left as they are
+ * (`status=active,inactive`), which a URL allows and a reader can read.
+ */
+function queryString(params: URLSearchParams): string {
+  return params.toString().replaceAll("%2C", ",");
 }
 
 /**
@@ -37,10 +61,11 @@ export function canonicalListSearch<T extends z.ZodType>(
   for (const key of new Set(url.searchParams.keys())) {
     const value = values[key];
     if (value === undefined || value === null || value === "") continue;
+    // a value filter's array joins with commas, and an empty one matches its default
     if (String(value) === String(defaults[key])) continue;
     params.set(key, String(value));
   }
-  const search = params.toString();
+  const search = queryString(params);
   return search ? `?${search}` : "";
 }
 
@@ -60,7 +85,7 @@ export function pageHref(
     params.set(key, String(value));
   }
   params.set("page", String(page));
-  return `${base}?${params.toString()}`;
+  return `${base}?${queryString(params)}`;
 }
 
 /** A list URL: one of the list routes, with or without a query. */
@@ -86,7 +111,7 @@ export function listHref(
     else next.set(key, String(value));
   }
 
-  const query = next.toString();
+  const query = queryString(next);
   return query ? `${base}?${query}` : base;
 }
 

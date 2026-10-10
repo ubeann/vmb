@@ -1,6 +1,6 @@
 import type {
   Division,
-  DivisionListQuery,
+  DivisionListRequest,
   DivisionListResponse,
   Role,
   RoleListResponse,
@@ -63,12 +63,21 @@ const user: User = {
   deletedAt: null
 };
 
+const EMPTY_DIVISIONS: DivisionListResponse = {
+  items: [],
+  total: 0,
+  page: 1,
+  perPage: 10,
+  views: { all: 0, trash: 0 },
+  facets: { status: { active: 0, inactive: 0 } }
+};
+
 function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
   return {
     // the caller may do everything unless a test narrows it (permissions.test.ts)
     getPermissions: vi.fn(async () => allPermissionKeys()),
     getAccess: vi.fn(async () => ({ permissions: allPermissionKeys(), divisions: [] })),
-    listDivisions: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
+    listDivisions: vi.fn(async () => EMPTY_DIVISIONS),
     getDivision: vi.fn(async () => division),
     createDivision: vi.fn(async () => division),
     updateDivision: vi.fn(async () => division),
@@ -134,20 +143,82 @@ describe("master API: divisions", () => {
     expect(response.status).toBe(200);
     expect(store.listDivisions).toHaveBeenCalledWith({
       search: "ops",
-      status: "inactive",
+      status: ["inactive"],
+      updated: undefined,
+      created: undefined,
       trashed: "only",
       sort: "code",
       dir: "desc",
       page: 2,
-      perPage: 25
-    } satisfies DivisionListQuery);
+      perPage: 25,
+      tz: "Asia/Jakarta"
+    } satisfies DivisionListRequest);
+  });
+
+  it("takes several statuses, date ranges or presets, and the reader's zone", async () => {
+    const store = fakeStore();
+    const response = await appWith(store).request(
+      "/divisions?status=inactive,active&updated=2025-12-29..2026-01-04&created=week&tz=UTC",
+      {},
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.listDivisions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ["active", "inactive"],
+        updated: "2025-12-29..2026-01-04",
+        created: "week",
+        tz: "UTC"
+      })
+    );
+  });
+
+  it("reads the old single-value status=all as any status", async () => {
+    const store = fakeStore();
+    await appWith(store).request("/divisions?status=all", {}, env);
+
+    expect(store.listDivisions).toHaveBeenCalledWith(expect.objectContaining({ status: [] }));
+  });
+
+  it.each([
+    ["an unknown status", "status=active,archived", "status.1"],
+    ["a range ending before it starts", "updated=2026-02-01..2026-01-31", "updated"],
+    ["a day that does not exist", "created=2026-02-30..2026-03-01", "created"],
+    ["an offset in place of a zone", "tz=%2B07:00", "tz"]
+  ])("rejects %s with the issue list", async (_name, search, path) => {
+    const store = fakeStore();
+    const response = await appWith(store).request(`/divisions?${search}`, {}, env);
+    const body = (await response.json()) as { code: string; issues: { path: string }[] };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe("VALIDATION_FAILED");
+    expect(body.issues.map((issue) => issue.path)).toEqual([path]);
+    expect(store.listDivisions).not.toHaveBeenCalled();
+  });
+
+  it("answers with the view and status counts", async () => {
+    const counts = {
+      views: { all: 4, trash: 1 },
+      facets: { status: { active: 3, inactive: 1 } }
+    };
+    const store = fakeStore({
+      listDivisions: vi.fn(async () => ({
+        ...EMPTY_DIVISIONS,
+        items: [division],
+        total: 1,
+        ...counts
+      }))
+    });
+
+    const response = await appWith(store).request("/divisions", {}, env);
+
+    await expect(response.json()).resolves.toMatchObject({ total: 1, ...counts });
   });
 
   it("defaults the query to the first page, active rows only", async () => {
     const store = fakeStore({
-      listDivisions: vi.fn(
-        async () => ({ items: [division], total: 1, page: 1, perPage: 10 }) as DivisionListResponse
-      )
+      listDivisions: vi.fn(async () => ({ ...EMPTY_DIVISIONS, items: [division], total: 1 }))
     });
 
     const response = await appWith(store).request("/divisions", {}, env);
@@ -156,12 +227,15 @@ describe("master API: divisions", () => {
     expect(body).toMatchObject({ total: 1, page: 1, perPage: 10 });
     expect(store.listDivisions).toHaveBeenCalledWith({
       search: undefined,
-      status: "all",
+      status: [],
+      updated: undefined,
+      created: undefined,
       trashed: "exclude",
       sort: "name",
       dir: "asc",
       page: 1,
-      perPage: 25
+      perPage: 25,
+      tz: "Asia/Jakarta"
     });
   });
 

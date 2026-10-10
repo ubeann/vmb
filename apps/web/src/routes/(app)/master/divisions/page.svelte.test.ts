@@ -90,7 +90,14 @@ function props(
       query: DivisionListQuerySchema.parse(Object.fromEntries(mockPage.url.searchParams)),
       divisions: overrides.failed
         ? null
-        : { items, total: overrides.total ?? items.length, page: 1, perPage: 25 },
+        : {
+            items,
+            total: overrides.total ?? items.length,
+            page: 1,
+            perPage: 25,
+            views: { all: overrides.total ?? items.length, trash: 3 },
+            facets: { status: { active: 1, inactive: 1 } }
+          },
       trashCount: 3
     } as PageData
   };

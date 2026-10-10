@@ -1,4 +1,4 @@
-import { DivisionListQuerySchema, RoleListQuerySchema } from "@vmb/types";
+import { DivisionListRequestSchema, RoleListQuerySchema } from "@vmb/types";
 import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "../api.js";
 import {
@@ -54,21 +54,42 @@ const json = (body: unknown, status = 200) =>
 
 describe("master API client", () => {
   it("lists divisions with the query string the schema produced", async () => {
-    const { client, calls } = clientWith(() =>
-      json({ items: [division], total: 1, page: 1, perPage: 10 })
-    );
-    const query = DivisionListQuerySchema.parse({ search: "ops", perPage: "25", trashed: "only" });
+    const page = {
+      items: [division],
+      total: 1,
+      page: 1,
+      perPage: 10,
+      views: { all: 1, trash: 0 },
+      facets: { status: { active: 1, inactive: 0 } }
+    };
+    const { client, calls } = clientWith(() => json(page));
+    const query = DivisionListRequestSchema.parse({
+      search: "ops",
+      perPage: "25",
+      trashed: "only"
+    });
 
     const result = await listDivisions(client, query);
 
-    expect(result).toEqual({
-      ok: true,
-      value: { items: [division], total: 1, page: 1, perPage: 10 }
-    });
+    expect(result).toEqual({ ok: true, value: page });
     expect(calls[0]?.path).toBe(
-      "/api/master/divisions?search=ops&status=all&trashed=only&sort=name&dir=asc&page=1&perPage=25"
+      "/api/master/divisions?search=ops&trashed=only&sort=name&dir=asc&page=1&perPage=25&tz=Asia%2FJakarta"
     );
     expect(calls[0]?.method).toBe("GET");
+  });
+
+  it("sends several statuses as one comma-separated parameter", async () => {
+    const { client, calls } = clientWith(() => json({}, 500));
+    const query = DivisionListRequestSchema.parse({
+      status: "active,inactive",
+      updated: "2025-12-29..2026-01-04"
+    });
+
+    await listDivisions(client, query);
+
+    const url = new URL(`http://api.test${calls[0]?.path}`);
+    expect(url.searchParams.get("status")).toBe("active,inactive");
+    expect(url.searchParams.get("updated")).toBe("2025-12-29..2026-01-04");
   });
 
   it("creates a division with a JSON body", async () => {

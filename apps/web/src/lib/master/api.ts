@@ -12,7 +12,7 @@ import {
   type Access,
   type Division,
   type DivisionInput,
-  type DivisionListQuery,
+  type DivisionListRequest,
   type DivisionListResponse,
   type Role,
   type RoleInput,
@@ -114,18 +114,22 @@ async function failure(response: Response): Promise<ApiFailure> {
   };
 }
 
-/** Query parameters are a string record on the wire; undefined keys are dropped. */
-function queryStrings(query: Record<string, string | number | undefined>) {
+/**
+ * Query parameters are a string record on the wire; undefined keys and empty
+ * value filters are dropped, and a value filter's values join with commas.
+ */
+function queryStrings(query: Record<string, string | number | readonly string[] | undefined>) {
   const params: Record<string, string> = {};
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) params[key] = String(value);
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
+    params[key] = String(value);
   }
   return params;
 }
 
 export function listDivisions(
   client: ApiClient,
-  query: DivisionListQuery
+  query: DivisionListRequest
 ): Promise<ApiResult<DivisionListResponse>> {
   return client.api.master.divisions
     .$get({ query: queryStrings(query) })
