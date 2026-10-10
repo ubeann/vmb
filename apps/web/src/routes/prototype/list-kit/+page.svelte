@@ -44,9 +44,25 @@
     { key: "C3kw", name: "C3kp, the word without the dot" },
     { key: "C3ki", name: "C3kp, the word and a dimmed row" },
     { key: "C3ks", name: "C3ki + split sort in View" },
-    { key: "C3ko", name: "C3ki + Sort by and Order as check lists" }
+    { key: "C3ko", name: "C3ki + Sort by and Order as check lists" },
+    { key: "C3kf", name: "C3ko + the phone's filter sheet in steps" },
+    { key: "C3kg", name: "C3kf + custom range as a third step" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
+  // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
+  const K_SERIES = [
+    "C3kr",
+    "C3km",
+    "C3kd",
+    "C3kn",
+    "C3kp",
+    "C3kw",
+    "C3ki",
+    "C3ks",
+    "C3ko",
+    "C3kf",
+    "C3kg"
+  ];
 </script>
 
 <svelte:head>
@@ -65,17 +81,16 @@
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
 {:else if variant === "C3w"}
   <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" view strip="inline" />
-{:else if ["C3kr", "C3km", "C3kd", "C3kn", "C3kp", "C3kw", "C3ki", "C3ks", "C3ko"].includes(variant)}
+{:else if K_SERIES.includes(variant)}
+  {@const after = (key: string) => K_SERIES.indexOf(variant) >= K_SERIES.indexOf(key)}
   <VariantB
     middle={variant === "C3km" ? "date" : variant === "C3kr" ? "name" : "desc"}
-    rowNav={["C3kn", "C3kp", "C3kw", "C3ki", "C3ks", "C3ko"].includes(variant)}
-    polish={["C3kp", "C3kw", "C3ki", "C3ks", "C3ko"].includes(variant)}
-    sortStyle={variant === "C3ks" ? "split" : variant === "C3ko" ? "sections" : "list"}
-    inactive={variant === "C3kw"
-      ? "word"
-      : ["C3ki", "C3ks", "C3ko"].includes(variant)
-        ? "dim"
-        : "dot"}
+    rowNav={after("C3kn")}
+    polish={after("C3kp")}
+    inactive={variant === "C3kw" ? "word" : after("C3ki") ? "dim" : "dot"}
+    sortStyle={variant === "C3ks" ? "split" : after("C3ko") ? "sections" : "list"}
+    sheetSteps={after("C3kf")}
+    rangeStep={after("C3kg")}
     {data}
     tile="tint"
     toolbar="card"

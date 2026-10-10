@@ -97,7 +97,9 @@
     rowNav = false,
     polish = false,
     inactive = "dot",
-    sortStyle = "list"
+    sortStyle = "list",
+    sheetSteps = false,
+    rangeStep = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -156,6 +158,13 @@
     // "split": a row of fields and a row of directions, labelled for the field;
     // "sections" (round 29): two check lists, Sort by (the column) and Order (its direction)
     sortStyle?: "list" | "split" | "sections";
+    // Round 30: the phone's filter sheet in steps. Date filters are rows that open a step of their
+    // own (presets with their dates, a full-width calendar with Apply); a sticky footer holds
+    // Reset and "Show n divisions", which closes the sheet
+    sheetSteps?: boolean;
+    // Round 31: the custom range is a third step of its own (calendar only, 44px days), so no step
+    // scrolls on a small phone; its row on the date step shows the range in use
+    rangeStep?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -336,6 +345,15 @@
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
 
   let sheetOpen = $state(false);
+  // Round 30: the sheet's step, null for the filter list or a date filter's key
+  let sheetStep = $state<string | null>(null);
+  // "updated" for a date filter's step, "updated:range" for its custom range step
+  const stepFilter = $derived(FILTERS.find((f) => f.key === sheetStep?.split(":")[0]));
+  const rangeOpen = $derived(Boolean(sheetStep?.endsWith(":range")));
+  function openStep(filter: Filter) {
+    draft = calendarValue(filter);
+    sheetStep = filter.key;
+  }
 
   // Round 5: the Filter panel. Values are checkboxes: none ticked means any, several are
   // joined with commas (Q12). Dates are a preset or a custom `from..to` range.
@@ -1450,21 +1468,256 @@
         {/if}
       {/snippet}
     </Sheet.Trigger>
-    <Sheet.Content side="bottom" class="max-h-[85svh] gap-0 overflow-y-auto rounded-t-xl">
-      <Sheet.Title class="sr-only">Filters</Sheet.Title>
-      {@render filterBody(false)}
-      {#if filtered}
-        <div class="border-border border-t p-4">
-          <a
-            href={clearHref}
-            class={cn(buttonVariants({ variant: "outline" }), "w-full")}
-            onclick={() => (sheetOpen = false)}
-            >Clear all · {data.divisions.total} of {of} {noun(of)}</a
-          >
-        </div>
-      {/if}
-    </Sheet.Content>
+    {#if sheetSteps}
+      <Sheet.Content
+        side="bottom"
+        showCloseButton={false}
+        class="flex max-h-[85svh] flex-col gap-0 rounded-t-xl"
+        onCloseAutoFocus={() => (sheetStep = null)}
+      >
+        {@render sheetStepped()}
+      </Sheet.Content>
+    {:else}
+      <Sheet.Content side="bottom" class="max-h-[85svh] gap-0 overflow-y-auto rounded-t-xl">
+        <Sheet.Title class="sr-only">Filters</Sheet.Title>
+        {@render filterBody(false)}
+        {#if filtered}
+          <div class="border-border border-t p-4">
+            <a
+              href={clearHref}
+              class={cn(buttonVariants({ variant: "outline" }), "w-full")}
+              onclick={() => (sheetOpen = false)}
+              >Clear all · {data.divisions.total} of {of} {noun(of)}</a
+            >
+          </div>
+        {/if}
+      </Sheet.Content>
+    {/if}
   </Sheet.Root>
+{/snippet}
+
+<!-- Round 30: the phone's filter sheet, in steps -->
+{#snippet sheetStepped()}
+  {@const head = "flex h-14 shrink-0 items-center gap-1 border-b border-border px-2"}
+  {@const iconBtn =
+    "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-11 items-center justify-center rounded-[11px]"}
+  {@const checkRow =
+    "hover:bg-muted flex h-11 w-full items-center justify-between gap-3 rounded-md px-2 text-sm"}
+  {#if stepFilter}
+    <header class={head}>
+      <button
+        type="button"
+        data-slot="sheet-back"
+        class={iconBtn}
+        aria-label={rangeOpen ? `Back to ${stepFilter.label}` : "Back to filters"}
+        onclick={() => (sheetStep = rangeOpen ? stepFilter.key : null)}
+      >
+        <ChevronLeftIcon aria-hidden="true" class="size-5" />
+      </button>
+      <Sheet.Title class="flex-1 text-base font-semibold"
+        >{rangeOpen ? `${stepFilter.label}: custom range` : stepFilter.label}</Sheet.Title
+      >
+      <Sheet.Close class={iconBtn} aria-label="Close"
+        ><XIcon aria-hidden="true" class="size-5" /></Sheet.Close
+      >
+    </header>
+    {#if rangeStep && rangeOpen}
+      <div class="flex flex-1 justify-center overflow-y-auto px-4 py-2">
+        <RangeCalendar
+          bind:value={draft}
+          placeholder={parseDate(TODAY)}
+          maxValue={parseDate(TODAY)}
+          weekStartsOn={1}
+          class="bg-transparent p-0 [--cell-size:--spacing(11)]"
+        />
+      </div>
+      <footer class="border-border flex shrink-0 items-center gap-3 border-t p-4">
+        <span class="text-muted-foreground flex-1 text-sm tabular-nums">
+          {draft?.start && draft.end
+            ? formatRange([draft.start.toString(), draft.end.toString()])
+            : "Pick a start and an end"}
+        </span>
+        <Button
+          data-slot="button"
+          disabled={!draft?.start || !draft.end}
+          onclick={() => {
+            applyDraft(stepFilter);
+            sheetStep = null;
+          }}>Apply</Button
+        >
+      </footer>
+    {:else if rangeStep}
+      <div class="flex-1 overflow-y-auto px-4 py-3">
+        <div
+          role="radiogroup"
+          aria-label="{stepFilter.label}, a preset"
+          class="-mx-2 flex flex-col"
+        >
+          {#each [{ value: null, label: stepFilter.any }, ...stepFilter.options] as option (option.value)}
+            {@const on = valueOf(stepFilter.key) === option.value}
+            {@const range = option.value ? PRESET_RANGE[option.value] : null}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={on}
+              data-slot="sheet-preset"
+              class={cn(checkRow, on && "font-medium")}
+              onclick={() => {
+                choose(stepFilter.key, option.value);
+                sheetStep = null;
+              }}
+            >
+              <span class="flex-1 text-left">{option.label}</span>
+              {#if range}<span class="text-muted-foreground text-xs font-normal tabular-nums"
+                  >{formatRange(range)}</span
+                >{/if}
+              <CheckIcon aria-hidden="true" class={cn("text-primary size-4", !on && "invisible")} />
+            </button>
+          {/each}
+        </div>
+        <button
+          type="button"
+          data-slot="sheet-range-row"
+          class={cn(checkRow, "-mx-2 w-[calc(100%+1rem)]", hasRange(stepFilter) && "font-medium")}
+          onclick={() => {
+            draft = calendarValue(stepFilter);
+            sheetStep = `${stepFilter.key}:range`;
+          }}
+        >
+          <span class="flex-1 text-left">Custom range</span>
+          {#if hasRange(stepFilter)}
+            <span class="text-muted-foreground text-xs font-normal tabular-nums"
+              >{describe(stepFilter)}</span
+            >
+            <CheckIcon aria-hidden="true" class="text-primary size-4" />
+          {/if}
+          <ChevronRightIcon aria-hidden="true" class="text-muted-foreground size-4" />
+        </button>
+      </div>
+    {:else}
+      <div class="flex-1 overflow-y-auto px-4 py-3">
+        <div
+          role="radiogroup"
+          aria-label="{stepFilter.label}, a preset"
+          class="-mx-2 flex flex-col"
+        >
+          {#each [{ value: null, label: stepFilter.any }, ...stepFilter.options] as option (option.value)}
+            {@const on = valueOf(stepFilter.key) === option.value}
+            {@const range = option.value ? PRESET_RANGE[option.value] : null}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={on}
+              data-slot="sheet-preset"
+              class={cn(checkRow, on && "font-medium")}
+              onclick={() => {
+                choose(stepFilter.key, option.value);
+                sheetStep = null;
+              }}
+            >
+              <span class="flex-1 text-left">{option.label}</span>
+              {#if range}<span class="text-muted-foreground text-xs font-normal tabular-nums"
+                  >{formatRange(range)}</span
+                >{/if}
+              <CheckIcon aria-hidden="true" class={cn("text-primary size-4", !on && "invisible")} />
+            </button>
+          {/each}
+        </div>
+        <h3 class="text-muted-foreground mt-4 mb-1 text-xs font-medium">Custom range</h3>
+        <RangeCalendar
+          bind:value={draft}
+          placeholder={parseDate(TODAY)}
+          maxValue={parseDate(TODAY)}
+          weekStartsOn={1}
+          class="@container w-full bg-transparent p-0 [--cell-size:calc((100cqw-0px)/7)]"
+        />
+      </div>
+      <footer class="border-border flex shrink-0 items-center gap-3 border-t p-4">
+        <span class="text-muted-foreground flex-1 text-sm tabular-nums">
+          {draft?.start && draft.end
+            ? formatRange([draft.start.toString(), draft.end.toString()])
+            : "Pick a start and an end"}
+        </span>
+        <Button
+          data-slot="button"
+          disabled={!draft?.start || !draft.end}
+          onclick={() => {
+            applyDraft(stepFilter);
+            sheetStep = null;
+          }}>Apply</Button
+        >
+      </footer>
+    {/if}
+  {:else}
+    <header class={cn(head, "pl-4")}>
+      <Sheet.Title class="flex-1 text-base font-semibold">Filters</Sheet.Title>
+      <Sheet.Close class={iconBtn} aria-label="Close"
+        ><XIcon aria-hidden="true" class="size-5" /></Sheet.Close
+      >
+    </header>
+    <div class="flex-1 overflow-y-auto">
+      {#each FILTERS as filter (filter.key)}
+        {#if filter.kind === "values"}
+          <section aria-labelledby="sheet-{filter.key}" class="border-border border-b px-4 py-2">
+            <h3
+              id="sheet-{filter.key}"
+              class="text-muted-foreground flex h-8 items-center gap-1.5 text-xs font-medium"
+            >
+              <filter.icon aria-hidden="true" class="size-3.5" />{filter.label}
+            </h3>
+            <div class="-mx-2 flex flex-col">
+              {#each filter.options as option (option.value)}
+                <label
+                  data-slot="filter-option"
+                  class="hover:bg-muted flex h-11 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm"
+                >
+                  <Checkbox
+                    checked={selected(filter).includes(option.value)}
+                    onCheckedChange={(on) => toggle(filter, option.value, on)}
+                  />
+                  {option.label}
+                  <span class="text-muted-foreground ml-auto text-xs tabular-nums"
+                    >{data.facets[filter.key]?.[option.value] ?? 0}</span
+                  >
+                </label>
+              {/each}
+            </div>
+          </section>
+        {:else}
+          {@const value = valueOf(filter.key)}
+          <button
+            type="button"
+            data-slot="sheet-date-row"
+            class="border-border hover:bg-muted flex h-14 w-full items-center gap-2.5 border-b px-4 text-sm"
+            onclick={() => openStep(filter)}
+          >
+            <filter.icon aria-hidden="true" class="text-muted-foreground size-4" />{filter.label}
+            <span
+              class={cn(
+                "ml-auto truncate",
+                value ? "text-foreground font-medium" : "text-muted-foreground"
+              )}>{value ? describe(filter) : filter.any}</span
+            >
+            <ChevronRightIcon aria-hidden="true" class="text-muted-foreground size-4" />
+          </button>
+        {/if}
+      {/each}
+    </div>
+    <footer class="border-border flex shrink-0 items-center gap-3 border-t p-4">
+      {#if activeCount}
+        <a
+          href={resetFiltersHref}
+          data-sveltekit-noscroll
+          data-slot="button"
+          class={cn(buttonVariants({ variant: "ghost" }), "h-11")}>Reset</a
+        >
+      {/if}
+      <Button data-slot="button" class="h-11 flex-1" onclick={() => (sheetOpen = false)}>
+        Show {data.divisions.total}
+        {noun(data.divisions.total)}
+      </Button>
+    </footer>
+  {/if}
 {/snippet}
 
 <!-- Round 20: the shell's 24px page padding drops to 16px on tablets -->
