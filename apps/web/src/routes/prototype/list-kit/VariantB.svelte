@@ -90,7 +90,8 @@
     tabletPadding = false,
     sortInView = false,
     toolTone = "now",
-    radius = "now"
+    radius = "now",
+    middle = "name"
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -130,6 +131,10 @@
     // of the height, 8px on 32px controls and 11px on 44px touch ones, chips included, and the
     // card a step rounder than what sits inside it
     radius?: "now" | "scaled";
+    // Round 24: who takes the spare width once Description folds (card 512–672px). "name": the
+    // name column (Code and Updated sit against ⋮); "date": Updated (Code and the date follow
+    // the name); "desc": the name column, carrying the description as a second line
+    middle?: "name" | "date" | "desc";
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -218,7 +223,12 @@
     card: responsive && "@container/list",
     description: responsive && "@max-2xl/list:hidden",
     meta: responsive && "@max-lg/list:hidden",
-    name: responsive && "@max-lg/list:w-full @max-lg/list:max-w-none"
+    name:
+      responsive &&
+      (middle === "desc"
+        ? "@max-2xl/list:w-full @max-2xl/list:max-w-0 @max-2xl/list:min-w-[20ch]"
+        : "@max-lg/list:w-full @max-lg/list:max-w-none"),
+    updated: responsive && cn("@max-lg/list:hidden", middle === "date" && "@max-2xl/list:w-full")
   });
   // Round 17: the toolbar buttons fold to icons when the card is narrow
   const TOOL = $derived({
@@ -1591,7 +1601,7 @@
                 column="updatedAt"
                 label={inTrash ? "Deleted" : "Updated"}
                 current={sort}
-                class={cn(columnClass("utility"), FOLD.meta)}
+                class={cn(columnClass("utility"), FOLD.updated)}
               />
             {/if}
             <Table.Head
@@ -1644,6 +1654,15 @@
                         <StatusPill status="Inactive" class="shrink-0" />
                       {/if}
                     </div>
+                    {#if responsive && middle === "desc" && columns.visible("description") && division.description}
+                      <!-- Round 24: in the middle band the folded description rides under the name -->
+                      <p
+                        class="text-muted-foreground hidden truncate text-sm @lg/list:@max-2xl/list:block"
+                        title={division.description}
+                      >
+                        {@render marked(division.description)}
+                      </p>
+                    {/if}
                     {#if responsive}
                       <!-- Round 15: the folded columns, under the name -->
                       <p
@@ -1676,7 +1695,7 @@
                 </Table.Cell>
               {/if}
               {#if columns.visible("updatedAt")}
-                <Table.Cell class={cn(columnClass("utility"), FOLD.meta)}
+                <Table.Cell class={cn(columnClass("utility"), FOLD.updated)}
                   ><RecordTime
                     iso={inTrash ? division.deletedAt : division.updatedAt}
                   /></Table.Cell
