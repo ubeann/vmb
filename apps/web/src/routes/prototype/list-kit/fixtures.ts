@@ -84,3 +84,55 @@ export const DIVISIONS: Division[] = SEED.map(
     deletedAt: code === "FSV" ? at(9, 15) : null
   })
 );
+
+// Round 45: a long list for paging (`?data=many`): every department in 20 branch cities, about
+// 240 live divisions (10 pages of 25), every 9th inactive and every 17th in the Trash
+const CITIES: [string, string][] = [
+  ["Jakarta", "JKT"],
+  ["Surabaya", "SUB"],
+  ["Medan", "MDN"],
+  ["Bandung", "BDG"],
+  ["Semarang", "SRG"],
+  ["Makassar", "MKS"],
+  ["Palembang", "PLM"],
+  ["Balikpapan", "BPN"],
+  ["Batam", "BTH"],
+  ["Pontianak", "PNK"],
+  ["Denpasar", "DPS"],
+  ["Yogyakarta", "JOG"],
+  ["Manado", "MDO"],
+  ["Padang", "PDG"],
+  ["Pekanbaru", "PKU"],
+  ["Banjarmasin", "BDJ"],
+  ["Kupang", "KOE"],
+  ["Jayapura", "DJJ"],
+  ["Ambon", "AMQ"],
+  ["Cirebon", "CBN"]
+];
+
+const minuteAt = (minutes: number) =>
+  new Date(Date.UTC(2025, 10, 1, 1, 0) + minutes * 60_000).toISOString();
+
+export const MANY_DIVISIONS: Division[] = [
+  ...DIVISIONS,
+  ...SEED.slice(0, 12).flatMap(([name, code, description, colorHex, iconName], d) =>
+    CITIES.map(([city, cityCode], c): Division => {
+      const n = d * CITIES.length + c;
+      // spread over 1 Nov 2025 – 8 Jan 2026 so the date presets and sorting have something to do
+      const created = (n * 389) % (60 * 24 * 60);
+      const updated = Math.min(created + ((n * 977) % (8 * 24 * 60)), 68 * 24 * 60);
+      return {
+        id: `00000000-0000-4000-9000-${String(n + 1).padStart(12, "0")}`,
+        name: `${name} · ${city}`,
+        code: `${code}-${cityCode}`,
+        description: `${description}, ${city} branch`,
+        colorHex,
+        iconName,
+        isActive: n % 9 !== 4,
+        createdAt: minuteAt(created),
+        updatedAt: minuteAt(updated),
+        deletedAt: n % 17 === 8 ? minuteAt(updated + 600) : null
+      } as Division;
+    })
+  )
+];

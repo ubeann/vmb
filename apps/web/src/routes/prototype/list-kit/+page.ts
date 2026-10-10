@@ -3,11 +3,13 @@
 import { parseListQuery } from "$lib/master/list.js";
 import { DivisionListQuerySchema, type Division, type PermissionKey } from "@vmb/types";
 import { PRESET_RANGE, within } from "./dates.js";
-import { DIVISIONS } from "./fixtures.js";
+import { DIVISIONS as FEW, MANY_DIVISIONS } from "./fixtures.js";
 import type { PageLoad } from "./$types.js";
 
 export const load: PageLoad = ({ url }) => {
   const query = parseListQuery(DivisionListQuerySchema, url);
+  // Round 45: `?data=many` swaps in ~240 divisions to see paging
+  const DIVISIONS = url.searchParams.get("data") === "many" ? MANY_DIVISIONS : FEW;
   // Round 5: status takes several values (`status=active,inactive`, Q12), so it is read here
   // rather than through the schema's single enum; the dates are prototype-only filters
   const status = (url.searchParams.get("status") ?? "")
