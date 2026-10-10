@@ -53,7 +53,10 @@
     { key: "C3kx", name: "C3kk + From and To ends on the calendar" },
     { key: "C3kc2", name: "C3kx + a capped sheet, a calendar that fills it" },
     { key: "C3ke", name: "C3kc2 + From and To as one segmented control" },
-    { key: "C3kz", name: "C3ke + filters handed over between phone and desktop" }
+    { key: "C3kz", name: "C3ke + filters handed over between phone and desktop" },
+    { key: "C3kt", name: "C3kz + date steps inside the panel on tablets" },
+    { key: "C3ky", name: "C3kt + the picker follows the room as the window resizes" },
+    { key: "C3kq", name: "C3ky + layers reopen fresh after the user closes them" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
@@ -75,7 +78,10 @@
     "C3kx",
     "C3kc2",
     "C3ke",
-    "C3kz"
+    "C3kz",
+    "C3kt",
+    "C3ky",
+    "C3kq"
   ];
 </script>
 
@@ -112,6 +118,9 @@
     sheetCap={after("C3kc2")}
     endsSegment={after("C3ke")}
     handover={after("C3kz")}
+    panelSteps={after("C3kt")}
+    followRoom={after("C3ky")}
+    freshOpen={after("C3kq")}
     {data}
     tile="tint"
     toolbar="card"

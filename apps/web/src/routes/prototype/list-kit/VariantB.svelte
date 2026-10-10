@@ -108,7 +108,10 @@
     rangeEnds = false,
     sheetCap = false,
     endsSegment = false,
-    handover = false
+    handover = false,
+    panelSteps = false,
+    followRoom = false,
+    freshOpen = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -196,6 +199,17 @@
     // Round 40: crossing the phone/desktop line (640px) hands the open filters over, the phone
     // sheet to the Filter panel (and its date picker) and back, a half-picked range kept
     handover?: boolean;
+    // Round 41: where there is no room for the picker beside the Filter panel (tablets), the date
+    // steps open inside the panel, as in the phone sheet; the room is measured at each opening
+    panelSteps?: boolean;
+    // Round 42: while the panel is open, the date picker follows the room beside it: a step in the
+    // panel moves out beside it once there is room, the picker beside it moves into the panel
+    // once there is not, a half-picked range kept either way
+    followRoom?: boolean;
+    // Round 43: a layer the user closes (outside click, Esc, its button) opens fresh next time, at
+    // its top level: the panel's step, its side picker and a half-picked range are let go. The
+    // handovers between layouts are not closings and keep their place
+    freshOpen?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -394,23 +408,55 @@
     const desktop = matchMedia("(min-width: 640px)");
     const cross = () => {
       if (desktop.matches && sheetOpen) {
-        // the sheet's date step (or its calendar) becomes the picker beside the panel
-        const key = sheetStep?.split(":")[0] ?? null;
+        // the sheet's date step (or its calendar) becomes the picker beside the panel, or the
+        // panel's own step where the picker has no room
+        const step = sheetStep;
         sheetOpen = false;
-        sheetStep = null;
         panelOpen = true;
-        if (key) requestAnimationFrame(() => (pickerFor = key));
+        if (!step) sheetStep = null;
+        else
+          requestAnimationFrame(() => {
+            if (panelSteps && !fitsBeside()) return;
+            sheetStep = null;
+            pickerFor = step.split(":")[0]!;
+          });
       } else if (!desktop.matches && panelOpen) {
-        // the picker (or the panel) becomes the sheet, on the matching step
+        // the picker (or the panel's step) becomes the sheet, on the matching step
         const key = pickerFor;
         pickerFor = null;
         panelOpen = false;
-        sheetStep = key ? `${key}:range` : null;
+        sheetStep = key ? `${key}:range` : sheetStep;
         sheetOpen = true;
       }
     };
     desktop.addEventListener("change", cross);
     return () => desktop.removeEventListener("change", cross);
+  });
+  $effect(() => {
+    if (!followRoom || !panelOpen) return;
+    let frame = 0;
+    const settle = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const fits = fitsBeside();
+        if (fits && sheetStep) {
+          // the panel's date step (or its calendar) goes out beside the panel
+          const key = sheetStep.split(":")[0]!;
+          sheetStep = null;
+          requestAnimationFrame(() => (pickerFor = key));
+        } else if (!fits && pickerFor) {
+          // the picker beside the panel comes into it: the calendar if days are picked
+          const key = pickerFor;
+          pickerFor = null;
+          sheetStep = draft?.start ? `${key}:range` : key;
+        }
+      });
+    };
+    addEventListener("resize", settle);
+    return () => {
+      removeEventListener("resize", settle);
+      cancelAnimationFrame(frame);
+    };
   });
   function openStep(filter: Filter) {
     draft = calendarValue(filter);
@@ -466,7 +512,16 @@
     const crossesYear = rangeEnds && start.slice(0, 4) !== end.slice(0, 4);
     return `Apply ${crossesYear ? formatRange([start, end]) : formatShortRange([start, end])}`;
   }
+  // the picker is ~560px wide and opens to the panel's left, 12px off
+  const fitsBeside = () =>
+    (document.querySelector("[data-filter-panel]")?.getBoundingClientRect().left ?? 0) >= 580;
   function openPicker(filter: Filter, open: boolean) {
+    if (open && panelSteps && !fitsBeside()) {
+      draft = calendarValue(filter);
+      calMonth = draft?.start ?? parseDate(TODAY);
+      sheetStep = filter.key;
+      return;
+    }
     if (open) {
       pickerFor = filter.key;
       draft = calendarValue(filter);
@@ -484,6 +539,14 @@
   let dismissing = false;
   function dismissPanel() {
     panelOpen = false;
+    letGo();
+  }
+  // round 43: what a closed layer forgets
+  function letGo() {
+    if (!freshOpen) return;
+    sheetStep = null;
+    pickerFor = null;
+    draft = undefined;
   }
   // Round 9: a panel opens on its first control, not on the Reset link in its header
   function focusFirstControl(event: Event) {
@@ -1371,7 +1434,7 @@
 
 <!-- Round 5: the Filter panel, a popover on desktop and the same body in the phone sheet -->
 {#snippet filterPanel()}
-  <Popover.Root bind:open={panelOpen}>
+  <Popover.Root bind:open={panelOpen} onOpenChange={(open) => !open && letGo()}>
     <Popover.Trigger>
       {#snippet child({ props })}
         <Button
@@ -1389,14 +1452,21 @@
     </Popover.Trigger>
     <Popover.Content
       align="end"
-      class="max-h-(--bits-floating-available-height) w-80 gap-0 overflow-y-auto p-0"
+      class={cn(
+        "max-h-(--bits-floating-available-height) w-80 gap-0 overflow-y-auto p-0",
+        panelSteps && stepFilter && "w-[22rem]"
+      )}
       role="dialog"
       aria-label="Filters"
       data-filter-panel
       onInteractOutside={dismissPanel}
       onOpenAutoFocus={focusFirstControl}
     >
-      {@render filterBody(dates === "beside")}
+      {#if panelSteps && stepFilter}
+        {@render sheetStepped(false)}
+      {:else}
+        {@render filterBody(dates === "beside")}
+      {/if}
     </Popover.Content>
   </Popover.Root>
 {/snippet}
@@ -1654,7 +1724,7 @@
 
 <!-- Q15: on a phone, one Filters button; the sheet lists every option -->
 {#snippet phoneFilters()}
-  <Sheet.Root bind:open={sheetOpen}>
+  <Sheet.Root bind:open={sheetOpen} onOpenChange={(open) => !open && letGo()}>
     <Sheet.Trigger>
       {#snippet child({ props })}
         {#if compactTools}
@@ -1691,7 +1761,7 @@
           "flex max-h-[85svh] flex-col gap-0 rounded-t-xl",
           sheetCap && "mx-auto w-full max-w-[26rem] sm:rounded-t-2xl"
         )}
-        onCloseAutoFocus={() => (sheetStep = null)}
+        onCloseAutoFocus={() => !panelOpen && (sheetStep = null)}
       >
         {@render sheetStepped()}
       </Sheet.Content>
@@ -1715,7 +1785,7 @@
 {/snippet}
 
 <!-- Round 30: the phone's filter sheet, in steps -->
-{#snippet sheetStepped()}
+{#snippet sheetStepped(inSheet: boolean = true)}
   {@const head = "flex h-14 shrink-0 items-center gap-1 border-b border-border px-2"}
   {@const iconBtn =
     "text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-11 items-center justify-center rounded-[11px]"}
@@ -1732,12 +1802,21 @@
       >
         <ChevronLeftIcon aria-hidden="true" class="size-5" />
       </button>
-      <Sheet.Title class="flex-1 text-base font-semibold outline-none" tabindex={-1} data-step-title
-        >{rangeOpen ? `${stepFilter.label}: custom range` : stepFilter.label}</Sheet.Title
-      >
-      <Sheet.Close class={iconBtn} aria-label="Close"
-        ><XIcon aria-hidden="true" class="size-5" /></Sheet.Close
-      >
+      {#if inSheet}
+        <Sheet.Title
+          class="flex-1 text-base font-semibold outline-none"
+          tabindex={-1}
+          data-step-title
+          >{rangeOpen ? `${stepFilter.label}: custom range` : stepFilter.label}</Sheet.Title
+        >
+        <Sheet.Close class={iconBtn} aria-label="Close"
+          ><XIcon aria-hidden="true" class="size-5" /></Sheet.Close
+        >
+      {:else}
+        <h2 class="flex-1 text-sm font-semibold">
+          {rangeOpen ? `${stepFilter.label}: custom range` : stepFilter.label}
+        </h2>
+      {/if}
     </header>
     {#if rangeStep && rangeOpen}
       <div
