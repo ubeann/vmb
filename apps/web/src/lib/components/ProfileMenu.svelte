@@ -43,6 +43,7 @@
     {#snippet child({ props })}
       <Button
         {...props}
+        data-slot="button"
         variant="ghost"
         aria-label="{user.name}, {divisionName}, account menu"
         class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent h-auto gap-2.5 rounded-full p-1 sm:h-12 sm:rounded-xl sm:py-0 sm:pr-3 sm:pl-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"

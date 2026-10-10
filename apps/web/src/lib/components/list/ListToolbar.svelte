@@ -45,7 +45,7 @@
     <Sheet.Root bind:open={sheetOpen}>
       <Sheet.Trigger>
         {#snippet child({ props })}
-          <Button {...props} variant="outline" class="sm:hidden">
+          <Button {...props} data-slot="button" variant="outline" class="sm:hidden">
             <SlidersHorizontalIcon aria-hidden="true" data-icon="inline-start" />Filters
             {#if activeCount > 0}
               <span

@@ -43,6 +43,7 @@
     {#snippet child({ props })}
       <Button
         {...props}
+        data-slot="button"
         variant="ghost"
         size="icon"
         class={cn("pointer-coarse:size-11", className)}

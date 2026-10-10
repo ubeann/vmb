@@ -268,7 +268,7 @@
       <Dialog.Root bind:open={confirmOpen}>
         <Dialog.Trigger>
           {#snippet child({ props })}
-            <Button {...props} variant="destructive"
+            <Button {...props} data-slot="button" variant="destructive"
               ><Trash2Icon data-icon="inline-start" />Delete division</Button
             >
           {/snippet}
@@ -283,7 +283,7 @@
           <Dialog.Footer>
             <Dialog.Close>
               {#snippet child({ props })}
-                <Button {...props} variant="outline">Cancel</Button>
+                <Button {...props} data-slot="button" variant="outline">Cancel</Button>
               {/snippet}
             </Dialog.Close>
             <Button
