@@ -107,7 +107,8 @@
     actionIcons = false,
     rangeEnds = false,
     sheetCap = false,
-    endsSegment = false
+    endsSegment = false,
+    handover = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -192,6 +193,9 @@
     sheetCap?: boolean;
     // Round 39: From and To as one segmented control; the half whose month is in view is lit
     endsSegment?: boolean;
+    // Round 40: crossing the phone/desktop line (640px) hands the open filters over, the phone
+    // sheet to the Filter panel (and its date picker) and back, a half-picked range kept
+    handover?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -384,6 +388,29 @@
     queueMicrotask(() =>
       document.querySelector<HTMLElement>("[data-slot=sheet-content] [data-step-title]")?.focus()
     );
+  });
+  $effect(() => {
+    if (!handover) return;
+    const desktop = matchMedia("(min-width: 640px)");
+    const cross = () => {
+      if (desktop.matches && sheetOpen) {
+        // the sheet's date step (or its calendar) becomes the picker beside the panel
+        const key = sheetStep?.split(":")[0] ?? null;
+        sheetOpen = false;
+        sheetStep = null;
+        panelOpen = true;
+        if (key) requestAnimationFrame(() => (pickerFor = key));
+      } else if (!desktop.matches && panelOpen) {
+        // the picker (or the panel) becomes the sheet, on the matching step
+        const key = pickerFor;
+        pickerFor = null;
+        panelOpen = false;
+        sheetStep = key ? `${key}:range` : null;
+        sheetOpen = true;
+      }
+    };
+    desktop.addEventListener("change", cross);
+    return () => desktop.removeEventListener("change", cross);
   });
   function openStep(filter: Filter) {
     draft = calendarValue(filter);

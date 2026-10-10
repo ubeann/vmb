@@ -52,7 +52,8 @@
     { key: "C3kk", name: "C3kj + icons on the sheet's main actions" },
     { key: "C3kx", name: "C3kk + From and To ends on the calendar" },
     { key: "C3kc2", name: "C3kx + a capped sheet, a calendar that fills it" },
-    { key: "C3ke", name: "C3kc2 + From and To as one segmented control" }
+    { key: "C3ke", name: "C3kc2 + From and To as one segmented control" },
+    { key: "C3kz", name: "C3ke + filters handed over between phone and desktop" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
@@ -73,7 +74,8 @@
     "C3kk",
     "C3kx",
     "C3kc2",
-    "C3ke"
+    "C3ke",
+    "C3kz"
   ];
 </script>
 
@@ -109,6 +111,7 @@
     rangeEnds={after("C3kx")}
     sheetCap={after("C3kc2")}
     endsSegment={after("C3ke")}
+    handover={after("C3kz")}
     {data}
     tile="tint"
     toolbar="card"
