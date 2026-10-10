@@ -65,3 +65,14 @@ Built by #348 (rules 1–3 and 6) and #349 (rules 4 and 5). How a record opens o
 - **A wrapper on every page.** Each page states its width instead of inheriting one. One component and one prop is cheap next to fixing width per page later, and it replaces the legacy `main` rule that `AppShell` had to cancel.
 - **Breadcrumbs depend on `nav.ts`.** A screen not in the menu needs its trail supplied by its page. That's acceptable while every screen lives under a menu item, and it avoids a registry with one consumer.
 - **No switcher yet.** The trail's first slot is reserved for a context switcher that may never come. Recording the slot costs nothing; building it before the domain needs it would mean guessing what it switches.
+
+**Amendment (2026-10-11): the header, the column rule, and room on tablets.** The list-kit prototype ([ADR-0051](0051-list-kit-interaction-rules.md)) changed three things here.
+
+- **Rule 2, the page header.** The title is the display face at `text-2xl`, and the one primary action shares its row. The description is one sentence of about 60ch at most, under them at full width (ADR-0051 rule 1). `PageHeader` holds the three as before.
+- **Rule 3, the list column rule.** Utility columns still shrink to their content. Free text no longer stops at 48ch: it takes the spare width and truncates, down to about 16ch (`w-full max-w-0 min-w-[16ch]`), so a 1024px screen fits the table without a sideways scroll. The rule now reads the card's width, through container queries:
+  - under 42rem, free text folds and rides under the identity as a second line;
+  - under 32rem, rows fold to two lines, the identity over the utility values ("CBK · Updated 5 Jan 2026"), and the header row goes.
+
+  The second line carries what folded, the most useful first. In the list kit this replaces ADR-0035 rule 5's horizontal scroll, which stays for tables outside the kit.
+
+- **Room on tablets (new).** Between 640 and 1023px, the page padding is 16px instead of 24px, and the sidebar starts as its icon rail. The rail is the default, not an override: a user's saved choice (the sidebar cookie) still wins. At 768px the list card grows from 456 to 656px, enough for a real table instead of two-line rows.
