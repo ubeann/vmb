@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { checkboxSchema, optionalText } from "./inputs.js";
 import {
+  DateFilterSchema,
   PageSchema,
   PerPageSchema,
   SearchSchema,
   SortDirectionSchema,
+  TimeZoneSchema,
   TrashedSchema,
-  listResponse
+  ViewCountsSchema,
+  listResponse,
+  optionCounts,
+  valueFilter
 } from "./list.js";
 
 export const DivisionSchema = z.object({
@@ -56,9 +61,20 @@ export const DivisionSortSchema = z
   .enum(["name", "code", "createdAt", "updatedAt"])
   .default("name");
 
+/** The Status filter's options, in the order the Filter panel lists them. */
+export const DIVISION_STATUSES = ["active", "inactive"] as const;
+
+/**
+ * The Divisions list's state, as its URL carries it (#301, ADR-0051 rule 4):
+ * `status` takes several values (`active,inactive`), and `updated` and
+ * `created` a preset (`today`, `week`, `month`) or an inclusive
+ * `YYYY-MM-DD..YYYY-MM-DD` range.
+ */
 export const DivisionListQuerySchema = z.object({
   search: SearchSchema,
-  status: z.enum(["all", "active", "inactive"]).default("all"),
+  status: valueFilter(DIVISION_STATUSES),
+  updated: DateFilterSchema,
+  created: DateFilterSchema,
   trashed: TrashedSchema,
   sort: DivisionSortSchema,
   dir: SortDirectionSchema,
@@ -68,6 +84,25 @@ export const DivisionListQuerySchema = z.object({
 
 export type DivisionListQuery = z.infer<typeof DivisionListQuerySchema>;
 
-export const DivisionListResponseSchema = listResponse(DivisionSchema);
+/**
+ * What `GET /api/master/divisions` takes: the list's state plus the reader's
+ * time zone, which decides where each day of a date filter starts and ends. A
+ * preset is read as of today in that zone; the web resolves presets to ranges
+ * itself before calling, so the URL can keep the preset.
+ */
+export const DivisionListRequestSchema = DivisionListQuerySchema.extend({ tz: TimeZoneSchema });
+
+export type DivisionListRequest = z.infer<typeof DivisionListRequestSchema>;
+
+/**
+ * A page of divisions, with the counts the list kit shows beside its
+ * controls: each view's rows (the All and Trash tabs), and each Status
+ * option's rows in the current view. Every count keeps the search and the
+ * other filters.
+ */
+export const DivisionListResponseSchema = listResponse(DivisionSchema).extend({
+  views: ViewCountsSchema,
+  facets: z.object({ status: optionCounts(DIVISION_STATUSES) })
+});
 
 export type DivisionListResponse = z.infer<typeof DivisionListResponseSchema>;

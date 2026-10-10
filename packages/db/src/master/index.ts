@@ -2,7 +2,7 @@ import type {
   Access,
   Division,
   DivisionInput,
-  DivisionListQuery,
+  DivisionListRequest,
   DivisionListResponse,
   Role,
   RoleInput,
@@ -51,7 +51,7 @@ export type MasterStore = {
   getPermissions(userId: string): Promise<string[]>;
   getAccess(userId: string): Promise<Access>;
 
-  listDivisions(query: DivisionListQuery): Promise<DivisionListResponse>;
+  listDivisions(query: DivisionListRequest): Promise<DivisionListResponse>;
   getDivision(id: string): Promise<Division>;
   createDivision(input: DivisionInput): Promise<Division>;
   updateDivision(id: string, input: DivisionInput): Promise<Division>;

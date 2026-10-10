@@ -1,4 +1,10 @@
-import { DivisionListQuerySchema } from "@vmb/types";
+import {
+  DivisionListQuerySchema,
+  dateFilterRange,
+  dateFilterValue,
+  resolveDateFilter,
+  todayIn
+} from "@vmb/types";
 import { describe, expect, it } from "vitest";
 import {
   canonicalListSearch,
@@ -25,7 +31,7 @@ describe("parseListQuery and canonicalListSearch", () => {
 
   it("drop only the parameter the schema refuses", () => {
     expect(parse("?perPage=7&status=inactive")).toMatchObject({
-      query: { perPage: 25, status: "inactive" },
+      query: { perPage: 25, status: ["inactive"] },
       canonical: "?status=inactive"
     });
   });
@@ -37,6 +43,88 @@ describe("parseListQuery and canonicalListSearch", () => {
   it("leave defaults and empty values implicit, and normalise the rest", () => {
     expect(parse("?page=1&perPage=25&search=&sort=name&dir=asc").canonical).toBe("");
     expect(parse("?page=02&search=%20ops%20").canonical).toBe("?page=2&search=ops");
+  });
+
+  it("take several statuses as one comma-separated parameter, in the list's order", () => {
+    expect(parse("?status=inactive,active")).toMatchObject({
+      query: { status: ["active", "inactive"] },
+      canonical: "?status=active,inactive"
+    });
+    expect(parse("?status=active%2Cinactive").canonical).toBe("?status=active,inactive");
+  });
+
+  it("read the old status=all, or no status, as any status", () => {
+    expect(parse("?status=all")).toMatchObject({ query: { status: [] }, canonical: "" });
+    expect(parse("").query.status).toEqual([]);
+    expect(parse("?status=inactive").query.status).toEqual(["inactive"]);
+  });
+
+  it("drop an unknown status and keep the known ones", () => {
+    expect(parse("?status=archived,inactive,bogus&sort=code")).toMatchObject({
+      query: { status: ["inactive"], sort: "code" },
+      canonical: "?status=inactive&sort=code"
+    });
+    expect(parse("?status=archived").canonical).toBe("");
+  });
+
+  it("take a date filter as a preset or an inclusive range", () => {
+    expect(parse("?updated=week&created=2025-12-29..2026-01-04")).toMatchObject({
+      query: { updated: "week", created: "2025-12-29..2026-01-04" },
+      canonical: "?updated=week&created=2025-12-29..2026-01-04"
+    });
+  });
+
+  it.each([
+    ["a range ending before it starts", "2026-02-01..2026-01-31"],
+    ["a day that does not exist", "2026-02-30..2026-03-01"],
+    ["half a range", "2026-01-01.."],
+    ["an unknown preset", "year"]
+  ])("drop a date filter that is %s", (_name, value) => {
+    const { query, canonical } = parse(`?updated=${value}&search=ops`);
+    expect(query.updated).toBeUndefined();
+    expect(query.search).toBe("ops");
+    expect(canonical).toBe("?search=ops");
+  });
+});
+
+describe("date filters", () => {
+  it("read today in the reader's zone, not the server's", () => {
+    // 17:30 UTC on 31 December is already 1 January in Jakarta
+    const now = new Date("2025-12-31T17:30:00Z");
+    expect(todayIn("Asia/Jakarta", now)).toBe("2026-01-01");
+    expect(todayIn("UTC", now)).toBe("2025-12-31");
+  });
+
+  it("turn a preset into the days it covers, across a month and a year end", () => {
+    expect(dateFilterRange("today", "2026-01-03")).toEqual({
+      from: "2026-01-03",
+      to: "2026-01-03"
+    });
+    expect(dateFilterRange("week", "2026-01-03")).toEqual({ from: "2025-12-28", to: "2026-01-03" });
+    expect(dateFilterRange("week", "2026-03-02")).toEqual({ from: "2026-02-24", to: "2026-03-02" });
+    expect(dateFilterRange("month", "2026-01-03")).toEqual({
+      from: "2026-01-01",
+      to: "2026-01-03"
+    });
+    expect(dateFilterRange(undefined, "2026-01-03")).toBeNull();
+  });
+
+  it("send the API a range in place of a preset", () => {
+    expect(resolveDateFilter("week", "2026-01-03")).toBe("2025-12-28..2026-01-03");
+    expect(resolveDateFilter("2025-11-01..2025-12-31", "2026-01-03")).toBe(
+      "2025-11-01..2025-12-31"
+    );
+    expect(resolveDateFilter(undefined, "2026-01-03")).toBeUndefined();
+  });
+
+  it("keep a custom range that equals a preset as the preset", () => {
+    const today = "2026-01-03";
+    expect(dateFilterValue({ from: today, to: today }, today)).toBe("today");
+    expect(dateFilterValue({ from: "2025-12-28", to: today }, today)).toBe("week");
+    expect(dateFilterValue({ from: "2026-01-01", to: today }, today)).toBe("month");
+    expect(dateFilterValue({ from: "2025-12-27", to: today }, today)).toBe(
+      "2025-12-27..2026-01-03"
+    );
   });
 });
 
@@ -62,6 +150,12 @@ describe("listHref", () => {
       "/master/divisions?status=active&sort=code&page=2"
     );
     expect(listHref(base, new URLSearchParams("page=2"), { page: 1 })).toBe("/master/divisions");
+  });
+
+  it("keeps the commas of a value filter readable", () => {
+    expect(listHref(base, new URLSearchParams(), { status: "active,inactive" })).toBe(
+      `${base}?status=active,inactive`
+    );
   });
 
   it("does not change the parameters it was given", () => {

@@ -1,6 +1,6 @@
 import {
   DivisionInputSchema,
-  DivisionListQuerySchema,
+  DivisionListRequestSchema,
   DivisionListResponseSchema,
   DivisionSchema
 } from "@vmb/types";
@@ -11,7 +11,7 @@ import type { MasterEnv } from "./env.js";
 
 export const divisionRoutes = new Hono<MasterEnv>()
   .get("/", requirePermission("master-divisions.view_any"), async (c) => {
-    const query = queryParams(c, DivisionListQuerySchema);
+    const query = queryParams(c, DivisionListRequestSchema);
     const page = await c.get("store").listDivisions(query);
     return c.json(DivisionListResponseSchema.parse(page));
   })

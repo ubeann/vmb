@@ -1,4 +1,10 @@
-import type { DivisionInput, RoleInput, UserCreateInput, UserUpdateInput } from "@vmb/types";
+import type {
+  DivisionInput,
+  DivisionListRequest,
+  RoleInput,
+  UserCreateInput,
+  UserUpdateInput
+} from "@vmb/types";
 import { describe, expect, it } from "vitest";
 import { ForbiddenError } from "../src/errors.js";
 import { createMasterStore } from "../src/master/index.js";
@@ -19,6 +25,17 @@ const division = (overrides: Partial<DivisionInput> = {}): DivisionInput => ({
   colorHex: "#2563EB",
   iconName: "heroicon-o-cog-6-tooth",
   isActive: true,
+  ...overrides
+});
+
+const listQuery = (overrides: Partial<DivisionListRequest> = {}): DivisionListRequest => ({
+  status: [],
+  trashed: "exclude",
+  sort: "name",
+  dir: "asc",
+  page: 1,
+  perPage: 10,
+  tz: "Asia/Jakarta",
   ...overrides
 });
 
@@ -89,73 +106,157 @@ describe("divisions store", () => {
       );
       await store.createDivision(division({ name: "Retired", code: "RET", isActive: false }));
 
-      const all = await store.listDivisions({
-        status: "all",
-        trashed: "exclude",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const all = await store.listDivisions(listQuery());
       expect(all.total).toBe(3);
       expect(all.items.map((item) => item.name)).toEqual(["Finance", "Operations", "Retired"]);
 
-      const search = await store.listDivisions({
-        search: "budget",
-        status: "all",
-        trashed: "exclude",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const search = await store.listDivisions(listQuery({ search: "budget" }));
       expect(search.items.map((item) => item.name)).toEqual(["Finance"]);
 
-      const inactive = await store.listDivisions({
-        status: "inactive",
-        trashed: "exclude",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const inactive = await store.listDivisions(listQuery({ status: ["inactive"] }));
       expect(inactive.items.map((item) => item.name)).toEqual(["Retired"]);
 
+      const either = await store.listDivisions(listQuery({ status: ["active", "inactive"] }));
+      expect(either.total).toBe(3);
+
       await store.deleteDivision(ops.id);
-      const active = await store.listDivisions({
-        status: "all",
-        trashed: "exclude",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const active = await store.listDivisions(listQuery());
       expect(active.total).toBe(2);
 
-      const trashed = await store.listDivisions({
-        status: "all",
-        trashed: "only",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const trashed = await store.listDivisions(listQuery({ trashed: "only" }));
       expect(trashed.items.map((item) => item.name)).toEqual(["Operations"]);
 
-      const page = await store.listDivisions({
-        status: "all",
-        trashed: "exclude",
-        sort: "name",
-        dir: "asc",
-        page: 2,
-        perPage: 2
-      });
+      const page = await store.listDivisions(listQuery({ page: 2, perPage: 2 }));
       expect(page.total).toBe(2);
       expect(page.items).toHaveLength(0);
 
       expect(
         await scalar<number>(client, "select count(*)::int as value from master.divisions")
       ).toBe(3);
+    });
+  });
+
+  it("filters by updated and created days in the reader's zone, across a month and a year end", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      const stamp = async (
+        code: string,
+        updatedAt: string | null,
+        createdAt = "2025-06-01T00:00:00Z"
+      ) =>
+        client.exec(
+          `update master.divisions set updated_at = ${updatedAt ? `'${updatedAt}'` : "null"},
+            created_at = '${createdAt}' where code = '${code}'`
+        );
+      for (const [name, code] of [
+        ["Year end", "YE"],
+        ["New year", "NY"],
+        ["Month end", "ME"],
+        ["Next month", "NM"],
+        ["Never", "NV"]
+      ] as const) {
+        await store.createDivision(division({ name, code: `${code}X` }));
+      }
+      // Jakarta is UTC+7: 31 Dec 23:30, 1 Jan 00:30, 31 Jan 23:59:59.999 and 1 Feb 00:00 there
+      await stamp("YEX", "2025-12-31T16:30:00Z", "2025-12-31T16:30:00Z");
+      await stamp("NYX", "2025-12-31T17:30:00Z", "2025-12-31T17:30:00Z");
+      await stamp("MEX", "2026-01-31T16:59:59.999Z");
+      await stamp("NMX", "2026-01-31T17:00:00Z");
+      await stamp("NVX", null);
+
+      const names = async (overrides: Partial<DivisionListRequest>) =>
+        (await store.listDivisions(listQuery({ sort: "updatedAt", ...overrides }))).items.map(
+          (item) => item.name
+        );
+
+      expect(await names({ updated: "2025-12-31..2025-12-31" })).toEqual(["Year end"]);
+      expect(await names({ updated: "2025-12-31..2025-12-31", tz: "UTC" })).toEqual([
+        "Year end",
+        "New year"
+      ]);
+      expect(await names({ updated: "2026-01-01..2026-01-31" })).toEqual(["New year", "Month end"]);
+      expect(await names({ updated: "2025-12-01..2026-01-31" })).toEqual([
+        "Year end",
+        "New year",
+        "Month end"
+      ]);
+      expect(await names({ updated: "2026-02-01..2026-02-28" })).toEqual(["Next month"]);
+      expect(await names({ created: "2026-01-01..2026-01-01" })).toEqual(["New year"]);
+      expect(
+        await names({ created: "2025-12-31..2026-01-01", updated: "2025-12-31..2025-12-31" })
+      ).toEqual(["Year end"]);
+    });
+  });
+
+  it("reads a date preset as of today in the reader's zone", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      await store.createDivision(division());
+      await store.createDivision(division({ name: "Finance", code: "FIN" }));
+      await client.exec(
+        "update master.divisions set updated_at = '2020-03-04T05:00:00Z' where code = 'FIN'"
+      );
+
+      for (const updated of ["today", "week", "month"]) {
+        const list = await store.listDivisions(listQuery({ updated }));
+        expect(list.items.map((item) => item.name)).toEqual(["Operations"]);
+      }
+    });
+  });
+
+  it("counts each view and each status option, keeping the search and the other filters", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      await store.createDivision(division());
+      await store.createDivision(division({ name: "Ops Archive", code: "OPA", isActive: false }));
+      const oldOps = await store.createDivision(division({ name: "Old Ops", code: "OLD" }));
+      await store.createDivision(division({ name: "Finance", code: "FIN" }));
+      const oldFinance = await store.createDivision(
+        division({ name: "Old Finance", code: "OFN", isActive: false })
+      );
+      await store.deleteDivision(oldOps.id);
+      await store.deleteDivision(oldFinance.id);
+
+      const all = await store.listDivisions(listQuery({ search: "ops" }));
+      expect(all).toMatchObject({
+        total: 2,
+        views: { all: 2, trash: 1 },
+        facets: { status: { active: 1, inactive: 1 } }
+      });
+
+      // an option's count ignores the status filter itself, so the panel can offer the others
+      const inactive = await store.listDivisions(
+        listQuery({ search: "ops", status: ["inactive"] })
+      );
+      expect(inactive).toMatchObject({
+        total: 1,
+        views: { all: 1, trash: 0 },
+        facets: { status: { active: 1, inactive: 1 } }
+      });
+
+      const trash = await store.listDivisions(listQuery({ search: "ops", trashed: "only" }));
+      expect(trash).toMatchObject({
+        total: 1,
+        views: { all: 2, trash: 1 },
+        facets: { status: { active: 1, inactive: 0 } }
+      });
+
+      await client.exec(
+        "update master.divisions set updated_at = '2020-03-04T05:00:00Z' where code = 'OPA'"
+      );
+      const recent = await store.listDivisions(listQuery({ search: "ops", updated: "month" }));
+      expect(recent).toMatchObject({
+        total: 1,
+        views: { all: 1, trash: 1 },
+        facets: { status: { active: 1, inactive: 0 } }
+      });
+
+      const everything = await store.listDivisions(listQuery());
+      expect(everything).toMatchObject({
+        total: 3,
+        views: { all: 3, trash: 2 },
+        facets: { status: { active: 2, inactive: 1 } }
+      });
     });
   });
 
