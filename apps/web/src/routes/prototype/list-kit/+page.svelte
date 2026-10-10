@@ -60,7 +60,8 @@
     { key: "C3kl", name: "C3kq + handovers wait for the resize to settle" },
     { key: "C3ku", name: "C3kl + a compact pager on phones" },
     { key: "C3km2", name: "C3ku + one width for the Filter panel" },
-    { key: "C3kn3", name: "C3km2 + the panel width follows the screen" }
+    { key: "C3kn3", name: "C3km2 + the panel width follows the screen" },
+    { key: "C3kx2", name: "C3kn3 + a centred dialog from 480px" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
@@ -89,7 +90,8 @@
     "C3kl",
     "C3ku",
     "C3km2",
-    "C3kn3"
+    "C3kn3",
+    "C3kx2"
   ];
 </script>
 
@@ -133,6 +135,7 @@
     compactPager={after("C3ku")}
     steadyPanel={after("C3km2")}
     roomWidth={after("C3kn3")}
+    dialogFrom480={after("C3kx2")}
     {data}
     tile="tint"
     toolbar="card"

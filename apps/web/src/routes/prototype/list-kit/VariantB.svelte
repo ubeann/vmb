@@ -115,7 +115,8 @@
     settleFirst = false,
     compactPager = false,
     steadyPanel = false,
-    roomWidth = false
+    roomWidth = false,
+    dialogFrom480 = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -226,6 +227,9 @@
     // Round 48: the panel's width follows where its date steps happen: 20rem where a 20rem panel
     // leaves room for the picker beside it, else 22rem from the start, as the steps open inside
     roomWidth?: boolean;
+    // Round 49: from 480px (foldables open, small tablets) the phone sheet becomes a centred
+    // dialog: same steps, rounded all round, off the bottom edge; ordinary phones keep the sheet
+    dialogFrom480?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -1860,7 +1864,9 @@
         showCloseButton={false}
         class={cn(
           "flex max-h-[85svh] flex-col gap-0 rounded-t-xl",
-          sheetCap && "mx-auto w-full max-w-[26rem] sm:rounded-t-2xl"
+          sheetCap && "mx-auto w-full max-w-[26rem] sm:rounded-t-2xl",
+          dialogFrom480 &&
+            "min-[480px]:max-h-[min(85svh,44rem)] min-[480px]:-translate-y-1/2 min-[480px]:rounded-2xl min-[480px]:border min-[480px]:data-[side=bottom]:top-1/2 min-[480px]:data-[side=bottom]:bottom-auto"
         )}
         onCloseAutoFocus={() => !panelOpen && (sheetStep = null)}
       >
