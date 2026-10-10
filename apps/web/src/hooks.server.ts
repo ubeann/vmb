@@ -3,6 +3,7 @@ import { isPublicRoute } from "$lib/public-routes.js";
 import { withSecurityHeaders } from "$lib/server/security-headers.js";
 import { loadSession } from "$lib/session.js";
 import { redirect, type Handle, type HandleServerError } from "@sveltejs/kit";
+import { dev } from "$app/environment";
 
 // The two faces the first screen paints with (ADR-0046): the UI face and the
 // display headings' optical-size cut. The browser only discovers them after it
@@ -42,7 +43,14 @@ export const handle: Handle = async ({ event, resolve }) => {
   // #7's web gate, before routing: an unauthenticated request never reaches a
   // page load or a form action. `event.route.id` is null for non-route requests
   // (static assets, unmatched paths), which this leaves alone.
-  if (!event.locals.user && event.route.id !== null && !isPublicRoute(event.url.pathname)) {
+  // PROTOTYPE (prototype/list-kit): the throwaway list-kit route runs on fixtures in dev only
+  const prototype = dev && event.url.pathname.startsWith("/prototype/");
+  if (
+    !prototype &&
+    !event.locals.user &&
+    event.route.id !== null &&
+    !isPublicRoute(event.url.pathname)
+  ) {
     redirect(303, "/login");
   }
 
