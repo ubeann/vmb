@@ -2260,8 +2260,7 @@
         </Button>
       </div>
       <p class="text-muted-foreground max-w-[60ch] text-sm text-pretty">
-        Organisational units that group stock and budgets. A user belongs to one through the roles
-        they hold.
+        Organisational units that group stock and budgets.
       </p>
     </header>
   {:else}
