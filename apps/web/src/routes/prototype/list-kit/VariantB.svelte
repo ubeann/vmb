@@ -238,7 +238,7 @@
     // Round 50: the shortcut sheet is the app's, opened by ? anywhere and from the sidebar
     // footer; this list registers its own sections in it, and the footer hint goes
     globalShortcuts?: boolean;
-    // Round 51: a one-sentence description under the title (Q8 revisited): what a division is
+    // Round 51: a one-sentence description under the title (Q8 revisited), in the glossary's words: what a division is
     // and why it matters, muted, a measure of ~60ch, two lines at most on phones; the action
     // stays on the title's row
     pageDescription?: boolean;
@@ -2260,7 +2260,8 @@
         </Button>
       </div>
       <p class="text-muted-foreground max-w-[60ch] text-sm text-pretty">
-        Business units. A user belongs to a division through the roles they hold.
+        Organisational units that group stock and budgets. A user belongs to one through the roles
+        they hold.
       </p>
     </header>
   {:else}
