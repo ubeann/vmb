@@ -92,7 +92,9 @@
     toolTone = "now",
     radius = "now",
     middle = "name",
-    rowNav = false
+    rowNav = false,
+    polish = false,
+    inactive = "dot"
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -139,6 +141,14 @@
     // Round 25: the keyboard reaches the rows: ↑↓ or J/K move a marked row, Enter opens it, the
     // row shortcuts act on it, ? lists every shortcut, and the footer says so
     rowNav?: boolean;
+    // Round 26: once the toolbar wraps, a hairline under the tabs; in two-line rows the status
+    // leaves its pill for the second line ("● Inactive · CBK · …"), with air between the lines
+    polish?: boolean;
+    // Round 27: how an inactive row stands out. "dot": "● Inactive" on the phone's second line;
+    // "word": the word alone; "dim": the word alone, and in two-line rows, where the pill has
+    // gone, the tile greyed and the name muted. Wider rows keep the pill and nothing else: one
+    // signal at each width, the word always there (status is never colour alone, ADR-0035 rule 5)
+    inactive?: "dot" | "word" | "dim";
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -289,6 +299,11 @@
     radius === "scaled" &&
       "[&_:is([data-slot=button],[data-slot=input],[data-chip])]:rounded-md pointer-coarse:[&_:is([data-slot=button],[data-slot=input],[data-chip])]:rounded-[11px]"
   );
+  const DAY_ONLY = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
   const ROW_ACTION =
     "hover:bg-background dark:hover:bg-background hover:ring-border hover:text-foreground hover:shadow-xs hover:ring-1";
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
@@ -1452,7 +1467,14 @@
     {#if toolbar === "card"}
       <!-- C3 In the card: the views are tabs on the table's own top edge, the controls beside them -->
       <div class="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3">
-        <nav aria-label="Division views" class="-mb-px flex items-center gap-4 self-stretch">
+        <nav
+          aria-label="Division views"
+          class={cn(
+            "-mb-px flex items-center gap-4 self-stretch",
+            polish &&
+              "@max-3xl/list:-mx-3 @max-3xl/list:mb-0 @max-3xl/list:w-[calc(100%+1.5rem)] @max-3xl/list:px-3 @max-3xl/list:shadow-[inset_0_-1px_0_var(--border)]"
+          )}
+        >
           {#each VIEWS as view (view.name)}
             <a
               href={href({ trashed: view.trashed })}
@@ -1692,7 +1714,10 @@
                   <span
                     class={cn(
                       "flex size-7 shrink-0 items-center justify-center rounded-md",
-                      TILE[tile]
+                      TILE[tile],
+                      inactive === "dim" &&
+                        !isActive(division) &&
+                        "@max-lg/list:opacity-55 @max-lg/list:grayscale"
                     )}
                     style:--tile={division.colorHex}
                     style:background-color={tile === "solid" ? division.colorHex : undefined}
@@ -1702,16 +1727,24 @@
                       class={tile === "glyph" ? "size-5" : "size-4"}
                     />
                   </span>
-                  <div class="flex min-w-0 flex-col">
+                  <div class={cn("flex min-w-0 flex-col", polish && "@max-lg/list:gap-0.5")}>
                     <div class="flex min-w-0 items-center gap-2.5">
                       <a
                         href="#{division.code}"
-                        class="truncate font-medium hover:underline"
+                        class={cn(
+                          "truncate font-medium hover:underline",
+                          inactive === "dim" &&
+                            !isActive(division) &&
+                            "@max-lg/list:text-muted-foreground"
+                        )}
                         onclick={(e) => openName(e, division)}>{@render marked(division.name)}</a
                       >
                       {#if !isActive(division)}
                         <!-- Q1: only the exception gets a pill -->
-                        <StatusPill status="Inactive" class="shrink-0" />
+                        <StatusPill
+                          status="Inactive"
+                          class={cn("shrink-0", polish && "@max-lg/list:hidden")}
+                        />
                       {/if}
                     </div>
                     {#if responsive && middle === "desc" && columns.visible("description") && division.description}
@@ -1726,13 +1759,32 @@
                     {#if responsive}
                       <!-- Round 15: the folded columns, under the name -->
                       <p
-                        class="text-muted-foreground hidden items-center gap-1 truncate text-xs @max-lg/list:flex"
+                        class="text-muted-foreground hidden items-center gap-1 overflow-hidden text-xs whitespace-nowrap @max-lg/list:flex"
                       >
+                        {#if polish && !isActive(division)}
+                          <span
+                            class="text-foreground/80 inline-flex items-center gap-1 font-medium"
+                            >{#if inactive === "dot"}<span
+                                aria-hidden="true"
+                                class="bg-muted-foreground size-1.5 rounded-full"
+                              ></span>{/if}Inactive</span
+                          > ·
+                        {/if}
                         {#if columns.visible("code")}
                           <span class="font-mono">{@render marked(division.code)}</span> ·
                         {/if}
                         {inTrash ? "Deleted" : "Updated"}
-                        <RecordTime iso={inTrash ? division.deletedAt : division.updatedAt} />
+                        {#if polish}
+                          <!-- Round 26: the short line keeps the day; the time is on hover -->
+                          {@const iso = inTrash ? division.deletedAt : division.updatedAt}
+                          <time
+                            datetime={iso}
+                            title={iso ? new Date(iso).toLocaleString("en-GB") : undefined}
+                            >{iso ? DAY_ONLY.format(new Date(iso)) : "—"}</time
+                          >
+                        {:else}
+                          <RecordTime iso={inTrash ? division.deletedAt : division.updatedAt} />
+                        {/if}
                       </p>
                     {/if}
                   </div>

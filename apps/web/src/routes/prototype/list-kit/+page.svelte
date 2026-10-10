@@ -39,7 +39,10 @@
     { key: "C3kr", name: "C3kc + corners scaled to height" },
     { key: "C3km", name: "C3kr, middle band: the date takes the room" },
     { key: "C3kd", name: "C3kr, middle band: description under the name" },
-    { key: "C3kn", name: "C3kd + keyboard row navigation" }
+    { key: "C3kn", name: "C3kd + keyboard row navigation" },
+    { key: "C3kp", name: "C3kn + tabs hairline, status in the second line" },
+    { key: "C3kw", name: "C3kp, the word without the dot" },
+    { key: "C3ki", name: "C3kp, the word and a dimmed row" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -60,14 +63,12 @@
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
 {:else if variant === "C3w"}
   <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" view strip="inline" />
-{:else if variant === "C3kr" || variant === "C3km" || variant === "C3kd" || variant === "C3kn"}
+{:else if ["C3kr", "C3km", "C3kd", "C3kn", "C3kp", "C3kw", "C3ki"].includes(variant)}
   <VariantB
-    middle={variant === "C3km"
-      ? "date"
-      : variant === "C3kd" || variant === "C3kn"
-        ? "desc"
-        : "name"}
-    rowNav={variant === "C3kn"}
+    middle={variant === "C3km" ? "date" : variant === "C3kr" ? "name" : "desc"}
+    rowNav={["C3kn", "C3kp", "C3kw", "C3ki"].includes(variant)}
+    polish={["C3kp", "C3kw", "C3ki"].includes(variant)}
+    inactive={variant === "C3kw" ? "word" : variant === "C3ki" ? "dim" : "dot"}
     {data}
     tile="tint"
     toolbar="card"
