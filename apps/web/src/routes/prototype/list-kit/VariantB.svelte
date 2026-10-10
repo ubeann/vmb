@@ -100,7 +100,8 @@
     sortStyle = "list",
     sheetSteps = false,
     rangeStep = false,
-    wideActions = false
+    wideActions = false,
+    alignRows = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -170,6 +171,9 @@
     // ("Apply · 2 – 5 Jan 2026"); short buttons elsewhere are at least 80px; a new step takes
     // focus on its title, not on the back arrow
     wideActions?: boolean;
+    // Round 33: the date step's ticks lead every row so the dates form one column, only Custom
+    // range carries a chevron; a custom range that equals a preset is saved as that preset
+    alignRows?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -570,7 +574,11 @@
   function applyDraft(filter: Filter) {
     if (!draft?.start || !draft.end) return;
     pickerFor = null;
-    choose(filter.key, `${draft.start}..${draft.end}`);
+    const [start, end] = [draft.start.toString(), draft.end.toString()];
+    const preset = alignRows
+      ? Object.entries(PRESET_RANGE).find(([, r]) => r[0] === start && r[1] === end)?.[0]
+      : undefined;
+    choose(filter.key, preset ?? `${start}..${end}`);
   }
 
   // what the chip and the date caption say: "Active, Inactive", "Last 7 days", "2 – 5 Jan 2026"
@@ -1602,11 +1610,24 @@
                 sheetStep = null;
               }}
             >
+              {#if alignRows}
+                <CheckIcon
+                  aria-hidden="true"
+                  class={cn("text-primary size-4", !on && "invisible")}
+                />
+              {/if}
               <span class="flex-1 text-left">{option.label}</span>
               {#if range}<span class="text-muted-foreground text-xs font-normal tabular-nums"
                   >{formatRange(range)}</span
                 >{/if}
-              <CheckIcon aria-hidden="true" class={cn("text-primary size-4", !on && "invisible")} />
+              {#if alignRows}
+                <span aria-hidden="true" class="w-4 shrink-0"></span>
+              {:else}
+                <CheckIcon
+                  aria-hidden="true"
+                  class={cn("text-primary size-4", !on && "invisible")}
+                />
+              {/if}
             </button>
           {/each}
         </div>
@@ -1619,14 +1640,27 @@
             sheetStep = `${stepFilter.key}:range`;
           }}
         >
-          <span class="flex-1 text-left">Custom range</span>
-          {#if hasRange(stepFilter)}
-            <span class="text-muted-foreground text-xs font-normal tabular-nums"
-              >{describe(stepFilter)}</span
-            >
-            <CheckIcon aria-hidden="true" class="text-primary size-4" />
+          {#if alignRows}
+            <CheckIcon
+              aria-hidden="true"
+              class={cn("text-primary size-4", !hasRange(stepFilter) && "invisible")}
+            />
+            <span class="flex-1 text-left">Custom range</span>
+            {#if hasRange(stepFilter)}
+              <span class="text-muted-foreground text-xs font-normal tabular-nums"
+                >{describe(stepFilter)}</span
+              >
+            {/if}
+          {:else}
+            <span class="flex-1 text-left">Custom range</span>
+            {#if hasRange(stepFilter)}
+              <span class="text-muted-foreground text-xs font-normal tabular-nums"
+                >{describe(stepFilter)}</span
+              >
+              <CheckIcon aria-hidden="true" class="text-primary size-4" />
+            {/if}
           {/if}
-          <ChevronRightIcon aria-hidden="true" class="text-muted-foreground size-4" />
+          <ChevronRightIcon aria-hidden="true" class="text-muted-foreground size-4 shrink-0" />
         </button>
       </div>
     {:else}

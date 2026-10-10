@@ -47,7 +47,8 @@
     { key: "C3ko", name: "C3ki + Sort by and Order as check lists" },
     { key: "C3kf", name: "C3ko + the phone's filter sheet in steps" },
     { key: "C3kg", name: "C3kf + custom range as a third step" },
-    { key: "C3kh", name: "C3kg + full-width sheet actions, quiet step focus" }
+    { key: "C3kh", name: "C3kg + full-width sheet actions, quiet step focus" },
+    { key: "C3kj", name: "C3kh + aligned date rows, ranges that match a preset" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
@@ -63,7 +64,8 @@
     "C3ko",
     "C3kf",
     "C3kg",
-    "C3kh"
+    "C3kh",
+    "C3kj"
   ];
 </script>
 
@@ -94,6 +96,7 @@
     sheetSteps={after("C3kf")}
     rangeStep={after("C3kg")}
     wideActions={after("C3kh")}
+    alignRows={after("C3kj")}
     {data}
     tile="tint"
     toolbar="card"
