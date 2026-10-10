@@ -46,14 +46,14 @@
 <ul class={cn("flex flex-wrap items-center gap-2", className)} aria-label="Filters">
   {#each active as { filter, option } (filter.key)}
     <li
-      class="border-border bg-secondary text-secondary-foreground inline-flex h-8 items-center gap-1 rounded-full border pr-1 pl-3 text-sm pointer-coarse:h-11 pointer-coarse:pr-0"
+      class="border-border bg-secondary text-secondary-foreground rounded-control inline-flex h-8 items-center gap-1 border pr-1 pl-3 text-sm pointer-coarse:h-11 pointer-coarse:pr-0"
     >
       <span><span class="text-muted-foreground">{filter.label}:</span> {option.label}</span>
       <a
         href={resolve(listHref(base, page.url.searchParams, { [filter.key]: null }))}
         data-sveltekit-noscroll
         aria-label="Remove filter {filter.label}: {option.label}"
-        class="hover:bg-accent focus-visible:ring-ring inline-flex size-6 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-11"
+        class="hover:bg-accent focus-visible:ring-ring inline-flex size-6 items-center justify-center rounded-[calc(var(--control-radius)-0.25rem)] focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-11 pointer-coarse:rounded-[calc(var(--control-radius)-1px)]"
       >
         <XIcon aria-hidden="true" class="size-3.5" />
       </a>
@@ -63,8 +63,10 @@
   {#if available.length > 0}
     <li>
       <DropdownMenu.Root>
+        <!-- the button slot gives it the 44px touch target and the full focus ring -->
         <DropdownMenu.Trigger
-          class={cn(buttonVariants({ variant: "outline" }), "rounded-full border-dashed")}
+          data-slot="button"
+          class={cn(buttonVariants({ variant: "outline" }), "border-dashed")}
         >
           <PlusIcon aria-hidden="true" data-icon="inline-start" />Add filter
         </DropdownMenu.Trigger>

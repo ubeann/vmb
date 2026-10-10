@@ -19,7 +19,7 @@
 >
   <RangeCalendarPrimitive.YearSelect bind:ref class="absolute inset-0 opacity-0" {...restProps}>
     {#snippet child({ props, yearItems, selectedYearItem })}
-      <select {...props} {value}>
+      <select {...props} data-slot="range-calendar-year-select" {value}>
         {#each yearItems as yearItem (yearItem.value)}
           <option
             value={yearItem.value}

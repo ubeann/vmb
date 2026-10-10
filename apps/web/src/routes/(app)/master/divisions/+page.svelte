@@ -149,7 +149,7 @@
   {:else}
     {@const list = data.divisions}
     <div
-      class="border-border bg-card relative overflow-hidden rounded-lg border"
+      class="border-border bg-card relative overflow-hidden rounded-xl border"
       aria-busy={loading}
     >
       {#if loading}

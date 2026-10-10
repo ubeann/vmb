@@ -21,6 +21,7 @@
 
 <RangeCalendarPrimitive.PrevButton
   bind:ref
+  data-slot="range-calendar-prev-button"
   class={cn(
     buttonVariants({ variant }),
     "size-(--cell-size) bg-transparent p-0 select-none disabled:opacity-50",
