@@ -91,7 +91,7 @@ Depth is mostly flat: a white card on warm paper, a navy card on deep navy in da
 
 ## Shapes
 
-One radius, `--radius` (0.625rem), with the Tailwind steps derived from it in `app.css`. Controls round by a quarter of their height (`rounded-control`): 8px at 32px, 11px once touch pointers grow them to 44px, filter chips included; a card is one step rounder (`rounded-xl`, 14px) than what it holds, and popovers and menus keep their own (ADR-0035, 2026-10-11). In light mode, text fields and outline buttons share one skin: the paper's fill and `control-edge`, halfway between `input` and `border`.
+One radius, `--radius` (0.625rem), with the Tailwind steps derived from it in `app.css`. Controls round by a quarter of their height (`rounded-(--control-radius)`): 8px at 32px, 11px once touch pointers grow them to 44px, filter chips included; a card is one step rounder (`rounded-xl`, 14px) than what it holds, and popovers and menus keep their own (ADR-0035, 2026-10-11). In light mode, text fields and outline buttons share one skin: the paper's fill and `--control-edge`, a mix of 45% `input` into `border` that the header leaves out because it is derived, not a value of its own.
 
 ## Components
 

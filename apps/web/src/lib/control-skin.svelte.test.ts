@@ -63,6 +63,14 @@ describe("the control skin", () => {
     }
   });
 
+  it("lets a caller's corner replace the control corner", async () => {
+    const screen = await render(ControlSkin);
+    const pill = screen.getByRole("button", { name: "Pill" }).element();
+
+    expect(pill.className).not.toContain("--control-radius");
+    expect(style(pill).borderTopLeftRadius).not.toBe("8px");
+  });
+
   it("keeps the button slot on a dropdown trigger, so touch pointers size it", async () => {
     const { columns } = await controls();
 

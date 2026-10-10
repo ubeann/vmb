@@ -46,9 +46,10 @@
 <ul class={cn("flex flex-wrap items-center gap-2", className)} aria-label="Filters">
   {#each active as { filter, option } (filter.key)}
     <li
-      class="border-border bg-secondary text-secondary-foreground rounded-control inline-flex h-8 items-center gap-1 border pr-1 pl-3 text-sm pointer-coarse:h-11 pointer-coarse:pr-0"
+      class="border-border bg-secondary text-secondary-foreground inline-flex h-8 items-center gap-1 rounded-(--control-radius) border pr-1 pl-3 text-sm pointer-coarse:h-11 pointer-coarse:pr-0"
     >
       <span><span class="text-muted-foreground">{filter.label}:</span> {option.label}</span>
+      <!-- its corner nests inside the chip's: 4px in from the edge on a mouse, flush inside the 1px border on touch -->
       <a
         href={resolve(listHref(base, page.url.searchParams, { [filter.key]: null }))}
         data-sveltekit-noscroll

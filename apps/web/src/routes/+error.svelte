@@ -92,7 +92,7 @@
           <Button
             href={`${page.url.pathname}${page.url.search}`}
             data-sveltekit-reload
-            class="min-h-11 px-4"
+            class="min-h-11 rounded-(--touch-radius) px-4"
           >
             <RotateCw aria-hidden="true" />
             Try again
@@ -102,7 +102,7 @@
           <Button
             href={resolve("/")}
             variant={content.canRetry ? "outline" : "default"}
-            class="min-h-11 px-4"
+            class="min-h-11 rounded-(--touch-radius) px-4"
           >
             <LayoutDashboard aria-hidden="true" />
             Go to dashboard
@@ -111,7 +111,7 @@
           <Button
             href={resolve("/login")}
             variant={content.canRetry ? "outline" : "default"}
-            class="min-h-11 px-4"
+            class="min-h-11 rounded-(--touch-radius) px-4"
           >
             <LogIn aria-hidden="true" />
             Log in

@@ -15,6 +15,7 @@
 <div class="bg-card flex gap-2 p-4">
   <Input type="search" aria-label="Search" />
   <Button variant="outline">Filter</Button>
+  <Button variant="outline" class="rounded-full">Pill</Button>
   <ColumnsMenu {columns} />
   <Select.Root type="single" value="25">
     <Select.Trigger aria-label="Rows per page">25</Select.Trigger>

@@ -28,6 +28,6 @@
     class="text-muted-foreground pointer-events-none absolute inset-y-0 left-3 my-auto size-4"
     aria-hidden="true"
   />
-  <Input class={cn("rounded-touch min-h-11 pl-9", className)} {...restProps} />
+  <Input class={cn("min-h-11 rounded-(--touch-radius) pl-9", className)} {...restProps} />
   {@render trailing?.()}
 </div>
