@@ -91,7 +91,8 @@
     sortInView = false,
     toolTone = "now",
     radius = "now",
-    middle = "name"
+    middle = "name",
+    rowNav = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -135,6 +136,9 @@
     // name column (Code and Updated sit against ⋮); "date": Updated (Code and the date follow
     // the name); "desc": the name column, carrying the description as a second line
     middle?: "name" | "date" | "desc";
+    // Round 25: the keyboard reaches the rows: ↑↓ or J/K move a marked row, Enter opens it, the
+    // row shortcuts act on it, ? lists every shortcut, and the footer says so
+    rowNav?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -407,8 +411,27 @@
     if (event.metaKey || event.ctrlKey || event.altKey) return undefined;
     return KEYS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
   }
+  let cursor = $state<string | null>(null);
+  let helpOpen = $state(false);
+  // keep the marked row in sight as it moves
+  $effect(() => {
+    if (cursor)
+      document.querySelector(`tr[data-id="${cursor}"]`)?.scrollIntoView({ block: "nearest" });
+  });
+  function move(step: number) {
+    const items = data.divisions.items;
+    if (!items.length) return;
+    const at = items.findIndex((d) => d.id === cursor);
+    const next =
+      at === -1
+        ? step > 0
+          ? 0
+          : items.length - 1
+        : Math.min(items.length - 1, Math.max(0, at + step));
+    cursor = items[next]!.id;
+  }
   function onkeydown(event: KeyboardEvent) {
-    if (!view || panelOpen || menuFor || opened) return;
+    if (!view || panelOpen || menuFor || opened || helpOpen) return;
     const target = event.target as HTMLElement | null;
     if (
       target?.closest(
@@ -416,10 +439,40 @@
       )
     )
       return;
+    if (rowNav && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      const marked = data.divisions.items.find((d) => d.id === cursor);
+      if (event.key === "?") {
+        event.preventDefault();
+        helpOpen = true;
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "j") {
+        event.preventDefault();
+        move(1);
+        return;
+      }
+      if (event.key === "ArrowUp" || event.key === "k") {
+        event.preventDefault();
+        move(-1);
+        return;
+      }
+      if (event.key === "Enter" && marked && !target?.closest("a, button")) {
+        event.preventDefault();
+        opened = marked;
+        return;
+      }
+      if (event.key === "Escape" && cursor) {
+        cursor = null;
+        return;
+      }
+    }
     const action = actionFor(event);
     if (!action) return;
     const id = target?.closest<HTMLElement>("tr[data-id]")?.dataset.id;
-    const division = data.divisions.items.find((d) => d.id === id) ?? hovered;
+    const division =
+      (rowNav ? data.divisions.items.find((d) => d.id === cursor) : undefined) ??
+      data.divisions.items.find((d) => d.id === id) ??
+      hovered;
     if (division && run(action, division)) event.preventDefault();
   }
   function menuKeydown(event: KeyboardEvent, division: Division) {
@@ -529,8 +582,13 @@
   // The row's own background faded in over 150ms (`transition-colors` on Table.Row) while the
   // pinned cells, painted separately, switched at once: the middle lagged the edges. No fade,
   // and the pinned cells follow every state that paints the row, the open menu included.
-  const ROW = "cursor-pointer transition-none hover:bg-muted has-aria-expanded:bg-muted";
-  const PINNED_BG = "bg-card [tr:hover>&]:bg-muted [tr:has([aria-expanded=true])>&]:bg-muted";
+  const ROW =
+    "cursor-pointer transition-none hover:bg-muted has-aria-expanded:bg-muted data-[cursor]:bg-muted";
+  const PINNED_BG =
+    "bg-card [tr:hover>&]:bg-muted [tr:has([aria-expanded=true])>&]:bg-muted [tr[data-cursor]>&]:bg-muted";
+  // Round 25: the keyboard's row gets a green bar on its leading edge
+  const CURSOR_BAR =
+    "before:bg-primary before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:opacity-0 [tr[data-cursor]>&]:before:opacity-100";
 
   const TILE = {
     solid: "text-white",
@@ -1616,6 +1674,7 @@
             <Table.Row
               class={ROW}
               data-id={division.id}
+              data-cursor={rowNav && cursor === division.id ? "" : undefined}
               onclick={(e: MouseEvent) => openRow(e, division)}
               onmouseenter={() => (hovered = division)}
               onmouseleave={() => hovered === division && (hovered = null)}
@@ -1623,6 +1682,7 @@
               <Table.Cell
                 class={cn(
                   PINNED_BG,
+                  rowNav && CURSOR_BAR,
                   "pinned-start sticky left-0 z-10 max-w-72",
                   columnClass("identity"),
                   FOLD.name
@@ -1805,7 +1865,57 @@
   {:else}
     <ListFooter {base} {list} noun={inTrash ? "divisions in the Trash" : "divisions"} />
   {/if}
+  {#if rowNav}
+    <!-- Round 25: shortcuts are found here, and only where there is a keyboard to use them -->
+    <p class="text-muted-foreground hidden items-center gap-1.5 self-end text-xs pointer-fine:flex">
+      Press <kbd class="border-border rounded border px-1.5 font-mono">?</kbd> for keyboard shortcuts
+    </p>
+  {/if}
 </Page>
+
+<!-- Round 25: every shortcut on one sheet -->
+<Dialog.Root bind:open={helpOpen}>
+  <Dialog.Content class="sm:max-w-md">
+    <Dialog.Header>
+      <Dialog.Title>Keyboard shortcuts</Dialog.Title>
+      <Dialog.Description
+        >On the Divisions list, while no field or menu has the keyboard.</Dialog.Description
+      >
+    </Dialog.Header>
+    {#each [{ group: "Find and move", keys: [{ keys: ["/"], what: "Search" }, { keys: ["↑", "↓"], alt: ["J", "K"], what: "Move between rows" }, { keys: ["Enter"], what: "Open the row" }, { keys: ["Esc"], what: "Leave the row" }] }, { group: "On the row", keys: [{ keys: ["E"], what: "Edit" }, { keys: ["D"], what: "Deactivate" }, { keys: ["A"], what: "Activate" }, { keys: ["⌫"], what: "Delete…" }, { keys: ["R"], what: "Restore, in the Trash" }] }] as section (section.group)}
+      <section>
+        <h3 class="text-muted-foreground mb-1 text-xs font-medium">{section.group}</h3>
+        <dl class="divide-border divide-y">
+          {#each section.keys as row (row.what)}
+            <div class="flex items-center justify-between py-1.5 text-sm">
+              <dt class="font-normal">{row.what}</dt>
+              <dd class="flex items-center gap-1">
+                {#each row.keys as key (key)}
+                  <kbd
+                    class="border-border inline-flex h-6 min-w-6 items-center justify-center rounded border px-1.5 font-mono text-xs"
+                    >{#if key === "⌫"}<DeleteIcon
+                        aria-label="Backspace"
+                        class="size-3.5"
+                      />{:else}{key}{/if}</kbd
+                  >
+                {/each}
+                {#if row.alt}
+                  <span class="text-muted-foreground px-0.5 text-xs">or</span>
+                  {#each row.alt as key (key)}
+                    <kbd
+                      class="border-border inline-flex h-6 min-w-6 items-center justify-center rounded border px-1.5 font-mono text-xs"
+                      >{key}</kbd
+                    >
+                  {/each}
+                {/if}
+              </dd>
+            </div>
+          {/each}
+        </dl>
+      </section>
+    {/each}
+  </Dialog.Content>
+</Dialog.Root>
 
 <!-- Q2: stands in for #302's record modal -->
 <Dialog.Root open={opened !== null} onOpenChange={(open) => !open && (opened = null)}>

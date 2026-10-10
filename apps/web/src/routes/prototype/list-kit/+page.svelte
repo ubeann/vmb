@@ -38,7 +38,8 @@
     { key: "C3kc", name: "C3k, search and tools meet halfway" },
     { key: "C3kr", name: "C3kc + corners scaled to height" },
     { key: "C3km", name: "C3kr, middle band: the date takes the room" },
-    { key: "C3kd", name: "C3kr, middle band: description under the name" }
+    { key: "C3kd", name: "C3kr, middle band: description under the name" },
+    { key: "C3kn", name: "C3kd + keyboard row navigation" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -59,9 +60,14 @@
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
 {:else if variant === "C3w"}
   <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" view strip="inline" />
-{:else if variant === "C3kr" || variant === "C3km" || variant === "C3kd"}
+{:else if variant === "C3kr" || variant === "C3km" || variant === "C3kd" || variant === "C3kn"}
   <VariantB
-    middle={variant === "C3km" ? "date" : variant === "C3kd" ? "desc" : "name"}
+    middle={variant === "C3km"
+      ? "date"
+      : variant === "C3kd" || variant === "C3kn"
+        ? "desc"
+        : "name"}
+    rowNav={variant === "C3kn"}
     {data}
     tile="tint"
     toolbar="card"
