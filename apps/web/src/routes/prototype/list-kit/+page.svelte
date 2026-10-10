@@ -49,7 +49,10 @@
     { key: "C3kg", name: "C3kf + custom range as a third step" },
     { key: "C3kh", name: "C3kg + full-width sheet actions, quiet step focus" },
     { key: "C3kj", name: "C3kh + aligned date rows, ranges that match a preset" },
-    { key: "C3kk", name: "C3kj + icons on the sheet's main actions" }
+    { key: "C3kk", name: "C3kj + icons on the sheet's main actions" },
+    { key: "C3kx", name: "C3kk + From and To ends on the calendar" },
+    { key: "C3kc2", name: "C3kx + a capped sheet, a calendar that fills it" },
+    { key: "C3ke", name: "C3kc2 + From and To as one segmented control" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
@@ -67,7 +70,10 @@
     "C3kg",
     "C3kh",
     "C3kj",
-    "C3kk"
+    "C3kk",
+    "C3kx",
+    "C3kc2",
+    "C3ke"
   ];
 </script>
 
@@ -100,6 +106,9 @@
     wideActions={after("C3kh")}
     alignRows={after("C3kj")}
     actionIcons={after("C3kk")}
+    rangeEnds={after("C3kx")}
+    sheetCap={after("C3kc2")}
+    endsSegment={after("C3ke")}
     {data}
     tile="tint"
     toolbar="card"

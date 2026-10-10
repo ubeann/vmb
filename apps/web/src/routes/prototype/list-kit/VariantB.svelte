@@ -38,6 +38,7 @@
   import { listHref, pageWindow, showingRange, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import ArrowDownIcon from "@lucide/svelte/icons/arrow-down";
+  import ArrowRightIcon from "@lucide/svelte/icons/arrow-right";
   import ArrowUpDownIcon from "@lucide/svelte/icons/arrow-up-down";
   import ArrowUpIcon from "@lucide/svelte/icons/arrow-up";
   import CheckIcon from "@lucide/svelte/icons/check";
@@ -67,7 +68,7 @@
   import SearchXIcon from "@lucide/svelte/icons/search-x";
   import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
   import XIcon from "@lucide/svelte/icons/x";
-  import { parseDate } from "@internationalized/date";
+  import { parseDate, type DateValue } from "@internationalized/date";
   import type { DateRange } from "bits-ui";
   import { DEFAULT_PER_PAGE, PER_PAGE_OPTIONS, type Division } from "@vmb/types";
   import { dateRange, formatRange, formatShortRange, PRESET_RANGE, TODAY } from "./dates.js";
@@ -103,7 +104,10 @@
     rangeStep = false,
     wideActions = false,
     alignRows = false,
-    actionIcons = false
+    actionIcons = false,
+    rangeEnds = false,
+    sheetCap = false,
+    endsSegment = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -179,6 +183,15 @@
     // Round 34: the sheet's and picker's main actions carry the icon of what they confirm, the
     // funnel on "Show n divisions", a ticked calendar on Apply
     actionIcons?: boolean;
+    // Round 37: a From → To bar over the calendar, each end with its year and a tap away from
+    // its month, so a range longer than the month shown still shows both ends; a range that
+    // crosses New Year keeps its years on Apply
+    rangeEnds?: boolean;
+    // Round 38: the phone sheet is at most 26rem wide and centred, as bottom sheets are on wider
+    // screens; its calendar fills it, days 44–48px
+    sheetCap?: boolean;
+    // Round 39: From and To as one segmented control; the half whose month is in view is lit
+    endsSegment?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -414,10 +427,23 @@
   // a draft on the calendar until Apply.
   let pickerFor = $state<string | null>(null);
   let draft = $state<DateRange | undefined>(undefined);
+  let calMonth = $state<DateValue>(parseDate(TODAY));
+  // which end's month the calendar shows, if either
+  const sameMonth = (a: DateValue | undefined) =>
+    Boolean(a && a.year === calMonth.year && a.month === calMonth.month);
+  const endInView = $derived(
+    sameMonth(draft?.end) ? "to" : sameMonth(draft?.start) ? "from" : null
+  );
+  // Apply's words: short when recent, full when the range crosses New Year (round 37)
+  function applyLabel(start: string, end: string) {
+    const crossesYear = rangeEnds && start.slice(0, 4) !== end.slice(0, 4);
+    return `Apply ${crossesYear ? formatRange([start, end]) : formatShortRange([start, end])}`;
+  }
   function openPicker(filter: Filter, open: boolean) {
     if (open) {
       pickerFor = filter.key;
       draft = calendarValue(filter);
+      calMonth = draft?.start ?? parseDate(TODAY);
     } else if (pickerFor === filter.key) pickerFor = null;
   }
   // Round 8: only the top layer hears an outside click, so the picker passes it on: a click
@@ -747,6 +773,79 @@
   {:else}
     {text}
   {/if}
+{/snippet}
+
+<!-- Round 37: both ends of the range, with their years; each jumps the calendar to its month -->
+{#snippet endsBar()}
+  {#if endsSegment}
+    <div
+      class="ring-border flex overflow-hidden rounded-md ring-1 ring-inset"
+      role="group"
+      aria-label="Range ends"
+    >
+      {@render rangeEndHalf("From", "from", draft?.start, "Pick a start")}
+      <span aria-hidden="true" class="bg-border w-px self-stretch"></span>
+      {@render rangeEndHalf("To", "to", draft?.end, "Pick an end")}
+    </div>
+  {:else}
+    <div class="flex items-center gap-1.5">
+      {@render rangeEnd("From", draft?.start, "Pick a start")}
+      <ArrowRightIcon aria-hidden="true" class="text-muted-foreground size-4 shrink-0" />
+      {@render rangeEnd("To", draft?.end, "Pick an end")}
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet rangeEndHalf(label: string, end: "from" | "to", day: DateRange["start"], empty: string)}
+  {@const lit = endInView === end}
+  <button
+    type="button"
+    data-slot="range-end"
+    disabled={!day}
+    aria-pressed={lit}
+    aria-label={day
+      ? `${label} ${formatRange([day.toString(), day.toString()])}, show its month`
+      : `${label}: ${empty}`}
+    onclick={() => day && (calMonth = parseDate(day.toString()))}
+    class={cn(
+      "min-w-0 flex-1 px-3 py-1.5 text-left pointer-coarse:py-2",
+      lit ? "bg-primary/10 dark:bg-primary/15" : "hover:bg-muted disabled:hover:bg-transparent"
+    )}
+  >
+    <span
+      class={cn(
+        "block text-[0.7rem] leading-tight",
+        lit ? "text-primary font-medium" : "text-muted-foreground"
+      )}>{label}</span
+    >
+    <span
+      class={cn(
+        "block truncate text-sm tabular-nums",
+        day ? "font-medium" : "text-muted-foreground"
+      )}>{day ? formatRange([day.toString(), day.toString()]) : empty}</span
+    >
+  </button>
+{/snippet}
+
+{#snippet rangeEnd(label: string, day: DateRange["start"], empty: string)}
+  <button
+    type="button"
+    data-slot="range-end"
+    disabled={!day}
+    aria-label={day
+      ? `${label} ${formatRange([day.toString(), day.toString()])}, show its month`
+      : `${label}: ${empty}`}
+    onclick={() => day && (calMonth = parseDate(day.toString()))}
+    class="ring-border hover:bg-muted min-w-0 flex-1 rounded-md px-2.5 py-1.5 text-left ring-1 ring-inset disabled:hover:bg-transparent pointer-coarse:py-2"
+  >
+    <span class="text-muted-foreground block text-[0.7rem] leading-tight">{label}</span>
+    <span
+      class={cn(
+        "block truncate text-sm tabular-nums",
+        day ? "font-medium" : "text-muted-foreground"
+      )}>{day ? formatRange([day.toString(), day.toString()]) : empty}</span
+    >
+  </button>
 {/snippet}
 
 {#snippet columnRows()}
@@ -1354,9 +1453,12 @@
         {/if}
       </div>
       <div class={cn("flex flex-col", actionIcons && "w-min")}>
+        {#if rangeEnds}
+          <div class="w-0 min-w-full px-3 pt-3">{@render endsBar()}</div>
+        {/if}
         <RangeCalendar
           bind:value={draft}
-          placeholder={parseDate(TODAY)}
+          bind:placeholder={calMonth}
           maxValue={parseDate(TODAY)}
           weekStartsOn={1}
           class={cn(
@@ -1380,7 +1482,7 @@
               {#if draft?.start && draft.end}
                 <CalendarCheckIcon aria-hidden="true" data-icon="inline-start" />
                 <span class="truncate"
-                  >Apply {formatShortRange([draft.start.toString(), draft.end.toString()])}</span
+                  >{applyLabel(draft.start.toString(), draft.end.toString())}</span
                 >
               {:else}
                 Pick a start and an end
@@ -1558,7 +1660,10 @@
       <Sheet.Content
         side="bottom"
         showCloseButton={false}
-        class="flex max-h-[85svh] flex-col gap-0 rounded-t-xl"
+        class={cn(
+          "flex max-h-[85svh] flex-col gap-0 rounded-t-xl",
+          sheetCap && "mx-auto w-full max-w-[26rem] sm:rounded-t-2xl"
+        )}
         onCloseAutoFocus={() => (sheetStep = null)}
       >
         {@render sheetStepped()}
@@ -1608,14 +1713,31 @@
       >
     </header>
     {#if rangeStep && rangeOpen}
-      <div class="flex flex-1 justify-center overflow-y-auto px-4 py-2">
-        <RangeCalendar
-          bind:value={draft}
-          placeholder={parseDate(TODAY)}
-          maxValue={parseDate(TODAY)}
-          weekStartsOn={1}
-          class="bg-transparent p-0 [--cell-size:--spacing(11)]"
-        />
+      <div
+        class={cn(
+          "flex flex-1 flex-col items-center overflow-y-auto px-4 py-2",
+          sheetCap && "@container"
+        )}
+      >
+        <div
+          class={cn(
+            "flex flex-col items-center",
+            sheetCap
+              ? "[--cell-size:clamp(2.75rem,calc(100cqw/7),3rem)] [@media(max-height:700px)]:[--cell-size:2.75rem]"
+              : "[--cell-size:--spacing(11)]"
+          )}
+        >
+          {#if rangeEnds}
+            <div class="mb-1 w-[calc(var(--cell-size)*7)]">{@render endsBar()}</div>
+          {/if}
+          <RangeCalendar
+            bind:value={draft}
+            bind:placeholder={calMonth}
+            maxValue={parseDate(TODAY)}
+            weekStartsOn={1}
+            class="bg-transparent p-0 [--cell-size:inherit]"
+          />
+        </div>
       </div>
       <footer class="border-border flex shrink-0 items-center gap-3 border-t p-4">
         {#if wideActions}
@@ -1633,7 +1755,7 @@
             {/if}
             {draft?.start && draft.end
               ? actionIcons
-                ? `Apply ${formatShortRange([draft.start.toString(), draft.end.toString()])}`
+                ? applyLabel(draft.start.toString(), draft.end.toString())
                 : `Apply · ${formatRange([draft.start.toString(), draft.end.toString()])}`
               : "Pick a start and an end"}
           </Button>
@@ -1701,6 +1823,7 @@
           class={cn(checkRow, "-mx-2 w-[calc(100%+1rem)]", hasRange(stepFilter) && "font-medium")}
           onclick={() => {
             draft = calendarValue(stepFilter);
+            calMonth = draft?.start ?? parseDate(TODAY);
             sheetStep = `${stepFilter.key}:range`;
           }}
         >
