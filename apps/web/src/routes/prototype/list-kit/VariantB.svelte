@@ -99,7 +99,8 @@
     inactive = "dot",
     sortStyle = "list",
     sheetSteps = false,
-    rangeStep = false
+    rangeStep = false,
+    wideActions = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -165,6 +166,10 @@
     // Round 31: the custom range is a third step of its own (calendar only, 44px days), so no step
     // scrolls on a small phone; its row on the date step shows the range in use
     rangeStep?: boolean;
+    // Round 32: a sheet's main action fills its footer and its label carries the detail
+    // ("Apply · 2 – 5 Jan 2026"); short buttons elsewhere are at least 80px; a new step takes
+    // focus on its title, not on the back arrow
+    wideActions?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -350,6 +355,14 @@
   // "updated" for a date filter's step, "updated:range" for its custom range step
   const stepFilter = $derived(FILTERS.find((f) => f.key === sheetStep?.split(":")[0]));
   const rangeOpen = $derived(Boolean(sheetStep?.endsWith(":range")));
+  // Round 32: each step announces itself by its title, which takes focus quietly
+  $effect(() => {
+    if (!wideActions || !sheetOpen) return;
+    void sheetStep;
+    queueMicrotask(() =>
+      document.querySelector<HTMLElement>("[data-slot=sheet-content] [data-step-title]")?.focus()
+    );
+  });
   function openStep(filter: Filter) {
     draft = calendarValue(filter);
     sheetStep = filter.key;
@@ -1316,9 +1329,15 @@
               : "Pick a start and an end"}
           </span>
           <div class="flex gap-2">
-            <Button variant="ghost" onclick={() => (pickerFor = null)}>Cancel</Button>
-            <Button disabled={!draft?.start || !draft.end} onclick={() => applyDraft(filter)}
-              >Apply</Button
+            <Button
+              variant="ghost"
+              class={cn(wideActions && "min-w-20")}
+              onclick={() => (pickerFor = null)}>Cancel</Button
+            >
+            <Button
+              class={cn(wideActions && "min-w-20")}
+              disabled={!draft?.start || !draft.end}
+              onclick={() => applyDraft(filter)}>Apply</Button
             >
           </div>
         </div>
@@ -1514,7 +1533,7 @@
       >
         <ChevronLeftIcon aria-hidden="true" class="size-5" />
       </button>
-      <Sheet.Title class="flex-1 text-base font-semibold"
+      <Sheet.Title class="flex-1 text-base font-semibold outline-none" tabindex={-1} data-step-title
         >{rangeOpen ? `${stepFilter.label}: custom range` : stepFilter.label}</Sheet.Title
       >
       <Sheet.Close class={iconBtn} aria-label="Close"
@@ -1532,19 +1551,35 @@
         />
       </div>
       <footer class="border-border flex shrink-0 items-center gap-3 border-t p-4">
-        <span class="text-muted-foreground flex-1 text-sm tabular-nums">
-          {draft?.start && draft.end
-            ? formatRange([draft.start.toString(), draft.end.toString()])
-            : "Pick a start and an end"}
-        </span>
-        <Button
-          data-slot="button"
-          disabled={!draft?.start || !draft.end}
-          onclick={() => {
-            applyDraft(stepFilter);
-            sheetStep = null;
-          }}>Apply</Button
-        >
+        {#if wideActions}
+          <Button
+            data-slot="button"
+            class="h-11 flex-1 tabular-nums"
+            disabled={!draft?.start || !draft.end}
+            onclick={() => {
+              applyDraft(stepFilter);
+              sheetStep = null;
+            }}
+          >
+            {draft?.start && draft.end
+              ? `Apply · ${formatRange([draft.start.toString(), draft.end.toString()])}`
+              : "Pick a start and an end"}
+          </Button>
+        {:else}
+          <span class="text-muted-foreground flex-1 text-sm tabular-nums">
+            {draft?.start && draft.end
+              ? formatRange([draft.start.toString(), draft.end.toString()])
+              : "Pick a start and an end"}
+          </span>
+          <Button
+            data-slot="button"
+            disabled={!draft?.start || !draft.end}
+            onclick={() => {
+              applyDraft(stepFilter);
+              sheetStep = null;
+            }}>Apply</Button
+          >
+        {/if}
       </footer>
     {:else if rangeStep}
       <div class="flex-1 overflow-y-auto px-4 py-3">
@@ -1650,7 +1685,9 @@
     {/if}
   {:else}
     <header class={cn(head, "pl-4")}>
-      <Sheet.Title class="flex-1 text-base font-semibold">Filters</Sheet.Title>
+      <Sheet.Title class="flex-1 text-base font-semibold outline-none" tabindex={-1} data-step-title
+        >Filters</Sheet.Title
+      >
       <Sheet.Close class={iconBtn} aria-label="Close"
         ><XIcon aria-hidden="true" class="size-5" /></Sheet.Close
       >
