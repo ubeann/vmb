@@ -56,6 +56,7 @@
   import PowerIcon from "@lucide/svelte/icons/power";
   import PowerOffIcon from "@lucide/svelte/icons/power-off";
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
+  import HistoryIcon from "@lucide/svelte/icons/history";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import SearchIcon from "@lucide/svelte/icons/search";
   import SearchXIcon from "@lucide/svelte/icons/search-x";
@@ -174,6 +175,12 @@
   // a choice in the Filter popover applies at once; the popover stays open for the next one
   const choose = (key: string, value: string | null) =>
     goto(href({ [key]: value }), { noScroll: true, keepFocus: true });
+  // Round 13: "1 division", "12 divisions"; in the Trash "1 deleted division"
+  const noun = (n: number) => `${inTrash ? "deleted " : ""}${n === 1 ? "division" : "divisions"}`;
+  // Round 13: a row action's hover must stand out from the hovered row, which is already the
+  // ghost button's grey: it lifts to the page colour with a hairline instead
+  const ROW_ACTION =
+    "hover:bg-background dark:hover:bg-background hover:ring-border hover:text-foreground hover:shadow-xs hover:ring-1";
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
 
   let sheetOpen = $state(false);
@@ -561,7 +568,8 @@
     "inline-flex size-8 items-center justify-center rounded-md text-sm tabular-nums pointer-coarse:size-11"}
   <nav aria-label="Pages" class="flex items-center justify-between gap-3">
     <p class="text-muted-foreground text-sm tabular-nums">
-      {shown.from}–{shown.to} of {list.total} divisions
+      {shown.from}–{shown.to} of {list.total}
+      {noun(list.total)}
     </p>
     <div class="flex items-center gap-1">
       <a
@@ -704,7 +712,8 @@
 {#snippet statusLine()}
   {#if filtered}
     <p role="status" class="text-muted-foreground hidden text-sm tabular-nums sm:block">
-      {data.divisions.total} of {of} divisions ·
+      {data.divisions.total} of {of}
+      {noun(of)} ·
       <a
         href={clearHref}
         data-sveltekit-noscroll
@@ -1016,7 +1025,7 @@
             href={clearHref}
             class={cn(buttonVariants({ variant: "outline" }), "w-full")}
             onclick={() => (sheetOpen = false)}
-            >Clear all · {data.divisions.total} of {of} divisions</a
+            >Clear all · {data.divisions.total} of {of} {noun(of)}</a
           >
         </div>
       {/if}
@@ -1195,6 +1204,15 @@
           {/if}
         </div>
       </div>
+      {#if view && inTrash}
+        <!-- Round 13: nothing leaves the Trash, so it says why and what Restore does -->
+        <p
+          class="border-border text-muted-foreground flex items-center gap-2 border-b px-3 py-2.5 text-sm"
+        >
+          <HistoryIcon aria-hidden="true" class="size-4 shrink-0" />
+          Deleted divisions stay here for the audit trail. Restore one to use it again.
+        </p>
+      {/if}
       {#if filtered}
         <div
           class="bg-muted/40 border-border hidden flex-wrap items-center gap-2 border-b px-3 py-2 sm:flex"
@@ -1219,7 +1237,13 @@
         </div>
       {/if}
     {/if}
-    {#if list.items.length === 0}
+    {#if list.items.length === 0 && view && inTrash && !filtered}
+      <EmptyState
+        icon={Trash2Icon}
+        title="The Trash is empty"
+        description="A division you delete waits here, and you can restore it at any time."
+      />
+    {:else if list.items.length === 0}
       <EmptyState
         icon={SearchXIcon}
         title="No divisions match"
@@ -1336,63 +1360,79 @@
                   columnClass("utility")
                 )}
               >
-                <!-- Q3, Q16: an always-visible ⋮ with a 44px touch target; it stays lit while its menu is open -->
-                <DropdownMenu.Root
-                  open={menuFor === division.id}
-                  onOpenChange={(open) => (menuFor = open ? division.id : null)}
-                >
-                  <DropdownMenu.Trigger>
-                    {#snippet child({ props })}
-                      <Button
-                        {...props}
-                        variant="ghost"
-                        size="icon"
-                        class="data-[state=open]:bg-background data-[state=open]:ring-ring/50 data-[state=open]:ring-[3px] pointer-coarse:size-11"
-                        aria-label="Actions for {division.name}"
-                      >
-                        <EllipsisVerticalIcon aria-hidden="true" />
-                      </Button>
-                    {/snippet}
-                  </DropdownMenu.Trigger>
-                  <!-- Round 9: an icon per action, muted so the words lead; the menu box itself
-                       takes no focus ring, the focused item shows it -->
-                  <DropdownMenu.Content
-                    align="end"
-                    class="[&_[data-slot=dropdown-menu-item]:not([data-variant=destructive])_svg]:text-muted-foreground w-48 outline-none"
-                    onkeydown={(e: KeyboardEvent) => menuKeydown(e, division)}
+                {#if view && inTrash}
+                  <!-- Round 12: one action is a button, not a menu of one; ⋮ only for two or more -->
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class={cn(ROW_ACTION, "pointer-coarse:h-11")}
+                    aria-label="Restore {division.name}"
+                    onclick={() => run("restore", division)}
                   >
-                    {#if inTrash}
-                      <DropdownMenu.Item onSelect={stub(`Restore ${division.name}`)}
-                        ><RotateCcwIcon aria-hidden="true" />Restore{@render key(
-                          "R"
-                        )}</DropdownMenu.Item
-                      >
-                    {:else}
-                      <DropdownMenu.Group>
-                        <DropdownMenu.Item onSelect={stub(`Edit ${division.name}`)}
-                          ><PencilIcon aria-hidden="true" />Edit{@render key(
-                            "E"
+                    <RotateCcwIcon aria-hidden="true" data-icon="inline-start" />Restore
+                  </Button>
+                {:else}
+                  <!-- Q3, Q16: an always-visible ⋮ with a 44px touch target; it stays lit while its menu is open -->
+                  <DropdownMenu.Root
+                    open={menuFor === division.id}
+                    onOpenChange={(open) => (menuFor = open ? division.id : null)}
+                  >
+                    <DropdownMenu.Trigger>
+                      {#snippet child({ props })}
+                        <Button
+                          {...props}
+                          variant="ghost"
+                          size="icon"
+                          class={cn(
+                            view && ROW_ACTION,
+                            "data-[state=open]:bg-background data-[state=open]:ring-ring/50 data-[state=open]:ring-[3px] pointer-coarse:size-11"
+                          )}
+                          aria-label="Actions for {division.name}"
+                        >
+                          <EllipsisVerticalIcon aria-hidden="true" />
+                        </Button>
+                      {/snippet}
+                    </DropdownMenu.Trigger>
+                    <!-- Round 9: an icon per action, muted so the words lead; the menu box itself
+                       takes no focus ring, the focused item shows it -->
+                    <DropdownMenu.Content
+                      align="end"
+                      class="[&_[data-slot=dropdown-menu-item]:not([data-variant=destructive])_svg]:text-muted-foreground w-48 outline-none"
+                      onkeydown={(e: KeyboardEvent) => menuKeydown(e, division)}
+                    >
+                      {#if inTrash}
+                        <DropdownMenu.Item onSelect={stub(`Restore ${division.name}`)}
+                          ><RotateCcwIcon aria-hidden="true" />Restore{@render key(
+                            "R"
                           )}</DropdownMenu.Item
                         >
-                        <DropdownMenu.Item onSelect={() => flip(division)}>
-                          {#if isActive(division)}
-                            <PowerOffIcon aria-hidden="true" />Deactivate{@render key("D")}
-                          {:else}
-                            <PowerIcon aria-hidden="true" />Activate{@render key("A")}
-                          {/if}
-                        </DropdownMenu.Item>
-                      </DropdownMenu.Group>
-                      <DropdownMenu.Separator />
-                      <DropdownMenu.Item
-                        variant="destructive"
-                        onSelect={stub(`Delete ${division.name}`)}
-                        ><Trash2Icon aria-hidden="true" />Delete…{@render key(
-                          "Backspace"
-                        )}</DropdownMenu.Item
-                      >
-                    {/if}
-                  </DropdownMenu.Content>
-                </DropdownMenu.Root>
+                      {:else}
+                        <DropdownMenu.Group>
+                          <DropdownMenu.Item onSelect={stub(`Edit ${division.name}`)}
+                            ><PencilIcon aria-hidden="true" />Edit{@render key(
+                              "E"
+                            )}</DropdownMenu.Item
+                          >
+                          <DropdownMenu.Item onSelect={() => flip(division)}>
+                            {#if isActive(division)}
+                              <PowerOffIcon aria-hidden="true" />Deactivate{@render key("D")}
+                            {:else}
+                              <PowerIcon aria-hidden="true" />Activate{@render key("A")}
+                            {/if}
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Group>
+                        <DropdownMenu.Separator />
+                        <DropdownMenu.Item
+                          variant="destructive"
+                          onSelect={stub(`Delete ${division.name}`)}
+                          ><Trash2Icon aria-hidden="true" />Delete…{@render key(
+                            "Backspace"
+                          )}</DropdownMenu.Item
+                        >
+                      {/if}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Root>
+                {/if}
               </Table.Cell>
             </Table.Row>
           {/each}
@@ -1404,10 +1444,11 @@
   <!-- Q10: no paging controls when everything fits on the page -->
   {#if fits}
     {#if !filtered && list.total > 0}
-      <p class="text-muted-foreground text-sm tabular-nums">{list.total} divisions</p>
+      <p class="text-muted-foreground text-sm tabular-nums">{list.total} {noun(list.total)}</p>
     {:else if filtered && strip === "inline" && list.total > 0}
       <p role="status" class="text-muted-foreground text-sm tabular-nums">
-        {list.total} of {of} divisions
+        {list.total} of {of}
+        {noun(of)}
       </p>
     {/if}
   {:else if view}
