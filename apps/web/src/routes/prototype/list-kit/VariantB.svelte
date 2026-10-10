@@ -112,7 +112,8 @@
     panelSteps = false,
     followRoom = false,
     freshOpen = false,
-    settleFirst = false
+    settleFirst = false,
+    compactPager = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -214,6 +215,9 @@
     // Round 44: the handovers wait until the window has stopped resizing (200ms), then switch
     // once, so no modal layer opens (and locks the page) in the middle of a drag
     settleFirst?: boolean;
+    // Round 46: on phones the pager is "‹ Previous · Page 5 of 10 · Next ›" under a centred
+    // count; nobody taps page 7 on a phone, they page on or back
+    compactPager?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -1209,12 +1213,53 @@
   {@const shown = showingRange(list)}
   {@const link =
     "inline-flex size-8 items-center justify-center rounded-md text-sm tabular-nums pointer-coarse:size-11"}
-  <nav aria-label="Pages" class="flex items-center justify-between gap-3">
-    <p class="text-muted-foreground text-sm tabular-nums">
+  {@const first = list.page <= 1}
+  {@const last = list.page >= totalPages}
+  <nav
+    aria-label="Pages"
+    class={cn(
+      "flex items-center justify-between gap-3",
+      compactPager && "max-sm:flex-col max-sm:items-stretch max-sm:gap-2"
+    )}
+  >
+    <p
+      class={cn("text-muted-foreground text-sm tabular-nums", compactPager && "max-sm:text-center")}
+    >
       {shown.from}–{shown.to} of {list.total}
       {noun(list.total)}
     </p>
-    <div class="flex items-center gap-1">
+    {#if compactPager}
+      <div class="flex items-center gap-2 sm:hidden">
+        <a
+          href={href({ page: list.page - 1 <= 1 ? null : String(list.page - 1) })}
+          data-sveltekit-noscroll
+          data-slot="button"
+          aria-disabled={first}
+          tabindex={first ? -1 : undefined}
+          class={cn(
+            buttonVariants({ variant: "outline" }),
+            "h-11 w-28 justify-center",
+            first && "pointer-events-none opacity-40"
+          )}><ChevronLeftIcon aria-hidden="true" data-icon="inline-start" />Previous</a
+        >
+        <p class="flex-1 text-center text-sm tabular-nums" aria-current="page">
+          Page <span class="font-medium">{list.page}</span> of {totalPages}
+        </p>
+        <a
+          href={href({ page: String(Math.min(totalPages, list.page + 1)) })}
+          data-sveltekit-noscroll
+          data-slot="button"
+          aria-disabled={last}
+          tabindex={last ? -1 : undefined}
+          class={cn(
+            buttonVariants({ variant: "outline" }),
+            "h-11 w-28 justify-center",
+            last && "pointer-events-none opacity-40"
+          )}>Next<ChevronRightIcon aria-hidden="true" data-icon="inline-end" /></a
+        >
+      </div>
+    {/if}
+    <div class={cn("flex items-center gap-1", compactPager && "max-sm:hidden")}>
       <a
         href={href({ page: String(Math.max(1, list.page - 1)) })}
         data-sveltekit-noscroll
