@@ -22,7 +22,8 @@
     { key: "C3g", name: "In the card, green chips" },
     { key: "C3o", name: "In the card, white chips" },
     { key: "C3n", name: "In the card, navy chips" },
-    { key: "C3s", name: "Green chips, date picker beside" }
+    { key: "C3s", name: "Green chips, date picker beside" },
+    { key: "C3v", name: "C3s + View panel and row shortcuts" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -41,6 +42,8 @@
   <VariantB {data} tile="tint" toolbar="card" chip="green" />
 {:else if variant === "C3o"}
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
+{:else if variant === "C3v"}
+  <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" view />
 {:else if variant === "C3s"}
   <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" />
 {:else if variant === "C3n"}

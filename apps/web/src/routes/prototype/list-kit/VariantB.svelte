@@ -34,10 +34,11 @@
   import { RangeCalendar } from "$lib/components/ui/range-calendar/index.js";
   import * as Sheet from "$lib/components/ui/sheet/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
-  import { listHref, type MasterListPathname } from "$lib/master/list.js";
+  import { listHref, pageWindow, showingRange, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import CheckIcon from "@lucide/svelte/icons/check";
   import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+  import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
   import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import CirclePlusIcon from "@lucide/svelte/icons/circle-plus";
   import Columns3Icon from "@lucide/svelte/icons/columns-3";
@@ -47,7 +48,10 @@
   import CircleDotIcon from "@lucide/svelte/icons/circle-dot";
   import ListFilterIcon from "@lucide/svelte/icons/list-filter";
   import LockIcon from "@lucide/svelte/icons/lock";
+  import DeleteIcon from "@lucide/svelte/icons/delete";
   import PencilIcon from "@lucide/svelte/icons/pencil";
+  import Rows3Icon from "@lucide/svelte/icons/rows-3";
+  import Settings2Icon from "@lucide/svelte/icons/settings-2";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import PowerIcon from "@lucide/svelte/icons/power";
   import PowerOffIcon from "@lucide/svelte/icons/power-off";
@@ -58,7 +62,7 @@
   import XIcon from "@lucide/svelte/icons/x";
   import { parseDate } from "@internationalized/date";
   import type { DateRange } from "bits-ui";
-  import type { Division } from "@vmb/types";
+  import { DEFAULT_PER_PAGE, PER_PAGE_OPTIONS, type Division } from "@vmb/types";
   import { dateRange, formatRange, PRESET_RANGE, TODAY } from "./dates.js";
   import { onMount, type Component } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
@@ -72,7 +76,8 @@
     tile,
     toolbar = "row",
     chip = "green",
-    dates = "inline"
+    dates = "inline",
+    view = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -81,6 +86,9 @@
     // Round 7: "inline" puts the presets and calendar in the panel; "beside" gives each date
     // filter one row that opens a picker to the panel's left
     dates?: "inline" | "beside";
+    // Round 10: a View panel (columns and rows per page) instead of Columns, a slim pager,
+    // and row shortcuts shown in the row menu
+    view?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -230,6 +238,70 @@
   const showAllColumns = () =>
     columns.columns.forEach((c) => columns.hideable(c.id) && columns.set(c.id, true));
 
+  // Round 10: the View panel. Rows per page moves here from the footer, which keeps only the
+  // page links; Reset brings back every column and the default page size.
+  const perPage = $derived(data.divisions.perPage);
+  const viewChanged = $derived(hiddenColumns > 0 || perPage !== DEFAULT_PER_PAGE);
+  function resetView() {
+    showAllColumns();
+    goto(href({ perPage: null }), { noScroll: true, keepFocus: true });
+  }
+
+  // Round 10: row shortcuts. E edits, D deactivates, A activates, ⌫ deletes, R restores. They
+  // act on the row under the pointer or holding focus, and inside an open row menu; never
+  // while typing or while another layer is open.
+  type Action = "edit" | "activate" | "deactivate" | "delete" | "restore";
+  const KEYS: Record<string, Action> = {
+    e: "edit",
+    a: "activate",
+    d: "deactivate",
+    Backspace: "delete",
+    Delete: "delete",
+    r: "restore"
+  };
+  let menuFor = $state<string | null>(null);
+  let hovered = $state<Division | null>(null);
+  function run(action: Action, division: Division): boolean {
+    if (inTrash) {
+      if (action !== "restore") return false;
+      stub(`Restore ${division.name}`)();
+      return true;
+    }
+    if (action === "edit") stub(`Edit ${division.name}`)();
+    else if (action === "delete") stub(`Delete ${division.name}`)();
+    else if (action === "activate" && !isActive(division)) flip(division);
+    else if (action === "deactivate" && isActive(division)) flip(division);
+    else return false;
+    return true;
+  }
+  function actionFor(event: KeyboardEvent): Action | undefined {
+    if (event.metaKey || event.ctrlKey || event.altKey) return undefined;
+    return KEYS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
+  }
+  function onkeydown(event: KeyboardEvent) {
+    if (!view || panelOpen || menuFor || opened) return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest(
+        "input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog']"
+      )
+    )
+      return;
+    const action = actionFor(event);
+    if (!action) return;
+    const id = target?.closest<HTMLElement>("tr[data-id]")?.dataset.id;
+    const division = data.divisions.items.find((d) => d.id === id) ?? hovered;
+    if (division && run(action, division)) event.preventDefault();
+  }
+  function menuKeydown(event: KeyboardEvent, division: Division) {
+    if (!view) return;
+    const action = actionFor(event);
+    if (!action || !run(action, division)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    menuFor = null;
+  }
+
   function onpointerdowncapture(event: PointerEvent) {
     if (!panelOpen) return;
     if ((event.target as Element | null)?.closest("[data-slot=popover-content]")) return;
@@ -338,7 +410,166 @@
   };
 </script>
 
-<svelte:window {onpointerdowncapture} />
+<svelte:window {onpointerdowncapture} {onkeydown} />
+
+<!-- a key cap; Backspace draws lucide's backspace-key glyph, the ⌫ character renders too small -->
+{#snippet key(label: string)}
+  {#if view}
+    <DropdownMenu.Shortcut
+      ><kbd
+        class="border-border inline-flex h-5 min-w-5 items-center justify-center rounded border px-1 font-mono text-[0.7rem]"
+        >{#if label === "Backspace"}<DeleteIcon
+            aria-label="Backspace"
+            class="size-3.5"
+          />{:else}{label}{/if}</kbd
+      ></DropdownMenu.Shortcut
+    >
+  {/if}
+{/snippet}
+
+{#snippet columnRows()}
+  {#each columns.columns as column (column.id)}
+    {#if columns.hideable(column.id)}
+      <label
+        data-slot="filter-option"
+        class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm pointer-coarse:h-11"
+      >
+        <Checkbox
+          checked={columns.visible(column.id)}
+          onCheckedChange={(on) => columns.set(column.id, on)}
+        />
+        {column.label}
+      </label>
+    {:else}
+      <div class="text-muted-foreground flex h-8 items-center gap-2.5 px-2 text-sm">
+        <LockIcon aria-hidden="true" class="size-4" />{column.label}
+        <span class="ml-auto text-xs">Always shown</span>
+      </div>
+    {/if}
+  {/each}
+{/snippet}
+
+<!-- Round 10: View — the columns and the page size, the footer keeps only the page links -->
+{#snippet viewPanel()}
+  <Popover.Root>
+    <Popover.Trigger
+      class={cn(buttonVariants({ variant: "outline" }), "relative max-sm:hidden")}
+      aria-label={viewChanged ? "View, changed" : "View"}
+    >
+      <Settings2Icon aria-hidden="true" data-icon="inline-start" />View
+      {#if viewChanged}
+        <span
+          aria-hidden="true"
+          class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
+        ></span>
+      {/if}
+    </Popover.Trigger>
+    <Popover.Content
+      align="end"
+      class="w-64 gap-0 p-0"
+      role="dialog"
+      aria-label="View"
+      onOpenAutoFocus={focusFirstControl}
+    >
+      <div class="flex h-11 items-center justify-between px-4">
+        <h2 class="text-sm font-semibold">View</h2>
+        {#if viewChanged}
+          <button
+            type="button"
+            data-slot="view-reset"
+            class="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+            onclick={resetView}>Reset</button
+          >
+        {/if}
+      </div>
+      <section aria-labelledby="view-columns" class="border-border border-t px-4 py-3">
+        <h3
+          id="view-columns"
+          class="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium"
+        >
+          <Columns3Icon aria-hidden="true" class="size-3.5" />Columns
+        </h3>
+        <div class="-mx-2 flex flex-col">{@render columnRows()}</div>
+      </section>
+      <section aria-labelledby="view-rows" class="border-border border-t px-4 py-3">
+        <h3
+          id="view-rows"
+          class="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium"
+        >
+          <Rows3Icon aria-hidden="true" class="size-3.5" />Rows per page
+        </h3>
+        <div class="flex gap-1.5">
+          {#each PER_PAGE_OPTIONS as size (size)}
+            <a
+              href={href({ perPage: size === DEFAULT_PER_PAGE ? null : String(size) })}
+              data-sveltekit-noscroll
+              data-sveltekit-keepfocus
+              aria-current={perPage === size ? "true" : undefined}
+              class={cn(
+                "inline-flex h-7 flex-1 items-center justify-center rounded-md text-sm tabular-nums ring-1 ring-inset pointer-coarse:h-10",
+                perPage === size
+                  ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium"
+                  : "ring-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}>{size}</a
+            >
+          {/each}
+        </div>
+      </section>
+    </Popover.Content>
+  </Popover.Root>
+{/snippet}
+
+<!-- Round 10: the footer without the page-size control -->
+{#snippet pager()}
+  {@const list = data.divisions}
+  {@const totalPages = Math.max(1, Math.ceil(list.total / list.perPage))}
+  {@const shown = showingRange(list)}
+  {@const link =
+    "inline-flex size-8 items-center justify-center rounded-md text-sm tabular-nums pointer-coarse:size-11"}
+  <nav aria-label="Pages" class="flex items-center justify-between gap-3">
+    <p class="text-muted-foreground text-sm tabular-nums">
+      {shown.from}–{shown.to} of {list.total} divisions
+    </p>
+    <div class="flex items-center gap-1">
+      <a
+        href={href({ page: String(Math.max(1, list.page - 1)) })}
+        data-sveltekit-noscroll
+        aria-label="Previous page"
+        aria-disabled={list.page <= 1}
+        class={cn(link, "hover:bg-muted", list.page <= 1 && "pointer-events-none opacity-40")}
+        ><ChevronLeftIcon aria-hidden="true" class="size-4" /></a
+      >
+      {#each pageWindow(list.page, totalPages) as item, index (index)}
+        {#if item === "gap"}
+          <span class={cn(link, "text-muted-foreground")}>…</span>
+        {:else}
+          <a
+            href={href({ page: item === 1 ? null : String(item) })}
+            data-sveltekit-noscroll
+            aria-current={item === list.page ? "page" : undefined}
+            class={cn(
+              link,
+              item === list.page
+                ? "bg-primary/10 ring-primary/30 dark:bg-primary/15 font-medium ring-1 ring-inset"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}>{item}</a
+          >
+        {/if}
+      {/each}
+      <a
+        href={href({ page: String(Math.min(totalPages, list.page + 1)) })}
+        data-sveltekit-noscroll
+        aria-label="Next page"
+        aria-disabled={list.page >= totalPages}
+        class={cn(
+          link,
+          "hover:bg-muted",
+          list.page >= totalPages && "pointer-events-none opacity-40"
+        )}><ChevronRightIcon aria-hidden="true" class="size-4" /></a
+      >
+    </div>
+  </nav>
+{/snippet}
 
 {#snippet filterButton(filter: Filter)}
   {@const chosen = chosenOf(filter)}
@@ -887,62 +1118,48 @@
           {@render search("max-sm:flex-1 sm:w-80")}
           {@render filterPanel()}
           {@render phoneFilters()}
-          <!-- Round 9: Columns is a panel like Filter: a header with Reset, checkbox rows, and
+          {#if view}
+            {@render viewPanel()}
+          {:else}
+            <!-- Round 9: Columns is a panel like Filter: a header with Reset, checkbox rows, and
                the pinned Name listed as locked so its absence from the choices is explained -->
-          <Popover.Root>
-            <Popover.Trigger
-              class={cn(buttonVariants({ variant: "outline", size: "icon" }), "relative")}
-              aria-label={hiddenColumns ? `Columns, ${hiddenColumns} hidden` : "Columns"}
-            >
-              <Columns3Icon aria-hidden="true" />
-              {#if hiddenColumns}
-                <span
-                  aria-hidden="true"
-                  class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
-                ></span>
-              {/if}
-            </Popover.Trigger>
-            <Popover.Content
-              align="end"
-              class="w-56 gap-0 p-0"
-              role="dialog"
-              aria-label="Columns"
-              onOpenAutoFocus={focusFirstControl}
-            >
-              <div class="flex h-11 items-center justify-between px-4">
-                <h2 class="text-sm font-semibold">Columns</h2>
+            <Popover.Root>
+              <Popover.Trigger
+                class={cn(buttonVariants({ variant: "outline", size: "icon" }), "relative")}
+                aria-label={hiddenColumns ? `Columns, ${hiddenColumns} hidden` : "Columns"}
+              >
+                <Columns3Icon aria-hidden="true" />
                 {#if hiddenColumns}
-                  <button
-                    type="button"
-                    data-slot="columns-reset"
-                    class="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
-                    onclick={showAllColumns}>Reset</button
-                  >
+                  <span
+                    aria-hidden="true"
+                    class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
+                  ></span>
                 {/if}
-              </div>
-              <div class="border-border flex flex-col border-t px-2 py-2">
-                {#each columns.columns as column (column.id)}
-                  {#if columns.hideable(column.id)}
-                    <label
-                      data-slot="filter-option"
-                      class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm pointer-coarse:h-11"
+              </Popover.Trigger>
+              <Popover.Content
+                align="end"
+                class="w-56 gap-0 p-0"
+                role="dialog"
+                aria-label="Columns"
+                onOpenAutoFocus={focusFirstControl}
+              >
+                <div class="flex h-11 items-center justify-between px-4">
+                  <h2 class="text-sm font-semibold">Columns</h2>
+                  {#if hiddenColumns}
+                    <button
+                      type="button"
+                      data-slot="columns-reset"
+                      class="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+                      onclick={showAllColumns}>Reset</button
                     >
-                      <Checkbox
-                        checked={columns.visible(column.id)}
-                        onCheckedChange={(on) => columns.set(column.id, on)}
-                      />
-                      {column.label}
-                    </label>
-                  {:else}
-                    <div class="text-muted-foreground flex h-8 items-center gap-2.5 px-2 text-sm">
-                      <LockIcon aria-hidden="true" class="size-4" />{column.label}
-                      <span class="ml-auto text-xs">Always shown</span>
-                    </div>
                   {/if}
-                {/each}
-              </div>
-            </Popover.Content>
-          </Popover.Root>
+                </div>
+                <div class="border-border flex flex-col border-t px-2 py-2">
+                  {@render columnRows()}
+                </div>
+              </Popover.Content>
+            </Popover.Root>
+          {/if}
         </div>
       </div>
       {#if filtered}
@@ -1006,7 +1223,13 @@
         </Table.Header>
         <Table.Body>
           {#each list.items as division (division.id)}
-            <Table.Row class={ROW} onclick={(e: MouseEvent) => openRow(e, division)}>
+            <Table.Row
+              class={ROW}
+              data-id={division.id}
+              onclick={(e: MouseEvent) => openRow(e, division)}
+              onmouseenter={() => (hovered = division)}
+              onmouseleave={() => hovered === division && (hovered = null)}
+            >
               <Table.Cell
                 class={cn(
                   PINNED_BG,
@@ -1066,7 +1289,10 @@
                 )}
               >
                 <!-- Q3, Q16: an always-visible ⋮ with a 44px touch target; it stays lit while its menu is open -->
-                <DropdownMenu.Root>
+                <DropdownMenu.Root
+                  open={menuFor === division.id}
+                  onOpenChange={(open) => (menuFor = open ? division.id : null)}
+                >
                   <DropdownMenu.Trigger>
                     {#snippet child({ props })}
                       <Button
@@ -1085,21 +1311,26 @@
                   <DropdownMenu.Content
                     align="end"
                     class="[&_[data-slot=dropdown-menu-item]:not([data-variant=destructive])_svg]:text-muted-foreground w-48 outline-none"
+                    onkeydown={(e: KeyboardEvent) => menuKeydown(e, division)}
                   >
                     {#if inTrash}
                       <DropdownMenu.Item onSelect={stub(`Restore ${division.name}`)}
-                        ><RotateCcwIcon aria-hidden="true" />Restore</DropdownMenu.Item
+                        ><RotateCcwIcon aria-hidden="true" />Restore{@render key(
+                          "R"
+                        )}</DropdownMenu.Item
                       >
                     {:else}
                       <DropdownMenu.Group>
                         <DropdownMenu.Item onSelect={stub(`Edit ${division.name}`)}
-                          ><PencilIcon aria-hidden="true" />Edit</DropdownMenu.Item
+                          ><PencilIcon aria-hidden="true" />Edit{@render key(
+                            "E"
+                          )}</DropdownMenu.Item
                         >
                         <DropdownMenu.Item onSelect={() => flip(division)}>
                           {#if isActive(division)}
-                            <PowerOffIcon aria-hidden="true" />Deactivate
+                            <PowerOffIcon aria-hidden="true" />Deactivate{@render key("D")}
                           {:else}
-                            <PowerIcon aria-hidden="true" />Activate
+                            <PowerIcon aria-hidden="true" />Activate{@render key("A")}
                           {/if}
                         </DropdownMenu.Item>
                       </DropdownMenu.Group>
@@ -1107,7 +1338,9 @@
                       <DropdownMenu.Item
                         variant="destructive"
                         onSelect={stub(`Delete ${division.name}`)}
-                        ><Trash2Icon aria-hidden="true" />Delete…</DropdownMenu.Item
+                        ><Trash2Icon aria-hidden="true" />Delete…{@render key(
+                          "Backspace"
+                        )}</DropdownMenu.Item
                       >
                     {/if}
                   </DropdownMenu.Content>
@@ -1125,6 +1358,8 @@
     {#if !filtered && list.total > 0}
       <p class="text-muted-foreground text-sm tabular-nums">{list.total} divisions</p>
     {/if}
+  {:else if view}
+    {@render pager()}
   {:else}
     <ListFooter {base} {list} noun={inTrash ? "divisions in the Trash" : "divisions"} />
   {/if}
