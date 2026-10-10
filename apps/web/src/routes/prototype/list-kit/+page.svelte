@@ -21,7 +21,8 @@
     { key: "A", name: "Today (#340 + ADR-0050)" },
     { key: "C3g", name: "In the card, green chips" },
     { key: "C3o", name: "In the card, white chips" },
-    { key: "C3n", name: "In the card, navy chips" }
+    { key: "C3n", name: "In the card, navy chips" },
+    { key: "C3s", name: "Green chips, date picker beside" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -40,6 +41,8 @@
   <VariantB {data} tile="tint" toolbar="card" chip="green" />
 {:else if variant === "C3o"}
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
+{:else if variant === "C3s"}
+  <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" />
 {:else if variant === "C3n"}
   <VariantB {data} tile="tint" toolbar="card" chip="navy" />
 {:else if variant === "C4"}

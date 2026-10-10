@@ -2,36 +2,57 @@
 // every variant searches, filters, sorts and pages through the URL as the real list does.
 import { parseListQuery } from "$lib/master/list.js";
 import { DivisionListQuerySchema, type Division, type PermissionKey } from "@vmb/types";
+import { PRESET_RANGE, within } from "./dates.js";
 import { DIVISIONS } from "./fixtures.js";
 import type { PageLoad } from "./$types.js";
 
 export const load: PageLoad = ({ url }) => {
   const query = parseListQuery(DivisionListQuerySchema, url);
-  // a second and third filter, prototype only: date presets, measured from the fixtures' "now",
-  // 8 Jan 2026
+  // Round 5: status takes several values (`status=active,inactive`, Q12), so it is read here
+  // rather than through the schema's single enum; the dates are prototype-only filters
+  const status = (url.searchParams.get("status") ?? "")
+    .split(",")
+    .filter((v) => v === "active" || v === "inactive");
   const updated = url.searchParams.get("updated");
   const created = url.searchParams.get("created");
-  const SINCE: Record<string, string> = {
-    today: "2026-01-08",
-    week: "2026-01-02",
-    month: "2026-01-01"
-  };
-  const since = (iso: string | null, preset: string | null) =>
-    !preset || !SINCE[preset] || (iso ?? "") >= SINCE[preset];
 
   const term = query.search?.toLowerCase() ?? "";
+  const inView = (d: Division) => (query.trashed === "only" ? Boolean(d.deletedAt) : !d.deletedAt);
+  const conditions = {
+    search: (d: Division) =>
+      !term ||
+      [d.name, d.code, d.description ?? ""].some((field) => field.toLowerCase().includes(term)),
+    status: (d: Division) =>
+      status.length === 0 || status.includes(d.isActive ? "active" : "inactive"),
+    updated: (d: Division) => within(d.updatedAt, updated),
+    created: (d: Division) => within(d.createdAt, created)
+  };
+  type Key = keyof typeof conditions;
+  const matches = (d: Division, except?: Key) =>
+    (Object.keys(conditions) as Key[]).every((key) => key === except || conditions[key](d));
+
   // every condition but the view, so the All and Trash tabs can count what matches in each
-  const matching = DIVISIONS.filter(
-    (d) => query.status === "all" || d.isActive === (query.status === "active")
-  )
-    .filter(
-      (d) =>
-        !term ||
-        [d.name, d.code, d.description ?? ""].some((field) => field.toLowerCase().includes(term))
-    )
-    .filter((d) => since(d.updatedAt, updated))
-    .filter((d) => since(d.createdAt, created));
-  const rows = matching.filter((d) => (query.trashed === "only" ? d.deletedAt : !d.deletedAt));
+  const matching = DIVISIONS.filter((d) => matches(d));
+  const rows = matching.filter(inView);
+
+  // Round 5: an option's count is what the list would hold with that option alone chosen,
+  // every other condition and the view kept
+  const others = (except: Key) => DIVISIONS.filter((d) => inView(d) && matches(d, except));
+  const countDates = (key: "updated" | "created", field: "updatedAt" | "createdAt") =>
+    Object.fromEntries(
+      Object.keys(PRESET_RANGE).map((preset) => [
+        preset,
+        others(key).filter((d) => within(d[field], preset)).length
+      ])
+    );
+  const facets: Record<string, Record<string, number>> = {
+    status: {
+      active: others("status").filter((d) => d.isActive).length,
+      inactive: others("status").filter((d) => !d.isActive).length
+    },
+    updated: countDates("updated", "updatedAt"),
+    created: countDates("created", "createdAt")
+  };
 
   const key = query.sort as keyof Division;
   rows.sort(
@@ -55,6 +76,7 @@ export const load: PageLoad = ({ url }) => {
       page: query.page,
       perPage: query.perPage
     },
+    facets,
     // Round 4: the tabs count what matches the search and filters in each view
     views: {
       all: matching.filter((d) => !d.deletedAt).length,

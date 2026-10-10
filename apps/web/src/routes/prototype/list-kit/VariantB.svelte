@@ -29,12 +29,16 @@
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
+  import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import * as Popover from "$lib/components/ui/popover/index.js";
+  import { RangeCalendar } from "$lib/components/ui/range-calendar/index.js";
   import * as Sheet from "$lib/components/ui/sheet/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
   import { listHref, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import CheckIcon from "@lucide/svelte/icons/check";
   import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import CirclePlusIcon from "@lucide/svelte/icons/circle-plus";
   import Columns3Icon from "@lucide/svelte/icons/columns-3";
   import EllipsisVerticalIcon from "@lucide/svelte/icons/ellipsis-vertical";
@@ -42,11 +46,20 @@
   import CalendarPlusIcon from "@lucide/svelte/icons/calendar-plus";
   import CircleDotIcon from "@lucide/svelte/icons/circle-dot";
   import ListFilterIcon from "@lucide/svelte/icons/list-filter";
+  import LockIcon from "@lucide/svelte/icons/lock";
+  import PencilIcon from "@lucide/svelte/icons/pencil";
   import PlusIcon from "@lucide/svelte/icons/plus";
+  import PowerIcon from "@lucide/svelte/icons/power";
+  import PowerOffIcon from "@lucide/svelte/icons/power-off";
+  import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
+  import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import SearchXIcon from "@lucide/svelte/icons/search-x";
   import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
   import XIcon from "@lucide/svelte/icons/x";
+  import { parseDate } from "@internationalized/date";
+  import type { DateRange } from "bits-ui";
   import type { Division } from "@vmb/types";
+  import { dateRange, formatRange, PRESET_RANGE, TODAY } from "./dates.js";
   import { onMount, type Component } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { toast } from "svelte-sonner";
@@ -58,20 +71,27 @@
     data,
     tile,
     toolbar = "row",
-    chip = "green"
+    chip = "green",
+    dates = "inline"
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
     toolbar?: Toolbar;
     chip?: Chip;
+    // Round 7: "inline" puts the presets and calendar in the panel; "beside" gives each date
+    // filter one row that opens a picker to the panel's left
+    dates?: "inline" | "beside";
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
 
   // Round 3: each filter carries an icon, shown on its chip and in the Filter menu
   // Round 4: `any` names the unset choice ("Any status"); `custom` adds a "Custom range…" stub
+  // Round 5: `kind` picks the panel section: checkboxes for values, preset pills and a range
+  // calendar for dates
   type Filter = {
     key: string;
+    kind: "values" | "date";
     label: string;
     icon: Component;
     any: string;
@@ -86,6 +106,7 @@
   const FILTERS: Filter[] = [
     {
       key: "status",
+      kind: "values",
       label: "Status",
       icon: CircleDotIcon,
       any: "Any status",
@@ -96,13 +117,16 @@
     },
     {
       key: "updated",
+      kind: "date",
       label: "Updated",
       icon: CalendarClockIcon,
       any: "Any time",
+      custom: true,
       options: DATE_PRESETS
     },
     {
       key: "created",
+      kind: "date",
       label: "Created",
       icon: CalendarPlusIcon,
       any: "Any time",
@@ -139,16 +163,113 @@
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
 
   let sheetOpen = $state(false);
+
+  // Round 5: the Filter panel. Values are checkboxes: none ticked means any, several are
+  // joined with commas (Q12). Dates are a preset or a custom `from..to` range.
+  let panelOpen = $state(false);
+  let customFor = $state<string | null>(null);
+  const selected = (filter: Filter) => (valueOf(filter.key) ?? "").split(",").filter(Boolean);
+  function toggle(filter: Filter, value: string, on: boolean) {
+    const now = selected(filter);
+    const next = filter.options
+      .map((o) => o.value)
+      .filter((v) => (v === value ? on : now.includes(v)));
+    choose(filter.key, next.join(",") || null);
+  }
+  // Round 6: one calendar at a time. `customFor` is the date filter whose calendar is open;
+  // a custom range already in use shows as its dates and a Change link instead
+  const hasRange = (filter: Filter) => {
+    const value = valueOf(filter.key);
+    return Boolean(value && !filter.options.some((o) => o.value === value));
+  };
+  const isCustom = (filter: Filter) => customFor === filter.key || hasRange(filter);
+  function pickPreset(filter: Filter, value: string | null) {
+    customFor = null;
+    choose(filter.key, value);
+  }
+  function calendarValue(filter: Filter): DateRange | undefined {
+    const range = dateRange(valueOf(filter.key));
+    return range ? { start: parseDate(range[0]), end: parseDate(range[1]) } : undefined;
+  }
+  // a custom range applies once both ends are picked
+  function pickRange(filter: Filter, range: DateRange) {
+    if (!range.start || !range.end) return;
+    customFor = null;
+    choose(filter.key, `${range.start}..${range.end}`);
+  }
+  // Round 7: the picker beside the panel. Presets apply at once and close it; a custom range is
+  // a draft on the calendar until Apply.
+  let pickerFor = $state<string | null>(null);
+  let draft = $state<DateRange | undefined>(undefined);
+  function openPicker(filter: Filter, open: boolean) {
+    if (open) {
+      pickerFor = filter.key;
+      draft = calendarValue(filter);
+    } else if (pickerFor === filter.key) pickerFor = null;
+  }
+  // Round 8: only the top layer hears an outside click, so the picker passes it on: a click
+  // outside both closes both; a click on the panel closes the picker alone; Esc peels one layer
+  function closeAllOutside(event: PointerEvent) {
+    if (!(event.target as Element | null)?.closest("[data-filter-panel]")) dismissPanel();
+  }
+  // A click that only closes the filters must not also open the row beneath it (Q2). The
+  // popover reports an outside click after the row has handled it, so the press is caught
+  // on its way down instead.
+  let dismissing = false;
+  function dismissPanel() {
+    panelOpen = false;
+  }
+  // Round 9: a panel opens on its first control, not on the Reset link in its header
+  function focusFirstControl(event: Event) {
+    event.preventDefault();
+    const panel = [...document.querySelectorAll("[data-slot=popover-content]")].at(-1);
+    panel?.querySelector<HTMLElement>("[data-slot=checkbox], [data-slot=filter-date-row]")?.focus();
+  }
+  // Round 9: Reset in the Columns panel shows every column again
+  const hiddenColumns = $derived(columns.columns.filter((c) => !columns.visible(c.id)).length);
+  const showAllColumns = () =>
+    columns.columns.forEach((c) => columns.hideable(c.id) && columns.set(c.id, true));
+
+  function onpointerdowncapture(event: PointerEvent) {
+    if (!panelOpen) return;
+    if ((event.target as Element | null)?.closest("[data-slot=popover-content]")) return;
+    dismissing = true;
+    setTimeout(() => (dismissing = false), 400);
+  }
+  function applyPreset(filter: Filter, value: string | null) {
+    pickerFor = null;
+    choose(filter.key, value);
+  }
+  function applyDraft(filter: Filter) {
+    if (!draft?.start || !draft.end) return;
+    pickerFor = null;
+    choose(filter.key, `${draft.start}..${draft.end}`);
+  }
+
+  // what the chip and the date caption say: "Active, Inactive", "Last 7 days", "2 – 5 Jan 2026"
+  function describe(filter: Filter): string {
+    if (filter.kind === "values")
+      return selected(filter)
+        .map((v) => filter.options.find((o) => o.value === v)?.label ?? v)
+        .join(", ");
+    const value = valueOf(filter.key);
+    const preset = filter.options.find((o) => o.value === value);
+    if (preset) return preset.label;
+    const range = dateRange(value);
+    return range ? formatRange(range) : "";
+  }
   let opened = $state<Division | null>(null);
 
   // Q2: the whole row opens the record; the name stays a real link for new tabs and no-JS
   function openRow(event: MouseEvent, division: Division) {
+    if (dismissing) return;
     if ((event.target as HTMLElement).closest("a, button, [role='menuitem']")) return;
     opened = division;
   }
   function openName(event: MouseEvent, division: Division) {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
     event.preventDefault();
+    if (dismissing) return;
     opened = division;
   }
   const stub = (what: string) => () => toast.info(`Prototype: ${what}`);
@@ -216,6 +337,8 @@
     glyph: "text-(--tile) dark:text-[color-mix(in_oklab,var(--tile)_50%,white)]"
   };
 </script>
+
+<svelte:window {onpointerdowncapture} />
 
 {#snippet filterButton(filter: Filter)}
   {@const chosen = chosenOf(filter)}
@@ -369,7 +492,241 @@
 <!-- the filters in use, each still a menu to change it and an × to drop it -->
 {#snippet chips()}
   {#each FILTERS.filter((f) => valueOf(f.key)) as filter (filter.key)}
-    {@render filterButton(filter)}
+    {#if toolbar === "card"}
+      {@render panelChip(filter)}
+    {:else}
+      {@render filterButton(filter)}
+    {/if}
+  {/each}
+{/snippet}
+
+<!-- Round 5: a chip in use; clicking it opens the Filter panel, × drops it -->
+{#snippet panelChip(filter: Filter)}
+  <div class={cn("inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm", look.chip)}>
+    <button
+      type="button"
+      data-slot="filter-chip"
+      class={cn("inline-flex items-center gap-1.5 pr-2 pl-2 font-medium outline-none", look.part)}
+      onclick={() => (panelOpen = true)}
+    >
+      <filter.icon aria-hidden="true" class={cn("size-4", look.icon)} />
+      <span class={cn("font-normal", look.label)}>{filter.label}</span>{describe(filter)}
+    </button>
+    <a
+      href={href({ [filter.key]: null })}
+      data-sveltekit-noscroll
+      aria-label="Clear filter {filter.label}"
+      class={cn("inline-flex w-7 items-center justify-center border-l", look.part, look.seam)}
+      ><XIcon aria-hidden="true" class="size-3.5" /></a
+    >
+  </div>
+{/snippet}
+
+<!-- Round 5: the Filter panel, a popover on desktop and the same body in the phone sheet -->
+{#snippet filterPanel()}
+  <Popover.Root bind:open={panelOpen}>
+    <Popover.Trigger class={cn(buttonVariants({ variant: "outline" }), "max-sm:hidden")}>
+      <ListFilterIcon aria-hidden="true" data-icon="inline-start" />Filter{@render countBadge()}
+    </Popover.Trigger>
+    <Popover.Content
+      align="end"
+      class="max-h-(--bits-floating-available-height) w-80 gap-0 overflow-y-auto p-0"
+      role="dialog"
+      aria-label="Filters"
+      data-filter-panel
+      onInteractOutside={dismissPanel}
+      onOpenAutoFocus={focusFirstControl}
+    >
+      {@render filterBody(dates === "beside")}
+    </Popover.Content>
+  </Popover.Root>
+{/snippet}
+
+<!-- Round 7: a date filter as one row; its picker opens beside the panel, presets on the left
+     with their dates, the calendar on the right -->
+{#snippet datePicker(filter: Filter)}
+  {@const value = valueOf(filter.key)}
+  <Popover.Root open={pickerFor === filter.key} onOpenChange={(open) => openPicker(filter, open)}>
+    <Popover.Trigger
+      data-slot="filter-date-row"
+      class="hover:bg-muted aria-expanded:bg-muted -mx-2 flex h-9 w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 text-sm"
+    >
+      <filter.icon aria-hidden="true" class="text-muted-foreground size-4" />{filter.label}
+      <span
+        class={cn(
+          "ml-auto truncate",
+          value ? "text-foreground font-medium" : "text-muted-foreground"
+        )}>{value ? describe(filter) : filter.any}</span
+      >
+      <ChevronRightIcon aria-hidden="true" class="text-muted-foreground size-4" />
+    </Popover.Trigger>
+    <Popover.Content
+      side="left"
+      align="start"
+      sideOffset={12}
+      class="w-auto flex-row gap-0 overflow-hidden p-0"
+      role="dialog"
+      aria-label="{filter.label} dates"
+      onInteractOutside={closeAllOutside}
+    >
+      <div class="border-border bg-muted/40 flex w-64 flex-col gap-0.5 border-r p-2">
+        {#each [{ value: null, label: filter.any }, ...filter.options] as option (option.value)}
+          {@const range = option.value ? PRESET_RANGE[option.value] : null}
+          {@const on = value === option.value}
+          <button
+            type="button"
+            data-slot="filter-preset"
+            aria-pressed={on}
+            onclick={() => applyPreset(filter, option.value)}
+            class={cn(
+              "flex h-9 items-center justify-between gap-3 rounded-md px-2.5 text-sm",
+              on
+                ? "bg-primary/10 ring-primary/30 dark:bg-primary/15 font-medium ring-1 ring-inset"
+                : "hover:bg-muted"
+            )}
+          >
+            {option.label}
+            {#if range}
+              <span class="text-muted-foreground text-xs font-normal tabular-nums"
+                >{formatRange(range)}</span
+              >
+            {/if}
+          </button>
+        {/each}
+      </div>
+      <div class="flex flex-col">
+        <RangeCalendar
+          bind:value={draft}
+          placeholder={parseDate(TODAY)}
+          maxValue={parseDate(TODAY)}
+          weekStartsOn={1}
+          class="p-3 [--cell-size:--spacing(9)]"
+        />
+        <div class="border-border flex items-center justify-between gap-3 border-t p-3">
+          <span class="text-muted-foreground text-xs tabular-nums">
+            {draft?.start && draft.end
+              ? formatRange([draft.start.toString(), draft.end.toString()])
+              : "Pick a start and an end"}
+          </span>
+          <div class="flex gap-2">
+            <Button variant="ghost" onclick={() => (pickerFor = null)}>Cancel</Button>
+            <Button disabled={!draft?.start || !draft.end} onclick={() => applyDraft(filter)}
+              >Apply</Button
+            >
+          </div>
+        </div>
+      </div>
+    </Popover.Content>
+  </Popover.Root>
+{/snippet}
+
+{#snippet filterBody(beside: boolean)}
+  <div class="flex h-11 items-center justify-between px-4 in-data-[slot=sheet-content]:pr-14">
+    <h2 class="text-sm font-semibold">Filters</h2>
+    {#if activeCount}
+      <a
+        href={resetFiltersHref}
+        data-sveltekit-noscroll
+        onclick={() => (customFor = null)}
+        class="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+        >Reset</a
+      >
+    {/if}
+  </div>
+  {#each FILTERS as filter (filter.key)}
+    {@const row = beside && filter.kind === "date"}
+    <section
+      aria-labelledby="filter-{filter.key}"
+      class={cn("border-border border-t px-4", row ? "py-1.5" : "py-3")}
+    >
+      <h3
+        id="filter-{filter.key}"
+        class={cn(
+          "text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium",
+          row && "sr-only"
+        )}
+      >
+        <filter.icon aria-hidden="true" class="size-3.5" />{filter.label}
+      </h3>
+      {#if row}
+        {@render datePicker(filter)}
+      {:else if filter.kind === "values"}
+        <div class="-mx-2 flex flex-col">
+          {#each filter.options as option (option.value)}
+            {@const count = data.facets[filter.key]?.[option.value] ?? 0}
+            <label
+              data-slot="filter-option"
+              class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm pointer-coarse:h-11"
+            >
+              <Checkbox
+                checked={selected(filter).includes(option.value)}
+                onCheckedChange={(on) => toggle(filter, option.value, on)}
+              />
+              {option.label}
+              <span class="text-muted-foreground ml-auto text-xs tabular-nums">{count}</span>
+            </label>
+          {/each}
+        </div>
+      {:else}
+        {@const value = valueOf(filter.key)}
+        <div class="flex flex-wrap gap-1.5">
+          {#each [{ value: null, label: filter.any }, ...filter.options] as option (option.value)}
+            {@const pressed = !isCustom(filter) && value === option.value}
+            <button
+              type="button"
+              data-slot="filter-pill"
+              aria-pressed={pressed}
+              onclick={() => pickPreset(filter, option.value)}
+              class={cn(
+                "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-sm ring-1 ring-inset pointer-coarse:h-10",
+                pressed
+                  ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium"
+                  : "ring-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              {option.label}
+            </button>
+          {/each}
+          <button
+            type="button"
+            data-slot="filter-pill"
+            aria-pressed={isCustom(filter)}
+            onclick={() =>
+              (customFor = customFor === filter.key && !hasRange(filter) ? null : filter.key)}
+            class={cn(
+              "inline-flex h-7 items-center rounded-md px-2.5 text-sm ring-1 ring-inset pointer-coarse:h-10",
+              isCustom(filter)
+                ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium"
+                : "ring-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}>Custom…</button
+          >
+        </div>
+        {#if dateRange(value) && customFor !== filter.key}
+          <p class="text-muted-foreground mt-2 flex items-center gap-1.5 text-xs tabular-nums">
+            {formatRange(dateRange(value)!)}
+            {#if hasRange(filter)}
+              ·
+              <button
+                type="button"
+                data-slot="filter-change"
+                class="text-foreground underline-offset-4 hover:underline"
+                onclick={() => (customFor = filter.key)}>Change</button
+              >
+            {/if}
+          </p>
+        {/if}
+        {#if customFor === filter.key}
+          <RangeCalendar
+            value={calendarValue(filter)}
+            onValueChange={(range) => pickRange(filter, range)}
+            placeholder={parseDate(TODAY)}
+            maxValue={parseDate(TODAY)}
+            weekStartsOn={1}
+            class="-mx-1 mt-2 w-full p-0 [--cell-size:--spacing(9)]"
+          />
+        {/if}
+      {/if}
+    </section>
   {/each}
 {/snippet}
 
@@ -386,40 +743,19 @@
         </Button>
       {/snippet}
     </Sheet.Trigger>
-    <Sheet.Content side="bottom" class="rounded-t-xl">
-      <Sheet.Header>
-        <Sheet.Title>Filters</Sheet.Title>
-      </Sheet.Header>
-      <div class="flex flex-col gap-4 px-4 pb-6">
-        {#each FILTERS as filter (filter.key)}
-          <fieldset>
-            <legend class="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase"
-              >{filter.label}</legend
-            >
-            {#each [{ value: null, label: filter.any }, ...filter.options] as option (option.value)}
-              <a
-                href={href({ [filter.key]: option.value })}
-                data-sveltekit-noscroll
-                aria-current={valueOf(filter.key) === option.value ? "true" : undefined}
-                class="hover:bg-muted flex h-11 items-center gap-2 rounded-md px-2 text-sm"
-              >
-                <CheckIcon
-                  aria-hidden="true"
-                  class={cn("size-4", valueOf(filter.key) !== option.value && "invisible")}
-                />{option.label}
-              </a>
-            {/each}
-          </fieldset>
-        {/each}
-        {#if filtered}
+    <Sheet.Content side="bottom" class="max-h-[85svh] gap-0 overflow-y-auto rounded-t-xl">
+      <Sheet.Title class="sr-only">Filters</Sheet.Title>
+      {@render filterBody(false)}
+      {#if filtered}
+        <div class="border-border border-t p-4">
           <a
             href={clearHref}
-            class={buttonVariants({ variant: "outline" })}
+            class={cn(buttonVariants({ variant: "outline" }), "w-full")}
             onclick={() => (sheetOpen = false)}
             >Clear all · {data.divisions.total} of {of} divisions</a
           >
-        {/if}
-      </div>
+        </div>
+      {/if}
     </Sheet.Content>
   </Sheet.Root>
 {/snippet}
@@ -549,29 +885,64 @@
         </nav>
         <div class="ml-auto flex items-center gap-2 py-2 max-sm:w-full">
           {@render search("max-sm:flex-1 sm:w-80")}
-          {@render filterMenu()}
+          {@render filterPanel()}
           {@render phoneFilters()}
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger>
-              {#snippet child({ props })}
-                <Button {...props} variant="outline" size="icon" aria-label="Columns">
-                  <Columns3Icon aria-hidden="true" />
-                </Button>
-              {/snippet}
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content align="end" class="w-48">
-              <DropdownMenu.Group>
-                <DropdownMenu.GroupHeading>Show columns</DropdownMenu.GroupHeading>
-                {#each columns.columns.filter((c) => columns.hideable(c.id)) as column (column.id)}
-                  <DropdownMenu.CheckboxItem
-                    checked={columns.visible(column.id)}
-                    onCheckedChange={(checked) => columns.set(column.id, checked)}
-                    closeOnSelect={false}>{column.label}</DropdownMenu.CheckboxItem
+          <!-- Round 9: Columns is a panel like Filter: a header with Reset, checkbox rows, and
+               the pinned Name listed as locked so its absence from the choices is explained -->
+          <Popover.Root>
+            <Popover.Trigger
+              class={cn(buttonVariants({ variant: "outline", size: "icon" }), "relative")}
+              aria-label={hiddenColumns ? `Columns, ${hiddenColumns} hidden` : "Columns"}
+            >
+              <Columns3Icon aria-hidden="true" />
+              {#if hiddenColumns}
+                <span
+                  aria-hidden="true"
+                  class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
+                ></span>
+              {/if}
+            </Popover.Trigger>
+            <Popover.Content
+              align="end"
+              class="w-56 gap-0 p-0"
+              role="dialog"
+              aria-label="Columns"
+              onOpenAutoFocus={focusFirstControl}
+            >
+              <div class="flex h-11 items-center justify-between px-4">
+                <h2 class="text-sm font-semibold">Columns</h2>
+                {#if hiddenColumns}
+                  <button
+                    type="button"
+                    data-slot="columns-reset"
+                    class="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+                    onclick={showAllColumns}>Reset</button
                   >
+                {/if}
+              </div>
+              <div class="border-border flex flex-col border-t px-2 py-2">
+                {#each columns.columns as column (column.id)}
+                  {#if columns.hideable(column.id)}
+                    <label
+                      data-slot="filter-option"
+                      class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm pointer-coarse:h-11"
+                    >
+                      <Checkbox
+                        checked={columns.visible(column.id)}
+                        onCheckedChange={(on) => columns.set(column.id, on)}
+                      />
+                      {column.label}
+                    </label>
+                  {:else}
+                    <div class="text-muted-foreground flex h-8 items-center gap-2.5 px-2 text-sm">
+                      <LockIcon aria-hidden="true" class="size-4" />{column.label}
+                      <span class="ml-auto text-xs">Always shown</span>
+                    </div>
+                  {/if}
                 {/each}
-              </DropdownMenu.Group>
-            </DropdownMenu.Content>
-          </DropdownMenu.Root>
+              </div>
+            </Popover.Content>
+          </Popover.Root>
         </div>
       </div>
       {#if filtered}
@@ -709,24 +1080,34 @@
                       </Button>
                     {/snippet}
                   </DropdownMenu.Trigger>
-                  <DropdownMenu.Content align="end" class="w-48">
+                  <!-- Round 9: an icon per action, muted so the words lead; the menu box itself
+                       takes no focus ring, the focused item shows it -->
+                  <DropdownMenu.Content
+                    align="end"
+                    class="[&_[data-slot=dropdown-menu-item]:not([data-variant=destructive])_svg]:text-muted-foreground w-48 outline-none"
+                  >
                     {#if inTrash}
                       <DropdownMenu.Item onSelect={stub(`Restore ${division.name}`)}
-                        >Restore</DropdownMenu.Item
+                        ><RotateCcwIcon aria-hidden="true" />Restore</DropdownMenu.Item
                       >
                     {:else}
                       <DropdownMenu.Group>
                         <DropdownMenu.Item onSelect={stub(`Edit ${division.name}`)}
-                          >Edit</DropdownMenu.Item
+                          ><PencilIcon aria-hidden="true" />Edit</DropdownMenu.Item
                         >
-                        <DropdownMenu.Item onSelect={() => flip(division)}
-                          >{isActive(division) ? "Deactivate" : "Activate"}</DropdownMenu.Item
-                        >
+                        <DropdownMenu.Item onSelect={() => flip(division)}>
+                          {#if isActive(division)}
+                            <PowerOffIcon aria-hidden="true" />Deactivate
+                          {:else}
+                            <PowerIcon aria-hidden="true" />Activate
+                          {/if}
+                        </DropdownMenu.Item>
                       </DropdownMenu.Group>
                       <DropdownMenu.Separator />
                       <DropdownMenu.Item
                         variant="destructive"
-                        onSelect={stub(`Delete ${division.name}`)}>Delete…</DropdownMenu.Item
+                        onSelect={stub(`Delete ${division.name}`)}
+                        ><Trash2Icon aria-hidden="true" />Delete…</DropdownMenu.Item
                       >
                     {/if}
                   </DropdownMenu.Content>
