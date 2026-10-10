@@ -111,7 +111,8 @@
     handover = false,
     panelSteps = false,
     followRoom = false,
-    freshOpen = false
+    freshOpen = false,
+    settleFirst = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -210,6 +211,9 @@
     // its top level: the panel's step, its side picker and a half-picked range are let go. The
     // handovers between layouts are not closings and keep their place
     freshOpen?: boolean;
+    // Round 44: the handovers wait until the window has stopped resizing (200ms), then switch
+    // once, so no modal layer opens (and locks the page) in the middle of a drag
+    settleFirst?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -426,18 +430,39 @@
         pickerFor = null;
         panelOpen = false;
         sheetStep = key ? `${key}:range` : sheetStep;
-        sheetOpen = true;
+        // round 44: the sheet locks scrolling and pads the page by "window − page" width, read
+        // as the scrollbar. A panel still on screen past the new edge widens a phone's window
+        // (691px for a 425px page after a device preset), so open once the two agree (a real
+        // scrollbar is under 20px), 1s at most
+        if (settleFirst) whenSteady(() => (sheetOpen = true));
+        else sheetOpen = true;
       }
     };
-    desktop.addEventListener("change", cross);
-    return () => desktop.removeEventListener("change", cross);
+    // round 44: wait for the resize to settle; a drag crossing back and forth hands over once
+    let wait: ReturnType<typeof setTimeout> | undefined;
+    const settled = () => {
+      clearTimeout(wait);
+      wait = setTimeout(cross, 200);
+    };
+    const onChange = settleFirst ? settled : cross;
+    desktop.addEventListener("change", onChange);
+    if (settleFirst) addEventListener("resize", settled);
+    return () => {
+      clearTimeout(wait);
+      desktop.removeEventListener("change", onChange);
+      removeEventListener("resize", settled);
+    };
   });
   $effect(() => {
     if (!followRoom || !panelOpen) return;
     let frame = 0;
+    let pause: ReturnType<typeof setTimeout> | undefined;
     const settle = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
+      clearTimeout(pause);
+      const run = (fn: () => void) =>
+        settleFirst ? (pause = setTimeout(fn, 200)) : (frame = requestAnimationFrame(fn));
+      run(() => {
         const fits = fitsBeside();
         if (fits && sheetStep) {
           // the panel's date step (or its calendar) goes out beside the panel
@@ -456,8 +481,18 @@
     return () => {
       removeEventListener("resize", settle);
       cancelAnimationFrame(frame);
+      clearTimeout(pause);
     };
   });
+  function whenSteady(open: () => void) {
+    let frames = 0;
+    const check = () => {
+      const gap = innerWidth - document.documentElement.clientWidth;
+      if ((gap >= 0 && gap <= 20) || ++frames > 60) open();
+      else requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  }
   function openStep(filter: Filter) {
     draft = calendarValue(filter);
     sheetStep = filter.key;

@@ -56,7 +56,8 @@
     { key: "C3kz", name: "C3ke + filters handed over between phone and desktop" },
     { key: "C3kt", name: "C3kz + date steps inside the panel on tablets" },
     { key: "C3ky", name: "C3kt + the picker follows the room as the window resizes" },
-    { key: "C3kq", name: "C3ky + layers reopen fresh after the user closes them" }
+    { key: "C3kq", name: "C3ky + layers reopen fresh after the user closes them" },
+    { key: "C3kl", name: "C3kq + handovers wait for the resize to settle" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
@@ -81,7 +82,8 @@
     "C3kz",
     "C3kt",
     "C3ky",
-    "C3kq"
+    "C3kq",
+    "C3kl"
   ];
 </script>
 
@@ -121,6 +123,7 @@
     panelSteps={after("C3kt")}
     followRoom={after("C3ky")}
     freshOpen={after("C3kq")}
+    settleFirst={after("C3kl")}
     {data}
     tile="tint"
     toolbar="card"
