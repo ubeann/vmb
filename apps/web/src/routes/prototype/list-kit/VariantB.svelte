@@ -25,6 +25,7 @@
   import { columnClass } from "$lib/components/list/columns.js";
   import ListFooter from "$lib/components/list/ListFooter.svelte";
   import ListSearch from "$lib/components/list/ListSearch.svelte";
+  import SearchBox from "./SearchBox.svelte";
   import SortableHead from "$lib/components/list/SortableHead.svelte";
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
@@ -80,7 +81,8 @@
     chip = "green",
     dates = "inline",
     view = false,
-    strip = "end"
+    strip = "end",
+    searchBox = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -96,6 +98,8 @@
     // all at the far right; "inline": Clear all right after the chips, the search as a chip too,
     // the count in the footer; "lead": the count opens the strip, Clear all after the chips
     strip?: "end" | "inline" | "lead";
+    // Round 14: the reworked search box, and the matched text marked in the rows
+    searchBox?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -467,6 +471,19 @@
   </div>
 {/snippet}
 
+<!-- Round 14: the searched text, marked where it matches, so a row says why it is listed -->
+{#snippet marked(text: string)}
+  {@const term = searchBox ? (data.query.search ?? "").trim() : ""}
+  {#if term}
+    {@const parts = text.split(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "i"))}
+    {#each parts as part, index (index)}{#if index % 2}<mark
+          class="bg-primary/15 text-foreground dark:bg-primary/25 rounded-[3px]">{part}</mark
+        >{:else}{part}{/if}{/each}
+  {:else}
+    {text}
+  {/if}
+{/snippet}
+
 {#snippet columnRows()}
   {#each columns.columns as column (column.id)}
     {#if columns.hideable(column.id)}
@@ -701,12 +718,21 @@
 {/snippet}
 
 {#snippet search(cls: string)}
-  <ListSearch
-    {base}
-    label="Search divisions"
-    placeholder="Search name, code or description"
-    class={cls}
-  />
+  {#if searchBox}
+    <SearchBox
+      {base}
+      label="Search divisions"
+      placeholder="Search name, code or description"
+      class={cls}
+    />
+  {:else}
+    <ListSearch
+      {base}
+      label="Search divisions"
+      placeholder="Search name, code or description"
+      class={cls}
+    />
+  {/if}
 {/snippet}
 
 {#snippet statusLine()}
@@ -1326,7 +1352,7 @@
                   <a
                     href="#{division.code}"
                     class="truncate font-medium hover:underline"
-                    onclick={(e) => openName(e, division)}>{division.name}</a
+                    onclick={(e) => openName(e, division)}>{@render marked(division.name)}</a
                   >
                   {#if !isActive(division)}
                     <!-- Q1: only the exception gets a pill -->
@@ -1336,13 +1362,15 @@
               </Table.Cell>
               {#if columns.visible("code")}
                 <Table.Cell class={cn("font-mono text-xs", columnClass("utility"))}
-                  >{division.code}</Table.Cell
+                  >{@render marked(division.code)}</Table.Cell
                 >
               {/if}
               {#if columns.visible("description")}
                 <Table.Cell class="text-muted-foreground w-full max-w-0 min-w-[16ch]">
                   <span class="block truncate" title={division.description ?? undefined}
-                    >{division.description ?? "—"}</span
+                    >{#if division.description}{@render marked(
+                        division.description
+                      )}{:else}—{/if}</span
                   >
                 </Table.Cell>
               {/if}
