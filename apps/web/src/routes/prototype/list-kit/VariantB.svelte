@@ -114,7 +114,8 @@
     freshOpen = false,
     settleFirst = false,
     compactPager = false,
-    steadyPanel = false
+    steadyPanel = false,
+    roomWidth = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -222,6 +223,9 @@
     // Round 47: the Filter panel keeps one width (22rem) on every step, so opening a date step
     // inside it on a tablet no longer moves its left edge
     steadyPanel?: boolean;
+    // Round 48: the panel's width follows where its date steps happen: 20rem where a 20rem panel
+    // leaves room for the picker beside it, else 22rem from the start, as the steps open inside
+    roomWidth?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -471,6 +475,7 @@
       const run = (fn: () => void) =>
         settleFirst ? (pause = setTimeout(fn, 200)) : (frame = requestAnimationFrame(fn));
       run(() => {
+        measurePanel();
         const fits = fitsBeside();
         if (fits && sheetStep) {
           // the panel's date step (or its calendar) goes out beside the panel
@@ -554,6 +559,15 @@
   function applyLabel(start: string, end: string) {
     const crossesYear = rangeEnds && start.slice(0, 4) !== end.slice(0, 4);
     return `Apply ${crossesYear ? formatRange([start, end]) : formatShortRange([start, end])}`;
+  }
+  // round 48: whether the panel opens wide, measured from its button: the panel aligns to the
+  // button's right edge, and a 20rem panel needs 580px to its left for the picker
+  let panelWide = $state(false);
+  function measurePanel() {
+    if (!roomWidth) return;
+    const right =
+      document.querySelector("[data-filter-trigger]")?.getBoundingClientRect().right ?? 0;
+    panelWide = right - 320 < 580;
   }
   // the picker is ~560px wide and opens to the panel's left, 12px off
   const fitsBeside = () =>
@@ -1518,12 +1532,13 @@
 
 <!-- Round 5: the Filter panel, a popover on desktop and the same body in the phone sheet -->
 {#snippet filterPanel()}
-  <Popover.Root bind:open={panelOpen} onOpenChange={(open) => !open && letGo()}>
+  <Popover.Root bind:open={panelOpen} onOpenChange={(open) => (open ? measurePanel() : letGo())}>
     <Popover.Trigger>
       {#snippet child({ props })}
         <Button
           {...props}
           data-slot="button"
+          data-filter-trigger
           variant="outline"
           class={cn("max-sm:hidden", TOOL.button, TONE.tool)}
           title={compactTools ? "Filter" : undefined}
@@ -1538,7 +1553,9 @@
       align="end"
       class={cn(
         "max-h-(--bits-floating-available-height) w-80 gap-0 overflow-y-auto p-0",
-        (steadyPanel || (panelSteps && stepFilter)) && "w-[22rem]"
+        roomWidth
+          ? (panelWide || stepFilter) && "w-[22rem]"
+          : (steadyPanel || (panelSteps && stepFilter)) && "w-[22rem]"
       )}
       role="dialog"
       aria-label="Filters"

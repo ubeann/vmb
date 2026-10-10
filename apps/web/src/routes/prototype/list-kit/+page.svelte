@@ -59,7 +59,8 @@
     { key: "C3kq", name: "C3ky + layers reopen fresh after the user closes them" },
     { key: "C3kl", name: "C3kq + handovers wait for the resize to settle" },
     { key: "C3ku", name: "C3kl + a compact pager on phones" },
-    { key: "C3km2", name: "C3ku + one width for the Filter panel" }
+    { key: "C3km2", name: "C3ku + one width for the Filter panel" },
+    { key: "C3kn3", name: "C3km2 + the panel width follows the screen" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // the C3k rounds in order; each takes every pick before it (C3km and C3kw are side tries)
@@ -87,7 +88,8 @@
     "C3kq",
     "C3kl",
     "C3ku",
-    "C3km2"
+    "C3km2",
+    "C3kn3"
   ];
 </script>
 
@@ -130,6 +132,7 @@
     settleFirst={after("C3kl")}
     compactPager={after("C3ku")}
     steadyPanel={after("C3km2")}
+    roomWidth={after("C3kn3")}
     {data}
     tile="tint"
     toolbar="card"
