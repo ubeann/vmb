@@ -22,6 +22,8 @@
   import VmbLogo from "$lib/components/VmbLogo.svelte";
   import { duration } from "$lib/motion.js";
   import { swipeToClose } from "$lib/swipe-to-close.js";
+  import { shortcuts } from "$lib/components/shortcuts.svelte.js";
+  import KeyboardIcon from "@lucide/svelte/icons/keyboard";
   import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
   import PanelLeftOpen from "@lucide/svelte/icons/panel-left-open";
   import X from "@lucide/svelte/icons/x";
@@ -197,6 +199,25 @@
 
         <Sidebar.Footer>
           <Sidebar.Menu>
+            {#if shortcuts.enabled}
+              <!-- PROTOTYPE (prototype/list-kit, round 50): the app-wide shortcut sheet; a keyboard
+                   is needed to use it, so touch screens don't show it -->
+              <Sidebar.MenuItem class="pointer-coarse:hidden">
+                <Sidebar.MenuButton
+                  aria-keyshortcuts="Shift+Slash"
+                  tooltipContent="Keyboard shortcuts"
+                  onclick={() => (shortcuts.open = true)}
+                >
+                  <KeyboardIcon aria-hidden="true" />
+                  <span>Shortcuts</span>
+                  <kbd
+                    aria-hidden="true"
+                    class="border-sidebar-border text-muted-foreground ml-auto rounded border px-1.5 font-mono text-[0.7rem] group-data-[collapsible=icon]:hidden"
+                    >?</kbd
+                  >
+                </Sidebar.MenuButton>
+              </Sidebar.MenuItem>
+            {/if}
             <Sidebar.MenuItem>
               <Sidebar.MenuButton
                 class="pointer-coarse:h-11"

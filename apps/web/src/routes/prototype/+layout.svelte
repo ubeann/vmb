@@ -2,6 +2,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import AppShell from "$lib/components/AppShell.svelte";
+  import ShortcutsSheet from "$lib/components/ShortcutsSheet.svelte";
   import { Toaster } from "$lib/components/ui/sonner/index.js";
   import type { Snippet } from "svelte";
 
@@ -20,6 +21,7 @@
 </script>
 
 <Toaster richColors closeButton />
+<ShortcutsSheet />
 
 <svelte:window bind:innerWidth />
 

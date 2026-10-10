@@ -13,6 +13,9 @@
   // PROTOTYPE: every URL here goes through resolve() inside a helper the rule cannot follow
   /* eslint-disable svelte/no-navigation-without-resolve */
   import { goto } from "$app/navigation";
+  import { shortcuts } from "$lib/components/shortcuts.svelte.js";
+  import ListIcon from "@lucide/svelte/icons/list";
+  import MousePointerClickIcon from "@lucide/svelte/icons/mouse-pointer-click";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import EmptyState from "$lib/components/EmptyState.svelte";
@@ -116,7 +119,8 @@
     compactPager = false,
     steadyPanel = false,
     roomWidth = false,
-    dialogFrom480 = false
+    dialogFrom480 = false,
+    globalShortcuts = false
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -230,6 +234,9 @@
     // Round 49: from 480px (foldables open, small tablets) the phone sheet becomes a centred
     // dialog: same steps, rounded all round, off the bottom edge; ordinary phones keep the sheet
     dialogFrom480?: boolean;
+    // Round 50: the shortcut sheet is the app's, opened by ? anywhere and from the sidebar
+    // footer; this list registers its own sections in it, and the footer hint goes
+    globalShortcuts?: boolean;
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -672,6 +679,37 @@
   }
   let cursor = $state<string | null>(null);
   let helpOpen = $state(false);
+  $effect(() => {
+    if (!globalShortcuts || !rowNav) return;
+    shortcuts.enabled = true;
+    const unregister = shortcuts.register([
+      {
+        title: "On the Divisions list",
+        icon: ListIcon,
+        rows: [
+          { keys: ["/"], what: "Search" },
+          { keys: ["↑", "↓"], alt: ["J", "K"], what: "Move between rows" },
+          { keys: ["Enter"], what: "Open the row" },
+          { keys: ["Esc"], what: "Leave the row" }
+        ]
+      },
+      {
+        title: "On a row",
+        icon: MousePointerClickIcon,
+        rows: [
+          { keys: ["E"], what: "Edit" },
+          { keys: ["D"], what: "Deactivate" },
+          { keys: ["A"], what: "Activate" },
+          { keys: ["⌫"], what: "Delete…" },
+          { keys: ["R"], what: "Restore, in the Trash" }
+        ]
+      }
+    ]);
+    return () => {
+      unregister();
+      shortcuts.enabled = false;
+    };
+  });
   // keep the marked row in sight as it moves
   $effect(() => {
     if (cursor)
@@ -690,7 +728,7 @@
     cursor = items[next]!.id;
   }
   function onkeydown(event: KeyboardEvent) {
-    if (!view || panelOpen || menuFor || opened || helpOpen) return;
+    if (!view || panelOpen || menuFor || opened || helpOpen || shortcuts.open) return;
     const target = event.target as HTMLElement | null;
     if (
       target?.closest(
@@ -700,7 +738,7 @@
       return;
     if (rowNav && !event.metaKey && !event.ctrlKey && !event.altKey) {
       const marked = data.divisions.items.find((d) => d.id === cursor);
-      if (event.key === "?") {
+      if (event.key === "?" && !globalShortcuts) {
         event.preventDefault();
         helpOpen = true;
         return;
@@ -2765,7 +2803,7 @@
   {:else}
     <ListFooter {base} {list} noun={inTrash ? "divisions in the Trash" : "divisions"} />
   {/if}
-  {#if rowNav}
+  {#if rowNav && !globalShortcuts}
     <!-- Round 25: shortcuts are found here, and only where there is a keyboard to use them -->
     <p class="text-muted-foreground hidden items-center gap-1.5 self-end text-xs pointer-fine:flex">
       Press <kbd class="border-border rounded border px-1.5 font-mono">?</kbd> for keyboard shortcuts
