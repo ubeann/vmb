@@ -15,7 +15,7 @@
   // Round 20 (C3q): under 1024px the sidebar starts as its icon rail, giving the page ~200px
   let innerWidth = $state(1440);
   const rail = $derived(
-    ["C3q", "C3k"].includes(page.url.searchParams.get("variant") ?? "") && innerWidth < 1024
+    (page.url.searchParams.get("variant") ?? "").match(/^C3[qk]/) && innerWidth < 1024
   );
 </script>
 

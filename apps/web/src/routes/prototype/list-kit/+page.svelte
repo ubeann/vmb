@@ -32,7 +32,11 @@
     { key: "C3h", name: "C3t + sort menu for two-line rows" },
     { key: "C3p", name: "C3t + 16px tablet padding" },
     { key: "C3q", name: "C3p + icon-rail sidebar under 1024px" },
-    { key: "C3k", name: "C3q + View holds sort on narrow" }
+    { key: "C3k", name: "C3q + View holds sort on narrow" },
+    { key: "C3ka", name: "C3k, search dressed like the tools" },
+    { key: "C3kb", name: "C3k, tools dressed like the search" },
+    { key: "C3kc", name: "C3k, search and tools meet halfway" },
+    { key: "C3kr", name: "C3kc + corners scaled to height" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -53,6 +57,39 @@
   <VariantB {data} tile="tint" toolbar="card" chip="outline" />
 {:else if variant === "C3w"}
   <VariantB {data} tile="tint" toolbar="card" chip="green" dates="beside" view strip="inline" />
+{:else if variant === "C3kr"}
+  <VariantB
+    {data}
+    tile="tint"
+    toolbar="card"
+    chip="green"
+    dates="beside"
+    view
+    strip="inline"
+    searchBox
+    responsive
+    compactTools
+    tabletPadding
+    sortInView
+    toolTone="c"
+    radius="scaled"
+  />
+{:else if variant === "C3ka" || variant === "C3kb" || variant === "C3kc"}
+  <VariantB
+    {data}
+    tile="tint"
+    toolbar="card"
+    chip="green"
+    dates="beside"
+    view
+    strip="inline"
+    searchBox
+    responsive
+    compactTools
+    tabletPadding
+    sortInView
+    toolTone={variant === "C3ka" ? "a" : variant === "C3kb" ? "b" : "c"}
+  />
 {:else if variant === "C3k"}
   <VariantB
     {data}

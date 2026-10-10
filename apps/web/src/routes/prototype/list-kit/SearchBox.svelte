@@ -23,12 +23,14 @@
     label,
     placeholder = "Search…",
     shortPlaceholder,
+    inputClass = "",
     class: className = ""
   }: {
     base: MasterListPathname;
     label: string;
     placeholder?: string;
     shortPlaceholder?: string;
+    inputClass?: string;
     class?: string;
   } = $props();
 
@@ -162,7 +164,10 @@
     aria-busy={busy}
     placeholder={shownPlaceholder}
     autocomplete="off"
-    class="pr-9 pl-8 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
+    class={cn(
+      "pr-9 pl-8 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none",
+      inputClass
+    )}
     {oninput}
     onkeydown={onfieldkeydown}
     onfocus={() => (focused = true)}

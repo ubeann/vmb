@@ -88,7 +88,9 @@
     compactTools = false,
     sortBar = false,
     tabletPadding = false,
-    sortInView = false
+    sortInView = false,
+    toolTone = "now",
+    radius = "now"
   }: {
     data: PageData;
     tile: "solid" | "tint" | "glyph";
@@ -120,6 +122,14 @@
     // Round 21: View shows on phones too; once rows fold to two lines it trades Columns for
     // Sort by, and the header row goes
     sortInView?: boolean;
+    // Round 22: light mode only (dark already shares one look). "now": the search a white field
+    // with the strong --input edge, the tools cream with a --border hairline; "a": the search
+    // dresses like the tools; "b": the tools dress like the search; "c": both meet halfway
+    toolTone?: "now" | "a" | "b" | "c";
+    // Round 23: "now": every control 10px (chips 8px), the card 10px; "scaled": corners a quarter
+    // of the height, 8px on 32px controls and 11px on 44px touch ones, chips included, and the
+    // card a step rounder than what sits inside it
+    radius?: "now" | "scaled";
   } = $props();
 
   const base = "/prototype/list-kit" as MasterListPathname;
@@ -247,6 +257,24 @@
       keepFocus: true
     });
   }
+  // Round 22: the light-mode skins for the search field and the toolbar buttons
+  const MID = "not-dark:border-[color-mix(in_oklab,var(--input)_45%,var(--border))]";
+  const TONE = $derived(
+    {
+      now: { search: "", tool: "" },
+      a: {
+        search: "not-dark:bg-background not-dark:border-border not-dark:hover:border-input",
+        tool: ""
+      },
+      b: { search: "", tool: "not-dark:border-input not-dark:bg-transparent" },
+      c: { search: cn("not-dark:bg-background", MID), tool: MID }
+    }[toolTone]
+  );
+  // Round 23: scaled corners for the page's controls; panels are portalled and keep their own
+  const RADIUS = $derived(
+    radius === "scaled" &&
+      "[&_:is([data-slot=button],[data-slot=input],[data-chip])]:rounded-md pointer-coarse:[&_:is([data-slot=button],[data-slot=input],[data-chip])]:rounded-[11px]"
+  );
   const ROW_ACTION =
     "hover:bg-background dark:hover:bg-background hover:ring-border hover:text-foreground hover:shadow-xs hover:ring-1";
   const fits = $derived(data.divisions.total <= data.divisions.perPage);
@@ -521,6 +549,7 @@
 <!-- Round 11: the search is a condition too, so it gets a chip like the filters -->
 {#snippet searchChip()}
   <div
+    data-chip
     class={cn(
       "inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm pointer-coarse:h-11",
       look.chip
@@ -599,7 +628,7 @@
           {...props}
           data-slot="button"
           variant="outline"
-          class={cn("relative", !sortInView && "max-sm:hidden", TOOL.button)}
+          class={cn("relative", !sortInView && "max-sm:hidden", TOOL.button, TONE.tool)}
           aria-label={viewChanged ? "View, changed" : "View"}
           title={compactTools ? "View" : undefined}
         >
@@ -856,6 +885,7 @@
       label="Search divisions"
       placeholder="Search name, code or description"
       shortPlaceholder="Search divisions"
+      inputClass={TONE.search}
       class={cls}
     />
   {:else}
@@ -935,6 +965,7 @@
 <!-- Round 5: a chip in use; clicking it opens the Filter panel, × drops it -->
 {#snippet panelChip(filter: Filter)}
   <div
+    data-chip
     class={cn(
       "inline-flex h-8 items-stretch overflow-hidden rounded-md text-sm pointer-coarse:h-11",
       look.chip
@@ -971,7 +1002,7 @@
           {...props}
           data-slot="button"
           variant="outline"
-          class={cn("max-sm:hidden", TOOL.button)}
+          class={cn("max-sm:hidden", TOOL.button, TONE.tool)}
           title={compactTools ? "Filter" : undefined}
         >
           <ListFilterIcon aria-hidden="true" data-icon="inline-start" /><span
@@ -1195,7 +1226,7 @@
             data-slot="button"
             variant="outline"
             size="icon"
-            class="relative sm:hidden"
+            class={cn("relative sm:hidden", TONE.tool)}
             title="Filters"
           >
             <ListFilterIcon aria-hidden="true" /><span class="sr-only">Filters</span
@@ -1243,7 +1274,7 @@
   {/if}
 </svelte:head>
 
-<Page width="default" class="flex flex-col gap-4">
+<Page width="default" class={cn("flex flex-col gap-4", RADIUS)}>
   <!-- Q8, Q9: no description; a smaller title with the action on its row -->
   <header class="flex items-center justify-between gap-3">
     <h1 class="font-display text-2xl font-medium tracking-tight">Divisions</h1>
@@ -1343,7 +1374,11 @@
 
   {@const list = data.divisions}
   <div
-    class={cn("border-border bg-card relative overflow-hidden rounded-lg border", FOLD.card)}
+    class={cn(
+      "border-border bg-card relative overflow-hidden rounded-lg border",
+      FOLD.card,
+      radius === "scaled" && "rounded-xl"
+    )}
     bind:clientWidth={cardWidth}
   >
     {#if toolbar === "card"}
@@ -1459,6 +1494,7 @@
             <a
               href={clearHref}
               data-sveltekit-noscroll
+              data-slot="button"
               class={cn(
                 buttonVariants({ variant: "ghost" }),
                 "text-muted-foreground pointer-coarse:h-11"
@@ -1674,6 +1710,7 @@
                       {#snippet child({ props })}
                         <Button
                           {...props}
+                          data-slot="button"
                           variant="ghost"
                           size="icon"
                           class={cn(
