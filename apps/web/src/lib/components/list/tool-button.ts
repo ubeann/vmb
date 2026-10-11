@@ -8,3 +8,7 @@ export const TOOL_BUTTON =
 export const TOOL_LABEL = "@max-2xl/list:sr-only";
 export const TOOL_BADGE =
   "bg-primary text-primary-foreground rounded-full px-1.5 text-xs tabular-nums @max-2xl/list:absolute @max-2xl/list:-top-1.5 @max-2xl/list:-right-1.5 @max-2xl/list:h-4 @max-2xl/list:min-w-4 @max-2xl/list:px-1 @max-2xl/list:text-[0.65rem] @max-2xl/list:leading-4 @max-2xl/list:ring-2 @max-2xl/list:ring-background";
+
+/** View's "something differs" dot: in the button's corner at every width, where the badge only moves there when folded. */
+export const TOOL_DOT =
+  "bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2";

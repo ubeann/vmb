@@ -735,6 +735,17 @@ describe("AppShell", () => {
       }
     });
 
+    it("follows the screen across the tablet range while nothing is chosen", async () => {
+      await browser.viewport(768, 900);
+      await render(AppShell, props({ sidebarOpen: true, sidebarSaved: false }));
+      await expect.poll(sidebarState).toBe("collapsed");
+
+      await browser.viewport(1100, 900);
+      await expect.poll(sidebarState).toBe("expanded");
+      await browser.viewport(800, 900);
+      await expect.poll(sidebarState).toBe("collapsed");
+    });
+
     it("leaves the sidebar open from 1024px when nothing was saved", async () => {
       await browser.viewport(1024, 900);
       await render(AppShell, props({ sidebarOpen: true, sidebarSaved: false }));

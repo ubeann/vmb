@@ -34,7 +34,7 @@
   import type { ColumnVisibility } from "./column-visibility.svelte.js";
   import { Layer, LayerAction, LayerBody, LayerFooter } from "./layer/index.js";
   import { useListCard } from "./list-card.svelte.js";
-  import { TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
+  import { TOOL_BUTTON, TOOL_DOT, TOOL_LABEL } from "./tool-button.js";
   import {
     orderChoices,
     pickField,
@@ -131,10 +131,7 @@
         >View</span
       >
       {#if differs}
-        <span
-          aria-hidden="true"
-          class="bg-foreground ring-background absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2"
-        ></span><span class="sr-only">changed</span>
+        <span aria-hidden="true" class={TOOL_DOT}></span><span class="sr-only">changed</span>
       {/if}
     </Button>
   {/snippet}

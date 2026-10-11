@@ -1275,6 +1275,26 @@ describe("divisions list", () => {
       expect(getComputedStyle(retired.querySelector("[data-slot=record-tile]")!).opacity).toBe("1");
     });
 
+    it("folds the free text and the tools on the same 42rem line", async () => {
+      // the card's content is 2px under the viewport (its border)
+      for (const [viewport, folded] of [
+        [673, true],
+        [674, false]
+      ] as const) {
+        await browser.viewport(viewport, 900);
+        const screen = await render(Page, props("/master/divisions"));
+
+        const header = screen.container.querySelector<HTMLElement>("thead th:nth-child(3)")!;
+        expect(header.textContent).toContain("Description");
+        expect(header.checkVisibility(), `${viewport}px: description column`).toBe(!folded);
+        const view = screen.getByRole("button", { name: "View" }).element();
+        expect(view.getBoundingClientRect().width === 32, `${viewport}px: icon buttons`).toBe(
+          folded
+        );
+        await screen.unmount();
+      }
+    });
+
     it("folds the rows and swaps View's columns for Sort by on the same line, 32rem of card", async () => {
       // the card has a 1px border each side, so its content is 2px under the viewport
       for (const [viewport, folded] of [

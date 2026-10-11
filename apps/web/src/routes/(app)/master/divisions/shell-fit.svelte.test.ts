@@ -1,6 +1,6 @@
 import { DivisionListQuerySchema, type Division } from "@vmb/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { page as browser } from "vitest/browser";
+import { page as browser, userEvent } from "vitest/browser";
 
 // Isolated renders don't load the global stylesheet; every width rule is in it.
 import "../../../../app.css";
@@ -15,11 +15,15 @@ const mockPage = {
 };
 vi.mock("$app/paths", () => ({
   resolve: (path: string, params: Record<string, string> = {}) =>
-    Object.entries(params).reduce((out, [key, value]) => out.replace(`[${key}]`, value), path)
+    Object.entries(params).reduce(
+      (out, [key, value]) => out.replace(`[${key}]`, value),
+      path.replace("/(app)", "")
+    )
 }));
 vi.mock("$app/state", () => ({ page: mockPage, navigating: { to: null } }));
+const goto = vi.fn(async () => {});
 vi.mock("$app/navigation", () => ({
-  goto: vi.fn(async () => {}),
+  goto,
   invalidateAll: vi.fn(async () => {}),
   afterNavigate: () => {}
 }));
@@ -73,6 +77,7 @@ const props = (sidebarOpen: boolean, sidebarSaved: boolean) => {
 };
 
 afterEach(() => {
+  goto.mockClear();
   document.cookie = "sidebar_state=; path=/; max-age=0";
 });
 
@@ -98,6 +103,53 @@ describe("the Divisions list in the shell", () => {
       }
     }
   });
+
+  it("has no sideways scroll on the default tablet rail either, at 768 and 623", async () => {
+    for (const width of [768, 623]) {
+      await browser.viewport(width, 900);
+      const screen = await render(Fixture, props(true, false));
+      // under 768px the sidebar is a sheet, so the rail only exists at 768
+      if (width === 768) {
+        await expect
+          .poll(() =>
+            document.querySelector("[data-slot='sidebar'][data-state]")?.getAttribute("data-state")
+          )
+          .toBe("collapsed");
+      }
+      const frame = screen.container.querySelector("[data-slot=table-container]")!;
+      expect(frame.scrollWidth, `${width}px`).toBeLessThanOrEqual(frame.clientWidth);
+      expect(document.documentElement.scrollWidth, `${width}px`).toBeLessThanOrEqual(
+        document.documentElement.clientWidth
+      );
+      await screen.unmount();
+    }
+  });
+
+  it.each(["Filter", "View"])(
+    "a click on a folded row's second line closes %s and only that; the next one opens the record",
+    async (button) => {
+      await browser.viewport(768, 900);
+      const screen = await render(Fixture, props(true, true));
+      const second = [...screen.container.querySelectorAll("tbody td:first-child p")].find((line) =>
+        line.checkVisibility()
+      )!;
+      expect(second, "the card is folded here").toBeTruthy();
+
+      await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
+      await expect.poll(() => document.querySelector("[data-layer-frame]")).not.toBeNull();
+      // a finger on the row beneath the layer: touch pointer events, then the click they end in
+      const init = { bubbles: true, cancelable: true, composed: true, pointerType: "touch" };
+      const down = { ...init, pointerId: 7, isPrimary: true, button: 0, buttons: 1 };
+      second.dispatchEvent(new PointerEvent("pointerdown", down));
+      second.dispatchEvent(new PointerEvent("pointerup", { ...down, buttons: 0 }));
+      second.dispatchEvent(new MouseEvent("click", { ...init, button: 0, detail: 1 }));
+      await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
+      expect(goto).not.toHaveBeenCalled();
+
+      await userEvent.click(second);
+      expect(goto).toHaveBeenCalledWith(`/master/divisions/${long.id}`);
+    }
+  );
 
   it("gives a 768px tablet a real table: the rail by default makes the card about 656px", async () => {
     await browser.viewport(768, 900);
