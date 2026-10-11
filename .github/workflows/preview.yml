@@ -31,21 +31,25 @@ name: Preview
 # distinction.
 #
 # Whether a PR gets a preview at all is decided by the `Detect code-relevant
-# changes` job, not a trigger-level `paths` filter. The canonical
-# "code-relevant change" definition lives in `scripts/code-relevant-paths.sh`
-# (issue #83), and a workflow's `on.paths` cannot reference a shared value — as
-# a hand-kept copy it could only drift from `ci.yml`'s deploy gate (issue #70,
-# ADR-0019). The job gates the preview job, so a docs-only PR pays one cheap,
-# secret-free job instead of starting no run at all.
+# changes` step, the first of the `preview` job's steps, not a trigger-level
+# `paths` filter. The canonical "code-relevant change" definition lives in
+# `scripts/code-relevant-paths.sh` (issue #83), and a workflow's `on.paths`
+# cannot reference a shared value — as a hand-kept copy it could only drift from
+# `ci.yml`'s deploy gate (issue #70, ADR-0019). Every step after it runs only
+# when the step did not report `code_changed=false`, so a docs-only PR ends as a
+# short `Create Environment` run with its steps skipped and no Cloudflare or Neon
+# resource created. It used to be a separate secret-free job; a job bills a
+# whole minute however short it runs, and a step that references no secrets
+# gives the same isolation for free (issue #382, ADR-0019's amendment).
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
     # No `paths` filter — see the header: the definition is shared from
-    # `scripts/code-relevant-paths.sh` and consumed by the `changes` job below.
-    # A docs-only PR still runs this workflow, but the preview job (the one that
-    # holds secrets and creates Cloudflare/Neon resources) is skipped before it
-    # starts.
+    # `scripts/code-relevant-paths.sh` and consumed by the `preview` job's first
+    # step. A docs-only PR still runs this workflow, but that step reports no
+    # change, so every step after it, the ones that hold secrets and create
+    # Cloudflare/Neon resources, is skipped.
 
 # Shared with cleanup.yml's `pull_request: closed` run, so closing a PR
 # normally cancels any in-flight preview deploy in this group before the
@@ -68,53 +72,9 @@ permissions:
   pull-requests: write
 
 jobs:
-  # Decides whether this PR is code-relevant before the secret-bearing preview
-  # job starts. Secret-free by design — it only diffs the checkout — so it also
-  # runs for Dependabot PRs whose preview is skipped below (issue #45).
-  changes:
-    name: Detect Code-Relevant Changes
-    runs-on: ubuntu-latest
-    # The workflow grants `pull-requests: write` for the preview job's sticky
-    # comment; this job needs only the checkout.
-    permissions:
-      contents: read
-    timeout-minutes: 5
-    outputs:
-      code_changed: ${{ steps.changes.outputs.code_changed }}
-    steps:
-      - uses: actions/checkout@v7
-
-      # The canonical definition is `scripts/code-relevant-paths.sh`; the
-      # `preview` mode adds `.github/workflows/**`, because a workflow edit
-      # cannot change the deployed artifact but still has to be exercised by the
-      # PR's own preview before it lands (ADR-0023, issue #83).
-      - name: Detect code-relevant changes
-        id: changes
-        env:
-          # The default checkout is the test merge commit, whose first parent is
-          # the PR's base commit — the baseline the diff is measured against.
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -uo pipefail
-
-          # shellcheck source=scripts/code-relevant-paths.sh
-          . scripts/code-relevant-paths.sh
-
-          # A depth-1 clone carries the merge commit but not its parent. Fetch
-          # the base commit so the diff can name it; if the fetch fails the
-          # module returns "undetermined" (2) and the preview runs (fail open),
-          # so the warning below is not a silent skip.
-          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 origin "$BASE_SHA" \
-              || echo "::warning::Could not fetch the base commit $BASE_SHA; running the preview to be safe."
-          fi
-
-          emit_code_relevant_change "$BASE_SHA" HEAD preview
-
   preview:
     name: Create Environment
     runs-on: ubuntu-latest
-    needs: changes
     # Dependabot-triggered runs receive no Actions secrets, and this job cannot
     # work without them: `Resolve preview URLs` 404s on an empty
     # CLOUDFLARE_API_TOKEN, and the Neon and fnox steps need their secrets too.
@@ -138,8 +98,12 @@ jobs:
     # branch is created here, cleanup.yml has nothing to delete for them either
     # and skips them the same way.
     #
-    # A docs-only PR skips this job the same way: `changes` above concludes
-    # `code_changed=false` and no secret-bearing runner starts (issue #83).
+    # A docs-only PR does not skip the job, only its steps: the detection step
+    # below is the one step that runs, it references no secrets, and every later
+    # step carries `if: steps.changes.outputs.code_changed != 'false'` (issues
+    # #83, #382). The guards in this `if:` stay at the job level for that reason:
+    # a Dependabot or fork run must not start a job that holds the secrets, even
+    # one whose steps would all skip.
     #
     # Fork PRs skip it too (issue #149, ADR-0030). GitHub passes no repository
     # secrets to a `pull_request`-triggered run from a fork (GITHUB_TOKEN
@@ -151,10 +115,7 @@ jobs:
     # PR never creates a Cloudflare or Neon resource, so there is nothing for
     # cleanup.yml to reap either — it skips them the same way.
     #
-    # Fail open, like the deploy gate: `!cancelled()` lets this job run when
-    # `changes` itself failed, and an absent output is not `false`, so a broken
-    # `changes` job runs the preview rather than silently skipping a code PR.
-    if: "!cancelled() && needs.changes.outputs.code_changed != 'false' && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository"
+    if: "github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository"
     timeout-minutes: 10
     # The two names this preview's contract with production is built from,
     # defined once for the whole job: the database every environment branch
@@ -170,9 +131,47 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Decides whether this PR is code-relevant before anything that holds a
+      # secret runs. Secret-free by design: it only diffs the checkout, so it
+      # references no `secrets.*`, and the job-level `env` above carries none
+      # either. The canonical definition is `scripts/code-relevant-paths.sh`;
+      # the `preview` mode adds `.github/workflows/**`, because a workflow edit
+      # cannot change the deployed artifact but still has to be exercised by the
+      # PR's own preview before it lands (ADR-0023, issue #83).
+      #
+      # Fail open, like the deploy gate. The module publishes `true` for
+      # anything but a definitive "no change". `continue-on-error` covers the
+      # step itself failing: it would publish no output, and an absent output is
+      # not `false`, so every later step still runs rather than silently
+      # skipping a code PR.
+      - name: Detect code-relevant changes
+        id: changes
+        continue-on-error: true
+        env:
+          # The default checkout is the test merge commit, whose first parent is
+          # the PR's base commit — the baseline the diff is measured against.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -uo pipefail
+
+          # shellcheck source=scripts/code-relevant-paths.sh
+          . scripts/code-relevant-paths.sh
+
+          # A depth-1 clone carries the merge commit but not its parent. Fetch
+          # the base commit so the diff can name it; if the fetch fails the
+          # module returns "undetermined" (2) and the preview runs (fail open),
+          # so the warning below is not a silent skip.
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BASE_SHA" \
+              || echo "::warning::Could not fetch the base commit $BASE_SHA; running the preview to be safe."
+          fi
+
+          emit_code_relevant_change "$BASE_SHA" HEAD preview
+
       # Toolchain, pnpm store cache, and a frozen-lockfile install: the same
       # composite action `ci.yml` bootstraps with (issue #79).
       - uses: ./.github/actions/setup
+        if: steps.changes.outputs.code_changed != 'false'
 
       # The alias and the prefix both come from
       # `scripts/preview-identifiers.sh` (issue #78), so create and destroy read
@@ -192,6 +191,7 @@ jobs:
       # Cloudflare's Previews docs; the deploy step checks wrangler reports
       # the same URL.)
       - name: Resolve preview identifiers
+        if: steps.changes.outputs.code_changed != 'false'
         id: ids
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -249,6 +249,7 @@ jobs:
       # a label, and the branch id, its endpoint host and its `app` database are
       # unchanged, so a live preview's connection string keeps working.
       - name: Align this PR's Neon branch name
+        if: steps.changes.outputs.code_changed != 'false'
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
@@ -333,6 +334,7 @@ jobs:
       # version will not, so naming the stronger mode keeps the behaviour and
       # keeps the warning out of the migrate and seed logs.
       - name: Create Neon branch
+        if: steps.changes.outputs.code_changed != 'false'
         id: neon
         uses: neondatabase/create-branch-action@v6
         with:
@@ -363,6 +365,7 @@ jobs:
       # working is the failure this step exists to remove, and the failure
       # names the branch id.
       - name: Renew this PR's Neon branch expiry
+        if: steps.changes.outputs.code_changed != 'false'
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
@@ -403,6 +406,7 @@ jobs:
           fi
 
       - name: Run database migrations against the PR's Neon branch
+        if: steps.changes.outputs.code_changed != 'false'
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}
         run: pnpm --filter @vmb/db db:migrate
@@ -428,6 +432,7 @@ jobs:
       # as it computes the excerpt, so the comment's truncation note can point
       # there.
       - name: Compare schema with production
+        if: steps.changes.outputs.code_changed != 'false'
         id: schema_diff
         # Belt and braces with the script's own `set +e`: a step that dies
         # before it can write its outputs must still leave the preview to
@@ -531,6 +536,7 @@ jobs:
       # transaction, so a failed seed rolls back and fails this job before the
       # Preview is deployed — never a live, half-emptied preview.
       - name: Seed the PR's Neon branch with deterministic fixtures
+        if: steps.changes.outputs.code_changed != 'false'
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}
         run: pnpm --filter @vmb/db db:seed
@@ -562,6 +568,7 @@ jobs:
       # Written as JSON so Neon's connection string and any special characters
       # survive intact; `--secrets-file` keeps them out of argv/logs.
       - name: Assemble API preview secrets
+        if: steps.changes.outputs.code_changed != 'false'
         env:
           FNOX_AGE_KEY: ${{ secrets.FNOX_AGE_KEY }}
           # fnox exits 0 with empty values when FNOX_AGE_KEY can't decrypt;
@@ -628,6 +635,7 @@ jobs:
       # A Preview takes over an older version alias of the same name, so an
       # open PR's URL survives the switch.
       - name: Deploy API preview
+        if: steps.changes.outputs.code_changed != 'false'
         working-directory: apps/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -671,6 +679,7 @@ jobs:
       # remote cache with CI. `build`'s env declares PUBLIC_API_URL, so this
       # per-PR hash can never restore the production (URL-less) entry.
       - name: Build web with this PR's API URL
+        if: steps.changes.outputs.code_changed != 'false'
         env:
           PUBLIC_API_URL: ${{ steps.ids.outputs.api_url }}
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -678,6 +687,7 @@ jobs:
         run: pnpm turbo build --filter=@vmb/web
 
       - name: Deploy web preview
+        if: steps.changes.outputs.code_changed != 'false'
         id: web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -744,7 +754,7 @@ jobs:
       # `production_environment: false` keeps the preview out of the production
       # rollup (`environment` defaults it to true only for "production").
       - name: Register the web preview as a GitHub deployment
-        if: steps.web.outputs.web_url != ''
+        if: steps.changes.outputs.code_changed != 'false' && steps.web.outputs.web_url != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WEB_PREVIEW_URL: ${{ steps.web.outputs.web_url }}
@@ -828,6 +838,7 @@ jobs:
       # red deploy over a cleanup miss. The step runs only on the default
       # `success()`, so a failed deploy can't prune the live deployment away.
       - name: Prune superseded Pages preview deployments
+        if: steps.changes.outputs.code_changed != 'false'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -886,7 +897,7 @@ jobs:
       # same comment instead of leaving a stale green one. `job.status` is
       # "success", "failure" or "cancelled" at this point.
       - name: Update preview comment
-        if: always()
+        if: always() && steps.changes.outputs.code_changed != 'false'
         uses: actions/github-script@v9
         env:
           # The URL Cloudflare actually assigned this deployment (the deploy
