@@ -45,7 +45,7 @@ describe("the control skin", () => {
     }
   });
 
-  it("keeps form fields white with the 3:1 --input edge", async () => {
+  it("keeps form fields clear, white on their card, with the 3:1 --input edge", async () => {
     const { email, division } = await controls();
 
     for (const field of [email, division]) {
