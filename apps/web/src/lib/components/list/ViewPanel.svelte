@@ -34,7 +34,7 @@
   import type { ColumnVisibility } from "./column-visibility.svelte.js";
   import { Layer, LayerAction, LayerBody, LayerFooter } from "./layer/index.js";
   import { useListCard } from "./list-card.svelte.js";
-  import { TOOL_BUTTON, TOOL_DOT, TOOL_LABEL } from "./tool-button.js";
+  import { LAYER_RESET, TOOL_BUTTON, TOOL_DOT, TOOL_LABEL } from "./tool-button.js";
   import {
     orderChoices,
     pickField,
@@ -120,11 +120,11 @@
 
   const uid = $props.id();
   const row =
-    "hover:bg-muted focus-visible:ring-ring flex h-9 w-full items-center gap-2 rounded-(--control-radius) px-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11";
+    "hover:bg-muted focus-visible:ring-ring flex h-8 w-full items-center gap-2 rounded-(--control-radius) px-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11";
   const heading = "text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium";
 </script>
 
-<Layer label="View">
+<Layer label="View" panelClass="w-64">
   {#snippet trigger({ props })}
     <Button {...props} data-slot="button" title="View" variant="outline" class={TOOL_BUTTON}>
       <Settings2Icon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}
@@ -138,7 +138,9 @@
 
   {#snippet headerAction()}
     {#if differs}
-      <Button variant="ghost" size="sm" onclick={reset}>Reset</Button>
+      <button type="button" data-slot="layer-reset" class={LAYER_RESET} onclick={reset}
+        >Reset</button
+      >
     {/if}
   {/snippet}
 
@@ -245,7 +247,7 @@
                   {...props}
                   data-slot="layer-pill"
                   class={cn(
-                    "focus-visible:ring-ring inline-flex h-8 flex-1 items-center justify-center rounded-(--control-radius) text-sm tabular-nums ring-1 ring-inset focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11",
+                    "focus-visible:ring-ring inline-flex h-7 flex-1 items-center justify-center rounded-(--control-radius) text-sm tabular-nums ring-1 ring-inset focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11",
                     checked
                       ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium"
                       : "ring-border text-muted-foreground hover:bg-muted hover:text-foreground"

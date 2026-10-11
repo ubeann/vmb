@@ -50,7 +50,7 @@
   } from "./FilterChips.svelte";
   import { Layer, LayerAction, LayerBody, LayerFooter } from "./layer/index.js";
   import RangeEnds from "./RangeEnds.svelte";
-  import { TOOL_BADGE, TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
+  import { LAYER_RESET, TOOL_BADGE, TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
 
   let {
     base,
@@ -198,14 +198,20 @@
         >Filter</span
       >
       {#if inUse > 0}
-        <span class={TOOL_BADGE}>{inUse}</span><span class="sr-only">active</span>
+        <span class={TOOL_BADGE}>{inUse}<span class="sr-only">&#32;in use</span></span>
       {/if}
     </Button>
   {/snippet}
 
   {#snippet headerAction()}
     {#if inUse > 0}
-      <Button variant="ghost" size="sm" data-layer-reset onclick={reset}>Reset</Button>
+      <button
+        type="button"
+        data-slot="layer-reset"
+        class={LAYER_RESET}
+        data-layer-reset
+        onclick={reset}>Reset</button
+      >
     {/if}
   {/snippet}
 

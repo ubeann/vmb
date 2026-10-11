@@ -57,6 +57,7 @@
     onclose,
     trigger,
     headerAction,
+    panelClass,
     children,
     step,
     beside
@@ -75,6 +76,8 @@
     trigger: Snippet<[{ props: LayerTriggerProps }]>;
     /** Sits by the title at the top level, such as Reset. */
     headerAction?: Snippet<[LayerApi]>;
+    /** Sizes the panel frame, such as `w-64` for a layer with less to show than the default `w-80`. */
+    panelClass?: string;
     /** The top level's content. */
     children: Snippet<[LayerApi]>;
     /** A step's content inside the layer; a layer without steps, such as View, leaves it out. */
@@ -318,7 +321,8 @@
     role="dialog"
     class={cn(
       "flex max-h-(--bits-floating-available-height) w-80 flex-col gap-0 overflow-hidden p-0",
-      wide && "w-[22rem]"
+      wide && "w-[22rem]",
+      panelClass
     )}
     onOpenAutoFocus={(event: Event) => {
       event.preventDefault();

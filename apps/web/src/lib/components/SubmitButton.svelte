@@ -47,7 +47,10 @@
 <Button
   type="submit"
   {variant}
-  class={cn("min-h-11 w-full", className)}
+  class={cn(
+    "min-h-11 w-full aria-disabled:pointer-events-auto aria-disabled:opacity-100",
+    className
+  )}
   {disabled}
   aria-busy={pending}
   aria-disabled={pending || undefined}
