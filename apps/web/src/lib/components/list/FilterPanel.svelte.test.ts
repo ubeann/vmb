@@ -116,6 +116,25 @@ describe("the Status filter", () => {
     await expect.element(screen.getByRole("checkbox", { name: "Inactive 3" })).not.toBeChecked();
   });
 
+  it("draws an unchecked box with the 3:1 field edge on the cream fill, not the toolbar's fainter one", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await toolbar();
+    await openPanel(screen);
+
+    const box = getComputedStyle(
+      screen.getByRole("checkbox", { name: /^Active/ }).element() as HTMLElement
+    );
+    // WCAG 1.4.11: an unchecked box has nothing but its edge (`--input`, 3:1 on paper and white)
+    const probe = Object.assign(document.createElement("div"), {
+      className: "border border-input"
+    });
+    document.body.append(probe);
+    const edge = getComputedStyle(probe).borderTopColor;
+    probe.remove();
+    expect(box.borderTopColor).toBe(edge);
+    expect(box.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  });
+
   it("applies at once, keeps the panel open and builds several values into one parameter", async () => {
     await browser.viewport(1440, 900);
     const screen = await toolbar();

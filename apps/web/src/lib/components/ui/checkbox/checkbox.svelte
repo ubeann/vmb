@@ -12,7 +12,7 @@
     variant = "default",
     ...restProps
   }: WithoutChildrenOrChild<CheckboxPrimitive.RootProps> & {
-    /** "kit": a list-kit control, on the paper with the outline buttons' edge (see `Input`). */
+    /** "kit": the list kit's cream fill. The edge stays the 3:1 `--input` one: an unchecked box has nothing else to show it (WCAG 1.4.11), unlike a field with a placeholder. */
     variant?: "default" | "kit";
   } = $props();
 </script>
@@ -22,7 +22,7 @@
   data-slot="checkbox"
   class={cn(
     "border-input dark:bg-input/30 data-checked:bg-primary data-checked:text-primary-foreground dark:data-checked:bg-primary data-checked:border-primary aria-invalid:aria-checked:border-primary aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 group-has-[:focus-visible]/field-label:not-data-checked:border-input group-has-[:focus-visible]/field-label:data-checked:border-primary peer relative flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors outline-none group-has-disabled/field:opacity-50 group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3",
-    variant === "kit" && "border-control-edge bg-background",
+    variant === "kit" && "bg-background",
     className
   )}
   bind:checked
