@@ -6,7 +6,7 @@ import {
   setDivisionActive
 } from "$lib/master/api.js";
 import { runRowAction } from "$lib/master/form-action.js";
-import { canonicalListSearch, parseListQuery } from "$lib/master/list.js";
+import { canonicalListSearch, isCanonicalListSearch, parseListQuery } from "$lib/master/list.js";
 import { DEFAULT_TIME_ZONE, DivisionListQuerySchema, resolveDateFilter, todayIn } from "@vmb/types";
 import { error, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types.js";
@@ -19,7 +19,7 @@ export const load: PageServerLoad = async (event) => {
   // `include` (live and Trashed rows together) backs no view: the tabs offer All or Trash
   const query = parsed.trashed === "include" ? { ...parsed, trashed: "exclude" as const } : parsed;
   const search = canonicalListSearch(DivisionListQuerySchema, event.url, query);
-  if (search !== event.url.search) redirect(307, `${event.url.pathname}${search}`);
+  if (!isCanonicalListSearch(event.url, search)) redirect(307, `${event.url.pathname}${search}`);
   // the URL keeps a date preset, so a link stays relative; the API gets the days it means today
   const today = todayIn(READER_TIME_ZONE);
   const request = {

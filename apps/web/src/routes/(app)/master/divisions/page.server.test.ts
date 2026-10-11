@@ -124,6 +124,14 @@ describe("the divisions list load", () => {
     expect(listDivisionsMock).not.toHaveBeenCalled();
   });
 
+  it("does not redirect a several-status query whose comma arrives encoded, as on a client navigation", async () => {
+    listDivisionsMock.mockResolvedValue({ ok: true, value: page(1) });
+
+    await expect(load(event("?status=active%2Cinactive"))).resolves.toMatchObject({
+      query: { status: ["active", "inactive"] }
+    });
+  });
+
   it("drops a parameter the list can't use and keeps the rest", async () => {
     await expect(load(event("?perPage=7&status=inactive"))).rejects.toMatchObject({
       status: 307,
