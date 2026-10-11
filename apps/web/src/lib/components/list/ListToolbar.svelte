@@ -15,6 +15,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Sheet from "$lib/components/ui/sheet/index.js";
   import type { MasterListPathname } from "$lib/master/list.js";
+  import { cn } from "$lib/utils.js";
   import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
   import type { Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
@@ -26,6 +27,7 @@
   import FilterMenu from "./FilterMenu.svelte";
   import ListSearch from "./ListSearch.svelte";
   import ListTabs from "./ListTabs.svelte";
+  import { TOOL_BADGE, TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
 
   let {
     base,
@@ -87,13 +89,17 @@
       <Sheet.Root bind:open={sheetOpen}>
         <Sheet.Trigger>
           {#snippet child({ props })}
-            <Button {...props} data-slot="button" variant="outline" class="sm:hidden">
-              <SlidersHorizontalIcon aria-hidden="true" data-icon="inline-start" />Filters
+            <Button
+              {...props}
+              data-slot="button"
+              variant="outline"
+              class={cn(TOOL_BUTTON, "sm:hidden")}
+            >
+              <SlidersHorizontalIcon aria-hidden="true" data-icon="inline-start" /><span
+                class={TOOL_LABEL}>Filters</span
+              >
               {#if activeCount > 0}
-                <span
-                  class="bg-primary text-primary-foreground ml-1 rounded-full px-1.5 text-xs tabular-nums"
-                  >{activeCount}</span
-                ><span class="sr-only">active</span>
+                <span class={TOOL_BADGE}>{activeCount}</span><span class="sr-only">active</span>
               {/if}
             </Button>
           {/snippet}

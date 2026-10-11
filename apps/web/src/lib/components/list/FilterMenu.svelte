@@ -15,6 +15,7 @@
   import ListFilterIcon from "@lucide/svelte/icons/list-filter";
   import { splitListParam } from "@vmb/types";
   import { activeFilters, type ListFilter } from "./FilterChips.svelte";
+  import { TOOL_BADGE, TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
 
   let {
     base,
@@ -58,13 +59,13 @@
   <!-- the button slot gives it the 44px touch target and the full focus ring -->
   <DropdownMenu.Trigger
     data-slot="button"
-    class={cn(buttonVariants({ variant: "outline" }), "relative", className)}
+    class={cn(buttonVariants({ variant: "outline" }), TOOL_BUTTON, className)}
   >
-    <ListFilterIcon aria-hidden="true" data-icon="inline-start" />{label}
+    <ListFilterIcon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}
+      >{label}</span
+    >
     {#if activeCount > 0}
-      <span class="bg-primary text-primary-foreground rounded-full px-1.5 text-xs tabular-nums"
-        >{activeCount}</span
-      ><span class="sr-only">active</span>
+      <span class={TOOL_BADGE}>{activeCount}</span><span class="sr-only">active</span>
     {/if}
   </DropdownMenu.Trigger>
   <DropdownMenu.Content align="end" class="w-56">

@@ -8,6 +8,7 @@
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import Columns3Icon from "@lucide/svelte/icons/columns-3";
   import type { ColumnVisibility } from "./column-visibility.svelte.js";
+  import { TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
 
   let { columns }: { columns: ColumnVisibility<Id> } = $props();
 
@@ -17,8 +18,10 @@
 <DropdownMenu.Root>
   <DropdownMenu.Trigger>
     {#snippet child({ props })}
-      <Button {...props} data-slot="button" variant="outline">
-        <Columns3Icon aria-hidden="true" data-icon="inline-start" />Columns
+      <Button {...props} data-slot="button" variant="outline" class={TOOL_BUTTON}>
+        <Columns3Icon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}
+          >Columns</span
+        >
       </Button>
     {/snippet}
   </DropdownMenu.Trigger>
