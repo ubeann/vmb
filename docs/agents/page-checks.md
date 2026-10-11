@@ -24,6 +24,7 @@ Pass `--login` to any of the scripts. It signs in through `/login` as the seeded
 
 - `node apps/web/scripts/design-probe.mjs <url> [--state <name>] [--baseline <url>]` prints a Markdown table of each review viewport's page height, whether it scrolls, and the auth sheet's height (`--selector` for another element). With `--baseline`, cells show the baseline's value where it differs.
 - `node apps/web/scripts/contrast.mjs <url> <selector>... [--state <name>]` measures each element's rendered contrast in light and dark against the pixels behind it, and exits 1 when a pair is under 4.5:1 (3:1 for large text and icons).
+- `node apps/web/scripts/layer-squeeze.mjs <origin> --login` opens the `/design-system` layer on a step at 768px, jumps to a 425px phone through the same CDP calls as a DevTools device preset, and exits 1 unless the sheet keeps the step and `body` has no padding (ADR-0053 rule 6).
 - `node apps/web/scripts/contact-sheet.mjs <out.png> <width> "Label=file.png"...` lays captures side by side for a README or a review.
 
 ## A preview's one-time code

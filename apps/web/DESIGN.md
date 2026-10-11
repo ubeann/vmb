@@ -95,7 +95,7 @@ One radius, `--radius` (0.625rem), with the Tailwind steps derived from it in `a
 
 ## Components
 
-shadcn-svelte components restyled on these tokens (ADR-0035). VMB's own pieces live in `src/lib/components/`: `AuthShell` and `AuthCard` frame the auth pages, `EtchedScene` and `EtchedMark` draw the art. Motion uses the tokens in `app.css` and CSS or Svelte built-ins only (ADR-0040).
+shadcn-svelte components restyled on these tokens (ADR-0035). VMB's own pieces live in `src/lib/components/`: `AuthShell` and `AuthCard` frame the auth pages, `EtchedScene` and `EtchedMark` draw the art, and `list/layer` holds a list's panels in the three frames of ADR-0053, with `LayerAction` as a footer's main action. Motion uses the tokens in `app.css` and CSS or Svelte built-ins only (ADR-0040).
 
 ## Do's and Don'ts
 
