@@ -149,6 +149,8 @@
   $effect(() => {
     if (!open) return;
     const settle = () => {
+      // a modal frame waiting to show waits for this resize too
+      cancelSteady();
       clearTimeout(settling);
       settling = setTimeout(follow, SETTLE_MS);
     };
@@ -167,8 +169,10 @@
       besideStep = null;
       frame = "modal";
       ready = false;
-      cancelSteady();
+    }
+    if (frame === "modal" && !ready) {
       // the panel's exit leaves its overflow on screen until it unmounts
+      cancelSteady();
       cancelSteady = whenSteady(() => (ready = true), { ready: () => !panel?.isConnected });
       return;
     }

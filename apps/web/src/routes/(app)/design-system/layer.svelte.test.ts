@@ -238,6 +238,18 @@ describe("closing", () => {
     await expect.poll(picker).toBeNull();
   });
 
+  it("by its button closes it, picker and all", async () => {
+    await render(LayerDemo);
+    await openLayer();
+    await openUpdated();
+    await expect.poll(picker).not.toBeNull();
+
+    await userEvent.click(trigger());
+    await expect.poll(panel).toBeNull();
+    await expect.poll(picker).toBeNull();
+    expect(trigger().getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("by × reopens at the top level", async () => {
     await browser.viewport(390, 844);
     await render(LayerDemo);
