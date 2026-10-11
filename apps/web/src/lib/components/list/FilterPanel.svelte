@@ -212,7 +212,8 @@
             <button
               type="button"
               data-slot="filter-date-row"
-              class={rowClass}
+              aria-expanded={api.beside === filter.key}
+              class={cn(rowClass, "aria-expanded:bg-muted")}
               onclick={() => {
                 startDraft(filter.key);
                 api.open(filter.key);
@@ -292,6 +293,7 @@
         <button
           type="button"
           data-slot="layer-row"
+          aria-current={custom ? "true" : undefined}
           class={cn(rowClass, custom && "font-medium")}
           onclick={() => api.open(rangeStep)}
         >
@@ -309,6 +311,22 @@
   {#snippet beside(key, api)}
     <div class="border-border bg-muted/40 flex min-w-64 flex-col gap-0.5 border-r p-2">
       {@render presets(key, api.top)}
+      {#if isCustomRange(valueOf(key), today)}
+        <!-- the list always says what is applied, a custom range included; the calendar beside it is the way to change it -->
+        {@const range = dateFilterRange(valueOf(key) ?? "", today)!}
+        <div
+          aria-current="true"
+          class={cn(rowClass, "cursor-default font-medium hover:bg-transparent")}
+        >
+          <CheckIcon aria-hidden="true" class="text-primary size-4" />
+          <span class="shrink-0">Custom</span>
+          <span
+            class="text-muted-foreground ml-auto min-w-0 truncate text-xs font-normal tabular-nums"
+            title={formatRange(range)}>{formatShortRange(range, today)}</span
+          >
+          <span aria-hidden="true" class="w-4 shrink-0"></span>
+        </div>
+      {/if}
     </div>
     <div class="flex w-min flex-col">
       {@render calendar(key, "beside")}

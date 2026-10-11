@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { page as browser, userEvent } from "vitest/browser";
 
 // Isolated renders don't load the global stylesheet; the frames are styles.
@@ -284,6 +284,50 @@ describe("closing", () => {
     await openLayer();
     expect(title()).toBe("Filters");
     await expect.poll(picker).toBeNull();
+  });
+
+  it("by a click outside is only that: whatever the click landed on does not run", async () => {
+    await render(LayerDemo);
+    // something on the page that reacts to a click, as a list row opens its record
+    const clicked = vi.fn();
+    const bystander = Object.assign(document.createElement("button"), { textContent: "bystander" });
+    bystander.addEventListener("click", clicked);
+    document.body.append(bystander);
+    try {
+      await openLayer();
+      await userEvent.click(bystander);
+      await expect.poll(panel).toBeNull();
+      expect(clicked).not.toHaveBeenCalled();
+
+      // with the picker beside the panel open, one click closes both and is only that
+      await openLayer();
+      await openUpdated();
+      await expect.poll(picker).not.toBeNull();
+      await userEvent.click(bystander);
+      await expect.poll(panel).toBeNull();
+      await expect.poll(picker).toBeNull();
+      expect(clicked).not.toHaveBeenCalled();
+
+      // the next click, with nothing open, goes through
+      await userEvent.click(bystander);
+      expect(clicked).toHaveBeenCalledTimes(1);
+    } finally {
+      bystander.remove();
+    }
+  });
+
+  it("by a click outside does not swallow a click inside the panel or its picker", async () => {
+    await render(LayerDemo);
+    await openLayer();
+    await openUpdated();
+    await expect.poll(picker).not.toBeNull();
+
+    // a click in the picker picks a day, and one in the panel ticks its checkbox
+    await pickStart();
+    const active = layer().querySelector<HTMLElement>("[role=checkbox]")!;
+    await userEvent.click(active);
+    await expect.poll(() => active.getAttribute("aria-checked")).toBe("true");
+    expect(panel()).not.toBeNull();
   });
 
   it("by its button closes it, picker and all", async () => {

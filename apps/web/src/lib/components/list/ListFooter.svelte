@@ -82,7 +82,7 @@
                 class={cn(
                   pageLink,
                   entry === list.page
-                    ? "bg-primary text-primary-foreground font-medium"
+                    ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium ring-1 ring-inset"
                     : "hover:bg-accent"
                 )}
                 href={resolve(to({ page: entry }))}

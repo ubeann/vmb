@@ -518,6 +518,45 @@ describe("divisions list", () => {
     expect(goto).not.toHaveBeenCalled();
   });
 
+  it.each(["Filter", "View"])(
+    "closes %s on a click outside without also opening the row beneath it",
+    async (button) => {
+      await browser.viewport(1440, 900);
+      const screen = await render(Page, props("/master/divisions"));
+
+      await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
+      await expect
+        .element(document.querySelector<HTMLElement>('[data-layer-frame="panel"]'))
+        .toBeVisible();
+
+      // the click that closes the layer is only that
+      await screen.getByText("OPS").click();
+      await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
+      expect(goto).not.toHaveBeenCalled();
+
+      // and the next one, with nothing open, opens the record as it always did
+      await screen.getByText("OPS").click();
+      expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    }
+  );
+
+  it("tints the current page in the pager instead of filling it", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 60 }));
+
+    const current = screen.getByRole("link", { name: "Page 1" }).element() as HTMLElement;
+    expect(current.getAttribute("aria-current")).toBe("page");
+    const solid = Object.assign(document.createElement("div"), { className: "bg-primary" });
+    document.body.append(solid);
+    const filled = getComputedStyle(solid).backgroundColor;
+    solid.remove();
+    const style = getComputedStyle(current);
+    expect(style.backgroundColor).not.toBe(filled);
+    // a quiet tint with a hairline ring, its text the page's own colour
+    expect(style.boxShadow).not.toBe("none");
+    expect(style.color).toBe(getComputedStyle(screen.container).color);
+  });
+
   it("paints every cell of a hovered row, and of a row with its menu open, in the same frame", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions"));

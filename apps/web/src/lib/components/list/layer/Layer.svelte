@@ -7,6 +7,8 @@
     readonly frame: LayerFrame;
     /** The steps open inside the layer, outermost first; empty at the top level. */
     readonly path: readonly string[];
+    /** The step whose picker is open beside the panel, so its row can show it is expanded; null when none is. */
+    readonly beside: string | null;
     /** Opens a step: beside the panel where its picker fits, inside the layer where not. */
     open(step: string): void;
     /** Goes back one step. */
@@ -112,6 +114,9 @@
     get path() {
       return path;
     },
+    get beside() {
+      return besideStep;
+    },
     open(next) {
       if (frame === "panel" && path.length === 0 && beside && fits) besideStep = next;
       else path = [...path, next];
@@ -171,6 +176,38 @@
       clearTimeout(settling);
       removeEventListener("resize", settle);
     };
+  });
+
+  // A click that only closes the layer is only that. The layer hears an outside
+  // press after the click has already run, so a row beneath it (`openRow` on
+  // the list) opened its record as well. The press is caught on its way down,
+  // and the click it ends in is swallowed. Another layer's button is let
+  // through, so Filter can hand over to View in one click, and so is anything
+  // a layer's own control opened (a menu or listbox).
+  $effect(() => {
+    if (!open) return;
+    const owns = (target: EventTarget | null) =>
+      target instanceof Element &&
+      Boolean(
+        target.closest(
+          "[data-layer-frame], [data-layer-picker], [data-layer-trigger], [role=menu], [role=listbox]"
+        )
+      );
+    const ondown = (event: PointerEvent) => {
+      if (event.button !== 0 || owns(event.target)) return;
+      const swallow = (click: Event) => {
+        click.stopImmediatePropagation();
+        click.preventDefault();
+      };
+      addEventListener("click", swallow, { capture: true, once: true });
+      // a press that never becomes a click (a drag) must not eat the next one
+      addEventListener("pointerdown", () => removeEventListener("click", swallow, true), {
+        capture: true,
+        once: true
+      });
+    };
+    addEventListener("pointerdown", ondown, true);
+    return () => removeEventListener("pointerdown", ondown, true);
   });
 
   function follow() {

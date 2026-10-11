@@ -425,6 +425,71 @@ describe("a date filter", () => {
     expect(dayButton(5)!.hasAttribute("data-selected")).toBe(true);
   });
 
+  it("lists a custom range in force under the presets beside the panel, marked current", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await toolbar("?created=2026-01-03..2026-01-05");
+    await openPanel(screen);
+
+    row("Created").click();
+    await expect.poll(() => picker()).not.toBeNull();
+    const custom = picker()!.querySelector<HTMLElement>("[aria-current=true]")!;
+    expect(custom.textContent).toContain("Custom");
+    expect(custom.textContent).toContain("3 – 5 Jan");
+    // truncated in a narrow column, the full text on its title
+    expect(custom.querySelector("[title]")!.getAttribute("title")).toBe("3 – 5 Jan 2026");
+    // no preset claims to be the one applied
+    for (const radio of picker()!.querySelectorAll("[role=radio]"))
+      expect(radio.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("adds no Custom row while a preset or nothing is in force", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await toolbar("?created=week");
+    await openPanel(screen);
+
+    row("Created").click();
+    await expect.poll(() => picker()).not.toBeNull();
+    expect(picker()!.querySelector("[aria-current=true]")).toBeNull();
+    await expect
+      .element(screen.getByRole("radio", { name: /^Last 7 days/ }))
+      .toHaveAttribute("aria-checked", "true");
+  });
+
+  it.each([
+    ["inside the panel", 768],
+    ["in the sheet", 390]
+  ])(
+    "says the same on the date step %s: Custom range, marked current, with the days",
+    async (_name, width) => {
+      await browser.viewport(width, 900);
+      const screen = await toolbar("?created=2026-01-03..2026-01-05");
+      await openPanel(screen);
+
+      row("Created").click();
+      const custom = screen.getByRole("button", { name: /^Custom range/ });
+      await expect.element(custom).toHaveAttribute("aria-current", "true");
+      expect(custom.element().textContent).toContain("3 – 5 Jan");
+    }
+  );
+
+  it("keeps a date row lit and expanded while its picker is open beside the panel", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await toolbar();
+    await openPanel(screen);
+
+    expect(row("Created").getAttribute("aria-expanded")).toBe("false");
+    const idle = getComputedStyle(row("Created")).backgroundColor;
+    row("Created").click();
+    await expect.poll(() => picker()).not.toBeNull();
+    expect(row("Created").getAttribute("aria-expanded")).toBe("true");
+    expect(row("Updated").getAttribute("aria-expanded")).toBe("false");
+    await expect.poll(() => getComputedStyle(row("Created")).backgroundColor).not.toBe(idle);
+
+    await screen.getByRole("radio", { name: /^Today/ }).click();
+    await expect.poll(() => picker()).toBeNull();
+    expect(row("Created").getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("shows a preset in force as its chip, with Updated and Created each their own", async () => {
     await browser.viewport(1440, 900);
     const screen = await toolbar("?updated=month&created=today");
@@ -489,6 +554,21 @@ describe("accessibility", () => {
     await pick(5);
     await pick(8);
     expect(await axeViolations(picker()!)).toEqual([]);
+  });
+
+  it("has no axe violations with the picker open on a custom range", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await toolbar("?created=2026-01-03..2026-01-05");
+    await openPanel(screen);
+    row("Created").click();
+    await expect.poll(() => picker()).not.toBeNull();
+    await Promise.all(
+      picker()!
+        .getAnimations({ subtree: true })
+        .map((a) => a.finished)
+    );
+    expect(await axeViolations(picker()!)).toEqual([]);
+    expect(await axeViolations(layer())).toEqual([]);
   });
 
   it("has no axe violations in the sheet's range step", async () => {
