@@ -63,8 +63,10 @@ describe("Button-rendered triggers", () => {
     const tags = startTags(readFileSync(viewPanel, "utf8"));
     expect(tags.some(({ tag }) => tag.includes("{...props}"))).toBe(true);
 
-    const filterMenu = join(src, "lib/components/list/FilterMenu.svelte");
-    const triggers = startTags(readFileSync(filterMenu, "utf8"), /<\w+\.Trigger\b/g);
-    expect(triggers.some(({ tag }) => tag.includes("buttonVariants("))).toBe(true);
+    const filterPanel = join(src, "lib/components/list/FilterPanel.svelte");
+    const triggers = startTags(readFileSync(filterPanel, "utf8")).filter(({ tag }) =>
+      tag.includes("{...props}")
+    );
+    expect(triggers).toHaveLength(1);
   });
 });

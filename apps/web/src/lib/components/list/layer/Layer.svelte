@@ -133,6 +133,17 @@
     open = true;
   }
 
+  /**
+   * Opens the layer as its button does, on a step when given one: how a chip
+   * opens the Filter panel at its filter. Open already, it goes to that step
+   * from the top.
+   */
+  export function openAt(next?: string) {
+    if (!open) show();
+    else api.top();
+    if (next) api.open(next);
+  }
+
   // rule 7: what a closed layer forgets
   function close() {
     if (!open) return;

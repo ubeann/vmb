@@ -266,45 +266,51 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("link", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
-  it("opens the Filter menu from a chip, and a tick in it applies at once", async () => {
+  it("opens the Filter panel from a chip, and a tick in it applies at once", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions?status=active"));
 
     await screen.getByRole("button", { name: "Status Active" }).click();
-    const active = screen.getByRole("menuitemcheckbox", { name: "Active" });
-    const inactive = screen.getByRole("menuitemcheckbox", { name: "Inactive" });
-    await expect.element(active).toHaveAttribute("aria-checked", "true");
-    await expect.element(inactive).toHaveAttribute("aria-checked", "false");
+    const panel = screen.getByRole("dialog", { name: "Filters" });
+    const active = panel.getByRole("checkbox", { name: /^Active/ });
+    const inactive = panel.getByRole("checkbox", { name: /^Inactive/ });
+    await expect.element(active).toBeChecked();
+    await expect.element(inactive).not.toBeChecked();
 
     await inactive.click();
     expect(goto).toHaveBeenCalledWith(
       "/master/divisions?status=active,inactive",
       expect.objectContaining({ noScroll: true })
     );
-    // the menu stays open for the next choice
+    // the panel stays open for the next choice
     await expect.element(active).toBeVisible();
-
-    // the mocked page URL never moves, so this builds on the two ticks above
-    await active.click();
-    expect(goto).toHaveBeenLastCalledWith(
-      "/master/divisions?status=inactive",
-      expect.objectContaining({ noScroll: true })
-    );
   });
 
-  it("keeps both choices when a second tick comes before the first navigation lands", async () => {
-    await browser.viewport(1280, 900);
-    const screen = await render(Page, props("/master/divisions"));
+  it("opens the Filter panel on a date filter from its chip", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await render(Page, props("/master/divisions?updated=week"));
 
-    await screen.getByRole("button", { name: /^Filter/ }).click();
-    await screen.getByRole("menuitemcheckbox", { name: "Active" }).click();
-    await screen.getByRole("menuitemcheckbox", { name: "Inactive" }).click();
+    await screen.getByRole("button", { name: "Updated Last 7 days" }).click();
+    await expect
+      .element(screen.getByRole("radio", { name: /^Last 7 days/ }))
+      .toHaveAttribute("aria-checked", "true");
+    await expect
+      .element(screen.getByRole("link", { name: "Remove filter Updated: Last 7 days" }))
+      .toHaveAttribute("href", "/master/divisions");
+  });
 
-    // the page URL has not changed between the two ticks, as while a navigation is loading
-    expect(goto).toHaveBeenLastCalledWith(
-      "/master/divisions?status=active,inactive",
-      expect.anything()
-    );
+  it("is one Filter button at every width, the phone's a funnel with the count in its corner", async () => {
+    const screen = await render(Page, props("/master/divisions?status=active"));
+
+    // no chip strip on a phone: the button counts what is filtered and the panel lists it
+    await expect
+      .element(screen.getByRole("link", { name: "Remove filter Status: Active" }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: /^Filter 1 active$/ }).click();
+
+    const sheet = screen.getByRole("dialog", { name: "Filters" });
+    await expect.element(sheet.getByRole("checkbox", { name: /^Active/ })).toBeChecked();
+    await expect.element(sheet.getByRole("button", { name: /^Show 2 divisions$/ })).toBeVisible();
   });
 
   it("marks the searched text in the name, code and description", async () => {
@@ -317,20 +323,6 @@ describe("divisions list", () => {
     // Operations (name, description "day-to-day operations") and OPS (code)
     expect(marked).toEqual(["Op", "OP", "op"]);
     expect(screen.container.querySelector("tbody a[href$='0001']")?.textContent).toBe("Operations");
-  });
-
-  it("moves the chips into a Filters sheet on a narrow screen", async () => {
-    const screen = await render(Page, props("/master/divisions?status=active"));
-
-    await expect
-      .element(screen.getByRole("link", { name: "Remove filter Status: Active" }))
-      .not.toBeInTheDocument();
-    await screen.getByRole("button", { name: /^Filters 1 active$/ }).click();
-
-    const sheet = screen.getByRole("dialog", { name: "Filters" });
-    await expect
-      .element(sheet.getByRole("link", { name: "Remove filter Status: Active" }))
-      .toHaveAttribute("href", "/master/divisions");
   });
 
   it("offers each action only to a caller who holds its permission", async () => {

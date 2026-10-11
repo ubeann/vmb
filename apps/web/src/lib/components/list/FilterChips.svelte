@@ -1,48 +1,71 @@
 <script lang="ts" module>
   import { splitListParam } from "@vmb/types";
   import type { Component } from "svelte";
+  import { describeDateFilter } from "./dates.js";
 
-  /** A filter a list offers: one URL parameter, and the values it may take. */
-  export type ListFilter = {
+  /** A filter of values a list offers: one URL parameter, and the values it may take. */
+  export type ValueFilter = {
+    kind?: "values";
     key: string;
     label: string;
     icon?: Component;
     options: readonly { value: string; label: string }[];
   };
 
-  /** The date filters every list has (ADR-0051 rule 4), whether or not a chip shows them yet. */
+  /** A date filter (ADR-0051 rule 4): a preset or a custom range in one URL parameter. */
+  export type DateFilter = {
+    kind: "date";
+    key: (typeof DATE_FILTER_KEYS)[number];
+    label: string;
+    icon?: Component;
+  };
+
+  /** A filter a list offers. */
+  export type ListFilter = ValueFilter | DateFilter;
+
+  /** The date filters every list has (ADR-0051 rule 4). */
   export const DATE_FILTER_KEYS = ["updated", "created"] as const;
 
   /**
-   * The filters the URL has set to values the list offers, with those values'
-   * labels in the order the list offers them. A value filter holds several
-   * (`status=active,inactive`).
+   * The filters the URL has set to values the list offers, each with the words
+   * for its chip, in the order the list offers them: a value filter's labels
+   * (it holds several: `status=active,inactive`), a date filter's preset or
+   * days.
    */
-  export function activeFilters(filters: readonly ListFilter[], params: URLSearchParams) {
-    return filters.flatMap((filter) => {
-      const picked = splitListParam(params.get(filter.key) ?? "");
-      const options = filter.options.filter(({ value }) => picked.includes(value));
-      return options.length > 0
-        ? [{ filter, options, text: options.map(({ label }) => label).join(", ") }]
-        : [];
+  export function activeFilters(
+    filters: readonly ListFilter[],
+    params: URLSearchParams,
+    today: string
+  ) {
+    return filters.flatMap((filter): { filter: ListFilter; text: string }[] => {
+      const raw = params.get(filter.key) ?? "";
+      if (filter.kind === "date") {
+        const text = describeDateFilter(raw, today);
+        return text ? [{ filter, text }] : [];
+      }
+      const picked = splitListParam(raw);
+      const labels = filter.options
+        .filter(({ value }) => picked.includes(value))
+        .map(({ label }) => label);
+      return labels.length > 0 ? [{ filter, text: labels.join(", ") }] : [];
     });
   }
 
   /** Whether the URL holds a search or any filter, so a strip of chips has something to show. */
-  export function hasActiveFilters(filters: readonly ListFilter[], params: URLSearchParams) {
-    return (
-      Boolean(params.get("search")) ||
-      activeFilters(filters, params).length > 0 ||
-      DATE_FILTER_KEYS.some((key) => params.has(key))
-    );
+  export function hasActiveFilters(
+    filters: readonly ListFilter[],
+    params: URLSearchParams,
+    today: string
+  ) {
+    return Boolean(params.get("search")) || activeFilters(filters, params, today).length > 0;
   }
 </script>
 
 <!--
   The filters in use as chips on a strip under the toolbar, the search as a
   chip too (ADR-0051 rule 5, #363). A chip is the filter's icon, its name and
-  its value on a light green tint: its body calls `onopen` to open the filter
-  control, its × drops the filter. "Clear all" is a quiet button after the last
+  its value on a light green tint: its body calls `onopen` with the filter's
+  key to open the Filter panel at that filter, its × drops the filter. "Clear all" is a quiet button after the last
   chip, and clears the search with the filters. Every × and Clear all is a link
   to the list with those parameters removed, so the browser's history, a copied
   URL and the no-JavaScript list all agree.
@@ -53,6 +76,7 @@
   import { buttonVariants } from "$lib/components/ui/button/index.js";
   import { listHref, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
+  import { readerToday } from "./dates.js";
   import SearchIcon from "@lucide/svelte/icons/search";
   import XIcon from "@lucide/svelte/icons/x";
 
@@ -66,8 +90,8 @@
   }: {
     base: MasterListPathname;
     filters: readonly ListFilter[];
-    /** Opens the filter control from a chip; without it a chip is only a label. */
-    onopen?: () => void;
+    /** Opens the Filter panel at a chip's filter; without it a chip is only a label. */
+    onopen?: (key: string) => void;
     /** Show the search as a chip. */
     withSearch?: boolean;
     /** Show "Clear all" after the last chip. */
@@ -75,7 +99,8 @@
     class?: string;
   } = $props();
 
-  const active = $derived(activeFilters(filters, page.url.searchParams));
+  const today = readerToday();
+  const active = $derived(activeFilters(filters, page.url.searchParams, today));
   const search = $derived(withSearch ? (page.url.searchParams.get("search") ?? "") : "");
   const clearAll = $derived(
     listHref(
@@ -129,8 +154,11 @@
         <span class="truncate">{text}</span>
       {/snippet}
       {#if onopen}
-        <button type="button" data-slot="filter-chip" class={cn(label, part)} onclick={onopen}
-          >{@render body()}</button
+        <button
+          type="button"
+          data-slot="filter-chip"
+          class={cn(label, part)}
+          onclick={() => onopen(filter.key)}>{@render body()}</button
         >
       {:else}
         <span class={label}>{@render body()}</span>
@@ -144,7 +172,7 @@
     </li>
   {/each}
 
-  {#if withClearAll && hasActiveFilters(filters, page.url.searchParams)}
+  {#if withClearAll && hasActiveFilters(filters, page.url.searchParams, today)}
     <li>
       <a
         href={resolve(clearAll)}
