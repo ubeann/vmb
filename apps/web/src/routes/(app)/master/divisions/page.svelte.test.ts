@@ -281,10 +281,26 @@ describe("divisions list", () => {
     // the menu stays open for the next choice
     await expect.element(active).toBeVisible();
 
+    // the mocked page URL never moves, so this builds on the two ticks above
     await active.click();
     expect(goto).toHaveBeenLastCalledWith(
-      "/master/divisions",
+      "/master/divisions?status=inactive",
       expect.objectContaining({ noScroll: true })
+    );
+  });
+
+  it("keeps both choices when a second tick comes before the first navigation lands", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: /^Filter/ }).click();
+    await screen.getByRole("menuitemcheckbox", { name: "Active" }).click();
+    await screen.getByRole("menuitemcheckbox", { name: "Inactive" }).click();
+
+    // the page URL has not changed between the two ticks, as while a navigation is loading
+    expect(goto).toHaveBeenLastCalledWith(
+      "/master/divisions?status=active,inactive",
+      expect.anything()
     );
   });
 

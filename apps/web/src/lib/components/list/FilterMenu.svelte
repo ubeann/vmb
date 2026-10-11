@@ -32,13 +32,22 @@
 
   const activeCount = $derived(activeFilters(filters, page.url.searchParams).length);
 
+  // The menu stays open, so a second tick can come before the first navigation has landed:
+  // each tick builds on the choices made since the URL last changed, not on the old URL.
+  let chosen = $state<Record<string, string | null>>({});
+  $effect(() => {
+    void page.url.search;
+    chosen = {};
+  });
+  const valueOf = (key: string) => (key in chosen ? chosen[key]! : page.url.searchParams.get(key));
+
   function toggle(filter: ListFilter, value: string) {
-    const next = toggleListValue(
-      page.url.searchParams.get(filter.key),
+    chosen[filter.key] = toggleListValue(
+      valueOf(filter.key),
       value,
       filter.options.map((option) => option.value)
     );
-    goto(resolve(listHref(base, page.url.searchParams, { [filter.key]: next })), {
+    goto(resolve(listHref(base, page.url.searchParams, { ...chosen })), {
       noScroll: true,
       keepFocus: true
     });
@@ -60,7 +69,7 @@
   </DropdownMenu.Trigger>
   <DropdownMenu.Content align="end" class="w-56">
     {#each filters as filter, index (filter.key)}
-      {@const picked = splitListParam(page.url.searchParams.get(filter.key) ?? "")}
+      {@const picked = splitListParam(valueOf(filter.key) ?? "")}
       {#if index > 0}<DropdownMenu.Separator />{/if}
       <DropdownMenu.Group>
         <DropdownMenu.GroupHeading class="flex items-center gap-1.5">
