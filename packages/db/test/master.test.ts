@@ -275,6 +275,61 @@ describe("divisions store", () => {
     });
   });
 
+  it("switches a division on and off, writing only its active flag", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const created = await store.createDivision(division({ colorHex: "#112233" }));
+
+      // a rename that lands first is not undone by the switch
+      await store.updateDivision(
+        created.id,
+        division({ name: "Operations HQ", colorHex: "#112233" })
+      );
+      const off = await store.setDivisionActive(created.id, false);
+
+      expect(off).toMatchObject({
+        id: created.id,
+        name: "Operations HQ",
+        code: "OPS",
+        description: "Fleet and day-to-day operations",
+        colorHex: "#112233",
+        iconName: "heroicon-o-cog-6-tooth",
+        isActive: false,
+        deletedAt: null
+      });
+      expect(Date.parse(off.updatedAt ?? "")).toBeGreaterThanOrEqual(
+        Date.parse(created.updatedAt ?? "")
+      );
+
+      await expect(store.setDivisionActive(created.id, true)).resolves.toMatchObject({
+        name: "Operations HQ",
+        isActive: true
+      });
+      // switching to the state it is already in is not an error
+      await expect(store.setDivisionActive(created.id, true)).resolves.toMatchObject({
+        isActive: true
+      });
+    });
+  });
+
+  it("will not switch a missing or Trashed division", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const created = await store.createDivision(division());
+      await store.deleteDivision(created.id);
+
+      await expect(store.setDivisionActive(created.id, false)).rejects.toThrow(
+        "Division not found."
+      );
+      await expect(
+        store.setDivisionActive("00000000-0000-4000-8000-000000000000", false)
+      ).rejects.toThrow("Division not found.");
+      // and the Trashed row is left as it was
+      await store.restoreDivision(created.id);
+      await expect(store.getDivision(created.id)).resolves.toMatchObject({ isActive: true });
+    });
+  });
+
   it("frees a Trashed division's name and code, and ignores case", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);

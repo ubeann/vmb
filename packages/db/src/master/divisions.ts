@@ -208,6 +208,28 @@ export async function updateDivision(
   }
 }
 
+/**
+ * Switch a live division on or off. It writes `is_active` and `updated_at` and
+ * nothing else, so a row's Activate or Deactivate cannot overwrite a field
+ * someone else is editing, as a whole-record update would. A Trashed division
+ * is not switched: it comes back with Restore first.
+ */
+export async function setDivisionActive(
+  db: MasterDb,
+  id: string,
+  isActive: boolean
+): Promise<Division> {
+  const rows = await db
+    .update(divisions)
+    .set({ isActive, updatedAt: new Date() })
+    .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
+    .returning();
+
+  const row = rows[0];
+  if (!row) throw new NotFoundError("Division not found.");
+  return toDivision(row);
+}
+
 export async function deleteDivision(db: MasterDb, id: string): Promise<void> {
   const rows = await db
     .update(divisions)

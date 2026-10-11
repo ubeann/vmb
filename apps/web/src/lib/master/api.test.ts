@@ -140,39 +140,37 @@ describe("master API client", () => {
     ]);
   });
 
-  it("flips a division's active flag by sending its own fields back with the other value", async () => {
-    const stored = { ...division, description: "Fleet", isActive: true };
+  it("switches a division with the status-only endpoints and no lookup first", async () => {
     const { client, calls } = clientWith((call) =>
-      json(call.method === "GET" ? stored : { ...stored, isActive: false })
+      json({ ...division, isActive: call.path.endsWith("/activate") })
     );
 
-    const result = await setDivisionActive(client, ID, false);
-
-    expect(result).toMatchObject({ ok: true, value: { isActive: false } });
-    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
-      `GET /api/master/divisions/${ID}`,
-      `PATCH /api/master/divisions/${ID}`
-    ]);
-    expect(JSON.parse(calls[1]!.body ?? "")).toEqual({
-      name: "Operations",
-      code: "OPS",
-      description: "Fleet",
-      colorHex: "#2563EB",
-      iconName: "heroicon-o-cog-6-tooth",
-      isActive: false
+    await expect(setDivisionActive(client, ID, false)).resolves.toMatchObject({
+      ok: true,
+      value: { isActive: false }
     });
+    await expect(setDivisionActive(client, ID, true)).resolves.toMatchObject({
+      ok: true,
+      value: { isActive: true }
+    });
+
+    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+      `POST /api/master/divisions/${ID}/deactivate`,
+      `POST /api/master/divisions/${ID}/activate`
+    ]);
+    expect(calls.every((call) => call.body === null)).toBe(true);
   });
 
-  it("stops at the lookup when the division is gone", async () => {
-    const { client, calls } = clientWith(() =>
+  it("maps a missing or Trashed division to 404 when switching it", async () => {
+    const { client } = clientWith(() =>
       json({ code: "NOT_FOUND", message: "Division not found." }, 404)
     );
 
     await expect(setDivisionActive(client, ID, true)).resolves.toMatchObject({
       ok: false,
-      status: 404
+      status: 404,
+      code: "NOT_FOUND"
     });
-    expect(calls).toHaveLength(1);
   });
 
   it("maps an API failure to its status, code and message", async () => {

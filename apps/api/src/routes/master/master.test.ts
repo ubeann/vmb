@@ -83,6 +83,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     updateDivision: vi.fn(async () => division),
     deleteDivision: vi.fn(async () => undefined),
     restoreDivision: vi.fn(async () => division),
+    setDivisionActive: vi.fn(async () => division),
     listRoles: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
     getRole: vi.fn(async () => role),
     createRole: vi.fn(async () => role),
@@ -327,6 +328,46 @@ describe("master API: divisions", () => {
       appWith(store).request(`/divisions/${ID}/restore`, { method: "POST" }, env)
     ).resolves.toMatchObject({ status: 200 });
     expect(store.restoreDivision).toHaveBeenCalledWith(ID);
+  });
+
+  it("activates and deactivates by id through the status-only store call", async () => {
+    const store = fakeStore();
+
+    await expect(
+      appWith(store).request(`/divisions/${ID}/deactivate`, { method: "POST" }, env)
+    ).resolves.toMatchObject({ status: 200 });
+    expect(store.setDivisionActive).toHaveBeenLastCalledWith(ID, false);
+
+    const activated = await appWith(store).request(
+      `/divisions/${ID}/activate`,
+      { method: "POST" },
+      env
+    );
+    expect(activated.status).toBe(200);
+    await expect(activated.json()).resolves.toMatchObject({ id: ID, name: "Operations" });
+    expect(store.setDivisionActive).toHaveBeenLastCalledWith(ID, true);
+    // the whole-record update is not how a switch is made
+    expect(store.updateDivision).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 when the division to switch is missing or Trashed", async () => {
+    const store = fakeStore({
+      setDivisionActive: vi.fn(async () => {
+        throw new NotFoundError("Division not found.");
+      })
+    });
+
+    const response = await appWith(store).request(
+      `/divisions/${ID}/activate`,
+      { method: "POST" },
+      env
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      code: "NOT_FOUND",
+      message: "Division not found."
+    });
   });
 
   it("rejects an id that is not a uuid", async () => {

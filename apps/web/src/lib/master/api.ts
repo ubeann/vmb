@@ -27,7 +27,6 @@ import {
 } from "@vmb/types";
 import type { z } from "zod";
 import type { ErrorStatus } from "sveltekit-superforms";
-import { divisionFormData } from "./form-data.js";
 
 /**
  * A reachable API answered; `ok: false` carries its status, code, copy and the
@@ -163,18 +162,19 @@ export function updateDivision(
 }
 
 /**
- * Activate or deactivate a division. The update takes the whole record, so this
- * reads the stored one and sends it back with `isActive` changed; a row's
- * Activate/Deactivate needs only the id.
+ * Activate or deactivate a division through the endpoints that write only its
+ * active flag. A whole-record update would send back what the page last read,
+ * and could overwrite an edit made since.
  */
-export async function setDivisionActive(
+export function setDivisionActive(
   client: ApiClient,
   id: string,
   isActive: boolean
 ): Promise<ApiResult<Division>> {
-  const current = await getDivision(client, id);
-  if (!current.ok) return current;
-  return updateDivision(client, id, { ...divisionFormData(current.value), isActive });
+  const route = client.api.master.divisions[":id"];
+  return (isActive ? route.activate : route.deactivate)
+    .$post({ param: { id } })
+    .then((response) => read(response, DivisionSchema));
 }
 
 export function deleteDivision(client: ApiClient, id: string): Promise<ApiResult<null>> {
