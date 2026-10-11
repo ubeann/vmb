@@ -302,8 +302,12 @@ jobs:
       # and Neon's, which is where these migrations run in practice. The harness
       # reads `TEST_DATABASE_URL` and gives each test a database of its own, so
       # files stay parallel-safe.
+      #
+      # It also needs the wait step to have succeeded: with no server, or no
+      # image ID to hash, the run would fail twice or replay a result keyed on
+      # an empty value.
       - name: Real Postgres
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && steps.postgres.outcome == 'success' }}
         run: pnpm turbo test --filter=@vmb/db
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
