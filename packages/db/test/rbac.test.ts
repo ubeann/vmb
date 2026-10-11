@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { ID_GROUPS, fixtureId } from "../src/seed/ids.js";
 import { seed } from "../src/seed/run.js";
-import { ConflictError, ForbiddenError } from "../src/errors.js";
+import { ConflictError, ForbiddenError, StaleRecordError } from "../src/errors.js";
 import {
   createMasterStore,
   type Actor,
@@ -320,7 +320,8 @@ describe("assigning roles to users", () => {
     roleIds,
     profilePhotoPath: "",
     password: "",
-    passwordConfirmation: ""
+    passwordConfirmation: "",
+    updatedAt: user.updatedAt
   });
 
   it("creates a user holding the chosen roles, named in the result", async () => {
@@ -354,12 +355,12 @@ describe("assigning roles to users", () => {
       // saving the same set again is harmless, and an empty set clears the roles
       await store(db).updateUser(
         created.id,
-        edit(created, [MANAGER_FINANCE]),
+        edit(updated, [MANAGER_FINANCE]),
         await actor(db, SUPER_ADMIN_USER)
       );
       const cleared = await store(db).updateUser(
         created.id,
-        edit(created, []),
+        edit(await store(db).getUser(created.id), []),
         await actor(db, SUPER_ADMIN_USER)
       );
       expect(cleared.roles).toEqual([]);
@@ -429,6 +430,28 @@ describe("assigning roles to users", () => {
     });
   });
 
+  it("rolls back a role change whose save is stale (#378)", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const admin = await actor(db, SUPER_ADMIN_USER);
+      const target = await store(db).createUser(newUser({ roleIds: [STAFF_ROLE] }), admin);
+      // someone else saves the user after this editor loaded it
+      await store(db).updateUser(
+        target.id,
+        { ...edit(target, [STAFF_ROLE]), name: "Dani P." },
+        admin
+      );
+
+      await expect(
+        store(db).updateUser(target.id, edit(target, [MANAGER_FINANCE]), admin)
+      ).rejects.toBeInstanceOf(StaleRecordError);
+
+      expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
+        "Staff"
+      ]);
+    });
+  });
+
   it("opens a transaction only for a save that changes roles, after hashing the password", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
@@ -456,13 +479,17 @@ describe("assigning roles to users", () => {
       });
       await counted.getUser(target.id);
       // the form sends the roles the user already holds, or none at all
-      await counted.updateUser(target.id, edit(target, [STAFF_ROLE]), admin);
-      await counted.updateUser(target.id, { ...edit(target, []), roleIds: undefined }, admin);
+      const kept = await counted.updateUser(target.id, edit(target, [STAFF_ROLE]), admin);
+      const omitted = await counted.updateUser(
+        target.id,
+        { ...edit(kept, []), roleIds: undefined },
+        admin
+      );
       expect(steps).toEqual([]);
 
       await counted.updateUser(
         target.id,
-        { ...edit(target, [MANAGER_FINANCE]), password: "a-new-password" },
+        { ...edit(omitted, [MANAGER_FINANCE]), password: "a-new-password" },
         admin
       );
       expect(steps).toEqual(["hash", "transaction"]);
@@ -630,7 +657,8 @@ describe("reaching a more privileged user", () => {
     status: user.status,
     profilePhotoPath: "",
     password: "a-brand-new-password",
-    passwordConfirmation: "a-brand-new-password"
+    passwordConfirmation: "a-brand-new-password",
+    updatedAt: user.updatedAt
   });
 
   it("refuses to edit, delete or restore a user who holds permissions the caller lacks", async () => {
@@ -685,7 +713,11 @@ describe("reaching a more privileged user", () => {
       });
       // a Super Admin may manage anyone
       await expect(
-        store(db).updateUser(MANAGER, resetPassword(manager), await actor(db, ADMIN))
+        store(db).updateUser(
+          MANAGER,
+          resetPassword(await store(db).getUser(MANAGER)),
+          await actor(db, ADMIN)
+        )
       ).resolves.toMatchObject({
         id: MANAGER
       });
@@ -760,7 +792,8 @@ describe("what a request costs (ADR-0045's amendment)", () => {
           roleIds: [MANAGER_FINANCE],
           profilePhotoPath: "",
           password: "",
-          passwordConfirmation: ""
+          passwordConfirmation: "",
+          updatedAt: target.updatedAt
         },
         caller
       );

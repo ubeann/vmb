@@ -1,8 +1,36 @@
-import type { Division, DivisionInput, DivisionListQuery, DivisionListResponse } from "@vmb/types";
-import { and, asc, count, desc, eq, ilike, isNotNull, isNull, or, type SQL } from "drizzle-orm";
+import {
+  dateFilterRange,
+  todayIn,
+  type Division,
+  type DivisionInput,
+  type DivisionListRequest,
+  type DivisionListResponse,
+  type DivisionUpdateInput
+} from "@vmb/types";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL
+} from "drizzle-orm";
 import { divisions } from "../schema/master.js";
-import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { NotFoundError } from "../errors.js";
+import {
+  conflictFrom,
+  nextStamp,
+  nullIfEmpty,
+  toIso,
+  unchangedSince,
+  type MasterDb
+} from "./db.js";
+import { NotFoundError, StaleRecordError } from "../errors.js";
 
 const DIVISION_CONFLICTS = {
   master_divisions_name_unique: {
@@ -39,13 +67,24 @@ function toDivision(row: DivisionRow): Division {
   };
 }
 
-function whereFor(query: DivisionListQuery) {
+/**
+ * Rows stamped on one of the days a date filter covers, in the reader's zone:
+ * from that zone's midnight at the start of `from` to its midnight after `to`.
+ * A row with no stamp is on no day.
+ */
+function withinDays(column: AnyColumn, value: string | undefined, tz: string) {
+  const range = dateFilterRange(value, todayIn(tz));
+  if (!range) return undefined;
+  return and(
+    sql`${column} >= (${range.from}::date)::timestamp at time zone ${tz}`,
+    sql`${column} < (${range.to}::date + 1)::timestamp at time zone ${tz}`
+  );
+}
+
+/** The search and every filter but the view and the status, which the counts vary. */
+function sharedConditions(query: DivisionListRequest): SQL[] {
   const conditions: SQL[] = [];
 
-  if (query.trashed === "exclude") conditions.push(isNull(divisions.deletedAt));
-  if (query.trashed === "only") conditions.push(isNotNull(divisions.deletedAt));
-  if (query.status === "active") conditions.push(eq(divisions.isActive, true));
-  if (query.status === "inactive") conditions.push(eq(divisions.isActive, false));
   if (query.search) {
     const pattern = `%${query.search}%`;
     const matches = or(
@@ -55,15 +94,48 @@ function whereFor(query: DivisionListQuery) {
     );
     if (matches) conditions.push(matches);
   }
+  const updated = withinDays(divisions.updatedAt, query.updated, query.tz);
+  if (updated) conditions.push(updated);
+  const created = withinDays(divisions.createdAt, query.created, query.tz);
+  if (created) conditions.push(created);
 
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return conditions;
 }
 
+function viewCondition(trashed: DivisionListRequest["trashed"]): SQL | undefined {
+  if (trashed === "exclude") return isNull(divisions.deletedAt);
+  if (trashed === "only") return isNotNull(divisions.deletedAt);
+  return undefined;
+}
+
+/** None chosen is any; both chosen is any too, but stays a condition the counts can share. */
+function statusCondition(status: DivisionListRequest["status"]): SQL | undefined {
+  if (status.length === 0) return undefined;
+  return inArray(
+    divisions.isActive,
+    status.map((value) => value === "active")
+  );
+}
+
+/** Rows matching every condition given, as a count the driver hands back as a number. */
+function countWhere(...conditions: (SQL | undefined)[]) {
+  const where = and(...conditions) ?? sql`true`;
+  return sql<number>`cast(count(*) filter (where ${where}) as integer)`.mapWith(Number);
+}
+
+/**
+ * A page of the list, with the counts the list kit shows: each view's rows
+ * and each Status option's rows in the current view, all keeping the search
+ * and the other filters (ADR-0051 rules 2 and 4). The counts come from one
+ * aggregate over the rows the shared conditions match.
+ */
 export async function listDivisions(
   db: MasterDb,
-  query: DivisionListQuery
+  query: DivisionListRequest
 ): Promise<DivisionListResponse> {
-  const where = whereFor(query);
+  const shared = sharedConditions(query);
+  const view = viewCondition(query.trashed);
+  const status = statusCondition(query.status);
   const column = SORT_COLUMNS[query.sort];
   const order = query.dir === "asc" ? asc(column) : desc(column);
 
@@ -71,18 +143,30 @@ export async function listDivisions(
     db
       .select()
       .from(divisions)
-      .where(where)
+      .where(and(...shared, view, status))
       .orderBy(order, asc(divisions.id))
       .limit(query.perPage)
       .offset((query.page - 1) * query.perPage),
-    db.select({ value: count() }).from(divisions).where(where)
+    db
+      .select({
+        total: countWhere(view, status),
+        all: countWhere(isNull(divisions.deletedAt), status),
+        trash: countWhere(isNotNull(divisions.deletedAt), status),
+        active: countWhere(view, eq(divisions.isActive, true)),
+        inactive: countWhere(view, eq(divisions.isActive, false))
+      })
+      .from(divisions)
+      .where(and(...shared))
   ]);
+  const counts = totals[0] ?? { total: 0, all: 0, trash: 0, active: 0, inactive: 0 };
 
   return {
     items: rows.map(toDivision),
-    total: totals[0]?.value ?? 0,
+    total: counts.total,
     page: query.page,
-    perPage: query.perPage
+    perPage: query.perPage,
+    views: { all: counts.all, trash: counts.trash },
+    facets: { status: { active: counts.active, inactive: counts.inactive } }
   };
 }
 
@@ -113,23 +197,68 @@ export async function createDivision(db: MasterDb, input: DivisionInput): Promis
   }
 }
 
+/**
+ * Save an edit, if the division is still as the editor loaded it: `input.updatedAt`
+ * is compared inside the update, so nothing saved since can be overwritten. A
+ * miss is a 409 when the division exists and a 404 when it does not.
+ */
 export async function updateDivision(
   db: MasterDb,
   id: string,
-  input: DivisionInput
+  input: DivisionUpdateInput
 ): Promise<Division> {
+  const { updatedAt, ...fields } = input;
+
   try {
     const rows = await db
       .update(divisions)
-      .set({ ...input, description: nullIfEmpty(input.description), updatedAt: new Date() })
-      .where(eq(divisions.id, id))
+      .set({
+        ...fields,
+        description: nullIfEmpty(fields.description),
+        updatedAt: nextStamp(divisions.updatedAt)
+      })
+      .where(and(eq(divisions.id, id), unchangedSince(divisions.updatedAt, updatedAt)))
       .returning();
     const row = rows[0];
-    if (!row) throw new NotFoundError("Division not found.");
-    return toDivision(row);
+    if (row) return toDivision(row);
   } catch (error) {
     return conflictFrom(error, DIVISION_CONFLICTS);
   }
+
+  const found = await db
+    .select({ id: divisions.id })
+    .from(divisions)
+    .where(eq(divisions.id, id))
+    .limit(1);
+  if (!found[0]) throw new NotFoundError("Division not found.");
+  throw new StaleRecordError();
+}
+
+/**
+ * Switch a live division on or off. It writes `is_active` and `updated_at` and
+ * nothing else, so a row's Activate or Deactivate cannot overwrite a field
+ * someone else is editing, as a whole-record update would. A Trashed division
+ * is not switched: it comes back with Restore first. `updated_at` moves only
+ * when the flag changes.
+ */
+export async function setDivisionActive(
+  db: MasterDb,
+  id: string,
+  isActive: boolean
+): Promise<Division> {
+  const rows = await db
+    .update(divisions)
+    // "Updated" moves only when the flag does, so a double click or an Undo of nothing leaves it alone
+    .set({
+      isActive,
+      updatedAt: sql`case when ${divisions.isActive} is distinct from ${isActive} then now() else ${divisions.updatedAt} end`
+    })
+    .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
+    .returning();
+
+  const row = rows[0];
+  if (!row) throw new NotFoundError("Division not found.");
+  return toDivision(row);
 }
 
 export async function deleteDivision(db: MasterDb, id: string): Promise<void> {

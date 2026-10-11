@@ -1,6 +1,6 @@
 import { withApiClient } from "$lib/api-access.js";
 import { listDivisions, listRoles } from "$lib/master/api.js";
-import { DivisionListQuerySchema, RoleListQuerySchema, type Division } from "@vmb/types";
+import { DivisionListRequestSchema, RoleListQuerySchema, type Division } from "@vmb/types";
 import type { RequestEvent } from "@sveltejs/kit";
 
 /**
@@ -9,7 +9,7 @@ import type { RequestEvent } from "@sveltejs/kit";
  * taking the page down.
  */
 export async function loadDivisionOptions(event: RequestEvent): Promise<Division[]> {
-  const query = DivisionListQuerySchema.parse({ perPage: "100" });
+  const query = DivisionListRequestSchema.parse({ perPage: "100" });
   const access = await withApiClient(event, (client) => listDivisions(client, query));
 
   if (!access.ok) {

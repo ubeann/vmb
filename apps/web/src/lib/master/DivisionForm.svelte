@@ -1,12 +1,17 @@
 <script lang="ts">
+  import UpdatedAtField from "./UpdatedAtField.svelte";
   import { DivisionInputSchema, type DivisionInput } from "@vmb/types";
   import { superForm, type SuperValidated } from "sveltekit-superforms";
   import { zod4Client } from "sveltekit-superforms/adapters";
 
+  // an edit's form also carries the `updatedAt` it loaded
+  type Fields = DivisionInput & { updatedAt?: string | null };
+
   let {
     form,
-    submitLabel = "Save division"
-  }: { form: SuperValidated<DivisionInput>; submitLabel?: string } = $props();
+    submitLabel = "Save division",
+    reloadHref
+  }: { form: SuperValidated<Fields>; submitLabel?: string; reloadHref?: string } = $props();
 
   // svelte-ignore state_referenced_locally
   const {
@@ -20,6 +25,10 @@
 </script>
 
 <form method="POST" use:enhance>
+  {#if reloadHref && $fields.updatedAt !== undefined}
+    <UpdatedAtField value={$fields.updatedAt} error={$errors.updatedAt} {reloadHref} />
+  {/if}
+
   <fieldset>
     <legend>Basic information</legend>
 

@@ -29,8 +29,17 @@ import {
   uniqueIds,
   type Actor
 } from "./guards.js";
-import { conflictFrom, nullIfEmpty, toIso, type MasterDb, type OpenTransaction } from "./db.js";
-import { NotFoundError } from "../errors.js";
+import {
+  conflictFrom,
+  nextStamp,
+  nullIfEmpty,
+  rowsOf,
+  toIso,
+  unchangedSince,
+  type MasterDb,
+  type OpenTransaction
+} from "./db.js";
+import { NotFoundError, StaleRecordError } from "../errors.js";
 
 // A user's columns plus whether Better Auth has verified the email: the
 // identity owns verification (ADR-0032), so it is read from there rather than
@@ -309,7 +318,10 @@ export async function updateUser(
 
 /**
  * Write a user's own fields, with their Better Auth identity and, given a
- * hash, their credential, in one statement.
+ * hash, their credential, in one statement. `where id = … and <unchanged
+ * since>` is the stale check, inside the statement that writes: when it
+ * matches no row nothing in the statement changes, and this throws (in a
+ * transaction, rolling back the role writes before it too).
  */
 async function writeUser(
   db: MasterDb,
@@ -318,38 +330,31 @@ async function writeUser(
   passwordHash: string | undefined
 ): Promise<void> {
   const photo = nullIfEmpty(input.profilePhotoPath);
+  const stamp = unchangedSince(users.updatedAt, input.updatedAt);
+  const result =
+    passwordHash === undefined
+      ? await writeFields(db, id, input, photo, stamp)
+      : await writeFieldsAndCredential(db, id, input, photo, stamp, passwordHash);
 
-  if (passwordHash === undefined) {
-    // One statement, so an existing Better Auth identity cannot drift from
-    // the business row when either side refuses the change (a duplicate
-    // email, most likely). An identity that does not exist yet is #7's
-    // transform to create.
-    await db.execute(sql`
-      with business_user as (
-        update master.users
-           set name = ${input.name},
-               status = ${input.status},
-               phone = ${input.phone},
-               email = ${input.email},
-               profile_photo_path = ${photo},
-               updated_at = now()
-         where id = ${id}
-        returning id
-      )
-      update public."user"
-         set name = ${input.name},
-             email = ${input.email},
-             image = ${photo},
-             updated_at = now()
-       where id = (select id::text from business_user)
-    `);
-    return;
+  if (rowsOf(result).length === 0) {
+    // the record is not there, or changed since the editor loaded it
+    await getUser(db, id);
+    throw new StaleRecordError();
   }
+}
 
-  // The same statement also upserts the credential, so a legacy-imported
-  // user (a business row with no Better Auth identity) becomes able to
-  // sign in, and a refused write aborts every part of the change together.
-  await db.execute(sql`
+function writeFields(
+  db: MasterDb,
+  id: string,
+  input: UserUpdateInput,
+  photo: string | null,
+  stamp: SQL
+) {
+  // One statement, so an existing Better Auth identity cannot drift from
+  // the business row when either side refuses the change (a duplicate
+  // email, most likely). An identity that does not exist yet is #7's
+  // transform to create.
+  return db.execute(sql`
     with business_user as (
       update master.users
          set name = ${input.name},
@@ -357,8 +362,43 @@ async function writeUser(
              phone = ${input.phone},
              email = ${input.email},
              profile_photo_path = ${photo},
+             updated_at = ${nextStamp(users.updatedAt)}
+       where id = ${id} and ${stamp}
+      returning id
+    ), auth_update as (
+      update public."user"
+         set name = ${input.name},
+             email = ${input.email},
+             image = ${photo},
              updated_at = now()
-       where id = ${id}
+       where id = (select id::text from business_user)
+      returning id
+    )
+    select id from business_user
+  `);
+}
+
+function writeFieldsAndCredential(
+  db: MasterDb,
+  id: string,
+  input: UserUpdateInput,
+  photo: string | null,
+  stamp: SQL,
+  passwordHash: string
+) {
+  // The same statement also upserts the credential, so a legacy-imported
+  // user (a business row with no Better Auth identity) becomes able to
+  // sign in, and a refused write aborts every part of the change together.
+  return db.execute(sql`
+    with business_user as (
+      update master.users
+         set name = ${input.name},
+             status = ${input.status},
+             phone = ${input.phone},
+             email = ${input.email},
+             profile_photo_path = ${photo},
+             updated_at = ${nextStamp(users.updatedAt)}
+       where id = ${id} and ${stamp}
       returning id, name, email, profile_photo_path
     ), auth_update as (
       update public."user"
@@ -380,13 +420,16 @@ async function writeUser(
        where account_id = (select id::text from business_user)
          and provider_id = 'credential'
       returning id
+    ), credential_insert as (
+      insert into public.account
+        (id, account_id, provider_id, user_id, password, created_at, updated_at)
+      select ${crypto.randomUUID()}, b.id::text, 'credential', b.id::text,
+             ${passwordHash}, now(), now()
+        from business_user b
+       where not exists (select 1 from credential_update)
+      returning id
     )
-    insert into public.account
-      (id, account_id, provider_id, user_id, password, created_at, updated_at)
-    select ${crypto.randomUUID()}, b.id::text, 'credential', b.id::text,
-           ${passwordHash}, now(), now()
-      from business_user b
-     where not exists (select 1 from credential_update)
+    select id from business_user
   `);
 }
 

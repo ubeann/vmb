@@ -40,3 +40,13 @@ export const indonesianPhoneSchema = z
   .pipe(
     z.string().regex(/^\+62\d{7,13}$/, "Phone must be an Indonesian number such as +6281234567890.")
   );
+
+/**
+ * The `updatedAt` a client last read for a record, sent back with its edit so
+ * the save can be refused when someone changed the record since (a
+ * `STALE_RECORD` conflict). It is the exact string the API served, to the
+ * millisecond the columns keep. A record that was never stamped, as a legacy
+ * import may leave one, reads `null`, and an edit form posts that as an empty
+ * field. Required on every update, so an old client cannot skip the check.
+ */
+export const updatedAtSchema = z.iso.datetime().nullable();

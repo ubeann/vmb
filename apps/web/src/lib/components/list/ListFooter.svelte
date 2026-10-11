@@ -1,5 +1,6 @@
 <!--
-  The foot of a list (#301): "Showing x–y of n", the page size, and the
+  The foot of a list (#301, #363): "Showing x–y of n", or "n of m" once a search
+  or filter narrows the list (ADR-0051 rule 5), the page size, and the
   numbered pages. The count is a status region, so a screen reader hears the
   new range after a search, filter or page change. Page sizes are the shared
   PER_PAGE_OPTIONS; changing one goes back to page 1.
@@ -9,7 +10,13 @@
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import * as Select from "$lib/components/ui/select/index.js";
-  import { listHref, pageWindow, showingRange, type MasterListPathname } from "$lib/master/list.js";
+  import {
+    countSummary,
+    listHref,
+    pageWindow,
+    type CountNoun,
+    type MasterListPathname
+  } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { PER_PAGE_OPTIONS } from "@vmb/types";
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
@@ -18,17 +25,22 @@
   let {
     base,
     list,
-    noun
+    noun,
+    outOf = null,
+    nameCount = false
   }: {
     base: MasterListPathname;
     list: { page: number; perPage: number; total: number };
-    noun: string;
+    noun: CountNoun;
+    /** Rows the view holds before the search and filters; null when none is set or it is unknown. */
+    outOf?: number | null;
+    /** An unfiltered range names what it counts, as the Trash does ("of 60 deleted divisions"). */
+    nameCount?: boolean;
   } = $props();
 
   const uid = $props.id();
 
   const totalPages = $derived(Math.max(1, Math.ceil(list.total / list.perPage)));
-  const range = $derived(showingRange(list));
   // a page past the end (the URL asked for it) still pages back to one that exists
   const current = $derived(Math.min(list.page, totalPages));
   const pages = $derived(pageWindow(current, totalPages));
@@ -37,18 +49,12 @@
     listHref(base, page.url.searchParams, changes);
 
   const pageLink =
-    "focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-md text-sm tabular-nums focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-11";
+    "focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-(--control-radius) text-sm tabular-nums focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-11";
 </script>
 
 <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
   <p role="status" class="text-muted-foreground tabular-nums">
-    {#if list.total === 0}
-      No {noun}
-    {:else if range.from === 0}
-      {list.total} {noun} in all, none on this page
-    {:else}
-      Showing {range.from}–{range.to} of {list.total}
-    {/if}
+    {countSummary(list, noun, outOf, nameCount)}
   </p>
 
   <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -60,8 +66,10 @@
         onValueChange={(value) => goto(resolve(to({ perPage: value })), { noScroll: true })}
       >
         <!-- named by its label and its value, so the visible "25" is part of the name -->
-        <Select.Trigger aria-labelledby="{uid}-per-page {uid}-per-page-value" class="w-20"
-          ><span id="{uid}-per-page-value">{list.perPage}</span></Select.Trigger
+        <Select.Trigger
+          aria-labelledby="{uid}-per-page {uid}-per-page-value"
+          variant="kit"
+          class="w-20"><span id="{uid}-per-page-value">{list.perPage}</span></Select.Trigger
         >
         <Select.Content>
           {#each PER_PAGE_OPTIONS as size (size)}

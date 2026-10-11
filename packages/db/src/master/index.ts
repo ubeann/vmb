@@ -2,12 +2,14 @@ import type {
   Access,
   Division,
   DivisionInput,
-  DivisionListQuery,
+  DivisionListRequest,
   DivisionListResponse,
+  DivisionUpdateInput,
   Role,
   RoleInput,
   RoleListQuery,
   RoleListResponse,
+  RoleUpdateInput,
   User,
   UserCreateInput,
   UserListQuery,
@@ -21,6 +23,7 @@ import {
   getDivision,
   listDivisions,
   restoreDivision,
+  setDivisionActive,
   updateDivision
 } from "./divisions.js";
 import { getAccess, getPermissions } from "./access.js";
@@ -51,17 +54,18 @@ export type MasterStore = {
   getPermissions(userId: string): Promise<string[]>;
   getAccess(userId: string): Promise<Access>;
 
-  listDivisions(query: DivisionListQuery): Promise<DivisionListResponse>;
+  listDivisions(query: DivisionListRequest): Promise<DivisionListResponse>;
   getDivision(id: string): Promise<Division>;
   createDivision(input: DivisionInput): Promise<Division>;
-  updateDivision(id: string, input: DivisionInput): Promise<Division>;
+  updateDivision(id: string, input: DivisionUpdateInput): Promise<Division>;
   deleteDivision(id: string): Promise<void>;
   restoreDivision(id: string): Promise<Division>;
+  setDivisionActive(id: string, isActive: boolean): Promise<Division>;
 
   listRoles(query: RoleListQuery): Promise<RoleListResponse>;
   getRole(id: string): Promise<Role>;
   createRole(input: RoleInput): Promise<Role>;
-  updateRole(id: string, input: RoleInput): Promise<Role>;
+  updateRole(id: string, input: RoleUpdateInput): Promise<Role>;
   deleteRole(id: string): Promise<void>;
 
   listUsers(query: UserListQuery): Promise<UserListResponse>;
@@ -84,6 +88,7 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     updateDivision: (id, input) => updateDivision(db, id, input),
     deleteDivision: (id) => deleteDivision(db, id),
     restoreDivision: (id) => restoreDivision(db, id),
+    setDivisionActive: (id, isActive) => setDivisionActive(db, id, isActive),
 
     listRoles: (query) => listRoles(db, query),
     getRole: (id) => getRole(db, id),

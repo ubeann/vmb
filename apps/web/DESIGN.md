@@ -83,7 +83,7 @@ Three faces, app-wide (ADR-0046): Schibsted Grotesk for UI text, Newsreader's op
 
 ## Layout
 
-Review viewports and layout rules are in `docs/agents/design-workflow.md`. Signed-in pages take one of three widths, centred inside the white panel, list tables fit their utility columns to content, and the top bar's slot order is fixed (ADR-0050). The form comes first: usable before its art loads, each input in its own wrapper so extension-injected elements don't move it. Touch pointers get 44px targets.
+Review viewports and layout rules are in `docs/agents/design-workflow.md`. Signed-in pages take one of three widths, centred inside the white panel, list tables fit their utility columns to content, and the top bar's slot order is fixed (ADR-0050). Lists follow the list kit's rules: views as tabs in the card, one Filter panel, chips for filters in use, and a card that folds its columns by its own width (ADR-0051). Panels, dialogs and sheets change frame at 480 and 640px and reset when closed (ADR-0053); keyboard shortcuts live in one app-wide sheet (ADR-0052). The form comes first: usable before its art loads, each input in its own wrapper so extension-injected elements don't move it. Touch pointers get 44px targets.
 
 ## Elevation & Depth
 
@@ -91,11 +91,11 @@ Depth is mostly flat: a white card on warm paper, a navy card on deep navy in da
 
 ## Shapes
 
-One radius, `--radius` (0.625rem), with the Tailwind steps derived from it in `app.css`.
+One radius, `--radius` (0.625rem), with the Tailwind steps derived from it in `app.css`. Controls round by a quarter of their height (`rounded-(--control-radius)`): 8px at 32px, 11px once touch pointers grow them to 44px, filter chips included; a card is one step rounder (`rounded-xl`, 14px) than what it holds, and popovers and menus keep their own (ADR-0035, 2026-10-11). In light mode, outline buttons and the list kit's fields (`Input` and the select trigger with `variant="kit"`) share one skin: the paper's fill and `--control-edge`, a mix of 45% `input` into `border` that the header leaves out because it is derived, not a value of its own. Form fields keep the white fill and the 3:1 `input` edge.
 
 ## Components
 
-shadcn-svelte components restyled on these tokens (ADR-0035). VMB's own pieces live in `src/lib/components/`: `AuthShell` and `AuthCard` frame the auth pages, `EtchedScene` and `EtchedMark` draw the art. Motion uses the tokens in `app.css` and CSS or Svelte built-ins only (ADR-0040).
+shadcn-svelte components restyled on these tokens (ADR-0035). VMB's own pieces live in `src/lib/components/`: `AuthShell` and `AuthCard` frame the auth pages, `EtchedScene` and `EtchedMark` draw the art, and `list/layer` holds a list's panels in the three frames of ADR-0053, with `LayerAction` as a footer's main action. Motion uses the tokens in `app.css` and CSS or Svelte built-ins only (ADR-0040).
 
 ## Do's and Don'ts
 

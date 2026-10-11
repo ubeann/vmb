@@ -1,4 +1,4 @@
-import { CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } from "@vmb/types";
+import { ApiErrorSchema, CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } from "@vmb/types";
 import { rateLimit, user } from "@vmb/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type TestDatabase } from "../../../packages/db/test/harness.js";
@@ -176,6 +176,33 @@ describe("rate limits on the request step (#251)", () => {
     expect((await requestCode(REGISTERED, "198.51.100.2")).status).toBe(200);
   });
 
+  it("answers the per-IP 429 with the API error contract (ADR-0048)", async () => {
+    for (let i = 0; i < 3; i++) await requestCode(REGISTERED, "198.51.100.8");
+    const limited = await requestCode(REGISTERED, "198.51.100.8");
+
+    expect(limited.status).toBe(429);
+    const body = ApiErrorSchema.strict().parse(JSON.parse(limited.body));
+    expect(body).toEqual({
+      code: "RATE_LIMITED",
+      message: "Too many requests. Please try again later."
+    });
+  });
+
+  it("gives the 429 of any auth path the same code, not only the code request", async () => {
+    // Better Auth's built-in rule for sign-in: 3 requests per 10 s.
+    const replies = [];
+    for (let i = 0; i < 4; i++) {
+      replies.push(await requestCode(REGISTERED, "198.51.100.9", "/sign-in/email"));
+    }
+
+    const limited = replies.at(-1);
+    expect(limited?.status).toBe(429);
+    expect(ApiErrorSchema.strict().parse(JSON.parse(limited?.body ?? ""))).toMatchObject({
+      code: "RATE_LIMITED"
+    });
+    expect(replies.slice(0, 3).every((reply) => reply.status !== 429)).toBe(true);
+  });
+
   it("refuses a registered and an unregistered email alike", async () => {
     for (let i = 0; i < 3; i++) await requestCode(UNREGISTERED, "198.51.100.3");
     for (let i = 0; i < 3; i++) await requestCode(REGISTERED, "198.51.100.4");
@@ -238,6 +265,10 @@ describe("per-email code request limit (#252)", () => {
     expect(registered).toEqual(unregistered);
     expect(registered).toEqual(ipLimited);
     expect(registered.retryAfter).toBeNull();
+    expect(ApiErrorSchema.strict().parse(JSON.parse(registered.body))).toEqual({
+      code: "RATE_LIMITED",
+      message: "Too many requests. Please try again later."
+    });
     expect(sendOtpEmailMock).toHaveBeenCalledTimes(5);
   });
 

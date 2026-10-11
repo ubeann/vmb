@@ -12,10 +12,11 @@
       "entry": ["scripts/*.mjs"]
     },
     "apps/api": {
-      // Never imported here: pinned so drizzle-orm's types resolve to the
-      // same copy @vmb/db uses (commit 6a4aa9b, and the pnpm override).
-      // `cloudflare:workers` is a Workers runtime module, not an npm package.
-      "ignoreDependencies": ["@neondatabase/serverless", "cloudflare"]
+      // `@neondatabase/serverless` is never imported here: it is pinned so
+      // drizzle-orm's types resolve to the same copy @vmb/db uses (commit
+      // 6a4aa9b, and the pnpm override), and knip counts it as drizzle-orm's
+      // peer. `cloudflare:workers` is a Workers runtime module, not an npm package.
+      "ignoreDependencies": ["cloudflare"]
     }
   },
   // Installed by mise (.mise.toml), not npm.

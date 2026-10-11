@@ -1,4 +1,4 @@
-import { DivisionListQuerySchema, RoleListQuerySchema } from "@vmb/types";
+import { DivisionListRequestSchema, RoleListQuerySchema } from "@vmb/types";
 import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "../api.js";
 import {
@@ -8,6 +8,7 @@ import {
   listDivisions,
   listRoles,
   restoreDivision,
+  setDivisionActive,
   updateDivision
 } from "./api.js";
 
@@ -54,21 +55,42 @@ const json = (body: unknown, status = 200) =>
 
 describe("master API client", () => {
   it("lists divisions with the query string the schema produced", async () => {
-    const { client, calls } = clientWith(() =>
-      json({ items: [division], total: 1, page: 1, perPage: 10 })
-    );
-    const query = DivisionListQuerySchema.parse({ search: "ops", perPage: "25", trashed: "only" });
+    const page = {
+      items: [division],
+      total: 1,
+      page: 1,
+      perPage: 10,
+      views: { all: 1, trash: 0 },
+      facets: { status: { active: 1, inactive: 0 } }
+    };
+    const { client, calls } = clientWith(() => json(page));
+    const query = DivisionListRequestSchema.parse({
+      search: "ops",
+      perPage: "25",
+      trashed: "only"
+    });
 
     const result = await listDivisions(client, query);
 
-    expect(result).toEqual({
-      ok: true,
-      value: { items: [division], total: 1, page: 1, perPage: 10 }
-    });
+    expect(result).toEqual({ ok: true, value: page });
     expect(calls[0]?.path).toBe(
-      "/api/master/divisions?search=ops&status=all&trashed=only&sort=name&dir=asc&page=1&perPage=25"
+      "/api/master/divisions?search=ops&trashed=only&sort=name&dir=asc&page=1&perPage=25&tz=Asia%2FJakarta"
     );
     expect(calls[0]?.method).toBe("GET");
+  });
+
+  it("sends several statuses as one comma-separated parameter", async () => {
+    const { client, calls } = clientWith(() => json({}, 500));
+    const query = DivisionListRequestSchema.parse({
+      status: "active,inactive",
+      updated: "2025-12-29..2026-01-04"
+    });
+
+    await listDivisions(client, query);
+
+    const url = new URL(`http://api.test${calls[0]?.path}`);
+    expect(url.searchParams.get("status")).toBe("active,inactive");
+    expect(url.searchParams.get("updated")).toBe("2025-12-29..2026-01-04");
   });
 
   it("creates a division with a JSON body", async () => {
@@ -105,7 +127,8 @@ describe("master API client", () => {
       description: "",
       colorHex: "#2563EB",
       iconName: "heroicon-o-cog-6-tooth",
-      isActive: true
+      isActive: true,
+      updatedAt: STAMP
     });
     await deleteDivision(client, ID);
     await restoreDivision(client, ID);
@@ -116,6 +139,65 @@ describe("master API client", () => {
       `DELETE /api/master/divisions/${ID}`,
       `POST /api/master/divisions/${ID}/restore`
     ]);
+  });
+
+  it("sends the updatedAt it was given with an update, and reads a stale one as a conflict", async () => {
+    const message = "This record was changed by someone else since you opened it.";
+    const { client, calls } = clientWith(() =>
+      json({ code: "STALE_RECORD", message, issues: [{ path: "updatedAt", message }] }, 409)
+    );
+
+    const result = await updateDivision(client, ID, {
+      name: "Operations HQ",
+      code: "OPS",
+      description: "",
+      colorHex: "#2563EB",
+      iconName: "heroicon-o-cog-6-tooth",
+      isActive: true,
+      updatedAt: STAMP
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? "")).toMatchObject({ updatedAt: STAMP });
+    expect(result).toEqual({
+      ok: false,
+      status: 409,
+      code: "STALE_RECORD",
+      error: message,
+      issues: [{ path: "updatedAt", message }]
+    });
+  });
+
+  it("switches a division with the status-only endpoints and no lookup first", async () => {
+    const { client, calls } = clientWith((call) =>
+      json({ ...division, isActive: call.path.endsWith("/activate") })
+    );
+
+    await expect(setDivisionActive(client, ID, false)).resolves.toMatchObject({
+      ok: true,
+      value: { isActive: false }
+    });
+    await expect(setDivisionActive(client, ID, true)).resolves.toMatchObject({
+      ok: true,
+      value: { isActive: true }
+    });
+
+    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+      `POST /api/master/divisions/${ID}/deactivate`,
+      `POST /api/master/divisions/${ID}/activate`
+    ]);
+    expect(calls.every((call) => call.body === null)).toBe(true);
+  });
+
+  it("maps a missing or Trashed division to 404 when switching it", async () => {
+    const { client } = clientWith(() =>
+      json({ code: "NOT_FOUND", message: "Division not found." }, 404)
+    );
+
+    await expect(setDivisionActive(client, ID, true)).resolves.toMatchObject({
+      ok: false,
+      status: 404,
+      code: "NOT_FOUND"
+    });
   });
 
   it("maps an API failure to its status, code and message", async () => {

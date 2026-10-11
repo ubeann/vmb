@@ -1,6 +1,6 @@
 import type {
   Division,
-  DivisionListQuery,
+  DivisionListRequest,
   DivisionListResponse,
   Role,
   RoleListResponse,
@@ -9,7 +9,7 @@ import type {
 } from "@vmb/types";
 import { allPermissionKeys } from "@vmb/types";
 import { Hono } from "hono";
-import { ConflictError, ForbiddenError, NotFoundError } from "@vmb/db";
+import { ConflictError, ForbiddenError, NotFoundError, StaleRecordError } from "@vmb/db";
 import type { MasterStore } from "@vmb/db";
 import { describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../bindings.js";
@@ -63,17 +63,27 @@ const user: User = {
   deletedAt: null
 };
 
+const EMPTY_DIVISIONS: DivisionListResponse = {
+  items: [],
+  total: 0,
+  page: 1,
+  perPage: 10,
+  views: { all: 0, trash: 0 },
+  facets: { status: { active: 0, inactive: 0 } }
+};
+
 function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
   return {
     // the caller may do everything unless a test narrows it (permissions.test.ts)
     getPermissions: vi.fn(async () => allPermissionKeys()),
     getAccess: vi.fn(async () => ({ permissions: allPermissionKeys(), divisions: [] })),
-    listDivisions: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
+    listDivisions: vi.fn(async () => EMPTY_DIVISIONS),
     getDivision: vi.fn(async () => division),
     createDivision: vi.fn(async () => division),
     updateDivision: vi.fn(async () => division),
     deleteDivision: vi.fn(async () => undefined),
     restoreDivision: vi.fn(async () => division),
+    setDivisionActive: vi.fn(async () => division),
     listRoles: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
     getRole: vi.fn(async () => role),
     createRole: vi.fn(async () => role),
@@ -134,20 +144,82 @@ describe("master API: divisions", () => {
     expect(response.status).toBe(200);
     expect(store.listDivisions).toHaveBeenCalledWith({
       search: "ops",
-      status: "inactive",
+      status: ["inactive"],
+      updated: undefined,
+      created: undefined,
       trashed: "only",
       sort: "code",
       dir: "desc",
       page: 2,
-      perPage: 25
-    } satisfies DivisionListQuery);
+      perPage: 25,
+      tz: "Asia/Jakarta"
+    } satisfies DivisionListRequest);
+  });
+
+  it("takes several statuses, date ranges or presets, and the reader's zone", async () => {
+    const store = fakeStore();
+    const response = await appWith(store).request(
+      "/divisions?status=inactive,active&updated=2025-12-29..2026-01-04&created=week&tz=UTC",
+      {},
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.listDivisions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ["active", "inactive"],
+        updated: "2025-12-29..2026-01-04",
+        created: "week",
+        tz: "UTC"
+      })
+    );
+  });
+
+  it("reads the old single-value status=all as any status", async () => {
+    const store = fakeStore();
+    await appWith(store).request("/divisions?status=all", {}, env);
+
+    expect(store.listDivisions).toHaveBeenCalledWith(expect.objectContaining({ status: [] }));
+  });
+
+  it.each([
+    ["an unknown status", "status=active,archived", "status.1"],
+    ["a range ending before it starts", "updated=2026-02-01..2026-01-31", "updated"],
+    ["a day that does not exist", "created=2026-02-30..2026-03-01", "created"],
+    ["an offset in place of a zone", "tz=%2B07:00", "tz"]
+  ])("rejects %s with the issue list", async (_name, search, path) => {
+    const store = fakeStore();
+    const response = await appWith(store).request(`/divisions?${search}`, {}, env);
+    const body = (await response.json()) as { code: string; issues: { path: string }[] };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe("VALIDATION_FAILED");
+    expect(body.issues.map((issue) => issue.path)).toEqual([path]);
+    expect(store.listDivisions).not.toHaveBeenCalled();
+  });
+
+  it("answers with the view and status counts", async () => {
+    const counts = {
+      views: { all: 4, trash: 1 },
+      facets: { status: { active: 3, inactive: 1 } }
+    };
+    const store = fakeStore({
+      listDivisions: vi.fn(async () => ({
+        ...EMPTY_DIVISIONS,
+        items: [division],
+        total: 1,
+        ...counts
+      }))
+    });
+
+    const response = await appWith(store).request("/divisions", {}, env);
+
+    await expect(response.json()).resolves.toMatchObject({ total: 1, ...counts });
   });
 
   it("defaults the query to the first page, active rows only", async () => {
     const store = fakeStore({
-      listDivisions: vi.fn(
-        async () => ({ items: [division], total: 1, page: 1, perPage: 10 }) as DivisionListResponse
-      )
+      listDivisions: vi.fn(async () => ({ ...EMPTY_DIVISIONS, items: [division], total: 1 }))
     });
 
     const response = await appWith(store).request("/divisions", {}, env);
@@ -156,12 +228,15 @@ describe("master API: divisions", () => {
     expect(body).toMatchObject({ total: 1, page: 1, perPage: 10 });
     expect(store.listDivisions).toHaveBeenCalledWith({
       search: undefined,
-      status: "all",
+      status: [],
+      updated: undefined,
+      created: undefined,
       trashed: "exclude",
       sort: "name",
       dir: "asc",
       page: 1,
-      perPage: 25
+      perPage: 25,
+      tz: "Asia/Jakarta"
     });
   });
 
@@ -238,7 +313,11 @@ describe("master API: divisions", () => {
     expect(store.getDivision).toHaveBeenCalledWith(ID);
 
     await expect(
-      appWith(store).request(`/divisions/${ID}`, json("PATCH", divisionBody), env)
+      appWith(store).request(
+        `/divisions/${ID}`,
+        json("PATCH", { ...divisionBody, updatedAt: STAMP }),
+        env
+      )
     ).resolves.toMatchObject({ status: 200 });
     expect(store.updateDivision).toHaveBeenCalledWith(
       ID,
@@ -253,6 +332,46 @@ describe("master API: divisions", () => {
       appWith(store).request(`/divisions/${ID}/restore`, { method: "POST" }, env)
     ).resolves.toMatchObject({ status: 200 });
     expect(store.restoreDivision).toHaveBeenCalledWith(ID);
+  });
+
+  it("activates and deactivates by id through the status-only store call", async () => {
+    const store = fakeStore();
+
+    await expect(
+      appWith(store).request(`/divisions/${ID}/deactivate`, { method: "POST" }, env)
+    ).resolves.toMatchObject({ status: 200 });
+    expect(store.setDivisionActive).toHaveBeenLastCalledWith(ID, false);
+
+    const activated = await appWith(store).request(
+      `/divisions/${ID}/activate`,
+      { method: "POST" },
+      env
+    );
+    expect(activated.status).toBe(200);
+    await expect(activated.json()).resolves.toMatchObject({ id: ID, name: "Operations" });
+    expect(store.setDivisionActive).toHaveBeenLastCalledWith(ID, true);
+    // the whole-record update is not how a switch is made
+    expect(store.updateDivision).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 when the division to switch is missing or Trashed", async () => {
+    const store = fakeStore({
+      setDivisionActive: vi.fn(async () => {
+        throw new NotFoundError("Division not found.");
+      })
+    });
+
+    const response = await appWith(store).request(
+      `/divisions/${ID}/activate`,
+      { method: "POST" },
+      env
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      code: "NOT_FOUND",
+      message: "Division not found."
+    });
   });
 
   it("rejects an id that is not a uuid", async () => {
@@ -340,7 +459,7 @@ describe("master API: roles", () => {
     });
 
     await expect(
-      appWith(store).request(`/roles/${ID}`, json("PATCH", body), env)
+      appWith(store).request(`/roles/${ID}`, json("PATCH", { ...body, updatedAt: STAMP }), env)
     ).resolves.toMatchObject({ status: 200 });
     await expect(
       appWith(store).request(`/roles/${ID}`, { method: "DELETE" }, env)
@@ -435,7 +554,11 @@ describe("master API: users", () => {
       })
     });
 
-    const response = await appWith(store).request(`/users/${ID}`, json("PATCH", body), env);
+    const response = await appWith(store).request(
+      `/users/${ID}`,
+      json("PATCH", { ...body, updatedAt: STAMP }),
+      env
+    );
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ code: "PERMISSION_ESCALATION", message });
@@ -519,14 +642,18 @@ describe("master API: users", () => {
     const isPasswordBreached = vi.fn(async () => true);
     const app = appWith(store, isPasswordBreached);
 
-    const refused = await app.request(`/users/${ID}`, json("PATCH", body), env);
+    const refused = await app.request(
+      `/users/${ID}`,
+      json("PATCH", { ...body, updatedAt: STAMP }),
+      env
+    );
     expect(refused.status).toBe(400);
     expect(store.updateUser).not.toHaveBeenCalled();
 
     isPasswordBreached.mockClear();
     const kept = await app.request(
       `/users/${ID}`,
-      json("PATCH", { ...body, password: "", passwordConfirmation: "" }),
+      json("PATCH", { ...body, password: "", passwordConfirmation: "", updatedAt: STAMP }),
       env
     );
     expect(kept.status).toBe(200);
@@ -556,7 +683,7 @@ describe("master API: users", () => {
     const store = fakeStore();
     const response = await appWith(store).request(
       `/users/${ID}`,
-      json("PATCH", { ...body, password: "", passwordConfirmation: "" }),
+      json("PATCH", { ...body, password: "", passwordConfirmation: "", updatedAt: STAMP }),
       env
     );
 
@@ -572,7 +699,8 @@ describe("master API: users", () => {
       json("PATCH", {
         ...body,
         password: "newa-long-enough-password",
-        passwordConfirmation: "newa-long-enough-password"
+        passwordConfirmation: "newa-long-enough-password",
+        updatedAt: STAMP
       }),
       env
     );
@@ -626,5 +754,137 @@ describe("master API: users", () => {
       message: taken.message,
       issues: [taken]
     });
+  });
+});
+
+describe("master API: edits over a newer save", () => {
+  const edits = [
+    {
+      name: "division",
+      path: `/divisions/${ID}`,
+      method: "updateDivision",
+      body: {
+        name: "Operations",
+        code: "OPS",
+        description: "",
+        colorHex: "#2563EB",
+        iconName: "heroicon-o-cog-6-tooth",
+        isActive: true
+      }
+    },
+    {
+      name: "role",
+      path: `/roles/${ID}`,
+      method: "updateRole",
+      body: {
+        name: "Staff",
+        description: "",
+        colorHex: "#805AD5",
+        iconName: "heroicon-o-user",
+        isActive: true
+      }
+    },
+    {
+      name: "user",
+      path: `/users/${ID}`,
+      method: "updateUser",
+      body: {
+        name: "Rina Wijaya",
+        email: "rina@vmblogistics.id",
+        phone: "0811-1000-0001",
+        roleIds: [],
+        status: "active",
+        profilePhotoPath: "",
+        password: "",
+        passwordConfirmation: ""
+      }
+    }
+  ] as const;
+
+  it.each(edits)("hands a $name's updatedAt to the store", async ({ path, method, body }) => {
+    const store = fakeStore();
+
+    const response = await appWith(store).request(
+      path,
+      json("PATCH", { ...body, updatedAt: STAMP }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(store[method]).toHaveBeenCalledWith(
+      ID,
+      expect.objectContaining({ updatedAt: STAMP }),
+      ...(method === "updateUser" ? [CALLER] : [])
+    );
+  });
+
+  it.each(edits)("rejects a $name PATCH without updatedAt", async ({ path, method, body }) => {
+    const store = fakeStore();
+
+    const response = await appWith(store).request(path, json("PATCH", body), env);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "VALIDATION_FAILED",
+      issues: [{ path: "updatedAt" }]
+    });
+    expect(store[method]).not.toHaveBeenCalled();
+  });
+
+  it.each(edits)(
+    "rejects a $name updatedAt that is not a timestamp",
+    async ({ path, method, body }) => {
+      const store = fakeStore();
+
+      for (const updatedAt of ["yesterday", "", 0]) {
+        const response = await appWith(store).request(
+          path,
+          json("PATCH", { ...body, updatedAt }),
+          env
+        );
+        expect(response.status).toBe(400);
+      }
+      expect(store[method]).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(edits)(
+    "answers 409 STALE_RECORD when a $name changed since it was loaded",
+    async ({ path, method, body }) => {
+      const message = "This record was changed by someone else since you opened it.";
+      const store = fakeStore({
+        [method]: vi.fn(async () => {
+          throw new StaleRecordError();
+        })
+      });
+
+      const response = await appWith(store).request(
+        path,
+        json("PATCH", { ...body, updatedAt: STAMP }),
+        env
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({
+        code: "STALE_RECORD",
+        message,
+        issues: [{ path: "updatedAt", message }]
+      });
+    }
+  );
+
+  it("creating does not take an updatedAt", async () => {
+    const store = fakeStore();
+
+    const response = await appWith(store).request(
+      "/divisions",
+      json("POST", { ...edits[0].body }),
+      env
+    );
+
+    expect(response.status).toBe(201);
+    expect(store.createDivision).toHaveBeenCalledWith(
+      expect.not.objectContaining({ updatedAt: expect.anything() })
+    );
   });
 });

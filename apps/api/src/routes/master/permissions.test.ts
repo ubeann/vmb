@@ -23,6 +23,8 @@ const ROUTES = [
   ["PATCH", "/divisions/:id", "master-divisions.update"],
   ["DELETE", "/divisions/:id", "master-divisions.delete"],
   ["POST", "/divisions/:id/restore", "master-divisions.restore"],
+  ["POST", "/divisions/:id/activate", "master-divisions.update"],
+  ["POST", "/divisions/:id/deactivate", "master-divisions.update"],
   ["GET", "/roles", "master-roles.view_any"],
   ["POST", "/roles", "master-roles.create"],
   ["GET", "/roles/:id", "master-roles.view"],
@@ -189,7 +191,8 @@ describe("master API permissions", () => {
           status: "active",
           profilePhotoPath: "",
           password: "",
-          passwordConfirmation: ""
+          passwordConfirmation: "",
+          updatedAt: "2026-01-05T01:10:00.000Z"
         })
       },
       env

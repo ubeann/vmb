@@ -8,7 +8,14 @@ vi.mock("./auth.js", () => ({
   createAuth: () => ({ api: { getSession: getSessionMock }, handler: authHandlerMock })
 }));
 
-const listDivisionsMock = vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 }));
+const listDivisionsMock = vi.fn(async () => ({
+  items: [],
+  total: 0,
+  page: 1,
+  perPage: 10,
+  views: { all: 0, trash: 0 },
+  facets: { status: { active: 0, inactive: 0 } }
+}));
 
 vi.mock("./master.js", () => ({
   masterStore: () =>

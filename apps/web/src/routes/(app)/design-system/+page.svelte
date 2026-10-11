@@ -13,7 +13,9 @@
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import { toast } from "svelte-sonner";
   import AnimatedIconsDemo from "./AnimatedIconsDemo.svelte";
+  import DateRangeDemo from "./DateRangeDemo.svelte";
   import DemoForm from "./DemoForm.svelte";
+  import LayerDemo from "./LayerDemo.svelte";
   import MotionDemo from "./MotionDemo.svelte";
   import MotionTokens from "./MotionTokens.svelte";
   import type { PageData } from "./$types.js";
@@ -261,14 +263,14 @@
   <section class="space-y-4" aria-labelledby="overlays">
     {@render section(
       "overlays",
-      "Dialogs and toasts",
-      "Confirm destructive actions; report outcomes with a toast."
+      "Dialogs, popovers and toasts",
+      "Confirm destructive actions; pick a value in a popover; report outcomes with a toast."
     )}
     <div class="flex flex-wrap gap-3">
       <Dialog.Root bind:open={confirmOpen}>
         <Dialog.Trigger>
           {#snippet child({ props })}
-            <Button {...props} variant="destructive"
+            <Button {...props} data-slot="button" variant="destructive"
               ><Trash2Icon data-icon="inline-start" />Delete division</Button
             >
           {/snippet}
@@ -283,7 +285,7 @@
           <Dialog.Footer>
             <Dialog.Close>
               {#snippet child({ props })}
-                <Button {...props} variant="outline">Cancel</Button>
+                <Button {...props} data-slot="button" variant="outline">Cancel</Button>
               {/snippet}
             </Dialog.Close>
             <Button
@@ -303,7 +305,17 @@
         >Error toast</Button
       >
       <Button variant="outline" onclick={() => toast.info("3 users imported")}>Info toast</Button>
+      <DateRangeDemo />
     </div>
+  </section>
+
+  <section class="space-y-4" aria-labelledby="layers">
+    {@render section(
+      "layers",
+      "Layers",
+      "A list's panels: a sheet on phones, a dialog to 639px, the panel by its button from 640px; steps open beside it where there's room."
+    )}
+    <LayerDemo />
   </section>
 
   <section class="space-y-4" aria-labelledby="motion-tokens">

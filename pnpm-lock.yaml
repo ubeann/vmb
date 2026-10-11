@@ -218,12 +218,18 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^5.20260911.1
         version: 5.20261007.1
+      '@electric-sql/pglite':
+        specifier: ^0.5.8
+        version: 0.5.8
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.2.0
       '@vmb/config':
         specifier: workspace:*
         version: link:../../packages/config
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(@cloudflare/workers-types@5.20261007.1)(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.2.0)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.1)
       eslint:
         specifier: ^10.12.0
         version: 10.12.0(jiti@2.7.0)(supports-color@10.2.2)

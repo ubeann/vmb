@@ -1,3 +1,4 @@
+import { splitListParam } from "@vmb/types";
 import type { z } from "zod";
 
 /** The list pages that page through a filtered query. */
@@ -7,16 +8,39 @@ export type MasterListPathname = "/master/divisions" | "/master/roles" | "/maste
  * A list page's query parameters, coerced and defaulted by the shared schema.
  * A parameter the schema refuses falls back to its default and the rest still
  * apply, rather than failing the page — a hand-typed URL should not be a 500.
+ * In a value filter (`status=active,archived`) only the refused value goes.
  * A repeated parameter takes its last value.
  */
 export function parseListQuery<T extends z.ZodType>(schema: T, url: URL): z.infer<T> {
   const raw: Record<string, string> = Object.fromEntries(url.searchParams);
   let parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    for (const issue of parsed.error.issues) delete raw[String(issue.path[0])];
+    // a value filter's issue names the value's index after `splitListParam`
+    const refused = new Map<string, Set<number> | "all">();
+    for (const [key, index] of parsed.error.issues.map((issue) => issue.path)) {
+      const name = String(key);
+      const known = refused.get(name);
+      if (typeof index !== "number") refused.set(name, "all");
+      else if (known !== "all") refused.set(name, (known ?? new Set()).add(index));
+    }
+    for (const [key, indexes] of refused) {
+      if (indexes === "all") delete raw[key];
+      else
+        raw[key] = splitListParam(raw[key] ?? "")
+          .filter((_, index) => !indexes.has(index))
+          .join(",");
+    }
     parsed = schema.safeParse(raw);
   }
   return (parsed.success ? parsed.data : schema.parse({})) as z.infer<T>;
+}
+
+/**
+ * A query string with the commas of a value filter left as they are
+ * (`status=active,inactive`), which a URL allows and a reader can read.
+ */
+function queryString(params: URLSearchParams): string {
+  return params.toString().replaceAll("%2C", ",");
 }
 
 /**
@@ -37,10 +61,11 @@ export function canonicalListSearch<T extends z.ZodType>(
   for (const key of new Set(url.searchParams.keys())) {
     const value = values[key];
     if (value === undefined || value === null || value === "") continue;
+    // a value filter's array joins with commas, and an empty one matches its default
     if (String(value) === String(defaults[key])) continue;
     params.set(key, String(value));
   }
-  const search = params.toString();
+  const search = queryString(params);
   return search ? `?${search}` : "";
 }
 
@@ -60,11 +85,27 @@ export function pageHref(
     params.set(key, String(value));
   }
   params.set("page", String(page));
-  return `${base}?${params.toString()}`;
+  return `${base}?${queryString(params)}`;
 }
 
 /** A list URL: one of the list routes, with or without a query. */
 export type MasterListHref = MasterListPathname | `${MasterListPathname}?${string}`;
+
+/**
+ * A value filter's parameter with one value switched on or off, in the order
+ * the list offers its values (the order the URL is canonical in). `null` once
+ * no value is left, which `listHref` takes as dropping the parameter.
+ */
+export function toggleListValue(
+  current: string | null,
+  value: string,
+  order: readonly string[]
+): string | null {
+  const picked = new Set(splitListParam(current ?? ""));
+  if (!picked.delete(value)) picked.add(value);
+  const next = order.filter((candidate) => picked.has(candidate));
+  return next.length > 0 ? next.join(",") : null;
+}
 
 /**
  * The list kit keeps its whole state in the URL (#301), so every control is a
@@ -86,7 +127,7 @@ export function listHref(
     else next.set(key, String(value));
   }
 
-  const query = next.toString();
+  const query = queryString(next);
   return query ? `${base}?${query}` : base;
 }
 
@@ -137,4 +178,36 @@ export function showingRange(list: { page: number; perPage: number; total: numbe
   const from = (list.page - 1) * list.perPage + 1;
   if (from > list.total) return { from: 0, to: 0 };
   return { from, to: Math.min(list.total, from + list.perPage - 1) };
+}
+
+/** What a list counts: one word for all numbers, or its singular and plural ("deleted division"). */
+export type CountNoun = string | { one: string; many: string };
+
+const nounFor = (noun: CountNoun, n: number) =>
+  typeof noun === "string" ? noun : n === 1 ? noun.one : noun.many;
+
+/**
+ * The footer's count line (ADR-0051 rule 5). `outOf` is how many rows the view
+ * holds before the search and filters, or null when none is set: a narrowed
+ * list that fits one page reads "3 of 12 divisions", and one that pages keeps
+ * its range and says what it was cut from. The noun agrees with the number it
+ * follows. `nameCount` makes an unfiltered range name what it counts ("Showing
+ * 1–25 of 60 deleted divisions"), as the Trash does (rule 9).
+ */
+export function countSummary(
+  list: { page: number; perPage: number; total: number },
+  noun: CountNoun,
+  outOf: number | null,
+  nameCount = false
+): string {
+  const range = showingRange(list);
+  if (list.total === 0)
+    return outOf === null ? `No ${nounFor(noun, 0)}` : `0 of ${outOf} ${nounFor(noun, outOf)}`;
+  if (range.from === 0)
+    return `${list.total} ${nounFor(noun, list.total)} in all, none on this page`;
+  if (outOf !== null && range.from === 1 && range.to === list.total)
+    return `${list.total} of ${outOf} ${nounFor(noun, outOf)}`;
+  const showing = `Showing ${range.from}–${range.to} of ${list.total}`;
+  if (outOf !== null) return `${showing} · ${outOf} ${nounFor(noun, outOf)} in all`;
+  return nameCount ? `${showing} ${nounFor(noun, list.total)}` : showing;
 }

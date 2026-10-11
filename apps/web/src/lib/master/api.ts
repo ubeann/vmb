@@ -12,12 +12,14 @@ import {
   type Access,
   type Division,
   type DivisionInput,
-  type DivisionListQuery,
+  type DivisionListRequest,
   type DivisionListResponse,
+  type DivisionUpdateInput,
   type Role,
   type RoleInput,
   type RoleListQuery,
   type RoleListResponse,
+  type RoleUpdateInput,
   type User,
   type UserCreateInput,
   type UserListQuery,
@@ -114,18 +116,22 @@ async function failure(response: Response): Promise<ApiFailure> {
   };
 }
 
-/** Query parameters are a string record on the wire; undefined keys are dropped. */
-function queryStrings(query: Record<string, string | number | undefined>) {
+/**
+ * Query parameters are a string record on the wire; undefined keys and empty
+ * value filters are dropped, and a value filter's values join with commas.
+ */
+function queryStrings(query: Record<string, string | number | readonly string[] | undefined>) {
   const params: Record<string, string> = {};
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) params[key] = String(value);
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
+    params[key] = String(value);
   }
   return params;
 }
 
 export function listDivisions(
   client: ApiClient,
-  query: DivisionListQuery
+  query: DivisionListRequest
 ): Promise<ApiResult<DivisionListResponse>> {
   return client.api.master.divisions
     .$get({ query: queryStrings(query) })
@@ -150,10 +156,26 @@ export function createDivision(
 export function updateDivision(
   client: ApiClient,
   id: string,
-  input: DivisionInput
+  input: DivisionUpdateInput
 ): Promise<ApiResult<Division>> {
   return client.api.master.divisions[":id"]
     .$patch({ param: { id }, json: input })
+    .then((response) => read(response, DivisionSchema));
+}
+
+/**
+ * Activate or deactivate a division through the endpoints that write only its
+ * active flag. A whole-record update would send back what the page last read,
+ * and could overwrite an edit made since.
+ */
+export function setDivisionActive(
+  client: ApiClient,
+  id: string,
+  isActive: boolean
+): Promise<ApiResult<Division>> {
+  const route = client.api.master.divisions[":id"];
+  return (isActive ? route.activate : route.deactivate)
+    .$post({ param: { id } })
     .then((response) => read(response, DivisionSchema));
 }
 
@@ -191,7 +213,7 @@ export function createRole(client: ApiClient, input: RoleInput): Promise<ApiResu
 export function updateRole(
   client: ApiClient,
   id: string,
-  input: RoleInput
+  input: RoleUpdateInput
 ): Promise<ApiResult<Role>> {
   return client.api.master.roles[":id"]
     .$patch({ param: { id }, json: input })

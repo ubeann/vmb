@@ -2,7 +2,7 @@ import { withApiClient } from "$lib/api-access.js";
 import { getDivision, updateDivision, pageErrorStatus } from "$lib/master/api.js";
 import { divisionFormData } from "$lib/master/form-data.js";
 import { createMasterFormAction } from "$lib/master/form-action.js";
-import { DivisionInputSchema } from "@vmb/types";
+import { DivisionUpdateInputSchema } from "@vmb/types";
 import { error } from "@sveltejs/kit";
 import { superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
@@ -25,13 +25,13 @@ export const load: PageServerLoad = async (event) => {
       label: access.value.value.name,
       tile: { iconName: access.value.value.iconName, colorHex: access.value.value.colorHex }
     },
-    form: await superValidate(divisionFormData(access.value.value), zod4(DivisionInputSchema))
+    form: await superValidate(divisionFormData(access.value.value), zod4(DivisionUpdateInputSchema))
   };
 };
 
 export const actions: Actions = {
   default: createMasterFormAction({
-    schema: DivisionInputSchema,
+    schema: DivisionUpdateInputSchema,
     logLabel: "division update",
     submit: (client, data, event) => updateDivision(client, event.params.id ?? "", data),
     redirectTo: (division) => `/master/divisions/${division.id}`

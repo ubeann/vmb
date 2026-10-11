@@ -69,7 +69,7 @@
     <button
       type="button"
       data-slot="password-toggle"
-      class="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg transition-colors focus-visible:ring-2 focus-visible:outline-none"
+      class="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-(--touch-radius) transition-colors focus-visible:ring-2 focus-visible:outline-none"
       aria-label="Show password"
       aria-controls={id}
       aria-pressed={visible}

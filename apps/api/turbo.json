@@ -4,6 +4,9 @@
   "tasks": {
     "build": {
       "outputs": []
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/migrations/**"]
     }
   }
 }

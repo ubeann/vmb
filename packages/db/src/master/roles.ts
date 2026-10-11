@@ -1,8 +1,15 @@
-import type { Role, RoleInput, RoleListQuery, RoleListResponse } from "@vmb/types";
+import type { Role, RoleInput, RoleListQuery, RoleListResponse, RoleUpdateInput } from "@vmb/types";
 import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { roles, userRoles } from "../schema/master.js";
-import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { ConflictError, ForbiddenError, NotFoundError } from "../errors.js";
+import {
+  conflictFrom,
+  nextStamp,
+  nullIfEmpty,
+  toIso,
+  unchangedSince,
+  type MasterDb
+} from "./db.js";
+import { ConflictError, ForbiddenError, NotFoundError, StaleRecordError } from "../errors.js";
 
 /** The legacy policy refuses to modify a system role (`RolePolicy.php`). */
 const SYSTEM_ROLE_MESSAGE = "System roles cannot be modified or deleted.";
@@ -99,21 +106,36 @@ export async function createRole(db: MasterDb, input: RoleInput): Promise<Role> 
   }
 }
 
-export async function updateRole(db: MasterDb, id: string, input: RoleInput): Promise<Role> {
+/**
+ * Save an edit, if the role is still as the editor loaded it: `input.updatedAt`
+ * is compared inside the update, so nothing saved since can be overwritten. A
+ * miss is a 409 when the role exists and a 404 when it does not.
+ */
+export async function updateRole(db: MasterDb, id: string, input: RoleUpdateInput): Promise<Role> {
   await assertMutable(db, id);
+  const { updatedAt, ...fields } = input;
 
   try {
     const rows = await db
       .update(roles)
-      .set({ ...input, description: nullIfEmpty(input.description), updatedAt: new Date() })
-      .where(and(eq(roles.id, id), eq(roles.isSystem, false)))
+      .set({
+        ...fields,
+        description: nullIfEmpty(fields.description),
+        updatedAt: nextStamp(roles.updatedAt)
+      })
+      .where(
+        and(eq(roles.id, id), eq(roles.isSystem, false), unchangedSince(roles.updatedAt, updatedAt))
+      )
       .returning();
     const row = rows[0];
-    if (!row) throw new NotFoundError("Role not found.");
-    return toRole(row);
+    if (row) return toRole(row);
   } catch (error) {
     return conflictFrom(error, ROLE_NAME_CONFLICT);
   }
+
+  // `assertMutable` found the role a moment ago: it is gone, or changed since
+  await assertMutable(db, id);
+  throw new StaleRecordError();
 }
 
 export async function deleteRole(db: MasterDb, id: string): Promise<void> {

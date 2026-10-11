@@ -1,3 +1,4 @@
+import { sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { DatabaseSchema } from "../schema/index.js";
 import { ConflictError } from "../errors.js";
@@ -22,6 +23,32 @@ export type OpenTransaction = <T>(work: (tx: MasterDb) => Promise<T>) => Promise
 /** Timestamps reach the store as `Date`s and leave as ISO strings on the wire. */
 export function toIso(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
+}
+
+/**
+ * Whether a row still carries the `updatedAt` its editor loaded, for the
+ * `where` of the update itself: the check and the write are one statement, so
+ * an edit saved in between cannot be overwritten. The columns keep
+ * milliseconds and the API serves them whole, so an unchanged row compares
+ * equal; a row never stamped is `null` and matches the `null` its editor read.
+ */
+export function unchangedSince(column: AnyColumn, updatedAt: string | null): SQL {
+  return sql`${column} is not distinct from ${updatedAt}::timestamptz`;
+}
+
+/**
+ * The `updated_at` a save writes: the database's clock, but never the stamp it
+ * replaces. The columns keep milliseconds, so two saves inside one millisecond
+ * would otherwise leave the stamp an earlier editor still holds, and that
+ * editor's save would pass `unchangedSince`.
+ */
+export function nextStamp(column: AnyColumn): SQL {
+  return sql`greatest(now(), ${column} + interval '1 millisecond')`;
+}
+
+/** The rows a raw `db.execute` returned, whichever driver ran it. */
+export function rowsOf<T>(result: unknown): T[] {
+  return (result as { rows: T[] }).rows;
 }
 
 /** A form's empty string is the database's null. */

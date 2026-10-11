@@ -50,8 +50,14 @@
   --success: oklch(0.45 0.12 152);
   --warning: oklch(0.47 0.11 62);
   --border: oklch(0.888 0.005 90);
-  /* Field boundaries reach 3:1 on paper and white (retires ADR-0035's exception) */
+  /* 3:1 on paper and white: the strong field boundary, now the dark end of --control-edge */
   --input: oklch(0.64 0.037 274.3);
+  /* One skin for outline buttons and list-kit fields (ADR-0035, 2026-10-11): an edge about
+   * halfway between --input and --border (45% --input, the prototype's mix the ADR measured),
+   * 2.03:1 against the card and 1.91:1 against the paper. Under 3:1, so a kit field (`Input` and
+   * the select trigger with `variant="kit"`) is told by its icon, placeholder and focus ring;
+   * form fields keep the --input edge */
+  --control-edge: color-mix(in oklab, var(--input) 45%, var(--border));
   --ring: oklch(0.51 0.164 143.6);
   /* Engraving ink: the logo navy (#041c74) eased toward paper so dense hatching reads as texture */
   --etching: oklch(0.36 0.12 266);
@@ -63,6 +69,13 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+  /* A control's corner is a quarter of its height (ADR-0035, 2026-10-11): 8px on the registry's
+   * 32px controls, 11px on 44px ones. `rounded-(--control-radius)` on buttons, fields, select
+   * triggers and filter chips grows with them on touch pointers (the rule in the base layer);
+   * `rounded-(--touch-radius)` is for a control 44px tall on every pointer, such as the auth
+   * fields. Written as variables, not theme steps, so `cn` merges them with other `rounded-*` */
+  --control-radius: calc(2rem / 4);
+  --touch-radius: calc(2.75rem / 4);
   --sidebar: oklch(0.965 0.009 88.6);
   --sidebar-foreground: oklch(0.247 0.094 267.7);
   --sidebar-primary: oklch(0.51 0.164 143.6);
@@ -73,6 +86,13 @@
   --sidebar-accent-foreground: oklch(0.247 0.094 267.7);
   --sidebar-border: oklch(0.888 0.014 93);
   --sidebar-ring: oklch(0.51 0.164 143.6);
+}
+
+/* Touch pointers grow controls to 44px (the base layer), so their corners grow with them */
+@media (pointer: coarse) {
+  :root {
+    --control-radius: var(--touch-radius);
+  }
 }
 
 .dark {
@@ -103,6 +123,8 @@
   --warning: oklch(0.82 0.13 75);
   --border: oklch(0.322 0.08 272.6);
   --input: oklch(0.501 0.076 274.2);
+  /* Dark fields and outline buttons already shared the --input edge */
+  --control-edge: var(--input);
   --ring: oklch(0.75 0.165 146.3);
   --etching: oklch(0.63 0.095 272);
   --brand-mark: oklch(0.954 0.011 95.2);
@@ -229,6 +251,7 @@
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
+  --color-control-edge: var(--control-edge);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
@@ -299,7 +322,10 @@
     cursor: pointer;
   }
 
-  /* The registry is desktop-dense; touch pointers get 44px targets. */
+  /* The registry is desktop-dense; touch pointers get 44px targets, with corners to match. A
+   * popover, dropdown or dialog trigger rendered as `Button` replaces its slot with the
+   * primitive's own, so it passes `data-slot="button"` after the primitive's props to stay
+   * matched here (`trigger-slot.test.ts`). */
   @media (pointer: coarse) {
     :where(
       [data-slot="button"],
@@ -469,27 +495,29 @@
 /*
  * Legacy page styles — pre-design-system markup (home, Master CRUD, login,
  * activate) that has not been restyled yet. Scoped to elements that are not
- * registry primitives, so they never leak into $lib/components/ui. Delete a
- * rule when the last page using it moves to the design system (#171, #172).
+ * registry primitives, so they never leak into $lib/components/ui: every rule
+ * skips an element with a `data-slot`, which a new kit element (a label, a
+ * button, a `dt`, a calendar cell) carries for that reason. Delete a rule when
+ * the last page using it moves to the design system (#171, #172).
  */
 @layer base {
-  :is(h1, h2):not([class]) {
+  :is(h1, h2):not([data-slot], [class]) {
     font-weight: 700;
     margin-block: 0.83em;
   }
-  h1:not([class]) {
+  h1:not([data-slot], [class]) {
     font-size: 2em;
   }
-  h2:not([class]) {
+  h2:not([data-slot], [class]) {
     font-size: 1.5em;
   }
-  :is(p, dl):not([class]) {
+  :is(p, dl):not([data-slot], [class]) {
     margin-block: 1em;
   }
-  dt:not([class]) {
+  dt:not([data-slot], [class]) {
     font-weight: 600;
   }
-  dd:not([class]) {
+  dd:not([data-slot], [class]) {
     margin-inline-start: 2.5rem;
   }
 
