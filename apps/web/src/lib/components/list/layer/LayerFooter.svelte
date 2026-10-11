@@ -9,11 +9,11 @@
   let { class: className, children }: { class?: string; children: Snippet } = $props();
 </script>
 
-<footer
+<div
   class={cn(
     "border-border flex shrink-0 items-center gap-2 border-t p-3 pb-[max(--spacing(3),env(safe-area-inset-bottom))] in-data-[layer-frame=modal]:p-4 in-data-[layer-frame=modal]:pb-[max(--spacing(4),env(safe-area-inset-bottom))] [&_[data-slot=button]]:min-w-20",
     className
   )}
 >
   {@render children()}
-</footer>
+</div>

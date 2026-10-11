@@ -173,7 +173,11 @@
           {#each sortFields as each (each.sort)}
             <RadioGroup.Item value={each.sort}>
               {#snippet child({ props, checked })}
-                <button {...props} class={cn(row, "justify-between", checked && "font-medium")}>
+                <button
+                  {...props}
+                  data-slot="layer-row"
+                  class={cn(row, "justify-between", checked && "font-medium")}
+                >
                   {each.label}
                   {#if checked}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
                 </button>
@@ -197,7 +201,11 @@
             {#each orderChoices(field) as choice (choice.dir)}
               <RadioGroup.Item value={choice.dir}>
                 {#snippet child({ props, checked })}
-                  <button {...props} class={cn(row, "justify-between", checked && "font-medium")}>
+                  <button
+                    {...props}
+                    data-slot="layer-row"
+                    class={cn(row, "justify-between", checked && "font-medium")}
+                  >
                     {choice.label}
                     {#if checked}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
                   </button>
@@ -247,6 +255,7 @@
             {#snippet child({ props, checked })}
               <button
                 {...props}
+                data-slot="layer-pill"
                 class={cn(
                   "focus-visible:ring-ring inline-flex h-8 flex-1 items-center justify-center rounded-(--control-radius) text-sm tabular-nums ring-1 ring-inset focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11",
                   checked

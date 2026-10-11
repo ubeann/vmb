@@ -1,4 +1,5 @@
 import { DivisionListQuerySchema, type Division } from "@vmb/types";
+import axe from "axe-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page as browser, userEvent } from "vitest/browser";
 
@@ -904,6 +905,24 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("checkbox", { name: "Code" })).toBeVisible();
 
     expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("dresses the panel's rows itself, and adds no landmark of its own", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("button", { name: "View" }).click();
+
+    // the legacy `button:not([data-slot])` rule would give each row a border and a fill
+    for (const row of [
+      screen.getByRole("radio", { name: "Code" }).element(),
+      screen.getByRole("radio", { name: "50" }).element()
+    ]) {
+      expect(getComputedStyle(row).borderTopWidth).toBe("0px");
+    }
+    // a <header> or <footer> in the portalled layer would read as a second banner
+    const { violations } = await axe.run(document.body, {
+      runOnly: { type: "rule", values: ["landmark-no-duplicate-banner", "landmark-unique"] }
+    });
+    expect(violations.map((violation) => violation.id)).toEqual([]);
   });
 
   it("hides the paging when every row fits, and keeps the count", async () => {

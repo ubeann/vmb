@@ -314,7 +314,8 @@
 <!-- each frame renders its own header, also while it animates out of a handover -->
 {#snippet body(modal: boolean)}
   {@const titleId = `${id}-${modal ? "modal" : "panel"}-title`}
-  <header
+  <!-- a div, not a header: a portalled <header> would count as a second banner landmark -->
+  <div
     class={cn(
       "border-border flex shrink-0 items-center gap-1 border-b",
       modal ? "h-14 px-2" : "h-11 px-2",
@@ -367,7 +368,7 @@
         {/snippet}
       </Dialog.Close>
     {/if}
-  </header>
+  </div>
   {#if path.length && step}
     {#key path.join("/")}{@render step(path, api)}{/key}
   {:else}
