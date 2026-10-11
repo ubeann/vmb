@@ -32,6 +32,27 @@ export const ROW_MENU_TRIGGER_CLASS =
 export const ROW_MENU_CLASS =
   "[&_[data-slot=dropdown-menu-item]:not([data-variant=destructive])_svg]:text-muted-foreground w-48";
 
+/**
+ * What a row folds to as its card narrows (ADR-0051 rules 7 and 11). The lines
+ * sit under the name in the identity cell and show only in their band; the
+ * columns they stand in for hide through `columnClass`.
+ *
+ * - `TEXT_LINE`: the free text, from 32rem to 42rem of card.
+ * - `META_LINE`: "CBK · Updated 5 Jan 2026" under 32rem, cut short with an ellipsis.
+ *   An inactive row leads it with "Inactive".
+ */
+export const TEXT_LINE =
+  "text-muted-foreground hidden truncate text-sm @lg/list:@max-2xl/list:block";
+export const META_LINE = "text-muted-foreground hidden truncate text-xs @max-lg/list:block";
+
+/**
+ * An inactive row under 32rem: the pill goes (the word leads the second line), the
+ * tile greys and the name mutes. On a wider card the pill alone says it.
+ */
+export const INACTIVE_PILL_CLASS = "@max-lg/list:hidden";
+export const INACTIVE_TILE_CLASS = "@max-lg/list:opacity-55 @max-lg/list:grayscale";
+export const INACTIVE_NAME_CLASS = "@max-lg/list:text-muted-foreground";
+
 /** Whether a click on a row, rather than on something inside it, should open the record. */
 export function opensRecord(event: MouseEvent): boolean {
   if (event.defaultPrevented || event.button !== 0) return false;

@@ -187,7 +187,13 @@
   onclose={() => (draft = undefined)}
 >
   {#snippet trigger({ props })}
-    <Button {...props} data-slot="button" variant="outline" class={cn(TOOL_BUTTON, className)}>
+    <Button
+      {...props}
+      data-slot="button"
+      title="Filter"
+      variant="outline"
+      class={cn(TOOL_BUTTON, className)}
+    >
       <ListFilterIcon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}
         >Filter</span
       >

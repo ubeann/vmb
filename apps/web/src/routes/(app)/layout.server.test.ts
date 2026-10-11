@@ -49,11 +49,25 @@ describe("the app shell layout", () => {
     await expect(load(event({ id: "u-1" }, "true"))).resolves.toMatchObject({ sidebarOpen: true });
   });
 
+  it("says whether the sidebar's state was saved, so a tablet can start on the rail only when it wasn't", async () => {
+    await expect(load(event({ id: "u-1" }))).resolves.toMatchObject({ sidebarSaved: false });
+    await expect(load(event({ id: "u-1" }, "true"))).resolves.toMatchObject({
+      sidebarOpen: true,
+      sidebarSaved: true
+    });
+    await expect(load(event({ id: "u-1" }, "false"))).resolves.toMatchObject({
+      sidebarOpen: false,
+      sidebarSaved: true
+    });
+    await expect(load(event(null, "false"))).resolves.toMatchObject({ sidebarSaved: true });
+  });
+
   it("hands the shell the user's division and permissions", async () => {
     await expect(load(event())).resolves.toEqual({
       division: { name: "Warehouse", iconName: "heroicon-o-building-storefront" },
       permissions: ["master-users.view_any"],
-      sidebarOpen: true
+      sidebarOpen: true,
+      sidebarSaved: false
     });
 
     expect(getMyAccessMock).toHaveBeenCalledWith({});
@@ -65,7 +79,8 @@ describe("the app shell layout", () => {
     await expect(load(event())).resolves.toEqual({
       division: null,
       permissions: [],
-      sidebarOpen: true
+      sidebarOpen: true,
+      sidebarSaved: false
     });
   });
 
@@ -73,7 +88,8 @@ describe("the app shell layout", () => {
     await expect(load(event(null))).resolves.toEqual({
       division: null,
       permissions: [],
-      sidebarOpen: true
+      sidebarOpen: true,
+      sidebarSaved: false
     });
     expect(withApiClientMock).not.toHaveBeenCalled();
   });
@@ -85,7 +101,8 @@ describe("the app shell layout", () => {
     await expect(load(event())).resolves.toEqual({
       division: null,
       permissions: [],
-      sidebarOpen: true
+      sidebarOpen: true,
+      sidebarSaved: false
     });
 
     expect(consoleError).toHaveBeenCalledWith(
@@ -108,7 +125,8 @@ describe("the app shell layout", () => {
     await expect(load(event())).resolves.toEqual({
       division: null,
       permissions: [],
-      sidebarOpen: true
+      sidebarOpen: true,
+      sidebarSaved: false
     });
 
     expect(consoleError).toHaveBeenCalledWith(

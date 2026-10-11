@@ -39,6 +39,7 @@ const props = (overrides: Record<string, unknown> = {}) => ({
   user,
   division,
   sidebarOpen: true,
+  sidebarSaved: true,
   children: body,
   ...overrides
 });
@@ -49,6 +50,7 @@ const phone = () => browser.viewport(390, 844);
 afterEach(() => {
   shortcuts.open = false;
   resetMode();
+  document.cookie = "sidebar_state=; path=/; max-age=0";
   mockPage.url = new URL("http://localhost/");
   mockPage.data = {};
   document.documentElement.classList.remove("dark");
@@ -696,6 +698,78 @@ describe("AppShell", () => {
     expect(
       document.querySelector("[data-slot='sidebar'][data-state]")?.getAttribute("data-state")
     ).toBe("collapsed");
+  });
+
+  // ADR-0050, "Room on tablets": 640–1023px gives the page more room, with a 16px panel and
+  // the sidebar on its icon rail, unless the user's own choice (the cookie) says otherwise.
+  describe("room on tablets", () => {
+    const sidebarState = () =>
+      document.querySelector("[data-slot='sidebar'][data-state]")?.getAttribute("data-state");
+    const panelPadding = () => {
+      const style = getComputedStyle(document.querySelector("#main-content")!);
+      return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
+    };
+
+    it("pads the panel by 16px from 640 to 1023px and 24px from 1024px", async () => {
+      for (const [width, padding] of [
+        [390, "16px"],
+        [640, "16px"],
+        [768, "16px"],
+        [1023, "16px"],
+        [1024, "24px"],
+        [1440, "24px"]
+      ] as const) {
+        await browser.viewport(width, 900);
+        const screen = await render(AppShell, props({ sidebarSaved: false }));
+        expect(panelPadding(), `${width}px`).toEqual([padding, padding, padding, padding]);
+        screen.unmount();
+      }
+    });
+
+    it("starts on the icon rail on a tablet when nothing was saved", async () => {
+      for (const width of [768, 1023]) {
+        await browser.viewport(width, 900);
+        const screen = await render(AppShell, props({ sidebarOpen: true, sidebarSaved: false }));
+        await expect.poll(sidebarState, { message: `${width}px` }).toBe("collapsed");
+        screen.unmount();
+      }
+    });
+
+    it("leaves the sidebar open from 1024px when nothing was saved", async () => {
+      await browser.viewport(1024, 900);
+      await render(AppShell, props({ sidebarOpen: true, sidebarSaved: false }));
+      // give the tablet default the chance it must not take
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(sidebarState()).toBe("expanded");
+    });
+
+    it("lets a saved choice win: open stays open, collapsed stays collapsed", async () => {
+      await browser.viewport(768, 900);
+      const open = await render(AppShell, props({ sidebarOpen: true, sidebarSaved: true }));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(sidebarState()).toBe("expanded");
+      open.unmount();
+
+      await render(AppShell, props({ sidebarOpen: false, sidebarSaved: true }));
+      expect(sidebarState()).toBe("collapsed");
+    });
+
+    it("saves nothing for the default, and the first toggle saves a choice that then stands", async () => {
+      await browser.viewport(768, 900);
+      const screen = await render(AppShell, props({ sidebarOpen: true, sidebarSaved: false }));
+      await expect.poll(sidebarState).toBe("collapsed");
+      expect(document.cookie).not.toContain("sidebar_state");
+
+      await screen.getByRole("button", { name: "Expand sidebar" }).click();
+      await expect.poll(sidebarState).toBe("expanded");
+      expect(document.cookie).toContain("sidebar_state=true");
+
+      // crossing back and forth over the tablet range doesn't undo what the user chose
+      await browser.viewport(1100, 900);
+      await browser.viewport(768, 900);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(sidebarState()).toBe("expanded");
+    });
   });
 
   describe("peeking at the collapsed rail", () => {

@@ -163,7 +163,7 @@ describe("divisions list", () => {
     await expect
       .element(screen.getByRole("link", { name: "Operations" }))
       .toHaveAttribute("href", "/master/divisions/d1000000-0000-4000-8000-000000000001");
-    await expect.element(screen.getByText("OPS")).toBeVisible();
+    await expect.element(screen.getByRole("cell", { name: "OPS" })).toBeVisible();
     const table = screen.getByRole("table");
     // there is no Status column: only the inactive row carries a pill (ADR-0051 rule 7)
     await expect
@@ -171,7 +171,7 @@ describe("divisions list", () => {
       .not.toBeInTheDocument();
     await expect.element(table.getByText("Active", { exact: true })).not.toBeInTheDocument();
     await expect
-      .element(table.getByText("Inactive", { exact: true }))
+      .element(table.getByText("Inactive", { exact: true }).first())
       .toHaveAttribute("data-tone", "neutral");
 
     await expect.element(screen.getByText("Showing 1–25 of 60")).toBeVisible();
@@ -183,7 +183,7 @@ describe("divisions list", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
-  it("fits utility columns to their content and truncates a long description (ADR-0050)", async () => {
+  it("fits utility columns to their content and gives free text the spare width (ADR-0050)", async () => {
     await browser.viewport(2400, 900);
     const text =
       "Accounts payable and receivable, payroll, tax filings, month-end close and board reporting";
@@ -202,12 +202,36 @@ describe("divisions list", () => {
     const cell = (name: RegExp) => screen.getByRole("columnheader", { name }).element();
     expect(cell(/^Code/).getBoundingClientRect().width).toBeLessThan(120);
 
-    const description = screen.getByText(text).element();
+    // free text is no longer capped at 48ch: it fills what the other columns leave
+    const description = screen.getByRole("cell", { name: text }).element().querySelector("span")!;
     expect(description.getAttribute("title")).toBe(text);
-    expect(description.getBoundingClientRect().width).toBeLessThanOrEqual(
+    expect(description.getBoundingClientRect().width).toBeGreaterThan(
       parseFloat(getComputedStyle(description).fontSize) * 48
     );
+    expect(description.scrollWidth).toBe(description.clientWidth);
+  });
+
+  it("truncates free text to the card, down to 16ch, without a sideways scroll", async () => {
+    const text =
+      "Accounts payable and receivable, payroll, tax filings, month-end close, board reporting, audit support and every other back-office duty the company has";
+    const items = [{ ...division, description: text }];
+
+    await browser.viewport(1024, 900);
+    const screen = await render(Page, props("/master/divisions", { items }));
+    const description = screen.getByRole("cell", { name: text }).element().querySelector("span")!;
+    const table = screen.getByRole("table").element().parentElement!;
     expect(description.scrollWidth).toBeGreaterThan(description.clientWidth);
+    expect(table.scrollWidth).toBeLessThanOrEqual(table.clientWidth);
+    await screen.unmount();
+
+    // the narrowest card that still shows the column: 42rem
+    await browser.viewport(680, 900);
+    const narrow = await render(Page, props("/master/divisions", { items }));
+    const squeezed = narrow.getByRole("cell", { name: text }).element().querySelector("span")!;
+    const ch = parseFloat(getComputedStyle(squeezed).fontSize) * 0.5;
+    expect(squeezed.getBoundingClientRect().width).toBeGreaterThanOrEqual(ch * 16);
+    const frame = narrow.getByRole("table").element().parentElement!;
+    expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
   });
 
   it("says what the page is in one line, with the action on the title row", async () => {
@@ -318,9 +342,10 @@ describe("divisions list", () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions?search=op"));
 
-    const marked = [...screen.container.querySelectorAll("tbody mark")].map(
-      (mark) => mark.textContent
-    );
+    // the folded second lines repeat the code and description for narrow cards; they are hidden here
+    const marked = [...screen.container.querySelectorAll("tbody mark")]
+      .filter((mark) => mark.checkVisibility())
+      .map((mark) => mark.textContent);
     // Operations (name, description "day-to-day operations") and OPS (code)
     expect(marked).toEqual(["Op", "OP", "op"]);
     expect(screen.container.querySelector("tbody a[href$='0001']")?.textContent).toBe("Operations");
@@ -510,21 +535,21 @@ describe("divisions list", () => {
       .element(screen.getByRole("link", { name: "Operations" }))
       .toHaveAttribute("href", `/master/divisions/${division.id}`);
 
-    await screen.getByText("OPS").click();
+    await screen.getByRole("cell", { name: "OPS" }).click();
     expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
     // a selection made elsewhere on the page does not swallow the click
     goto.mockClear();
     const heading = screen.getByRole("heading", { name: "Divisions", level: 1 }).element();
     getSelection()?.selectAllChildren(heading);
-    await screen.getByText("OPS").click();
+    await screen.getByRole("cell", { name: "OPS" }).click();
     getSelection()?.removeAllRanges();
     expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
     // Cmd/Ctrl-click is the name link's, for a new tab: the row does not also navigate
     goto.mockClear();
     await userEvent.keyboard("{Meta>}");
-    await screen.getByText("OPS").click({ modifiers: ["Meta"] });
+    await screen.getByRole("cell", { name: "OPS" }).click({ modifiers: ["Meta"] });
     await userEvent.keyboard("{/Meta}");
     expect(goto).not.toHaveBeenCalled();
 
@@ -546,12 +571,12 @@ describe("divisions list", () => {
         .toBeVisible();
 
       // the click that closes the layer is only that
-      await screen.getByText("OPS").click();
+      await screen.getByRole("cell", { name: "OPS" }).click();
       await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
       expect(goto).not.toHaveBeenCalled();
 
       // and the next one, with nothing open, opens the record as it always did
-      await screen.getByText("OPS").click();
+      await screen.getByRole("cell", { name: "OPS" }).click();
       expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
     }
   );
@@ -567,7 +592,7 @@ describe("divisions list", () => {
         .toBeVisible();
 
       // a finger: touch pointer events, then the click they end in
-      const code = screen.getByText("OPS").element();
+      const code = screen.getByRole("cell", { name: "OPS" }).element();
       const init = { bubbles: true, cancelable: true, composed: true, pointerType: "touch" };
       code.dispatchEvent(
         new PointerEvent("pointerdown", {
@@ -628,13 +653,13 @@ describe("divisions list", () => {
     // a row painted by the row's own fade would still read the resting colour at this moment
     expect(getComputedStyle(row("Operations")).transitionDuration).toBe("0s");
 
-    await screen.getByText("OPS").hover();
+    await screen.getByRole("cell", { name: "OPS" }).hover();
     const hovered = colours(row("Operations"));
     expect(new Set(hovered).size).toBe(1);
     expect(hovered[0]).not.toBe(resting[0]);
 
     // with the pointer gone from the row, the open menu alone holds the colour
-    await userEvent.unhover(screen.getByText("OPS").element());
+    await userEvent.unhover(screen.getByRole("cell", { name: "OPS" }).element());
     expect(colours(row("Operations"))).toEqual(resting);
     const trigger = screen.getByRole("button", { name: "Actions for Operations" });
     await trigger.click();
@@ -755,6 +780,7 @@ describe("divisions list", () => {
   });
 
   it("shows the Trash tab and its Deleted column on a Trashed row", async () => {
+    await browser.viewport(1280, 900);
     const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
     const screen = await render(
       Page,
@@ -1123,5 +1149,184 @@ describe("divisions list", () => {
       screen.getByRole("link", { name: "Next" }).element().getBoundingClientRect().width
     );
     await expect.element(screen.getByRole("link", { name: "Page 3" })).not.toBeInTheDocument();
+  });
+
+  // The card answers to its own width (ADR-0051 rule 11). These pages render alone, so the
+  // card is as wide as the viewport; the app shell's sidebar is checked in `shell-fit` below.
+  describe("answers to the card's width (ADR-0051 rule 11)", () => {
+    const visible = (element: Element | null | undefined) => Boolean(element?.checkVisibility());
+    const lines = (screen: { container: Element }, selector: string) =>
+      [...screen.container.querySelectorAll<HTMLElement>(`tbody ${selector}`)].filter((line) =>
+        visible(line)
+      );
+    const headers = (screen: { container: Element }) =>
+      [...screen.container.querySelectorAll("thead th")].filter((th) => visible(th));
+
+    it("keeps every column on a card of 42rem or more, with no second line", async () => {
+      await browser.viewport(1280, 900);
+      const screen = await render(Page, props("/master/divisions"));
+
+      for (const name of ["Name", "Code", "Description", "Updated"]) {
+        await expect
+          .element(screen.getByRole("columnheader", { name: new RegExp(name) }))
+          .toBeVisible();
+      }
+      expect(lines(screen, "p")).toEqual([]);
+      for (const name of ["Filter", "View"]) {
+        const button = screen.getByRole("button", { name }).element();
+        expect(button.textContent).toContain(name);
+        expect(button.getBoundingClientRect().width).toBeGreaterThan(40);
+      }
+    });
+
+    it("folds the description under the name between 32rem and 42rem, and Filter and View to icons", async () => {
+      await browser.viewport(600, 900);
+      const screen = await render(
+        Page,
+        props("/master/divisions?status=inactive,active&search=fleet")
+      );
+
+      // the column and its header go; Code and Updated stay
+      await expect
+        .element(screen.getByRole("columnheader", { name: /Description/ }))
+        .not.toBeInTheDocument();
+      await expect.element(screen.getByRole("columnheader", { name: /Code/ })).toBeVisible();
+      await expect.element(screen.getByRole("columnheader", { name: /Updated/ })).toBeVisible();
+
+      // its value rides under the name, marked as the column marked it
+      const [second, ...others] = lines(screen, "td:first-child p");
+      expect(others).toEqual([]);
+      expect(second!.textContent).toContain("Fleet and day-to-day operations");
+      expect(second!.querySelector("mark")?.textContent).toBe("Fleet");
+      const name = second!.parentElement!.querySelector("a")!;
+      expect(second!.getBoundingClientRect().top).toBeGreaterThan(
+        name.getBoundingClientRect().bottom - 1
+      );
+
+      // Filter and View are icon buttons, still named, with their title and the badge in a corner
+      for (const label of ["Filter", "View"]) {
+        const button = screen.getByRole("button", { name: new RegExp(`^${label}`) }).element();
+        expect(button.getBoundingClientRect().width).toBe(32);
+        expect(button.getAttribute("title")).toMatch(new RegExp(`^${label}s?$`));
+      }
+      const filter = screen.getByRole("button", { name: /^Filter/ }).element();
+      const badge = filter.querySelector("span.tabular-nums")!;
+      expect(badge.textContent).toBe("1");
+      expect(getComputedStyle(badge).position).toBe("absolute");
+    });
+
+    it("folds rows to two lines under 32rem: the header row goes, a short second line stays", async () => {
+      await browser.viewport(414, 896);
+      const screen = await render(Page, props("/master/divisions"));
+
+      expect(headers(screen)).toEqual([]);
+      await expect.element(screen.getByRole("columnheader")).not.toBeInTheDocument();
+      expect(lines(screen, "td:not(:first-child):not(:last-child)")).toEqual([]);
+
+      // the first row's second line: the code, then the day alone (no time, no zone)
+      const [first] = lines(screen, "td:first-child p");
+      expect(first!.textContent!.replace(/\s+/g, " ").trim()).toMatch(
+        /^OPS · Updated \d{1,2} \w{3} 2026$/
+      );
+      // long lines are cut with an ellipsis, not wrapped
+      const style = getComputedStyle(first!);
+      expect([style.whiteSpace, style.textOverflow, style.overflow]).toEqual([
+        "nowrap",
+        "ellipsis",
+        "hidden"
+      ]);
+      // the description is not on this line (it only rides under the name above 32rem)
+      expect(first!.textContent).not.toContain("Fleet");
+    });
+
+    it("dims an inactive row's tile and name under 32rem, and leads its second line with Inactive", async () => {
+      await browser.viewport(414, 896);
+      const screen = await render(Page, props("/master/divisions"));
+
+      const retired = screen.getByRole("link", { name: "Retired" }).element().closest("tr")!;
+      const active = screen.getByRole("link", { name: "Operations" }).element().closest("tr")!;
+      const tile = (row: Element) => row.querySelector<HTMLElement>("[data-slot=record-tile]")!;
+      const nameOf = (row: Element) => row.querySelector<HTMLElement>("td:first-child a")!;
+
+      expect(getComputedStyle(tile(retired)).opacity).toBe("0.55");
+      expect(getComputedStyle(tile(retired)).filter).toContain("grayscale");
+      expect(getComputedStyle(tile(active)).opacity).toBe("1");
+      expect(getComputedStyle(nameOf(retired)).color).not.toBe(
+        getComputedStyle(nameOf(active)).color
+      );
+
+      // the pill goes: the word moves to the line's lead
+      expect(visible(retired.querySelector("[data-tone]"))).toBe(false);
+      const second = [...retired.querySelectorAll("td:first-child p")].find((line) =>
+        visible(line)
+      )!;
+      expect(second.textContent!.replace(/\s+/g, " ").trim()).toMatch(
+        /^Inactive · RET · Updated \d{1,2} \w{3} 2026$/
+      );
+      expect(await axeViolations(document.body)).toEqual([]);
+    });
+
+    it("keeps the pill, and no dimming, from 32rem up", async () => {
+      await browser.viewport(600, 900);
+      const screen = await render(Page, props("/master/divisions"));
+
+      const retired = screen.getByRole("link", { name: "Retired" }).element().closest("tr")!;
+      expect(visible(retired.querySelector("[data-tone]"))).toBe(true);
+      expect(getComputedStyle(retired.querySelector("[data-slot=record-tile]")!).opacity).toBe("1");
+    });
+
+    it("folds the rows and swaps View's columns for Sort by on the same line, 32rem of card", async () => {
+      // the card has a 1px border each side, so its content is 2px under the viewport
+      for (const [viewport, folded] of [
+        [513, true],
+        [514, false]
+      ] as const) {
+        await browser.viewport(viewport, 900);
+        const screen = await render(Page, props("/master/divisions"));
+
+        expect(headers(screen).length === 0, `${viewport}px: no header row`).toBe(folded);
+        await screen.getByRole("button", { name: "View" }).click();
+        const sortBy = screen.getByRole("heading", { name: "Sort by" });
+        const columns = screen.getByRole("heading", { name: "Columns" });
+        await expect.element(folded ? sortBy : columns).toBeVisible();
+        await expect.element(folded ? columns : sortBy).not.toBeInTheDocument();
+        await userEvent.keyboard("{Escape}");
+        await screen.unmount();
+      }
+    });
+
+    it("opens the record from a folded row, the second line included, when no layer is open", async () => {
+      await browser.viewport(414, 896);
+      const screen = await render(Page, props("/master/divisions"));
+
+      const row = screen.getByRole("link", { name: "Operations" }).element().closest("tr")!;
+      const second = [...row.querySelectorAll("td:first-child p")].find((line) =>
+        line.checkVisibility()
+      )!;
+      await browser.elementLocator(second).click();
+      expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    });
+
+    it("has no sideways scroll at 1024, 768, 623 or 390, however long a name", async () => {
+      const long = {
+        ...division,
+        name: "Domestic and international freight forwarding and customs brokerage division",
+        description:
+          "Accounts payable and receivable, payroll, tax filings, month-end close, board reporting and audit support"
+      };
+      for (const width of [1024, 768, 623, 390]) {
+        await browser.viewport(width, 900);
+        const screen = await render(
+          Page,
+          props("/master/divisions", { items: [long, { ...inactive, name: long.name }] })
+        );
+        const frame = screen.getByRole("table").element().parentElement!;
+        expect(frame.scrollWidth, `${width}px: the table`).toBeLessThanOrEqual(frame.clientWidth);
+        expect(document.documentElement.scrollWidth, `${width}px: the page`).toBeLessThanOrEqual(
+          document.documentElement.clientWidth
+        );
+        await screen.unmount();
+      }
+    });
   });
 });

@@ -11,7 +11,7 @@
 
   It sits in the list's layer (ADR-0053), so it is the panel by its button, a
   dialog or a bottom sheet by screen size. Put it in `ListToolbar`'s `actions`;
-  it finds the card by `data-list-card` to learn when the rows have folded.
+  it learns from the `ListCard` around it when the rows have folded.
 -->
 <script lang="ts" generics="Id extends string">
   import { goto } from "$app/navigation";
@@ -33,9 +33,9 @@
   import { RadioGroup } from "bits-ui";
   import type { ColumnVisibility } from "./column-visibility.svelte.js";
   import { Layer, LayerAction, LayerBody, LayerFooter } from "./layer/index.js";
+  import { useListCard } from "./list-card.svelte.js";
   import { TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
   import {
-    foldsAt,
     orderChoices,
     pickField,
     sortChanges,
@@ -65,22 +65,10 @@
     sortFields: readonly SortField[];
   } = $props();
 
-  // The panel is portalled, outside the card's container queries, so the card's
-  // width is measured for the one thing the panel changes with it (rule 11).
-  let cardWidth = $state(0);
-  let rem = $state(16);
-  function watchCard(node: HTMLElement) {
-    const card = node.closest<HTMLElement>("[data-list-card]");
-    if (!card) return;
-    rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    cardWidth = card.clientWidth;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) cardWidth = entry.contentRect.width;
-    });
-    observer.observe(card);
-    return () => observer.disconnect();
-  }
-  const folded = $derived(foldsAt(cardWidth, rem));
+  // The panel is portalled, outside the card's container queries, so the card says
+  // when its rows have folded: the one thing the panel changes with width (rule 11).
+  const card = useListCard();
+  const folded = $derived(card?.folded ?? false);
 
   // A pick shows at once and stands until its navigation has settled, when the
   // props carry it (or, if it failed, take the panel back to what the list has).
@@ -138,7 +126,7 @@
 
 <Layer label="View">
   {#snippet trigger({ props })}
-    <Button {...props} {@attach watchCard} data-slot="button" variant="outline" class={TOOL_BUTTON}>
+    <Button {...props} data-slot="button" title="View" variant="outline" class={TOOL_BUTTON}>
       <Settings2Icon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}
         >View</span
       >

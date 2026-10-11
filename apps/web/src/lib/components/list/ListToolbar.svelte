@@ -5,7 +5,7 @@
   beside them, and under them a strip of chips for the filters in use. Put it
   first inside the card.
 
-  The card answers to its own width, not the window's: wider than 48rem
+  The card (`ListCard`) answers to its own width, not the window's: wider than 48rem
   everything shares one row; narrower, the controls drop under the tabs and a
   hairline runs under the tabs. The Filter button opens the Filter panel, a
   bottom sheet on a phone; the strip of chips shows from 640px, and a chip opens
@@ -60,7 +60,7 @@
   const noun = $derived(inTrash ? countNouns.trash : countNouns.all);
 </script>
 
-<div class="@container/list" data-list-card>
+<div>
   <div class="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3">
     <ListTabs
       {base}
