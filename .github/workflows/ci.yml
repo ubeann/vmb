@@ -271,12 +271,14 @@ jobs:
 
       # The ticket loop's two gates (docs/agents/ticket-loop.md): which tickets
       # an unattended agent may build, and which PRs it may merge to `master`,
-      # which deploys. A wrong rule here ships to production unreviewed.
+      # which deploys. A wrong rule here ships to production unreviewed. The
+      # `master` ruleset's payload is checked beside them (ADR-0054).
       - name: Test ticket loop gates
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           bash scripts/ticket-lint.test.sh
           bash scripts/merge-gate.test.sh
+          bash scripts/master-ruleset.test.sh
 
   # The same database suite, against a real server instead of embedded Postgres
   # (issue #109): embedded Postgres is a re-implementation, so this is the check

@@ -44,6 +44,10 @@ pre-commit:
     merge-gate:
       glob: "scripts/merge-gate*.sh"
       run: bash scripts/merge-gate.test.sh
+    # The `master` ruleset is what stops a red merge or a direct push on GitHub.
+    master-ruleset:
+      glob: "scripts/master-ruleset*.sh"
+      run: bash scripts/master-ruleset.test.sh
     actionlint:
       # actionlint with no arguments walks .github/workflows and also checks
       # the local actions those workflows reference, so the composite action is
