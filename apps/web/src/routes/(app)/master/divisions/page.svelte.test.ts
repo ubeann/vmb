@@ -540,6 +540,44 @@ describe("divisions list", () => {
     }
   );
 
+  it.each(["Filter", "View"])(
+    "closes %s on a touch tap on a row, and opens nothing",
+    async (button) => {
+      await browser.viewport(1024, 900);
+      const screen = await render(Page, props("/master/divisions"));
+      await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
+      await expect
+        .element(document.querySelector<HTMLElement>('[data-layer-frame="panel"]'))
+        .toBeVisible();
+
+      // a finger: touch pointer events, then the click they end in
+      const code = screen.getByText("OPS").element();
+      const init = { bubbles: true, cancelable: true, composed: true, pointerType: "touch" };
+      code.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          ...init,
+          pointerId: 7,
+          isPrimary: true,
+          button: 0,
+          buttons: 1
+        })
+      );
+      code.dispatchEvent(
+        new PointerEvent("pointerup", {
+          ...init,
+          pointerId: 7,
+          isPrimary: true,
+          button: 0,
+          buttons: 0
+        })
+      );
+      code.dispatchEvent(new MouseEvent("click", { ...init, button: 0, detail: 1 }));
+
+      await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
+      expect(goto).not.toHaveBeenCalled();
+    }
+  );
+
   it("tints the current page in the pager instead of filling it", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions", { total: 60 }));

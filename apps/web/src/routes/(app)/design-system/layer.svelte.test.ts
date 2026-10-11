@@ -56,6 +56,31 @@ async function pickStart() {
   await expect.poll(halfPicked).toBe(true);
 }
 
+// A finger on a target: touch pointer events and the click they end in. bits-ui dismisses a
+// layer on a mouse press at once, but on a touch tap only once the click arrives.
+function tap(target: Element) {
+  const init = {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    pointerType: "touch",
+    pointerId: 7,
+    isPrimary: true,
+    button: 0
+  };
+  target.dispatchEvent(new PointerEvent("pointerdown", { ...init, buttons: 1 }));
+  target.dispatchEvent(new PointerEvent("pointerup", { ...init, buttons: 0 }));
+  target.dispatchEvent(
+    new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      button: 0,
+      detail: 1
+    })
+  );
+}
+
 afterEach(async () => {
   await userEvent.keyboard("{Escape}{Escape}");
   await browser.viewport(1440, 900);
@@ -328,6 +353,75 @@ describe("closing", () => {
     await userEvent.click(active);
     await expect.poll(() => active.getAttribute("aria-checked")).toBe("true");
     expect(panel()).not.toBeNull();
+  });
+
+  it("by a touch tap outside closes the panel and runs nothing beneath", async () => {
+    await browser.viewport(1024, 900);
+    await render(LayerDemo);
+    const clicked = vi.fn();
+    const bystander = Object.assign(document.createElement("button"), { textContent: "bystander" });
+    bystander.addEventListener("click", clicked);
+    document.body.append(bystander);
+    try {
+      await openLayer();
+      tap(bystander);
+      await expect.poll(panel).toBeNull();
+      expect(clicked).not.toHaveBeenCalled();
+    } finally {
+      bystander.remove();
+    }
+  });
+
+  it.each([
+    ["the sheet", 390],
+    ["the dialog", 560]
+  ])("by a touch tap on the overlay closes %s", async (_name, width) => {
+    await browser.viewport(width, 844);
+    await render(LayerDemo);
+    await openLayer();
+    expect(modal()).not.toBeNull();
+
+    tap(find("[data-slot=dialog-overlay]")!);
+    await expect.poll(modal).toBeNull();
+  });
+
+  it("by an outside press that never becomes a click leaves the next keyboard click alone", async () => {
+    await render(LayerDemo);
+    const clicked = vi.fn();
+    const bystander = Object.assign(document.createElement("button"), { textContent: "bystander" });
+    bystander.addEventListener("click", clicked);
+    document.body.append(bystander);
+    try {
+      // a touch scroll: the press is cancelled
+      await openLayer();
+      const init = {
+        bubbles: true,
+        composed: true,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0
+      };
+      bystander.dispatchEvent(new PointerEvent("pointerdown", { ...init, buttons: 1 }));
+      bystander.dispatchEvent(new PointerEvent("pointercancel", init));
+      // Enter or Space on a button is a click with no pointer behind it
+      bystander.click();
+      expect(clicked).toHaveBeenCalledTimes(1);
+
+      // a mouse drag: released elsewhere, so no click follows
+      clicked.mockClear();
+      await openLayer();
+      bystander.dispatchEvent(
+        new PointerEvent("pointerdown", { ...init, pointerType: "mouse", buttons: 1 })
+      );
+      bystander.dispatchEvent(
+        new PointerEvent("pointerup", { ...init, pointerType: "mouse", buttons: 0 })
+      );
+      await wait(150);
+      bystander.click();
+      expect(clicked).toHaveBeenCalledTimes(1);
+    } finally {
+      bystander.remove();
+    }
   });
 
   it("by its button closes it, picker and all", async () => {

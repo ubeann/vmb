@@ -178,12 +178,17 @@
     };
   });
 
-  // A click that only closes the layer is only that. The layer hears an outside
+  // A click that only closes the panel is only that. The panel hears an outside
   // press after the click has already run, so a row beneath it (`openRow` on
   // the list) opened its record as well. The press is caught on its way down,
-  // and the click it ends in is swallowed. Another layer's button is let
-  // through, so Filter can hand over to View in one click, and so is anything
-  // a layer's own control opened (a menu or listbox).
+  // and the click it ends in is swallowed, and the panel closed from here: on
+  // touch bits-ui dismisses from that click, which this one would never let it
+  // see. Only the panel needs it: the sheet and dialog have an overlay that
+  // stops a tap reaching what lies beneath, and bits-ui closes them from it.
+  // Another layer's button is let through, so Filter can hand over to View in
+  // one click, and so is anything a layer's own control opened (a menu or
+  // listbox). The swallow is dropped once the press is over (a cancelled touch
+  // scroll, a drag released elsewhere), so a later keyboard click is not eaten.
   $effect(() => {
     if (!open) return;
     const owns = (target: EventTarget | null) =>
@@ -193,20 +198,39 @@
           "[data-layer-frame], [data-layer-picker], [data-layer-trigger], [role=menu], [role=listbox]"
         )
       );
+    let disarm = () => {};
     const ondown = (event: PointerEvent) => {
-      if (event.button !== 0 || owns(event.target)) return;
+      disarm();
+      if (frame !== "panel" || event.button !== 0 || owns(event.target)) return;
+      let dropping: ReturnType<typeof setTimeout> | undefined;
       const swallow = (click: Event) => {
+        // Enter or Space on a button is a click with no pointer behind it
+        if ((click as MouseEvent).detail === 0) return;
+        disarm();
         click.stopImmediatePropagation();
         click.preventDefault();
+        close();
       };
-      addEventListener("click", swallow, { capture: true, once: true });
-      // a press that never becomes a click (a drag) must not eat the next one
-      addEventListener("pointerdown", () => removeEventListener("click", swallow, true), {
-        capture: true,
-        once: true
-      });
+      // the click follows its press within the same gesture; one that has not come
+      // shortly after the press ended is not coming
+      const released = () => {
+        clearTimeout(dropping);
+        dropping = setTimeout(disarm, 100);
+      };
+      disarm = () => {
+        clearTimeout(dropping);
+        removeEventListener("click", swallow, true);
+        removeEventListener("pointerup", released, true);
+        removeEventListener("pointercancel", disarm, true);
+        disarm = () => {};
+      };
+      addEventListener("click", swallow, true);
+      addEventListener("pointerup", released, true);
+      addEventListener("pointercancel", disarm, true);
     };
     addEventListener("pointerdown", ondown, true);
+    // closing the layer ends this effect, but a swallow armed by the press that closed it must
+    // still catch its click
     return () => removeEventListener("pointerdown", ondown, true);
   });
 
