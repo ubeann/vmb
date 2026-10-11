@@ -9,11 +9,16 @@
  * painted separately, switched at once, so the middle lagged the edges. So no
  * fade, and a row whose menu is open keeps the hover colour.
  */
-export const ROW_CLASS = "cursor-pointer transition-none hover:bg-muted has-aria-expanded:bg-muted";
+export const ROW_CLASS =
+  "cursor-pointer transition-none hover:bg-muted has-aria-expanded:bg-muted data-marked:bg-muted";
 
 /** A pinned cell follows every state that paints its row, the open menu included. */
 export const PINNED_BG_CLASS =
-  "bg-card [tr:hover>&]:bg-muted [tr:has([aria-expanded=true])>&]:bg-muted";
+  "bg-card [tr:hover>&]:bg-muted [tr:has([aria-expanded=true])>&]:bg-muted [tr[data-marked]>&]:bg-muted";
+
+/** The keyboard's row (ADR-0052 rule 4) gets a green bar on its leading edge; put it on the name cell. */
+export const ROW_MARK_CLASS =
+  "before:bg-primary before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:opacity-0 [tr[data-marked]>&]:before:opacity-100";
 
 /** A row action lifts on hover to the page colour with a hairline, so it stands out from the hovered row. */
 export const ROW_ACTION_CLASS =

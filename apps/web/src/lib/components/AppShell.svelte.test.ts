@@ -1,6 +1,6 @@
 import { createRawSnippet } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { page as browser, userEvent } from "vitest/browser";
+import { cdp, page as browser, userEvent } from "vitest/browser";
 
 // Isolated renders don't load the global stylesheet; the sidebar's responsive
 // switch and axe's colour reads are styles.
@@ -27,6 +27,7 @@ vi.mock("$app/navigation", () => ({
 
 const { render } = await import("vitest-browser-svelte");
 const { modeStorageKey, resetMode } = await import("mode-watcher");
+const { shortcuts } = await import("$lib/components/shortcuts.svelte.js");
 const { default: AppShell } = await import("./AppShell.svelte");
 
 const body = createRawSnippet(() => ({ render: () => "<h1>Page body</h1>" }));
@@ -46,6 +47,7 @@ const desktop = () => browser.viewport(1280, 800);
 const phone = () => browser.viewport(390, 844);
 
 afterEach(() => {
+  shortcuts.open = false;
   resetMode();
   mockPage.url = new URL("http://localhost/");
   mockPage.data = {};
@@ -882,4 +884,69 @@ describe("AppShell", () => {
       expect(await axeViolations(document.body)).toEqual([]);
     });
   }
+  describe("shortcuts (ADR-0052)", () => {
+    const sheet = () => browser.getByRole("dialog", { name: "Keyboard shortcuts" });
+
+    it("puts a Shortcuts row above Collapse in the footer, and it opens the sheet", async () => {
+      await desktop();
+      const screen = await render(AppShell, props());
+      const row = screen.getByRole("button", { name: /Shortcuts/ });
+      const collapse = screen.getByRole("button", { name: "Collapse sidebar" });
+
+      expect(row.element().getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        collapse.element().getBoundingClientRect().top
+      );
+      await row.click();
+
+      await expect.element(sheet()).toBeVisible();
+      await expect.element(sheet().getByText("Collapse or expand the sidebar")).toBeVisible();
+    });
+
+    it("opens the sheet on ? from the page, and not from the search field", async () => {
+      await desktop();
+      const screen = await render(
+        AppShell,
+        props({
+          children: createRawSnippet(() => ({
+            render: () => '<input aria-label="Search" />'
+          }))
+        })
+      );
+
+      await screen.getByRole("textbox", { name: "Search" }).click();
+      await userEvent.keyboard("?");
+      await expect.element(sheet()).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("main"));
+      await userEvent.keyboard("?");
+      await expect.element(sheet()).toBeVisible();
+    });
+
+    it("keeps the row on the collapsed rail as an icon with a tooltip", async () => {
+      await desktop();
+      const screen = await render(AppShell, props({ sidebarOpen: false }));
+      const row = screen.getByRole("button", { name: /Shortcuts/ });
+
+      const { width } = row.element().getBoundingClientRect();
+      expect(width).toBe(32);
+      await userEvent.hover(row);
+      await expect
+        .poll(() => document.querySelector("[data-slot='tooltip-content']")?.textContent)
+        .toContain("Keyboard shortcuts");
+    });
+
+    it("hides the row on a touch screen", async () => {
+      await desktop();
+      const screen = await render(AppShell, props());
+      const row = screen.getByRole("button", { name: /Shortcuts/ }).element();
+      expect(getComputedStyle(row.closest("li")!).display).not.toBe("none");
+
+      await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+      try {
+        await expect.poll(() => getComputedStyle(row.closest("li")!).display).toBe("none");
+      } finally {
+        await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: false });
+      }
+    });
+  });
 });
