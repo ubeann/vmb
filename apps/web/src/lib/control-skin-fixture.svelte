@@ -1,22 +1,21 @@
 <!-- Test fixture: a list toolbar's controls, a form's fields, and kit elements beside the legacy layer (control-skin.svelte.test.ts). -->
 <script lang="ts">
-  import ColumnsMenu from "$lib/components/list/ColumnsMenu.svelte";
-  import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
+  import { Layer } from "$lib/components/list/layer/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import * as Select from "$lib/components/ui/select/index.js";
-
-  const columns = new ColumnVisibility("fixture", [
-    { id: "name", label: "Name", hideable: false },
-    { id: "code", label: "Code" }
-  ]);
 </script>
 
 <div class="bg-card flex gap-2 p-4">
   <Input type="search" aria-label="Search" variant="kit" />
   <Button variant="outline">Filter</Button>
   <Button variant="outline" class="rounded-full">Pill</Button>
-  <ColumnsMenu {columns} />
+  <Layer label="View">
+    {#snippet trigger({ props })}
+      <Button {...props} data-slot="button" variant="outline">View</Button>
+    {/snippet}
+    <p>Columns</p>
+  </Layer>
   <Select.Root type="single" value="25">
     <Select.Trigger aria-label="Rows per page" variant="kit">25</Select.Trigger>
     <Select.Content>

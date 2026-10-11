@@ -14,7 +14,7 @@
   import { page } from "$app/state";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Sheet from "$lib/components/ui/sheet/index.js";
-  import type { MasterListPathname } from "$lib/master/list.js";
+  import type { CountNoun, MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
   import type { Snippet } from "svelte";
@@ -32,7 +32,7 @@
   let {
     base,
     viewsLabel,
-    countNoun,
+    countNouns,
     views,
     searchLabel,
     searchPlaceholder,
@@ -43,8 +43,8 @@
     base: MasterListPathname;
     /** Names the tabs for a screen reader: "Division views". */
     viewsLabel: string;
-    /** What the tabs' counts count: "divisions". */
-    countNoun: string;
+    /** What the tabs' counts count: "divisions" and "deleted divisions". */
+    countNouns: { all: CountNoun; trash: CountNoun };
     /** Rows in each view under the current search and filters; null when the list failed to load. */
     views: { all: number; trash: number } | null;
     searchLabel: string;
@@ -67,13 +67,13 @@
   const anyActive = $derived(hasActiveFilters(filters, page.url.searchParams));
 </script>
 
-<div class="@container/list">
+<div class="@container/list" data-list-card>
   <div class="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3">
     <ListTabs
       {base}
       label={viewsLabel}
       {views}
-      {countNoun}
+      {countNouns}
       class="@max-3xl/list:-mx-3 @max-3xl/list:mb-0 @max-3xl/list:w-[calc(100%+1.5rem)] @max-3xl/list:px-3 @max-3xl/list:shadow-[inset_0_-1px_0_var(--border)]"
     />
     <div class="ml-auto flex items-center gap-2 py-2 max-sm:w-full @max-3xl/list:w-full">
