@@ -143,7 +143,7 @@ A recorded approval decision. Legacy implemented three independent approval tabl
 _Avoid_: Approver (that's the User), sign-off
 
 **Trashed**:
-A deleted record that can still be restored, hidden from lists unless asked for. Records with no Trash, such as Roles, are deleted permanently instead.
+A deleted record that can still be restored, hidden from lists unless asked for. It is read-only until restored: Restore is the only change it accepts (ADR-0055). Records with no Trash, such as Roles, are deleted permanently instead.
 _Avoid_: Archived, deactivated, soft-deleted
 
 **Inactive**:

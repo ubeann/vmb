@@ -97,13 +97,13 @@
           <td>{USER_STATUS_LABELS[user.status]}</td>
           <td>{user.emailVerified ? "Verified" : "Unverified"}</td>
           <td>
-            <a href={resolve("/(app)/master/users/[id]/edit", { id: user.id })}>Edit</a>
             {#if user.deletedAt}
               <form class="actions" method="POST" action="?/restore">
                 <input type="hidden" name="id" value={user.id} />
                 <button type="submit">Restore</button>
               </form>
             {:else}
+              <a href={resolve("/(app)/master/users/[id]/edit", { id: user.id })}>Edit</a>
               <form class="actions" method="POST" action="?/delete">
                 <input type="hidden" name="id" value={user.id} />
                 <button type="submit">Delete</button>

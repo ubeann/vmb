@@ -18,6 +18,8 @@ export const load: PageServerLoad = async (event) => {
   if (!access.value.ok) {
     error(pageErrorStatus(access.value.status), access.value.error);
   }
+  // a Trashed division is read-only until restored (ADR-0055): the API answers an edit of it 404, and so does this
+  if (access.value.value.deletedAt) error(404, "Division not found.");
 
   return {
     division: access.value.value,

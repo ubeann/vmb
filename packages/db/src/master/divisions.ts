@@ -198,9 +198,11 @@ export async function createDivision(db: MasterDb, input: DivisionInput): Promis
 }
 
 /**
- * Save an edit, if the division is still as the editor loaded it: `input.updatedAt`
- * is compared inside the update, so nothing saved since can be overwritten. A
- * miss is a 409 when the division exists and a 404 when it does not.
+ * Save an edit, if the division is live and still as the editor loaded it:
+ * `deletedAt` and `input.updatedAt` are both checked inside the update, so
+ * neither a delete nor a save in between can be overwritten (a Trashed division
+ * is read-only until it is restored, ADR-0055). A miss is a 404 when the
+ * division is missing or Trashed, and a 409 when it is live but has changed.
  */
 export async function updateDivision(
   db: MasterDb,
@@ -217,7 +219,13 @@ export async function updateDivision(
         description: nullIfEmpty(fields.description),
         updatedAt: nextStamp(divisions.updatedAt)
       })
-      .where(and(eq(divisions.id, id), unchangedSince(divisions.updatedAt, updatedAt)))
+      .where(
+        and(
+          eq(divisions.id, id),
+          isNull(divisions.deletedAt),
+          unchangedSince(divisions.updatedAt, updatedAt)
+        )
+      )
       .returning();
     const row = rows[0];
     if (row) return toDivision(row);
@@ -225,10 +233,11 @@ export async function updateDivision(
     return conflictFrom(error, DIVISION_CONFLICTS);
   }
 
+  // a Trashed division is not stale, it is out of reach: reloading would not help
   const found = await db
     .select({ id: divisions.id })
     .from(divisions)
-    .where(eq(divisions.id, id))
+    .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
     .limit(1);
   if (!found[0]) throw new NotFoundError("Division not found.");
   throw new StaleRecordError();
@@ -238,8 +247,8 @@ export async function updateDivision(
  * Switch a live division on or off. It writes `is_active` and `updated_at` and
  * nothing else, so a row's Activate or Deactivate cannot overwrite a field
  * someone else is editing, as a whole-record update would. A Trashed division
- * is not switched: it comes back with Restore first. `updated_at` moves only
- * when the flag changes.
+ * is not switched: it comes back with Restore first (ADR-0055). `updated_at`
+ * moves only when the flag changes.
  */
 export async function setDivisionActive(
   db: MasterDb,
@@ -264,7 +273,8 @@ export async function setDivisionActive(
 export async function deleteDivision(db: MasterDb, id: string): Promise<void> {
   const rows = await db
     .update(divisions)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    // a stamp an editor still holds is never reissued, so its save is stale (as after a save)
+    .set({ deletedAt: new Date(), updatedAt: nextStamp(divisions.updatedAt) })
     .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
     .returning({ id: divisions.id });
 
@@ -275,7 +285,7 @@ export async function restoreDivision(db: MasterDb, id: string): Promise<Divisio
   try {
     const rows = await db
       .update(divisions)
-      .set({ deletedAt: null, updatedAt: new Date() })
+      .set({ deletedAt: null, updatedAt: nextStamp(divisions.updatedAt) })
       .where(and(eq(divisions.id, id), isNotNull(divisions.deletedAt)))
       .returning();
 

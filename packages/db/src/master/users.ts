@@ -232,6 +232,13 @@ export async function createUser(
   return getUser(db, id);
 }
 
+/**
+ * Save an edit, if the user is live and still as the editor loaded it. A
+ * Trashed user is read-only until restored (ADR-0055): the writing statement's
+ * own `where` refuses one, so nothing read beforehand can let a delete slip
+ * past, and it is answered as a missing user where a live user that changed
+ * since is a 409.
+ */
 export async function updateUser(
   db: MasterDb,
   options: UserStoreOptions,
@@ -273,10 +280,10 @@ export async function updateUser(
   const photo = nullIfEmpty(input.profilePhotoPath);
 
   try {
-    // `where id = … and <unchanged since>` is the stale check, inside the
-    // statement that writes: when it matches no row, nothing in the statement
-    // changes (the role sync and the identity writes all read `business_user`)
-    // and the final select returns no row.
+    // `where id = … and deleted_at is null and <unchanged since>` is the Trash
+    // and stale check, inside the statement that writes: when it matches no
+    // row, nothing in the statement changes (the role sync and the identity
+    // writes all read `business_user`) and the final select returns no row.
     const stamp = unchangedSince(users.updatedAt, input.updatedAt);
     let result: unknown;
 
@@ -294,7 +301,7 @@ export async function updateUser(
                  email = ${input.email},
                  profile_photo_path = ${photo},
                  updated_at = ${nextStamp(users.updatedAt)}
-           where id = ${id} and ${stamp}
+           where id = ${id} and deleted_at is null and ${stamp}
           returning id
         ), auth_update as (
           update public."user"
@@ -322,7 +329,7 @@ export async function updateUser(
                  email = ${input.email},
                  profile_photo_path = ${photo},
                  updated_at = ${nextStamp(users.updatedAt)}
-           where id = ${id} and ${stamp}
+           where id = ${id} and deleted_at is null and ${stamp}
           returning id, name, email, profile_photo_path
         ), auth_update as (
           update public."user"
@@ -358,8 +365,13 @@ export async function updateUser(
     }
 
     if (rowsOf(result).length === 0) {
-      // the record is not there, or changed since the editor loaded it
-      await getUser(db, id);
+      // gone or Trashed since the checks above (404), or changed since the editor loaded it (409)
+      const current = await db
+        .select({ deletedAt: users.deletedAt })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+      if (!current[0] || current[0].deletedAt) throw new NotFoundError("User not found.");
       throw new StaleRecordError();
     }
   } catch (error) {
@@ -380,7 +392,8 @@ export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promis
 
   const rows = await db
     .update(users)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    // a stamp an editor still holds is never reissued, so its save is stale (as after a save)
+    .set({ deletedAt: new Date(), updatedAt: nextStamp(users.updatedAt) })
     .where(and(eq(users.id, id), isNull(users.deletedAt)))
     .returning({ id: users.id });
 
@@ -398,7 +411,7 @@ export async function restoreUser(db: MasterDb, id: string, actor: Actor): Promi
 
   const rows = await db
     .update(users)
-    .set({ deletedAt: null, updatedAt: new Date() })
+    .set({ deletedAt: null, updatedAt: nextStamp(users.updatedAt) })
     .where(and(eq(users.id, id), isNotNull(users.deletedAt)))
     .returning({ id: users.id });
 
