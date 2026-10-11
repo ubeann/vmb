@@ -1340,6 +1340,23 @@ describe("divisions list", () => {
       }
     });
 
+    it("reads the fold without checkVisibility, which Safari lacks before 17.4", async () => {
+      const original = Element.prototype.checkVisibility;
+      // @ts-expect-error simulating a browser without the method
+      Element.prototype.checkVisibility = undefined;
+      try {
+        await browser.viewport(414, 896);
+        const screen = await render(Page, props("/master/divisions"));
+        await screen.getByRole("button", { name: "View" }).click();
+        await expect.element(screen.getByRole("heading", { name: "Sort by" })).toBeVisible();
+        await expect
+          .element(screen.getByRole("heading", { name: "Columns" }))
+          .not.toBeInTheDocument();
+      } finally {
+        Element.prototype.checkVisibility = original;
+      }
+    });
+
     it("opens the record from a folded row, the second line included, when no layer is open", async () => {
       await browser.viewport(414, 896);
       const screen = await render(Page, props("/master/divisions"));

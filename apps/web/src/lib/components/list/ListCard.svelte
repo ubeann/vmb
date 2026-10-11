@@ -9,7 +9,7 @@
   Sort by and Order once rows fold. So the fold has one definition, the CSS one:
   an empty probe inside the card is shown under 32rem (`@max-lg`, the same line
   that hides the header row and folds the rows), and `folded` follows whether
-  it is shown. `useListCard()` hands that to the panel.
+  it is shown (its `display` is the whole signal). `useListCard()` hands that to the panel.
 -->
 <script lang="ts">
   import { cn } from "$lib/utils.js";
@@ -25,7 +25,8 @@
   const card = setListCard();
 
   function watchFold(probe: HTMLElement) {
-    const read = () => (card.folded = probe.checkVisibility());
+    // computed style, not `checkVisibility()`, which Safari only has from 17.4
+    const read = () => (card.folded = getComputedStyle(probe).display !== "none");
     read();
     const observer = new ResizeObserver(read);
     observer.observe(probe.parentElement!);
