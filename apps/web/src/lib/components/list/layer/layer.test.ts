@@ -9,6 +9,12 @@ describe("fitsBeside", () => {
     expect(fitsBeside(899, 560)).toBe(false);
   });
 
+  it("takes the panel's 20rem at the page's root font size", () => {
+    // at a 20px default the panel is 400px, so it needs 80px more room
+    expect(fitsBeside(900, 560, 20)).toBe(false);
+    expect(fitsBeside(980, 560, 20)).toBe(true);
+  });
+
   it("measures from the button, so the sidebar's width counts", () => {
     // 1024px window: with the sidebar the toolbar ends nearer the edge than
     // the window, without it the button sits further left in a narrow column

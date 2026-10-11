@@ -19,20 +19,21 @@ const PANEL_FROM = 640;
 export const frameNow = (): LayerFrame =>
   matchMedia(`(min-width: ${PANEL_FROM}px)`).matches ? "panel" : "modal";
 
-/** The panel's width where its picker fits beside it (20rem), and where it doesn't (22rem). */
-const PANEL_WIDTH = 320;
+/** The panel's width, in rem, where its picker fits beside it (it is 22rem where it doesn't). */
+const PANEL_REM = 20;
 
 /** How far the picker opens from the panel, and how far it keeps off the window's edge. */
 export const BESIDE_OFFSET = 12;
 const EDGE = 8;
 
 /**
- * Whether a picker fits to the left of a 20rem panel opened by a button whose
- * right edge is at `buttonRight` (rule 2). The room is measured from the
- * button, not a breakpoint, because the sidebar changes it at the same width.
+ * Whether a picker fits to the left of a 20rem panel (`w-80`) opened by a
+ * button whose right edge is at `buttonRight`, at the page's root font size
+ * `rem` (rule 2). The room is measured from the button, not a breakpoint,
+ * because the sidebar changes it at the same width.
  */
-export const fitsBeside = (buttonRight: number, pickerWidth: number) =>
-  buttonRight - PANEL_WIDTH >= pickerWidth + BESIDE_OFFSET + EDGE;
+export const fitsBeside = (buttonRight: number, pickerWidth: number, rem = 16) =>
+  buttonRight - PANEL_REM * rem >= pickerWidth + BESIDE_OFFSET + EDGE;
 
 /** A handover waits until the window has stopped resizing this long (rule 6). */
 export const SETTLE_MS = 200;
