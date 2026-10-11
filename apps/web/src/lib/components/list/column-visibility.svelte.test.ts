@@ -42,4 +42,31 @@ describe("ColumnVisibility", () => {
     columns.restore();
     expect(columns.visible("code")).toBe(true);
   });
+
+  it("reports a change from the defaults, and none once a column is put back", () => {
+    const columns = new ColumnVisibility("divisions", COLUMNS);
+    expect(columns.changed).toBe(false);
+    columns.set("code", false);
+    expect(columns.changed).toBe(true);
+    columns.set("code", true);
+    expect(columns.changed).toBe(false);
+    columns.set("createdAt", true);
+    expect(columns.changed).toBe(true);
+  });
+
+  it("resets to the defaults and forgets what it saved", () => {
+    const columns = new ColumnVisibility("divisions", COLUMNS);
+    columns.set("code", false);
+    columns.set("createdAt", true);
+
+    columns.reset();
+    expect(columns.visible("code")).toBe(true);
+    expect(columns.visible("createdAt")).toBe(false);
+    expect(columns.changed).toBe(false);
+    expect(localStorage.getItem("vmb:list-columns:divisions")).toBeNull();
+
+    const again = new ColumnVisibility("divisions", COLUMNS);
+    again.restore();
+    expect(again.visible("code")).toBe(true);
+  });
 });

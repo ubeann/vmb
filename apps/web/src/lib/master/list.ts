@@ -183,7 +183,8 @@ export function showingRange(list: { page: number; perPage: number; total: numbe
 /** What a list counts: one word for all numbers, or its singular and plural ("deleted division"). */
 export type CountNoun = string | { one: string; many: string };
 
-const nounFor = (noun: CountNoun, n: number) =>
+/** The noun in the form that agrees with `n`. */
+export const nounFor = (noun: CountNoun, n: number) =>
   typeof noun === "string" ? noun : n === 1 ? noun.one : noun.many;
 
 /**

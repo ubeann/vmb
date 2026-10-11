@@ -59,8 +59,8 @@ describe("Button-rendered triggers", () => {
   });
 
   it("finds the triggers it checks", () => {
-    const columnsMenu = join(src, "lib/components/list/ColumnsMenu.svelte");
-    const tags = startTags(readFileSync(columnsMenu, "utf8"));
+    const viewPanel = join(src, "lib/components/list/ViewPanel.svelte");
+    const tags = startTags(readFileSync(viewPanel, "utf8"));
     expect(tags.some(({ tag }) => tag.includes("{...props}"))).toBe(true);
 
     const filterMenu = join(src, "lib/components/list/FilterMenu.svelte");

@@ -33,11 +33,27 @@ export class ColumnVisibility<Id extends string> {
     return this.columns.find((column) => column.id === id)?.hideable !== false;
   }
 
+  /** Whether any column differs from its default, which the View button's dot reports (ADR-0051 rule 6). */
+  get changed(): boolean {
+    return this.columns.some((column) => this.visible(column.id) !== !column.hidden);
+  }
+
   set(id: Id, visible: boolean): void {
     if (!this.hideable(id)) return;
     this.#shown[id] = visible;
+    this.#save();
+  }
+
+  /** Puts every column back to its default, and forgets the saved choice. */
+  reset(): void {
+    this.#shown = Object.fromEntries(this.columns.map((column) => [column.id, !column.hidden]));
+    this.#save();
+  }
+
+  #save(): void {
     try {
-      localStorage.setItem(this.#key, JSON.stringify(this.#shown));
+      if (this.changed) localStorage.setItem(this.#key, JSON.stringify(this.#shown));
+      else localStorage.removeItem(this.#key);
     } catch {
       // storage full or disabled: the choice lasts for this page only
     }

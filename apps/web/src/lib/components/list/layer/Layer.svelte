@@ -49,7 +49,7 @@
 
   let {
     label,
-    stepTitle,
+    stepTitle = () => label,
     pickerWidth = 560,
     inside = (step) => [step],
     onclose,
@@ -61,8 +61,8 @@
   }: {
     /** The top level's title, such as "Filters"; also the layer's accessible name. */
     label: string;
-    /** A step's title, from its path; the last entry is the step shown. */
-    stepTitle: (path: readonly string[]) => string;
+    /** A step's title, from its path; the last entry is the step shown. A layer without steps leaves it out. */
+    stepTitle?: (path: readonly string[]) => string;
     /** The picker's width beside the panel, which decides whether it fits. */
     pickerWidth?: number;
     /** The steps a picker beside the panel becomes inside the layer, such as its calendar once days are picked. */
@@ -75,8 +75,8 @@
     headerAction?: Snippet<[LayerApi]>;
     /** The top level's content. */
     children: Snippet<[LayerApi]>;
-    /** A step's content inside the layer. */
-    step: Snippet<[readonly string[], LayerApi]>;
+    /** A step's content inside the layer; a layer without steps, such as View, leaves it out. */
+    step?: Snippet<[readonly string[], LayerApi]>;
     /** A step's picker beside the panel. Without it, steps always open inside. */
     beside?: Snippet<[string, LayerApi]>;
   } = $props();
@@ -314,7 +314,8 @@
 <!-- each frame renders its own header, also while it animates out of a handover -->
 {#snippet body(modal: boolean)}
   {@const titleId = `${id}-${modal ? "modal" : "panel"}-title`}
-  <header
+  <!-- a div, not a header: a portalled <header> would count as a second banner landmark -->
+  <div
     class={cn(
       "border-border flex shrink-0 items-center gap-1 border-b",
       modal ? "h-14 px-2" : "h-11 px-2",
@@ -367,8 +368,8 @@
         {/snippet}
       </Dialog.Close>
     {/if}
-  </header>
-  {#if path.length}
+  </div>
+  {#if path.length && step}
     {#key path.join("/")}{@render step(path, api)}{/key}
   {:else}
     {@render children(api)}

@@ -1,7 +1,7 @@
 <!--
   The Divisions list, the pilot of the list kit (#301) that Roles, Users and
   the domain modules compose from: search, filter chips, an All · Trash switch,
-  sortable columns, paging and a columns menu, with the whole state in the URL.
+  sortable columns, paging and a View panel, with the whole state in the URL.
   Actions follow the caller's permissions; the API refuses the same things.
   Rows, row actions and the Trash follow ADR-0051 rules 7 to 9.
 -->
@@ -16,7 +16,6 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import RecordTime from "$lib/components/RecordTime.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
-  import ColumnsMenu from "$lib/components/list/ColumnsMenu.svelte";
   import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
   import { columnClass, TEXT_CAP } from "$lib/components/list/columns.js";
   import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
@@ -34,13 +33,15 @@
     ROW_MENU_TRIGGER_CLASS
   } from "$lib/components/list/rows.js";
   import SortableHead from "$lib/components/list/SortableHead.svelte";
+  import ViewPanel from "$lib/components/list/ViewPanel.svelte";
+  import { DATE_ORDER, TEXT_ORDER, type SortField } from "$lib/components/list/view.js";
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
   import { listHref } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
-  import type { Division, PermissionKey } from "@vmb/types";
+  import { DivisionListQuerySchema, type Division, type PermissionKey } from "@vmb/types";
   import Building2Icon from "@lucide/svelte/icons/building-2";
   import CircleDotIcon from "@lucide/svelte/icons/circle-dot";
   import EllipsisVerticalIcon from "@lucide/svelte/icons/ellipsis-vertical";
@@ -84,6 +85,15 @@
   ]);
   onMount(() => columns.restore());
 
+  // the sort the list has with nothing in the URL
+  const defaultSort = DivisionListQuerySchema.parse({});
+
+  // what the tabs' counts and the footer count, each agreeing with its number
+  const NOUNS = {
+    all: { one: "division", many: "divisions" },
+    trash: { one: "deleted division", many: "deleted divisions" }
+  };
+
   const can = (permission: PermissionKey) => data.permissions.includes(permission);
 
   const inTrash = $derived(data.query.trashed === "only");
@@ -92,6 +102,16 @@
       data.query.status.length > 0
   );
   const sort = $derived({ sort: data.query.sort, dir: data.query.dir });
+  // what narrow cards sort by in the View panel; a deleted division's last update is its deletion
+  const sortFields = $derived<SortField[]>([
+    { sort: "name", label: "Name", ...TEXT_ORDER },
+    { sort: "code", label: "Code", ...TEXT_ORDER },
+    {
+      sort: "updatedAt",
+      label: inTrash ? "Date deleted" : "Last updated",
+      ...DATE_ORDER
+    }
+  ]);
   // a search, filter, sort or page change on this list, still loading
   const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
 
@@ -252,7 +272,7 @@
     <ListToolbar
       {base}
       viewsLabel="Division views"
-      countNoun="divisions"
+      countNouns={NOUNS}
       views={data.divisions ? data.divisions.views : null}
       searchLabel="Search divisions"
       searchPlaceholder="Search name, code or description"
@@ -260,7 +280,14 @@
       filters={FILTERS}
     >
       {#snippet actions()}
-        <ColumnsMenu {columns} />
+        <ViewPanel
+          {base}
+          {columns}
+          perPage={data.query.perPage}
+          {sort}
+          {defaultSort}
+          {sortFields}
+        />
       {/snippet}
     </ListToolbar>
 
@@ -528,9 +555,7 @@
     <ListFooter
       {base}
       list={data.divisions}
-      noun={inTrash
-        ? { one: "deleted division", many: "deleted divisions" }
-        : { one: "division", many: "divisions" }}
+      noun={inTrash ? NOUNS.trash : NOUNS.all}
       outOf={data.outOf}
       nameCount={inTrash}
     />

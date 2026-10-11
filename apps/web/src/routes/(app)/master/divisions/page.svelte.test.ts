@@ -1,4 +1,5 @@
 import { DivisionListQuerySchema, type Division } from "@vmb/types";
+import axe from "axe-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page as browser, userEvent } from "vitest/browser";
 
@@ -117,7 +118,8 @@ afterEach(async () => {
   toast.success.mockReset();
   toast.error.mockReset();
   invalidateAll.mockClear();
-  goto.mockClear();
+  goto.mockReset();
+  goto.mockImplementation(async () => {});
   await browser.viewport(414, 896);
 });
 
@@ -141,7 +143,7 @@ describe("divisions list", () => {
       .element(screen.getByRole("link", { name: /^All 60 divisions$/ }))
       .toHaveAttribute("aria-current", "page");
     await expect
-      .element(screen.getByRole("link", { name: /^Trash 3 divisions$/ }))
+      .element(screen.getByRole("link", { name: /^Trash 3 deleted divisions$/ }))
       .toHaveAttribute("href", "/master/divisions?search=ops&status=active&trashed=only");
 
     // each filter is one removable chip
@@ -221,7 +223,7 @@ describe("divisions list", () => {
     );
   });
 
-  it("puts the tabs, search, Filter and Columns on the card's top edge, and the chips under them", async () => {
+  it("puts the tabs, search, Filter and View on the card's top edge, and the chips under them", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(
       Page,
@@ -236,7 +238,7 @@ describe("divisions list", () => {
     expect(within(screen.getByRole("link", { name: /^All 2 divisions$/ }).element())).toBe(true);
     expect(within(screen.getByRole("searchbox").element())).toBe(true);
     expect(within(screen.getByRole("button", { name: /^Filter/ }).element())).toBe(true);
-    expect(within(screen.getByRole("button", { name: "Columns" }).element())).toBe(true);
+    expect(within(screen.getByRole("button", { name: "View" }).element())).toBe(true);
 
     // the search is a chip too, and so is a filter with several values
     await expect
@@ -675,7 +677,7 @@ describe("divisions list", () => {
     );
 
     await expect
-      .element(screen.getByRole("link", { name: /^Trash 3 divisions$/ }))
+      .element(screen.getByRole("link", { name: /^Trash 3 deleted divisions$/ }))
       .toHaveAttribute("aria-current", "page");
     await expect.element(screen.getByRole("columnheader", { name: "Deleted" })).toBeVisible();
     await expect.element(screen.getByRole("button", { name: "Restore Operations" })).toBeVisible();
@@ -711,21 +713,311 @@ describe("divisions list", () => {
       .toBeVisible();
   });
 
-  it("hides a column from the menu and remembers it for the next visit", async () => {
+  it("hides a column from the View panel and remembers it for the next visit", async () => {
+    await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions"));
 
     await expect.element(screen.getByRole("columnheader", { name: "Description" })).toBeVisible();
-    await screen.getByRole("button", { name: "Columns" }).click();
-    await screen.getByRole("menuitemcheckbox", { name: "Description" }).click();
-    await userEvent.keyboard("{Escape}");
+    await screen.getByRole("button", { name: "View" }).click();
+    // the identity column is listed, but can't be hidden
+    await expect.element(screen.getByText("Always shown")).toBeVisible();
+    await expect.element(screen.getByRole("checkbox", { name: "Name" })).not.toBeInTheDocument();
+    await screen.getByRole("checkbox", { name: "Description" }).click();
     await expect
       .element(screen.getByRole("columnheader", { name: "Description" }))
       .not.toBeInTheDocument();
+    // the panel stays open, and a dot says something differs from the default
+    await expect.element(screen.getByRole("checkbox", { name: "Code" })).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: "View changed" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
     screen.unmount();
 
     const again = await render(Page, props("/master/divisions"));
     await expect
       .element(again.getByRole("columnheader", { name: "Description" }))
       .not.toBeInTheDocument();
+  });
+
+  it("offers rows per page in View, applies one at once and keeps the panel open", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions?search=ops"));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    const sizes = screen.getByRole("radiogroup", { name: "Rows per page" });
+    await expect.element(sizes.getByRole("radio", { name: "25" })).toBeChecked();
+    for (const size of ["10", "25", "50", "100"])
+      await expect.element(sizes.getByRole("radio", { name: size })).toBeVisible();
+
+    // the pick shows while its navigation is still on its way
+    goto.mockImplementationOnce(() => new Promise(() => {}));
+    await sizes.getByRole("radio", { name: "50" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions?search=ops&perPage=50", {
+      noScroll: true,
+      keepFocus: true
+    });
+    await expect.element(sizes.getByRole("radio", { name: "50" })).toBeChecked();
+
+    // the default size leaves the URL
+    await sizes.getByRole("radio", { name: "25" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions?search=ops", {
+      noScroll: true,
+      keepFocus: true
+    });
+  });
+
+  it("keeps the sort in the headers on a wide card, and out of View", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    await expect.element(screen.getByRole("checkbox", { name: "Code" })).toBeVisible();
+    await expect.element(screen.getByText("Sort by")).not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("link", { name: "Code, sort ascending" }))
+      .toHaveAttribute("href", "/master/divisions?sort=code&dir=asc");
+  });
+
+  it("sorts from View on a narrow card, each column starting in its natural order", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+    // each pick shows while its navigation is on its way; the mock never lands one
+    goto.mockImplementation(() => new Promise(() => {}));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    // the columns give way to the sort once rows fold (ADR-0051 rule 11)
+    await expect.element(screen.getByRole("checkbox", { name: "Code" })).not.toBeInTheDocument();
+    const by = screen.getByRole("radiogroup", { name: "Sort by" });
+    await expect.element(by.getByRole("radio", { name: "Name" })).toBeChecked();
+    const order = screen.getByRole("radiogroup", { name: "Order" });
+    await expect.element(order.getByRole("radio", { name: "A to Z" })).toBeChecked();
+
+    await by.getByRole("radio", { name: "Last updated" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions?sort=updatedAt&dir=desc", {
+      noScroll: true,
+      keepFocus: true
+    });
+    // the words for the direction follow the column
+    await expect.element(order.getByRole("radio", { name: "Newest first" })).toBeChecked();
+    await order.getByRole("radio", { name: "Oldest first" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions?sort=updatedAt", {
+      noScroll: true,
+      keepFocus: true
+    });
+
+    await by.getByRole("radio", { name: "Name" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
+      noScroll: true,
+      keepFocus: true
+    });
+    await order.getByRole("radio", { name: "Z to A" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions?dir=desc", {
+      noScroll: true,
+      keepFocus: true
+    });
+  });
+
+  it("keeps a pick that is still loading when the next one comes, and Reset undoes it", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+    goto.mockImplementation(() => new Promise(() => {}));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    await screen
+      .getByRole("radiogroup", { name: "Rows per page" })
+      .getByRole("radio", { name: "50" })
+      .click();
+    await screen
+      .getByRole("radiogroup", { name: "Sort by" })
+      .getByRole("radio", { name: "Code" })
+      .click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions?perPage=50&sort=code", {
+      noScroll: true,
+      keepFocus: true
+    });
+
+    // the URL hasn't caught up, but the dot and Reset already know
+    await screen.getByRole("button", { name: "Reset" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
+      noScroll: true,
+      keepFocus: true
+    });
+  });
+
+  it("shows what the list has again when a pick's navigation ends without landing", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    const sizes = screen.getByRole("radiogroup", { name: "Rows per page" });
+    await sizes.getByRole("radio", { name: "50" }).click();
+    await expect.element(sizes.getByRole("radio", { name: "25" })).toBeChecked();
+  });
+
+  it("sorts the Trash by when a division was deleted", async () => {
+    const screen = await render(Page, props("/master/divisions?trashed=only&sort=updatedAt"));
+
+    await screen.getByRole("button", { name: "View changed" }).click();
+    await expect
+      .element(
+        screen
+          .getByRole("radiogroup", { name: "Sort by" })
+          .getByRole("radio", { name: "Date deleted" })
+      )
+      .toBeChecked();
+    await expect
+      .element(screen.getByRole("radio", { name: "Last updated" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("puts a dot on View when anything differs, and Reset restores all", async () => {
+    const screen = await render(Page, props("/master/divisions?sort=code&dir=desc&perPage=50"));
+    goto.mockImplementation(() => new Promise(() => {}));
+
+    await expect
+      .element(screen.getByRole("button", { name: "View", exact: true }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "View changed" }).click();
+    await screen.getByRole("button", { name: "Reset" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
+      noScroll: true,
+      keepFocus: true
+    });
+    await expect
+      .element(
+        screen.getByRole("radiogroup", { name: "Sort by" }).getByRole("radio", { name: "Name" })
+      )
+      .toBeChecked();
+    await expect
+      .element(
+        screen.getByRole("radiogroup", { name: "Rows per page" }).getByRole("radio", { name: "25" })
+      )
+      .toBeChecked();
+  });
+
+  it("has no dot and no Reset while View holds the defaults", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "View", exact: true }).click();
+    await expect.element(screen.getByRole("button", { name: "Reset" })).not.toBeInTheDocument();
+  });
+
+  it("ends View with Done, which closes it without applying anything", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 12 }));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    await screen.getByRole("radio", { name: "10" }).click();
+    goto.mockClear();
+    // not "Show 12 divisions": nothing in View changes the count, and at 10 rows a page 10 are listed
+    await expect.element(screen.getByRole("button", { name: /^Show / })).not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "Done" }).click();
+
+    // it applies nothing: the picks already did
+    expect(goto).not.toHaveBeenCalled();
+    await expect.element(screen.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "View" })).toHaveFocus();
+  });
+
+  it("says Done in the Trash and when the list failed to load, too", async () => {
+    await browser.viewport(1280, 900);
+    const trash = await render(Page, props("/master/divisions?trashed=only", { total: 3 }));
+    await trash.getByRole("button", { name: "View" }).click();
+    await expect.element(trash.getByRole("button", { name: "Done" })).toBeVisible();
+    trash.unmount();
+
+    const failed = await render(Page, props("/master/divisions", { failed: true }));
+    await failed.getByRole("button", { name: "View" }).click();
+    await expect.element(failed.getByRole("button", { name: "Done" })).toBeVisible();
+  });
+
+  it("closes the sheet and the dialog from the same action, and the sheet doesn't scroll at 375 x 667", async () => {
+    await browser.viewport(375, 667);
+    const sheet = await render(Page, props("/master/divisions", { total: 12 }));
+    await sheet.getByRole("button", { name: "View" }).click();
+
+    const frame = document.querySelector<HTMLElement>('[data-layer-frame="modal"]')!;
+    const body = frame.querySelector<HTMLElement>(".overflow-y-auto")!;
+    await expect.poll(() => frame.getAnimations({ subtree: true }).length).toBe(0);
+    // the sort steps are the tallest content View has; the action sits under all of it
+    await expect.element(sheet.getByRole("radiogroup", { name: "Sort by" })).toBeVisible();
+    expect(body.scrollHeight).toBeLessThanOrEqual(body.clientHeight);
+    const action = sheet.getByRole("button", { name: "Done" }).element();
+    expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(innerHeight);
+
+    await sheet.getByRole("button", { name: "Done" }).click();
+    await expect.element(sheet.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+    sheet.unmount();
+
+    await browser.viewport(520, 800);
+    const dialog = await render(Page, props("/master/divisions", { total: 12 }));
+    await dialog.getByRole("button", { name: "View" }).click();
+    await dialog.getByRole("button", { name: "Done" }).click();
+    await expect.element(dialog.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+  });
+
+  it("has no axe violations with the View panel open", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("button", { name: "View" }).click();
+    await expect.element(screen.getByRole("checkbox", { name: "Code" })).toBeVisible();
+    // axe reads the colours it sees: a panel still fading in measures as low contrast
+    const panel = document.querySelector<HTMLElement>('[data-layer-frame="panel"]')!;
+    await expect.poll(() => panel.getAnimations({ subtree: true }).length).toBe(0);
+
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("dresses the panel's rows itself, and adds no landmark of its own", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("button", { name: "View" }).click();
+
+    // the legacy `button:not([data-slot])` rule would give each row a border and a fill
+    for (const row of [
+      screen.getByRole("radio", { name: "Code" }).element(),
+      screen.getByRole("radio", { name: "50" }).element()
+    ]) {
+      expect(getComputedStyle(row).borderTopWidth).toBe("0px");
+    }
+    // a <header> or <footer> in the portalled layer would read as a second banner
+    const { violations } = await axe.run(document.body, {
+      runOnly: { type: "rule", values: ["landmark-no-duplicate-banner", "landmark-unique"] }
+    });
+    expect(violations.map((violation) => violation.id)).toEqual([]);
+  });
+
+  it("hides the paging when every row fits, and keeps the count", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 2 }));
+
+    await expect.element(screen.getByText("2 divisions")).not.toBeInTheDocument();
+    await expect.element(screen.getByRole("status").getByText("Showing 1–2 of 2")).toBeVisible();
+    await expect.element(screen.getByRole("navigation", { name: "Pages" })).not.toBeInTheDocument();
+    // the page size moved into View
+    await expect.element(screen.getByText("Rows per page")).not.toBeInTheDocument();
+  });
+
+  it("numbers the pages from 640px", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 239 }));
+
+    const pages = screen.getByRole("navigation", { name: "Pages" });
+    await expect.element(pages.getByRole("link", { name: "Page 10" })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: "Previous" })).not.toBeInTheDocument();
+  });
+
+  it("pages with Previous and Next under 640px, the count centred above", async () => {
+    await browser.viewport(414, 896);
+    const screen = await render(Page, props("/master/divisions?page=1", { total: 239 }));
+
+    await expect.element(screen.getByText("Showing 1–25 of 239")).toBeVisible();
+    await expect.element(screen.getByText("Page 1 of 10")).toBeVisible();
+    await expect
+      .element(screen.getByRole("link", { name: "Next" }))
+      .toHaveAttribute("href", "/master/divisions?page=2");
+    // the first page has nothing before it, and the button keeps its width
+    const previous = screen.getByRole("link", { name: "Previous" });
+    await expect.element(previous).toHaveAttribute("aria-disabled", "true");
+    await expect.element(previous).not.toHaveAttribute("href");
+    expect(previous.element().getBoundingClientRect().width).toBe(
+      screen.getByRole("link", { name: "Next" }).element().getBoundingClientRect().width
+    );
+    await expect.element(screen.getByRole("link", { name: "Page 3" })).not.toBeInTheDocument();
   });
 });
