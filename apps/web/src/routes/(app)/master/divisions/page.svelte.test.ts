@@ -117,7 +117,8 @@ afterEach(async () => {
   toast.success.mockReset();
   toast.error.mockReset();
   invalidateAll.mockClear();
-  goto.mockClear();
+  goto.mockReset();
+  goto.mockImplementation(async () => {});
   await browser.viewport(414, 896);
 });
 
@@ -746,6 +747,8 @@ describe("divisions list", () => {
     for (const size of ["10", "25", "50", "100"])
       await expect.element(sizes.getByRole("radio", { name: size })).toBeVisible();
 
+    // the pick shows while its navigation is still on its way
+    goto.mockImplementationOnce(() => new Promise(() => {}));
     await sizes.getByRole("radio", { name: "50" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions?search=ops&perPage=50", {
       noScroll: true,
@@ -775,6 +778,8 @@ describe("divisions list", () => {
 
   it("sorts from View on a narrow card, each column starting in its natural order", async () => {
     const screen = await render(Page, props("/master/divisions"));
+    // each pick shows while its navigation is on its way; the mock never lands one
+    goto.mockImplementation(() => new Promise(() => {}));
 
     await screen.getByRole("button", { name: "View" }).click();
     // the columns give way to the sort once rows fold (ADR-0051 rule 11)
@@ -809,6 +814,41 @@ describe("divisions list", () => {
     });
   });
 
+  it("keeps a pick that is still loading when the next one comes, and Reset undoes it", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+    goto.mockImplementation(() => new Promise(() => {}));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    await screen
+      .getByRole("radiogroup", { name: "Rows per page" })
+      .getByRole("radio", { name: "50" })
+      .click();
+    await screen
+      .getByRole("radiogroup", { name: "Sort by" })
+      .getByRole("radio", { name: "Code" })
+      .click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions?perPage=50&sort=code", {
+      noScroll: true,
+      keepFocus: true
+    });
+
+    // the URL hasn't caught up, but the dot and Reset already know
+    await screen.getByRole("button", { name: "Reset" }).click();
+    expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
+      noScroll: true,
+      keepFocus: true
+    });
+  });
+
+  it("shows what the list has again when a pick's navigation ends without landing", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    const sizes = screen.getByRole("radiogroup", { name: "Rows per page" });
+    await sizes.getByRole("radio", { name: "50" }).click();
+    await expect.element(sizes.getByRole("radio", { name: "25" })).toBeChecked();
+  });
+
   it("sorts the Trash by when a division was deleted", async () => {
     const screen = await render(Page, props("/master/divisions?trashed=only&sort=updatedAt"));
 
@@ -827,6 +867,7 @@ describe("divisions list", () => {
 
   it("puts a dot on View when anything differs, and Reset restores all", async () => {
     const screen = await render(Page, props("/master/divisions?sort=code&dir=desc&perPage=50"));
+    goto.mockImplementation(() => new Promise(() => {}));
 
     await expect
       .element(screen.getByRole("button", { name: "View", exact: true }))

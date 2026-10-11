@@ -54,6 +54,10 @@ export function pickField(field: SortField): ListSort {
   return { sort: field.sort, dir: field.start };
 }
 
+/** Whether a sort is not the list's default. */
+export const sortDiffers = (sort: ListSort, defaults: ListSort): boolean =>
+  sort.sort !== defaults.sort || sort.dir !== defaults.dir;
+
 /** Whether the page size or, once folded, the sort differ from the defaults. */
 export function viewDiffers(input: {
   columnsChanged: boolean;
@@ -65,7 +69,6 @@ export function viewDiffers(input: {
   return (
     input.columnsChanged ||
     input.perPage !== DEFAULT_PER_PAGE ||
-    (input.folded &&
-      (input.sort.sort !== input.defaults.sort || input.sort.dir !== input.defaults.dir))
+    (input.folded && sortDiffers(input.sort, input.defaults))
   );
 }

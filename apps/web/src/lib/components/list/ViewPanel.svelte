@@ -37,6 +37,7 @@
     orderChoices,
     pickField,
     sortChanges,
+    sortDiffers,
     viewDiffers,
     type ListSort,
     type SortField
@@ -79,12 +80,10 @@
   }
   const folded = $derived(foldsAt(cardWidth, rem));
 
-  // A pick shows at once; the URL catches up when the list has loaded.
+  // A pick shows at once and stands until its navigation has settled, when the
+  // props carry it (or, if it failed, take the panel back to what the list has).
   let pending = $state<{ perPage?: number; sort?: ListSort }>({});
-  $effect(() => {
-    void page.url.search;
-    pending = {};
-  });
+  let picks = 0;
   const shownPerPage = $derived(pending.perPage ?? perPage);
   const shownSort = $derived(pending.sort ?? sort);
   const field = $derived(sortFields.find((each) => each.sort === shownSort.sort));
@@ -101,29 +100,32 @@
     })
   );
 
-  const go = (changes: Record<string, string | number | null>) =>
-    goto(resolve(listHref(base, page.url.searchParams, changes)), {
-      noScroll: true,
-      keepFocus: true
+  // Each pick is sent with the ones still on their way, so two quick picks keep both.
+  function apply(next: { perPage?: number; sort?: ListSort }) {
+    pending = { ...pending, ...next };
+    const seq = ++picks;
+    const sorted = sortChanges(shownSort, defaultSort);
+    void goto(
+      resolve(
+        listHref(base, page.url.searchParams, {
+          perPage: shownPerPage === DEFAULT_PER_PAGE ? null : shownPerPage,
+          ...sorted
+        })
+      ),
+      { noScroll: true, keepFocus: true }
+    ).finally(() => {
+      if (seq === picks) pending = {};
     });
-
-  function pickPerPage(value: string) {
-    const size = Number(value);
-    pending.perPage = size;
-    void go({ perPage: size === DEFAULT_PER_PAGE ? null : size });
-  }
-
-  function choose(choice: ListSort) {
-    pending.sort = choice;
-    void go(sortChanges(choice, defaultSort));
   }
 
   function reset() {
     columns.reset();
-    const sortDiffers = folded && (sort.sort !== defaultSort.sort || sort.dir !== defaultSort.dir);
-    if (perPage === DEFAULT_PER_PAGE && !sortDiffers) return;
-    pending = { perPage: DEFAULT_PER_PAGE, ...(sortDiffers ? { sort: defaultSort } : {}) };
-    void go({ perPage: null, ...(sortDiffers ? { sort: null, dir: null } : {}) });
+    const sortBack = folded && sortDiffers(shownSort, defaultSort);
+    if (shownPerPage === DEFAULT_PER_PAGE && !sortBack) return;
+    apply({
+      perPage: DEFAULT_PER_PAGE,
+      ...(sortBack ? { sort: defaultSort } : {})
+    });
   }
 
   const uid = $props.id();
@@ -163,7 +165,7 @@
           value={field?.sort ?? ""}
           onValueChange={(value) => {
             const next = sortFields.find((each) => each.sort === value);
-            if (next) choose(pickField(next));
+            if (next) apply({ sort: pickField(next) });
           }}
           aria-labelledby="{uid}-sort"
           class="-mx-2 flex flex-col"
@@ -188,7 +190,7 @@
           <RadioGroup.Root
             value={shownSort.dir}
             onValueChange={(value) =>
-              choose({ sort: field.sort, dir: value === "desc" ? "desc" : "asc" })}
+              apply({ sort: { sort: field.sort, dir: value === "desc" ? "desc" : "asc" } })}
             aria-labelledby="{uid}-order"
             class="-mx-2 flex flex-col"
           >
@@ -235,7 +237,7 @@
       </h3>
       <RadioGroup.Root
         value={String(shownPerPage)}
-        onValueChange={pickPerPage}
+        onValueChange={(value) => apply({ perPage: Number(value) })}
         orientation="horizontal"
         aria-labelledby="{uid}-rows"
         class="flex gap-1.5"
