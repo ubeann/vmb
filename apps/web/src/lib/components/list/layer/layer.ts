@@ -45,13 +45,15 @@ const STEADY_FRAMES = 3;
 
 type SteadyOptions = {
   gap?: () => number;
+  /** Whatever must be true first, such as the panel being gone. */
+  ready?: () => boolean;
   frame?: (fn: () => void) => unknown;
   now?: () => number;
 };
 
 /**
  * Calls `open` once the window and the page agree on the width, a scrollbar
- * apart and holding for three frames, or after a second (rule 6). A modal layer locks scrolling and pads the
+ * apart and holding for three frames once `ready`, or after a second (rule 6). A modal layer locks scrolling and pads the
  * page by "window − page", read as the scrollbar; a panel still on screen past
  * a phone's new edge widens the window (691px for a 425px page after a DevTools
  * device preset), and opening then would squeeze the page by the difference.
@@ -61,6 +63,7 @@ export function whenSteady(
   open: () => void,
   {
     gap = () => innerWidth - document.documentElement.clientWidth,
+    ready = () => true,
     frame = requestAnimationFrame,
     now = () => performance.now()
   }: SteadyOptions = {}
@@ -71,7 +74,7 @@ export function whenSteady(
   let held = 0;
   const check = () => {
     if (cancelled) return;
-    const apart = gap();
+    const apart = ready() ? gap() : NaN;
     // a scrollbar holds its width; a closing panel's overflow shrinks frame by frame
     held = apart === last ? held + 1 : 1;
     last = apart;

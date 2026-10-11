@@ -168,7 +168,8 @@
       frame = "modal";
       ready = false;
       cancelSteady();
-      cancelSteady = whenSteady(() => (ready = true));
+      // the panel's exit leaves its overflow on screen until it unmounts
+      cancelSteady = whenSteady(() => (ready = true), { ready: () => !panel?.isConnected });
       return;
     }
     if (next === "panel" && frame === "modal") {

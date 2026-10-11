@@ -64,6 +64,20 @@ describe("whenSteady", () => {
     expect(at).toBe(0);
   });
 
+  it("waits until the panel it replaces has left the page", () => {
+    // the closing panel's overflow can hold steady at a scrollbar's width
+    const time = clock();
+    let gone = false;
+    let opened = 0;
+    whenSteady(() => opened++, { gap: () => 11, ready: () => gone, ...time });
+
+    for (let i = 0; i < 10; i++) time.tick();
+    expect(opened).toBe(0);
+    gone = true;
+    for (let i = 0; i < 3; i++) time.tick();
+    expect(opened).toBe(1);
+  });
+
   it("opens after a second at most", () => {
     const time = clock();
     let opened = 0;
