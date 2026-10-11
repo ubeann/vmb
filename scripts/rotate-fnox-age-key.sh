@@ -7,7 +7,8 @@
 # ciphertexts in fnox.toml are unrecoverable without the old key, so this
 # generates a new identity, points fnox at it, re-enters every shared secret
 # (re-encrypting under the new key), updates the FNOX_AGE_KEY GitHub secret,
-# and commits the store.
+# and opens a pull request with the store (`master` refuses direct pushes,
+# ADR-0054).
 #
 # Run from anywhere:  ./scripts/rotate-fnox-age-key.sh
 #
@@ -303,25 +304,43 @@ else
 fi
 warn "Back up $AGE_KEY_FILE in a password manager NOW — losing it again means another rotation."
 
-# ── Stage 5: commit the re-encrypted store ────────────────────────────────
-stage "Commit the re-encrypted store"
+# ── Stage 5: open a pull request with the re-encrypted store ──────────────
+# `master` is protected (ADR-0054): a push to it is refused, so the store goes
+# in on a branch of its own and a pull request, whatever branch this ran on.
+stage "Open a pull request with the re-encrypted store"
 say "fnox.toml now holds ciphertext encrypted to the new key."
-if confirm "Commit and push fnox.toml on the current branch?"; then
-  git add fnox.toml
-  if git commit -m "chore(secrets): rotate fnox age key" >/dev/null 2>&1; then
-    say "committed fnox.toml"
-    if git push; then
-      say "pushed"
+ROTATE_BRANCH="chore/secrets/rotate-fnox-age-key-$(date +%Y%m%d-%H%M%S)"
+base=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo master)
+ahead=$(git rev-list --count "origin/$base..HEAD" 2>/dev/null || echo 0)
+if [[ "$ahead" != 0 ]]; then
+  warn "HEAD is $ahead commit(s) ahead of origin/$base: the pull request would carry them."
+  note "Run this from a checkout of $base to keep the pull request to fnox.toml."
+fi
+if confirm "Commit fnox.toml on $ROTATE_BRANCH, push it and open a pull request?"; then
+  if ! git switch -c "$ROTATE_BRANCH" >/dev/null 2>&1; then
+    warn "couldn't create branch $ROTATE_BRANCH (does it exist?). Nothing committed."
+    SKIPPED+=("Commit fnox.toml on a new branch, push it and open a pull request")
+  elif git add fnox.toml && git commit -m "chore(secrets): rotate fnox age key" >/dev/null 2>&1; then
+    say "committed fnox.toml on $ROTATE_BRANCH"
+    if git push -u origin HEAD \
+      && gh pr create --base "$base" --head "$ROTATE_BRANCH" \
+        --title "chore(secrets): rotate fnox age key" \
+        --body "$(printf '%s\n' \
+          '## Summary' '' \
+          'Re-encrypts the shared secrets in fnox.toml under a new age key. FNOX_AGE_KEY was updated to match.' '' \
+          '## Merge Danger' '' \
+          '**Door:** one-way')"; then
+      say "opened a pull request: merge it once CI is green"
     else
-      warn "push failed — push manually so CI sees the new ciphertext"
-      SKIPPED+=("git push")
+      warn "push or pull request failed: push $ROTATE_BRANCH and open the PR by hand so CI sees the new ciphertext"
+      SKIPPED+=("Push $ROTATE_BRANCH and open a pull request")
     fi
   else
     warn "git commit failed (already committed? hooks?)"
     SKIPPED+=("Commit fnox.toml")
   fi
 else
-  SKIPPED+=("Commit fnox.toml")
+  SKIPPED+=("Commit fnox.toml on a branch and open a pull request")
 fi
 
 # ──────────────────────────────────────────────────────────────────────────
