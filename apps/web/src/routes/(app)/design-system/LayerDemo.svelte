@@ -71,10 +71,11 @@
   const dayMonth = new DateFormatter("en-GB", { day: "numeric", month: "short" });
   const full = new DateFormatter("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const day = (date: DateValue, format = dayMonth) => format.format(date.toDate(zone));
-  // "2 – 5 Jan" this year, "28 Dec 2025 – 5 Jan 2026" across New Year
+  // "5 Jan" for a day, "2 – 5 Jan" this year, "28 Dec 2025 – 5 Jan 2026" across New Year
   function rangeLabel([start, end]: [DateValue, DateValue], long = false) {
     if (long || start.year !== end.year || end.year !== now.year)
       return `${day(start, full)} – ${day(end, full)}`;
+    if (start.compare(end) === 0) return day(end);
     if (start.month === end.month) return `${start.day} – ${day(end)}`;
     return `${day(start)} – ${day(end)}`;
   }
@@ -194,6 +195,7 @@
             {@render presets(layer.top)}
             <button
               type="button"
+              data-slot="layer-row"
               class={cn(rowClass, custom && "font-medium")}
               onclick={() => layer.open("range")}
             >
@@ -212,7 +214,7 @@
       {/snippet}
 
       {#snippet beside(_, layer)}
-        <div class="border-border bg-muted/40 flex w-60 flex-col gap-0.5 border-r p-2">
+        <div class="border-border bg-muted/40 flex w-64 flex-col gap-0.5 border-r p-2">
           {@render presets(layer.top)}
         </div>
         <div class="flex w-min flex-col">
@@ -232,6 +234,7 @@
       {@const on = updated === preset.value}
       <button
         type="button"
+        data-slot="layer-row"
         role="radio"
         aria-checked={on}
         class={cn(rowClass, on && "font-medium")}
