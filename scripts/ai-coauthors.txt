@@ -9,6 +9,7 @@
 #   3. the vendor's documented address        e.g. noreply@anthropic.com
 #   4. this repository's own agent address    noreply@vmblogistics.id
 
+341066383+vmb-agent@users.noreply.github.com
 223556219+Copilot@users.noreply.github.com
 noreply@anthropic.com
 noreply@openai.com

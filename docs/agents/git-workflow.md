@@ -94,6 +94,13 @@ A hook that fails is a bug to fix, not a flag to reach for reflexively.
 
 ## Co-authoring AI-assisted work
 
-When a change was written or substantially drafted by an AI model, add a `Co-Authored-By` trailer naming the model's display name — not an internal model ID, and not the harness: `GPT-6.1 Sol <noreply@openai.com>`, not `Codex <noreply@openai.com>`, because the routing audit reads the name to tell which tier did the work. The address is the vendor's: `noreply@anthropic.com` for Claude, `noreply@openai.com` for GPT, and `noreply@vmblogistics.id` for providers with no documented address (Gemini, DeepSeek), e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+When a change was written or substantially drafted by an AI model, add a `Co-Authored-By` trailer naming the model's display name — not an internal model ID, and not the harness: `GPT-6.1 Sol <…>`, not `Codex <…>`, because the routing audit reads the name to tell which tier did the work. The model's address is the vendor's (`noreply@anthropic.com` for Claude, `noreply@openai.com` for GPT, `noreply@vmblogistics.id` for a provider with no documented address), and a second trailer credits the agents' GitHub account, which links the commit to a profile and earns contribution credit:
+
+```
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: vmb-agent <341066383+vmb-agent@users.noreply.github.com>
+```
+
+One line per model that worked on the commit, and the `vmb-agent` line once. The `commit-msg` hook checks every trailer's shape and address.
 
 The `commit-msg` hook rejects an address missing from `scripts/ai-coauthors.txt`. A model without an address yet gets one through the resolution order in `model-routing.md`.

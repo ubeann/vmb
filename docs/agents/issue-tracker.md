@@ -13,6 +13,8 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
+In an agent shell, `gh` runs as the agents' account `vmb-agent` (`harnesses.md`), so `@me` in a claim or a filter means the bot, PRs and comments carry its name, and its rate limit is separate from the owner's. The bot cannot stand in for the owner: a `review:human` PR still waits for `ubeann`.
+
 ## Images
 
 `gh` can't attach files, so images go to the private `ubeann/vmb-assets` repo: `scripts/upload-asset.sh <file> issues/<number>` uploads one and prints a Markdown link to paste into the body or a comment. Use it for every screenshot a ticket was shaped from, so a fresh agent sees what the owner saw. Images the owner pasted into a T3 conversation are already on disk; the message names each one's path (under `~/.t3/userdata/attachments/`). Before the issue exists, upload to `issues/<slug>` instead.
