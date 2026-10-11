@@ -48,7 +48,6 @@
   } from "./layer.js";
 
   let {
-    open = $bindable(false),
     label,
     stepTitle,
     pickerWidth = 560,
@@ -60,7 +59,6 @@
     step,
     beside
   }: {
-    open?: boolean;
     /** The top level's title, such as "Filters"; also the layer's accessible name. */
     label: string;
     /** A step's title, from its path; the last entry is the step shown. */
@@ -83,6 +81,8 @@
     beside?: Snippet<[string, LayerApi]>;
   } = $props();
 
+  // opened and closed only through show() and close(), which set up and forget its steps
+  let open = $state(false);
   let frame = $state<LayerFrame>("panel");
   let path = $state<string[]>([]);
   // the step whose picker is open beside the panel
