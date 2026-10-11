@@ -1,0 +1,44 @@
+# T3 Code: the tools the loop relies on
+
+Checked 2026-10-11 against T3 Code server `0.0.46-nightly.20261011`. T3 ships nightly, so its MCP tool list moves; the last section says how to re-check it. Tool names carry the harness prefix (`mcp__t3-code__…`); this doc uses the bare names.
+
+## In use
+
+| Tool                                                   | Where                                                                                                       |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `t3_thread_launch` with `workspaceStrategy`            | The dispatcher launches one build per ticket in a fresh worktree (`ticket-loop.md`). Only from full-access. |
+| `orchestrator_capabilities`                            | Resolves provider instance and model IDs for a tier (`model-routing.md`).                                   |
+| `link_pull_request`, `watch_pull_request`, `unwatch_…` | A build links its PR and lets T3 wake it on checks and comments; it unwatches when it hands back.           |
+| `schedule_task`, `fixed_time`                          | The dispatcher windows and the morning digest.                                                              |
+| `t3_thread_send`                                       | The owner's steer into a running build: a review round posted from the dispatcher thread.                   |
+| `delegate_task`                                        | The cross-provider review on a `complex` ticket; `role: review`, a target from `orchestrator_capabilities`. |
+| `preview_open`, `preview_navigate`, `preview_snapshot` | A quick look at a page; the screenshot scripts in `page-checks.md` cover every viewport.                    |
+
+## To adopt
+
+Each row names the place in this repo's workflow it fits. Try one at a time and move it to the table above once it has earned its place.
+
+| Tool                                                              | Use here                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `write_pull_request_guides`, `read_pull_request_guide`            | The digest writes a review tour for every `needs-decision` PR, so the owner reads a guide instead of a diff. Off in T3's server settings on 2026-10-11; the call fails until it is on.                                       |
+| `schedule_task` with `{type: "webhook"}`                          | Run the dispatcher when a ticket gains `ready-for-agent`, and wake a build when the owner submits a review, instead of two fixed times a night. Needs T3 Connect remote access, and `request_secret` for GitHub's signature. |
+| `t3_thread_fork`, `t3_thread_merge_back`                          | In a prototype round, fork at a checkpoint to try two directions in parallel, then merge the winner's context back. Replaces a serial chain of variant letters.                                                              |
+| `t3_queue_*`, `t3_queue_promote_to_steer`                         | The owner's next adjustment, queued while a round runs.                                                                                                                                                                      |
+| `preview_resize`, `preview_set_appearance`, `preview_recording_*` | A width or light/dark check without a Playwright script (119 inline scripts in one prototype thread, eight of them timed out), and a recording as owner-review evidence instead of a screenshot batch.                       |
+| `device_open`, `device_list`                                      | Real touch on an iOS simulator for any sheet or dialog (`page-checks.md`, Touch).                                                                                                                                            |
+| `t3_thread_organize`                                              | Snooze a thread that waits on the owner; the project held 351 threads on 2026-10-11.                                                                                                                                         |
+| `html_render`                                                     | A decision brief with a comparison table or captures side by side, shown in the thread.                                                                                                                                      |
+
+## Gotchas
+
+- `t3_thread_launch` is refused from any mode but full-access; the dispatcher thread runs in that mode for this reason.
+- `t3_thread_read` of a long thread exceeds the tool-result limit (137 K characters on a 1,898-item thread); page with `limit` and `afterPosition`, or extract from local storage with the `t3-thread-handoff` skill, which costs far less than reading the thread.
+- A background command is stopped after two hours at most. A dev server that must outlive that is started detached (`page-checks.md`, Local dev servers).
+- The harness blocks `sleep`; a build waits through `watch_pull_request` and a Monitor, and the dispatcher runs `gh` in the foreground.
+- Every thread, the dispatcher, the digest and PR watching share one GitHub token and its 5,000 requests an hour. The limit ran out twice in two days (2026-10-09 and 2026-10-11). A machine user for the agents is the fix, and it doubles as the service account `model-routing.md` wants for co-author attribution.
+- Scheduled tasks inherit the project's default model, not a tier; changing a task's tier means recreating it from a thread on that model.
+- `delegate_task` needs a provider whose `canRunChildTask` is true in `orchestrator_capabilities`; Codex reported a status timeout on 2026-10-11, so the review fallback order in `model-routing.md` applies.
+
+## Keeping this current
+
+Once a month, or after a T3 update that changes the tool list: call `orchestrator_capabilities`, list the `mcp__t3-code__*` tool names the harness exposes, and compare both with this doc. A new tool goes under _To adopt_ with the place it fits, or is noted as not needed; a removed one leaves the tables. Record the server version and date at the top. A scheduled task can do the comparison and put the differences in the morning digest.

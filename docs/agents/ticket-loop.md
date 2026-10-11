@@ -53,14 +53,15 @@ Never merge past a FAIL, and never edit a label or the body just to make the gat
 
 ## Dispatcher
 
-A T3 scheduled task runs this in the night windows (17:10–22:10 and 22:15–03:15 WIB, matching the owner's usage resets). Its prompt names the window's end and the Claude provider instance to use. Each run tops up the builds in flight, so it can run several times a window. The tasks post into a dedicated dispatcher thread in **full-access** mode: T3 refuses `t3_thread_launch` from any other mode.
+A T3 scheduled task runs this in the night windows (17:10–22:10 and 22:15–03:15 WIB, matching the owner's usage resets). Its prompt names the window's end and the Claude provider instance to use. Each run tops up the builds in flight, so it can run several times a window. The tasks post into a dedicated dispatcher thread in **full-access** mode: T3 refuses `t3_thread_launch` from any other mode. Run every `gh` call in the foreground: nothing here needs a wait, and the harness blocks `sleep`.
 
 1. **Room left.** If less than 90 minutes remain before the window ends, report that and stop: a build launched now would run out of usage mid-way.
+   **Weekly room is the owner's call.** The Claude limits are weekly as well as five-hourly, and the night loop shares them with the owner's daytime sessions (`model-routing.md`, Quota). The dispatcher can't read the meter, so the owner does: when the weekly meter shows less than a night's builds before its reset, the owner disables the dispatcher tasks for that night or points their prompt at the other Claude instance.
 2. **Count slots.** Builds in flight are open `ready-for-agent` tickets with an assignee. Run at most **2**. With no free slot, report and stop.
 3. **Find the frontier.** `gh issue list --label ready-for-agent --state open --json number,title,labels,assignees,milestone`, keep the unassigned ones, and drop any with an open blocker (`gh api repos/ubeann/vmb/issues/<n> --jq .issue_dependencies_summary.blocked_by` above 0, or an open issue in a `Blocked by` line), and any that fail `scripts/ticket-lint.sh` (body on stdin, labels comma-joined as the argument): ticket-lint only runs when a ticket changes, so older tickets can still lack a tier. Tickets in the open milestone come first, then the rest; lowest number first within each.
 4. **Claim and launch**, one ticket per free slot:
    - `gh issue edit <n> --add-assignee @me`;
-   - `t3_thread_launch` with title `#<n> <ticket title>`, `workspaceStrategy` `{"type":"worktree","baseRef":"master","startFromOrigin":true,"branch":"<type>/<scope>/<slug>"}` (type `fix` for a `bug`, `docs` for a `research` ticket, otherwise `feature`; scope and slug from the ticket, as in `git-workflow.md`), and the model for the ticket's tier: the Claude model from `model-routing.md`'s tier table on the named Claude instance for `standard` and `complex`, and the Codex `fast` model for `trivial`. Resolve the IDs with `orchestrator_capabilities`;
+   - `t3_thread_launch` with title `#<n> <ticket title>`, `workspaceStrategy` `{"type":"worktree","baseRef":"master","startFromOrigin":true,"branch":"<type>/<scope>/<slug>"}` (type `fix` for a `bug`, `docs` for a `research` ticket, otherwise `feature`; scope and slug from the ticket, as in `git-workflow.md`), and the Claude model for the ticket's tier from `model-routing.md`'s tier table, on the named Claude instance: `fast` for `trivial`, `daily` for `standard`, `frontier` for `complex`, never `apex`. Resolve the IDs with `orchestrator_capabilities`;
    - message: `/mattpocock-skills:implement #<n>` on its first line (`/mattpocock-skills:research #<n>` for a `research` ticket), then `Unattended build: follow docs/agents/ticket-loop.md, Build, to an end state.`;
    - comment on the ticket with the thread id;
    - if the launch fails, release the claim (`gh issue edit <n> --remove-assignee @me`) and report the error, so the slot frees for the next run.
@@ -70,10 +71,11 @@ Done when every free slot holds a launched build or the frontier is empty.
 
 ## Morning digest
 
-A T3 scheduled task at 07:00 WIB. It only reads; the owner acts on it. List, newest first:
+A T3 scheduled task at 07:00 WIB, on the `fast` tier. It only reads GitHub; the owner acts on it. List, newest first:
 
 1. **Decide**: open PRs labelled `needs-decision`, each with the one question from its decision brief.
 2. **Merged overnight**: PRs merged since 17:00 yesterday, with the ticket each closed.
 3. **Bounced**: tickets that moved to `needs-triage` since then, with the reason from their last comment.
 4. **Stalled**: claimed `ready-for-agent` tickets with no open PR whose claim comment is older than 6 hours. Name the thread so the owner can look.
 5. **Next up**: the frontier as the dispatcher would see it tonight, the open milestone's progress (closed of total), and how many `ready-for-agent` tickets fail ticket-lint or lack a tier.
+6. **Review guides**: for each PR under Decide, call `write_pull_request_guides` so the owner reads a tour of the change in T3's Guide tab instead of the raw diff (`t3-code.md`). The call fails while review guides are off in T3's server settings (they were off on 2026-10-11); then say so once and move on.
