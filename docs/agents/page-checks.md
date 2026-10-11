@@ -38,3 +38,4 @@ Several worktrees often run at once, so start each `vite dev` on its own port (`
 ## Lighthouse
 
 `node apps/web/scripts/lighthouse.mjs <url> [--login] [--runs 3] [--desktop]` runs the performance category and prints score, FCP, LCP, TBT and CLS per run plus the median. Preview scores swing by a few points between runs, so compare medians of five or more runs. The JSON reports stay in the directory it prints, for drilling into an audit (`jq '.audits["render-blocking-insight"].details'`).
+
