@@ -12,7 +12,8 @@
   the user's menu, where search (#282) and notifications (#283) will join it, with no
   placeholder until they exist. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
-  without a flash. The footer strip (#218) closes the column below the panel.
+  without a flash. The footer strip (#218) closes the column below the panel. The one
+  shortcut sheet (ADR-0052) lives here, so `?` opens it on every signed-in page.
 -->
 <script lang="ts">
   import { afterNavigate } from "$app/navigation";
@@ -21,6 +22,7 @@
   import AppBreadcrumbs from "$lib/components/AppBreadcrumbs.svelte";
   import AppSidebar from "$lib/components/AppSidebar.svelte";
   import ProfileMenu from "$lib/components/ProfileMenu.svelte";
+  import ShortcutsSheet from "$lib/components/ShortcutsSheet.svelte";
   import SidebarToggle from "$lib/components/SidebarToggle.svelte";
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
@@ -152,3 +154,5 @@
     <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-3 sm:pl-2 lg:px-3 lg:pl-2" />
   </div>
 </Sidebar.Provider>
+
+<ShortcutsSheet />

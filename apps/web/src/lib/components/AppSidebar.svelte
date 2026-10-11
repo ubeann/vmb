@@ -1,7 +1,7 @@
 <!--
   The app's sidebar (#167). It runs the full height of the window, with the
-  VMB mark in its top cell, the navigation under it and the collapse button at
-  its foot.
+  VMB mark in its top cell, the navigation under it and, at its foot, the
+  Shortcuts row (ADR-0052) above the collapse button.
 
   Collapsed, it is a rail of icons. Resting the pointer on the rail, or tabbing
   into it, "peeks": the panel opens over the page to show the labels, and the
@@ -20,8 +20,10 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import VmbLogo from "$lib/components/VmbLogo.svelte";
+  import { shortcuts } from "$lib/components/shortcuts.svelte.js";
   import { duration } from "$lib/motion.js";
   import { swipeToClose } from "$lib/swipe-to-close.js";
+  import KeyboardIcon from "@lucide/svelte/icons/keyboard";
   import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
   import PanelLeftOpen from "@lucide/svelte/icons/panel-left-open";
   import X from "@lucide/svelte/icons/x";
@@ -197,6 +199,23 @@
 
         <Sidebar.Footer>
           <Sidebar.Menu>
+            <!-- The way into the shortcut sheet for anyone who doesn't press `?` (ADR-0052 rule 1).
+                 It needs a keyboard, so touch screens don't show it; the rail shows the icon only. -->
+            <Sidebar.MenuItem class="pointer-coarse:hidden">
+              <Sidebar.MenuButton
+                aria-keyshortcuts="?"
+                tooltipContent="Keyboard shortcuts"
+                onclick={() => (shortcuts.open = true)}
+              >
+                <KeyboardIcon aria-hidden="true" />
+                <span>Shortcuts</span>
+                <kbd
+                  aria-hidden="true"
+                  class="border-sidebar-border text-muted-foreground ml-auto rounded border px-1.5 font-mono text-[0.7rem] group-data-[collapsible=icon]:hidden"
+                  >?</kbd
+                >
+              </Sidebar.MenuButton>
+            </Sidebar.MenuItem>
             <Sidebar.MenuItem>
               <Sidebar.MenuButton
                 class="pointer-coarse:h-11"

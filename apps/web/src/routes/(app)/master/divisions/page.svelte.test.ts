@@ -7,6 +7,7 @@ import { page as browser, userEvent } from "vitest/browser";
 import "../../../../app.css";
 
 import { axeViolations } from "$lib/a11y-support.js";
+import { shortcuts } from "$lib/components/shortcuts.svelte.js";
 import type { PageData } from "./$types.js";
 
 const mockPage = { url: new URL("http://localhost/master/divisions") };
@@ -389,6 +390,21 @@ describe("divisions list", () => {
       "Delete…"
     ]);
     for (const item of items) expect(item.querySelector("svg")).not.toBeNull();
+  });
+
+  it("ships with keyboard rows off (ADR-0052 rule 4): no mark, no keys, no section on the sheet", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+
+    await userEvent.keyboard("{ArrowDown}j");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("d");
+
+    expect(document.querySelector("[data-row-id], [data-marked]")).toBeNull();
+    expect(goto).not.toHaveBeenCalled();
+    expect(shortcuts.page).toEqual([]);
+
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    expect(document.querySelector("[data-slot='dropdown-menu-shortcut']")).toBeNull();
   });
 
   it("has no axe violations with an inactive row and a row menu open", async () => {

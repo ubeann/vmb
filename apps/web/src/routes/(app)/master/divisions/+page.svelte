@@ -3,7 +3,8 @@
   the domain modules compose from: search, filter chips, an All · Trash switch,
   sortable columns, paging and a View panel, with the whole state in the URL.
   Actions follow the caller's permissions; the API refuses the same things.
-  Rows, row actions and the Trash follow ADR-0051 rules 7 to 9.
+  Rows, row actions and the Trash follow ADR-0051 rules 7 to 9. Keyboard rows
+  (ADR-0052 rule 4) are wired but off, as Divisions ships.
 -->
 <script lang="ts">
   import { enhance } from "$app/forms";
@@ -11,6 +12,7 @@
   import { resolve } from "$app/paths";
   import { navigating, page } from "$app/state";
   import EmptyState from "$lib/components/EmptyState.svelte";
+  import KeyCap from "$lib/components/KeyCap.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import Page from "$lib/components/Page.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
@@ -24,11 +26,13 @@
   import Marked from "$lib/components/list/Marked.svelte";
   import RecordTile from "$lib/components/list/RecordTile.svelte";
   import { postRowAction } from "$lib/components/list/row-action.js";
+  import { RowKeys } from "$lib/components/list/row-keys.svelte.js";
   import {
     opensRecord,
     PINNED_BG_CLASS,
     ROW_ACTION_CLASS,
     ROW_CLASS,
+    ROW_MARK_CLASS,
     ROW_MENU_CLASS,
     ROW_MENU_TRIGGER_CLASS
   } from "$lib/components/list/rows.js";
@@ -168,8 +172,19 @@
       await invalidateAll();
     });
 
+  // each action's key, which the row menus show and the shortcut sheet lists (ADR-0052)
+  const KEYS = {
+    edit: "E",
+    deactivate: "D",
+    activate: "A",
+    delete: "Backspace",
+    restore: "R"
+  } as const;
+
   type RowAction = {
     key: string;
+    /** The keyboard row's key for it (ADR-0052 rule 4). */
+    shortcut: string;
     label: string;
     icon: Component<{ "aria-hidden"?: "true"; "data-icon"?: string }>;
     /** Opens the record's edit page instead of running something. */
@@ -185,6 +200,7 @@
         ? [
             {
               key: "restore",
+              shortcut: KEYS.restore,
               label: "Restore",
               icon: RotateCcwIcon,
               run: () => restore(division)
@@ -196,20 +212,24 @@
     if (can("master-divisions.update")) {
       actions.push({
         key: "edit",
+        shortcut: KEYS.edit,
         label: "Edit",
         icon: PencilIcon,
-        edit: true
+        edit: true,
+        run: () => void goto(resolve("/(app)/master/divisions/[id]/edit", { id: division.id }))
       });
       actions.push(
         division.isActive
           ? {
               key: "deactivate",
+              shortcut: KEYS.deactivate,
               label: "Deactivate",
               icon: PowerOffIcon,
               run: () => setActive(division, false)
             }
           : {
               key: "activate",
+              shortcut: KEYS.activate,
               label: "Activate",
               icon: PowerIcon,
               run: () => setActive(division, true)
@@ -219,6 +239,7 @@
     if (can("master-divisions.delete")) {
       actions.push({
         key: "delete",
+        shortcut: KEYS.delete,
         label: "Delete…",
         icon: Trash2Icon,
         destructive: true,
@@ -227,6 +248,21 @@
     }
     return actions;
   }
+
+  const rowKeys = new RowKeys<Division>({
+    enabled: false,
+    title: "Divisions",
+    items: () => data.divisions?.items ?? [],
+    open: (division) => void goto(resolve("/(app)/master/divisions/[id]", { id: division.id })),
+    actions: (division) => rowActions(division).map(({ shortcut: key, run }) => ({ key, run })),
+    help: [
+      { keys: [KEYS.edit], what: "Edit" },
+      { keys: [KEYS.deactivate], what: "Deactivate" },
+      { keys: [KEYS.activate], what: "Activate" },
+      { keys: [KEYS.delete], what: "Delete…" },
+      { keys: [KEYS.restore], what: "Restore, in the Trash" }
+    ]
+  });
 
   // a click anywhere on a row opens the record; the name stays a real link for a new tab (ADR-0051 rule 7)
   function openRow(event: MouseEvent, division: Division) {
@@ -260,6 +296,16 @@
 <svelte:head>
   <title>Divisions — VMB</title>
 </svelte:head>
+
+<!-- a row menu shows each action's key once keyboard rows are on (ADR-0052 rule 4) -->
+{#snippet keyHint(action: RowAction)}
+  {#if rowKeys.enabled}
+    <!-- the cap is drawn only; the item names its key with aria-keyshortcuts -->
+    <DropdownMenu.Shortcut aria-hidden="true"
+      ><KeyCap size="sm" key={action.shortcut} /></DropdownMenu.Shortcut
+    >
+  {/if}
+{/snippet}
 
 <Page width="default" class="flex flex-col gap-5">
   <PageHeader title="Divisions" description="Organisational units that group stock and budgets.">
@@ -422,10 +468,15 @@
           </Table.Header>
           <Table.Body>
             {#each list.items as division (division.id)}
-              <Table.Row class={ROW_CLASS} onclick={(event) => openRow(event, division)}>
+              <Table.Row
+                class={ROW_CLASS}
+                onclick={(event) => openRow(event, division)}
+                {...rowKeys.row(division)}
+              >
                 <Table.Cell
                   class={cn(
                     PINNED_BG_CLASS,
+                    rowKeys.enabled && ROW_MARK_CLASS,
                     "pinned-start sticky left-0 z-10 max-w-72",
                     columnClass("identity")
                   )}
@@ -504,6 +555,7 @@
                       </Button>
                     {/if}
                   {:else if actions.length > 1}
+                    {@const menu = rowKeys.menu(division)}
                     <DropdownMenu.Root>
                       <DropdownMenu.Trigger>
                         {#snippet child({ props })}
@@ -519,7 +571,7 @@
                           </Button>
                         {/snippet}
                       </DropdownMenu.Trigger>
-                      <DropdownMenu.Content align="end" class={ROW_MENU_CLASS}>
+                      <DropdownMenu.Content align="end" class={ROW_MENU_CLASS} {...menu.content}>
                         {#each actions as action, index (action.key)}
                           {#if action.destructive && index > 0}
                             <DropdownMenu.Separator />
@@ -529,18 +581,25 @@
                               {#snippet child({ props })}
                                 <a
                                   {...props}
+                                  aria-keyshortcuts={rowKeys.enabled ? action.shortcut : undefined}
                                   href={resolve("/(app)/master/divisions/[id]/edit", {
                                     id: division.id
-                                  })}><action.icon aria-hidden="true" />{action.label}</a
+                                  })}
+                                  ><action.icon aria-hidden="true" />{action.label}{@render keyHint(
+                                    action
+                                  )}</a
                                 >
                               {/snippet}
                             </DropdownMenu.Item>
                           {:else}
                             <DropdownMenu.Item
                               variant={action.destructive ? "destructive" : "default"}
+                              aria-keyshortcuts={rowKeys.enabled ? action.shortcut : undefined}
                               onSelect={action.run}
                             >
-                              <action.icon aria-hidden="true" />{action.label}
+                              <action.icon aria-hidden="true" />{action.label}{@render keyHint(
+                                action
+                              )}
                             </DropdownMenu.Item>
                           {/if}
                         {/each}
