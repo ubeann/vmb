@@ -49,6 +49,8 @@ const phone = () => browser.viewport(390, 844);
 
 afterEach(() => {
   shortcuts.open = false;
+  shortcuts.singleKey = true;
+  localStorage.clear();
   resetMode();
   document.cookie = "sidebar_state=; path=/; max-age=0";
   mockPage.url = new URL("http://localhost/");
@@ -985,6 +987,29 @@ describe("AppShell", () => {
 
       await expect.element(sheet()).toBeVisible();
       await expect.element(sheet().getByText("Collapse or expand the sidebar")).toBeVisible();
+    });
+
+    it("still opens from the Shortcuts row with single-key shortcuts off, which keep ? and the rest quiet but not Ctrl B", async () => {
+      await desktop();
+      shortcuts.setSingleKey(false);
+      const screen = await render(AppShell, props());
+      const sidebar = () => document.querySelector("[data-slot='sidebar'][data-state]");
+      const row = screen.getByRole("button", { name: /Shortcuts/ });
+
+      await userEvent.keyboard("?");
+      await expect.element(sheet()).not.toBeInTheDocument();
+      await expect.element(row).not.toHaveAttribute("aria-keyshortcuts");
+
+      await userEvent.keyboard("{Control>}b{/Control}");
+      expect(sidebar()?.getAttribute("data-state")).toBe("collapsed");
+      await userEvent.keyboard("{Control>}b{/Control}");
+      expect(sidebar()?.getAttribute("data-state")).toBe("expanded");
+
+      await row.click();
+      await expect.element(sheet()).toBeVisible();
+      await expect
+        .element(sheet().getByRole("switch", { name: "Single-key shortcuts" }))
+        .not.toBeChecked();
     });
 
     it("opens the sheet on ? from the page, and not from the search field", async () => {

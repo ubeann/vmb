@@ -407,29 +407,45 @@ describe("divisions list", () => {
     const trigger = screen.getByRole("button", { name: "Actions for Operations" });
     await expect.element(trigger).toHaveAttribute("data-slot", "button");
     await trigger.click();
-    // each item carries an icon; the destructive one is the only one not muted
+    // each item carries an icon and its key (Backspace is drawn as an icon, not as text)
     const items = screen.getByRole("menuitem").elements();
     expect(items.map((item) => item.textContent?.trim())).toEqual([
-      "Edit",
-      "Deactivate",
+      "EditE",
+      "DeactivateD",
       "Delete…"
     ]);
     for (const item of items) expect(item.querySelector("svg")).not.toBeNull();
   });
 
-  it("ships with keyboard rows off (ADR-0052 rule 4): no mark, no keys, no section on the sheet", async () => {
+  it("ships with keyboard rows on (ADR-0052 rule 4): the mark, Enter, an action key, the sheet's sections and the hints in the row menu", async () => {
     const screen = await render(Page, props("/master/divisions"));
+    const marked = () => document.querySelector("tr[data-marked]")?.textContent ?? "";
 
-    await userEvent.keyboard("{ArrowDown}j");
+    await userEvent.keyboard("{ArrowDown}");
+    expect(marked()).toContain("Operations");
+
     await userEvent.keyboard("{Enter}");
-    await userEvent.keyboard("d");
+    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
-    expect(document.querySelector("[data-row-id], [data-marked]")).toBeNull();
-    expect(goto).not.toHaveBeenCalled();
-    expect(shortcuts.page).toEqual([]);
+    goto.mockClear();
+    await userEvent.keyboard("e");
+    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}/edit`);
 
+    expect(shortcuts.page.map((section) => section.title)).toEqual([
+      "On the Divisions list",
+      "On a row"
+    ]);
+    // the search's `/` and the rows' own list it once
+    expect(
+      shortcuts.page[0]!.rows.filter((row) => row.keys.includes("/")).map((row) => row.what)
+    ).toEqual(["Search"]);
+
+    await userEvent.keyboard("{Escape}");
     await screen.getByRole("button", { name: "Actions for Operations" }).click();
-    expect(document.querySelector("[data-slot='dropdown-menu-shortcut']")).toBeNull();
+    await expect.element(screen.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    expect(
+      document.querySelectorAll("[data-slot='dropdown-menu-shortcut']").length
+    ).toBeGreaterThan(0);
   });
 
   it("has no axe violations with an inactive row and a row menu open", async () => {

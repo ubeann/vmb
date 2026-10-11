@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { page } from "$app/state";
-  import type { CountNoun, MasterListPathname } from "$lib/master/list.js";
+  import { nounFor, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
   import type { Snippet } from "svelte";
   import { readerToday } from "./dates.js";
   import FilterChips, { hasActiveFilters, type ListFilter } from "./FilterChips.svelte";
@@ -58,6 +58,11 @@
   const inTrash = $derived(page.url.searchParams.get("trashed") === "only");
   const shown = $derived(views ? (inTrash ? views.trash : views.all) : null);
   const noun = $derived(inTrash ? countNouns.trash : countNouns.all);
+  // the list's name on the shortcut sheet: "Divisions"
+  const listName = $derived.by(() => {
+    const name = nounFor(countNouns.all, 2);
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  });
 </script>
 
 <div>
@@ -75,6 +80,7 @@
         label={searchLabel}
         placeholder={searchPlaceholder}
         shortPlaceholder={searchShortPlaceholder}
+        {listName}
         class="flex-1 @3xl/list:w-80 @3xl/list:flex-none"
       />
       <FilterPanel bind:this={panel} {base} {filters} {facets} {shown} {noun} />

@@ -7,12 +7,12 @@
   import { ROW_CLASS } from "./rows.js";
 
   let {
-    enabled,
+    enabled = undefined,
     log,
     names = ["Alpha", "Bravo", "Charlie"],
     layer = false
   }: {
-    enabled: boolean;
+    enabled?: boolean;
     log: (what: string) => void;
     names?: string[];
     layer?: boolean;
@@ -31,8 +31,8 @@
       { key: "Backspace", run: () => log(`delete ${item.name}`) }
     ],
     help: [
-      { keys: ["E"], what: "Edit" },
-      { keys: ["⌫"], what: "Delete…" }
+      { keys: ["E"], what: "Edit", single: true },
+      { keys: ["⌫"], what: "Delete…", single: true }
     ]
   });
 </script>
@@ -56,7 +56,7 @@
             <DropdownMenu.Content {...menu.content}>
               <DropdownMenu.Item onSelect={() => log(`edit ${item.name}`)}>
                 Edit
-                {#if keys.enabled}<DropdownMenu.Shortcut
+                {#if keys.keys}<DropdownMenu.Shortcut
                     ><KeyCap size="sm" key="E" /></DropdownMenu.Shortcut
                   >{/if}
               </DropdownMenu.Item>

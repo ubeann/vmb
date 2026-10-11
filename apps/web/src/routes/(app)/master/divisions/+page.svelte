@@ -262,17 +262,16 @@
   }
 
   const rowKeys = new RowKeys<Division>({
-    enabled: false,
     title: "Divisions",
     items: () => data.divisions?.items ?? [],
     open: (division) => void goto(resolve("/(app)/master/divisions/[id]", { id: division.id })),
     actions: (division) => rowActions(division).map(({ shortcut: key, run }) => ({ key, run })),
     help: [
-      { keys: [KEYS.edit], what: "Edit" },
-      { keys: [KEYS.deactivate], what: "Deactivate" },
-      { keys: [KEYS.activate], what: "Activate" },
-      { keys: [KEYS.delete], what: "Delete…" },
-      { keys: [KEYS.restore], what: "Restore, in the Trash" }
+      { keys: [KEYS.edit], what: "Edit", single: true },
+      { keys: [KEYS.deactivate], what: "Deactivate", single: true },
+      { keys: [KEYS.activate], what: "Activate", single: true },
+      { keys: [KEYS.delete], what: "Delete…", single: true },
+      { keys: [KEYS.restore], what: "Restore, in the Trash", single: true }
     ]
   });
 
@@ -322,7 +321,7 @@
 
 <!-- a row menu shows each action's key once keyboard rows are on (ADR-0052 rule 4) -->
 {#snippet keyHint(action: RowAction)}
-  {#if rowKeys.enabled}
+  {#if rowKeys.keys}
     <!-- the cap is drawn only; the item names its key with aria-keyshortcuts -->
     <DropdownMenu.Shortcut aria-hidden="true"
       ><KeyCap size="sm" key={action.shortcut} /></DropdownMenu.Shortcut
@@ -643,7 +642,7 @@
                               {#snippet child({ props })}
                                 <a
                                   {...props}
-                                  aria-keyshortcuts={rowKeys.enabled ? action.shortcut : undefined}
+                                  aria-keyshortcuts={rowKeys.keys ? action.shortcut : undefined}
                                   href={resolve("/(app)/master/divisions/[id]/edit", {
                                     id: division.id
                                   })}
@@ -656,7 +655,7 @@
                           {:else}
                             <DropdownMenu.Item
                               variant={action.destructive ? "destructive" : "default"}
-                              aria-keyshortcuts={rowKeys.enabled ? action.shortcut : undefined}
+                              aria-keyshortcuts={rowKeys.keys ? action.shortcut : undefined}
                               onSelect={action.run}
                             >
                               <action.icon aria-hidden="true" />{action.label}{@render keyHint(

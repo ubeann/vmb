@@ -203,17 +203,19 @@
                  It needs a keyboard, so touch screens don't show it; the rail shows the icon only. -->
             <Sidebar.MenuItem class="pointer-coarse:hidden">
               <Sidebar.MenuButton
-                aria-keyshortcuts="?"
+                aria-keyshortcuts={shortcuts.singleKey ? "?" : undefined}
                 tooltipContent="Keyboard shortcuts"
                 onclick={() => (shortcuts.open = true)}
               >
                 <KeyboardIcon aria-hidden="true" />
                 <span>Shortcuts</span>
-                <kbd
-                  aria-hidden="true"
-                  class="border-sidebar-border text-muted-foreground ml-auto rounded border px-1.5 font-mono text-[0.7rem] group-data-[collapsible=icon]:hidden"
-                  >?</kbd
-                >
+                {#if shortcuts.singleKey}
+                  <kbd
+                    aria-hidden="true"
+                    class="border-sidebar-border text-muted-foreground ml-auto rounded border px-1.5 font-mono text-[0.7rem] group-data-[collapsible=icon]:hidden"
+                    >?</kbd
+                  >
+                {/if}
               </Sidebar.MenuButton>
             </Sidebar.MenuItem>
             <Sidebar.MenuItem>
