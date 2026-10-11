@@ -15,6 +15,7 @@
   import AnimatedIconsDemo from "./AnimatedIconsDemo.svelte";
   import DateRangeDemo from "./DateRangeDemo.svelte";
   import DemoForm from "./DemoForm.svelte";
+  import LayerDemo from "./LayerDemo.svelte";
   import MotionDemo from "./MotionDemo.svelte";
   import MotionTokens from "./MotionTokens.svelte";
   import type { PageData } from "./$types.js";
@@ -306,6 +307,15 @@
       <Button variant="outline" onclick={() => toast.info("3 users imported")}>Info toast</Button>
       <DateRangeDemo />
     </div>
+  </section>
+
+  <section class="space-y-4" aria-labelledby="layers">
+    {@render section(
+      "layers",
+      "Layers",
+      "A list's panels: a sheet on phones, a dialog to 639px, the panel by its button from 640px; steps open beside it where there's room."
+    )}
+    <LayerDemo />
   </section>
 
   <section class="space-y-4" aria-labelledby="motion-tokens">
