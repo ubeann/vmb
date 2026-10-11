@@ -10,7 +10,13 @@
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import * as Select from "$lib/components/ui/select/index.js";
-  import { countSummary, listHref, pageWindow, type MasterListPathname } from "$lib/master/list.js";
+  import {
+    countSummary,
+    listHref,
+    pageWindow,
+    type CountNoun,
+    type MasterListPathname
+  } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { PER_PAGE_OPTIONS } from "@vmb/types";
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
@@ -20,13 +26,16 @@
     base,
     list,
     noun,
-    outOf = null
+    outOf = null,
+    nameCount = false
   }: {
     base: MasterListPathname;
     list: { page: number; perPage: number; total: number };
-    noun: string;
+    noun: CountNoun;
     /** Rows the view holds before the search and filters; null when none is set or it is unknown. */
     outOf?: number | null;
+    /** An unfiltered range names what it counts, as the Trash does ("of 60 deleted divisions"). */
+    nameCount?: boolean;
   } = $props();
 
   const uid = $props.id();
@@ -45,7 +54,7 @@
 
 <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
   <p role="status" class="text-muted-foreground tabular-nums">
-    {countSummary(list, noun, outOf)}
+    {countSummary(list, noun, outOf, nameCount)}
   </p>
 
   <div class="flex flex-wrap items-center gap-x-6 gap-y-3">

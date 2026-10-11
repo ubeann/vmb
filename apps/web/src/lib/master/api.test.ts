@@ -8,6 +8,7 @@ import {
   listDivisions,
   listRoles,
   restoreDivision,
+  setDivisionActive,
   updateDivision
 } from "./api.js";
 
@@ -137,6 +138,39 @@ describe("master API client", () => {
       `DELETE /api/master/divisions/${ID}`,
       `POST /api/master/divisions/${ID}/restore`
     ]);
+  });
+
+  it("switches a division with the status-only endpoints and no lookup first", async () => {
+    const { client, calls } = clientWith((call) =>
+      json({ ...division, isActive: call.path.endsWith("/activate") })
+    );
+
+    await expect(setDivisionActive(client, ID, false)).resolves.toMatchObject({
+      ok: true,
+      value: { isActive: false }
+    });
+    await expect(setDivisionActive(client, ID, true)).resolves.toMatchObject({
+      ok: true,
+      value: { isActive: true }
+    });
+
+    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+      `POST /api/master/divisions/${ID}/deactivate`,
+      `POST /api/master/divisions/${ID}/activate`
+    ]);
+    expect(calls.every((call) => call.body === null)).toBe(true);
+  });
+
+  it("maps a missing or Trashed division to 404 when switching it", async () => {
+    const { client } = clientWith(() =>
+      json({ code: "NOT_FOUND", message: "Division not found." }, 404)
+    );
+
+    await expect(setDivisionActive(client, ID, true)).resolves.toMatchObject({
+      ok: false,
+      status: 404,
+      code: "NOT_FOUND"
+    });
   });
 
   it("maps an API failure to its status, code and message", async () => {

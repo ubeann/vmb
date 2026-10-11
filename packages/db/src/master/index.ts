@@ -21,6 +21,7 @@ import {
   getDivision,
   listDivisions,
   restoreDivision,
+  setDivisionActive,
   updateDivision
 } from "./divisions.js";
 import { getAccess, getPermissions } from "./access.js";
@@ -57,6 +58,7 @@ export type MasterStore = {
   updateDivision(id: string, input: DivisionInput): Promise<Division>;
   deleteDivision(id: string): Promise<void>;
   restoreDivision(id: string): Promise<Division>;
+  setDivisionActive(id: string, isActive: boolean): Promise<Division>;
 
   listRoles(query: RoleListQuery): Promise<RoleListResponse>;
   getRole(id: string): Promise<Role>;
@@ -84,6 +86,7 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     updateDivision: (id, input) => updateDivision(db, id, input),
     deleteDivision: (id) => deleteDivision(db, id),
     restoreDivision: (id) => restoreDivision(db, id),
+    setDivisionActive: (id, isActive) => setDivisionActive(db, id, isActive),
 
     listRoles: (query) => listRoles(db, query),
     getRole: (id) => getRole(db, id),

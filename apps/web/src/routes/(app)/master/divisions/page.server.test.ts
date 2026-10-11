@@ -12,13 +12,16 @@ vi.mock("$lib/api-access.js", () => ({
 vi.mock("$lib/master/api.js", () => ({
   listDivisions: (...args: unknown[]) => listDivisionsMock(...args),
   deleteDivision: vi.fn(),
-  restoreDivision: vi.fn()
+  restoreDivision: vi.fn(),
+  setDivisionActive: vi.fn()
 }));
 vi.mock("$lib/master/form-action.js", () => ({ runRowAction: vi.fn() }));
 
 vi.mock("$lib/master/list.js", () => import("../../../../lib/master/list.js"));
 
-const { load } = await import("./+page.server.js");
+const { load, actions } = await import("./+page.server.js");
+const { runRowAction } = await import("$lib/master/form-action.js");
+const { setDivisionActive } = await import("$lib/master/api.js");
 
 const page = (total: number, trash = 0) => ({
   items: [],
@@ -157,5 +160,19 @@ describe("the divisions list load", () => {
     });
 
     await expect(load(event())).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("row actions", () => {
+  it.each([
+    ["activate", true],
+    ["deactivate", false]
+  ] as const)("%s sets the division's active flag through the API", async (name, isActive) => {
+    vi.mocked(runRowAction).mockClear();
+    await actions[name]!({} as never);
+
+    const config = vi.mocked(runRowAction).mock.calls[0]![1];
+    await config.run({} as never, "d1");
+    expect(setDivisionActive).toHaveBeenCalledWith({}, "d1", isActive);
   });
 });

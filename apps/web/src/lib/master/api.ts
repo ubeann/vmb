@@ -161,6 +161,22 @@ export function updateDivision(
     .then((response) => read(response, DivisionSchema));
 }
 
+/**
+ * Activate or deactivate a division through the endpoints that write only its
+ * active flag. A whole-record update would send back what the page last read,
+ * and could overwrite an edit made since.
+ */
+export function setDivisionActive(
+  client: ApiClient,
+  id: string,
+  isActive: boolean
+): Promise<ApiResult<Division>> {
+  const route = client.api.master.divisions[":id"];
+  return (isActive ? route.activate : route.deactivate)
+    .$post({ param: { id } })
+    .then((response) => read(response, DivisionSchema));
+}
+
 export function deleteDivision(client: ApiClient, id: string): Promise<ApiResult<null>> {
   return client.api.master.divisions[":id"].$delete({ param: { id } }).then(readNoContent);
 }
