@@ -1,4 +1,4 @@
-<!-- Test fixture: a list toolbar's controls, and kit elements beside the legacy layer (control-skin.svelte.test.ts). -->
+<!-- Test fixture: a list toolbar's controls, a form's fields, and kit elements beside the legacy layer (control-skin.svelte.test.ts). -->
 <script lang="ts">
   import ColumnsMenu from "$lib/components/list/ColumnsMenu.svelte";
   import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
@@ -13,14 +13,24 @@
 </script>
 
 <div class="bg-card flex gap-2 p-4">
-  <Input type="search" aria-label="Search" />
+  <Input type="search" aria-label="Search" variant="kit" />
   <Button variant="outline">Filter</Button>
   <Button variant="outline" class="rounded-full">Pill</Button>
   <ColumnsMenu {columns} />
   <Select.Root type="single" value="25">
-    <Select.Trigger aria-label="Rows per page">25</Select.Trigger>
+    <Select.Trigger aria-label="Rows per page" variant="kit">25</Select.Trigger>
     <Select.Content>
       <Select.Item value="25" label="25" />
+    </Select.Content>
+  </Select.Root>
+</div>
+
+<div class="bg-card flex gap-2 p-4">
+  <Input aria-label="Email" />
+  <Select.Root type="single" value="a">
+    <Select.Trigger aria-label="Division">Division A</Select.Trigger>
+    <Select.Content>
+      <Select.Item value="a" label="Division A" />
     </Select.Content>
   </Select.Root>
 </div>

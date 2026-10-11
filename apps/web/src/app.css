@@ -52,10 +52,11 @@
   --border: oklch(0.888 0.005 90);
   /* 3:1 on paper and white: the strong field boundary, now the dark end of --control-edge */
   --input: oklch(0.64 0.037 274.3);
-  /* One skin for text fields and outline buttons (ADR-0035, 2026-10-11): an edge about halfway
-   * between --input and --border (45% --input, the prototype's mix the ADR measured), 2.03:1
-   * against the card and 1.91:1 against the paper. Under 3:1, so a field is told by its label,
-   * icon or placeholder and its focus ring */
+  /* One skin for outline buttons and list-kit fields (ADR-0035, 2026-10-11): an edge about
+   * halfway between --input and --border (45% --input, the prototype's mix the ADR measured),
+   * 2.03:1 against the card and 1.91:1 against the paper. Under 3:1, so a kit field (`Input` and
+   * the select trigger with `variant="kit"`) is told by its icon, placeholder and focus ring;
+   * form fields keep the --input edge */
   --control-edge: color-mix(in oklab, var(--input) 45%, var(--border));
   --ring: oklch(0.51 0.164 143.6);
   /* Engraving ink: the logo navy (#041c74) eased toward paper so dense hatching reads as texture */

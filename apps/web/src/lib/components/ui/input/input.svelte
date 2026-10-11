@@ -6,8 +6,14 @@
 
   type Props = WithElementRef<
     Omit<HTMLInputAttributes, "type"> &
-      ({ type: "file"; files?: FileList } | { type?: InputType; files?: undefined })
+      ({ type: "file"; files?: FileList } | { type?: InputType; files?: undefined }) & {
+        /** "kit": a list-kit control, on the paper with the outline buttons' edge (ADR-0035,
+         * 2026-10-11). Forms keep the default: white with the 3:1 `--input` edge. */
+        variant?: "default" | "kit";
+      }
   >;
+
+  const KIT = "border-control-edge bg-background";
 
   let {
     ref = $bindable(null),
@@ -15,6 +21,7 @@
     type,
     files = $bindable(),
     class: className,
+    variant = "default",
     "data-slot": dataSlot = "input",
     ...restProps
   }: Props = $props();
@@ -25,7 +32,8 @@
     bind:this={ref}
     data-slot={dataSlot}
     class={cn(
-      "dark:bg-input/30 border-control-edge focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 file:text-foreground placeholder:text-muted-foreground bg-background h-8 w-full min-w-0 rounded-(--control-radius) border px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm",
+      "dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 file:text-foreground placeholder:text-muted-foreground h-8 w-full min-w-0 rounded-(--control-radius) border bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm",
+      variant === "kit" && KIT,
       className
     )}
     type="file"
@@ -38,7 +46,8 @@
     bind:this={ref}
     data-slot={dataSlot}
     class={cn(
-      "dark:bg-input/30 border-control-edge focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 file:text-foreground placeholder:text-muted-foreground bg-background h-8 w-full min-w-0 rounded-(--control-radius) border px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm",
+      "dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 file:text-foreground placeholder:text-muted-foreground h-8 w-full min-w-0 rounded-(--control-radius) border bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 md:text-sm",
+      variant === "kit" && KIT,
       className
     )}
     {type}

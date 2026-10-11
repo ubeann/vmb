@@ -26,13 +26,15 @@ async function controls() {
     search: screen.getByRole("searchbox", { name: "Search" }).element(),
     filter: screen.getByRole("button", { name: "Filter" }).element(),
     columns: screen.getByRole("button", { name: "Columns" }).element(),
-    select: screen.getByLabelText("Rows per page").element()
+    select: screen.getByLabelText("Rows per page").element(),
+    email: screen.getByRole("textbox", { name: "Email" }).element(),
+    division: screen.getByLabelText("Division").element()
   };
 }
 
-// ADR-0035's 2026-10-11 amendment: one skin for text fields and outline buttons.
+// ADR-0035's 2026-10-11 amendment: one skin for outline buttons and the list kit's fields.
 describe("the control skin", () => {
-  it("puts fields and outline buttons on the paper with the halfway edge, in light mode", async () => {
+  it("puts kit fields and outline buttons on the paper with the halfway edge, in light mode", async () => {
     const { search, filter, columns, select } = await controls();
     const edge = resolved("color-mix(in oklab, var(--input) 45%, var(--border))");
     const paper = resolved("var(--background)");
@@ -40,6 +42,16 @@ describe("the control skin", () => {
     for (const control of [search, filter, columns, select]) {
       expect(style(control).borderTopColor).toBe(edge);
       expect(style(control).backgroundColor).toBe(paper);
+    }
+  });
+
+  it("keeps form fields white with the 3:1 --input edge", async () => {
+    const { email, division } = await controls();
+
+    for (const field of [email, division]) {
+      expect(style(field).borderTopColor).toBe(resolved("var(--input)"));
+      expect(style(field).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+      expect(style(field).borderTopLeftRadius).toBe("8px");
     }
   });
 

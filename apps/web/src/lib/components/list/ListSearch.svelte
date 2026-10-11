@@ -100,6 +100,7 @@
     aria-keyshortcuts="/"
     {placeholder}
     autocomplete="off"
+    variant="kit"
     class="pr-8 pl-8"
     {oninput}
   />

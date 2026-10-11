@@ -60,8 +60,10 @@
         onValueChange={(value) => goto(resolve(to({ perPage: value })), { noScroll: true })}
       >
         <!-- named by its label and its value, so the visible "25" is part of the name -->
-        <Select.Trigger aria-labelledby="{uid}-per-page {uid}-per-page-value" class="w-20"
-          ><span id="{uid}-per-page-value">{list.perPage}</span></Select.Trigger
+        <Select.Trigger
+          aria-labelledby="{uid}-per-page {uid}-per-page-value"
+          variant="kit"
+          class="w-20"><span id="{uid}-per-page-value">{list.perPage}</span></Select.Trigger
         >
         <Select.Content>
           {#each PER_PAGE_OPTIONS as size (size)}
