@@ -103,7 +103,7 @@
   }
 
   const rowClass =
-    "hover:bg-muted flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm pointer-coarse:h-11";
+    "hover:bg-muted flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm whitespace-nowrap pointer-coarse:h-11";
 </script>
 
 <div class="bg-card ring-foreground/10 flex w-full items-center gap-3 rounded-xl p-3 ring-1">
@@ -214,7 +214,7 @@
       {/snippet}
 
       {#snippet beside(_, layer)}
-        <div class="border-border bg-muted/40 flex w-64 flex-col gap-0.5 border-r p-2">
+        <div class="border-border bg-muted/40 flex min-w-64 flex-col gap-0.5 border-r p-2">
           {@render presets(layer.top)}
         </div>
         <div class="flex w-min flex-col">
