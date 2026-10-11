@@ -898,14 +898,16 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("button", { name: "Reset" })).not.toBeInTheDocument();
   });
 
-  it("ends View with an action that names what the list shows, and closes it", async () => {
+  it("ends View with Done, which closes it without applying anything", async () => {
     await browser.viewport(1280, 900);
-    const screen = await render(Page, props("/master/divisions", { total: 7 }));
+    const screen = await render(Page, props("/master/divisions", { total: 12 }));
 
     await screen.getByRole("button", { name: "View" }).click();
-    await screen.getByRole("radio", { name: "50" }).click();
+    await screen.getByRole("radio", { name: "10" }).click();
     goto.mockClear();
-    await screen.getByRole("button", { name: "Show 7 divisions" }).click();
+    // not "Show 12 divisions": nothing in View changes the count, and at 10 rows a page 10 are listed
+    await expect.element(screen.getByRole("button", { name: /^Show / })).not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "Done" }).click();
 
     // it applies nothing: the picks already did
     expect(goto).not.toHaveBeenCalled();
@@ -913,18 +915,11 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("button", { name: "View" })).toHaveFocus();
   });
 
-  it("agrees the action's noun with the count, and in the Trash", async () => {
+  it("says Done in the Trash and when the list failed to load, too", async () => {
     await browser.viewport(1280, 900);
-    const one = await render(Page, props("/master/divisions", { total: 1 }));
-    await one.getByRole("button", { name: "View" }).click();
-    await expect.element(one.getByRole("button", { name: "Show 1 division" })).toBeVisible();
-    one.unmount();
-
     const trash = await render(Page, props("/master/divisions?trashed=only", { total: 3 }));
     await trash.getByRole("button", { name: "View" }).click();
-    await expect
-      .element(trash.getByRole("button", { name: "Show 3 deleted divisions" }))
-      .toBeVisible();
+    await expect.element(trash.getByRole("button", { name: "Done" })).toBeVisible();
     trash.unmount();
 
     const failed = await render(Page, props("/master/divisions", { failed: true }));
@@ -943,17 +938,17 @@ describe("divisions list", () => {
     // the sort steps are the tallest content View has; the action sits under all of it
     await expect.element(sheet.getByRole("radiogroup", { name: "Sort by" })).toBeVisible();
     expect(body.scrollHeight).toBeLessThanOrEqual(body.clientHeight);
-    const action = sheet.getByRole("button", { name: "Show 12 divisions" }).element();
+    const action = sheet.getByRole("button", { name: "Done" }).element();
     expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(innerHeight);
 
-    await sheet.getByRole("button", { name: "Show 12 divisions" }).click();
+    await sheet.getByRole("button", { name: "Done" }).click();
     await expect.element(sheet.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
     sheet.unmount();
 
     await browser.viewport(520, 800);
     const dialog = await render(Page, props("/master/divisions", { total: 12 }));
     await dialog.getByRole("button", { name: "View" }).click();
-    await dialog.getByRole("button", { name: "Show 12 divisions" }).click();
+    await dialog.getByRole("button", { name: "Done" }).click();
     await expect.element(dialog.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
   });
 

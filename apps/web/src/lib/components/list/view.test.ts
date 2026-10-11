@@ -6,7 +6,6 @@ import {
   foldsAt,
   orderChoices,
   pickField,
-  showLabel,
   sortChanges,
   viewDiffers,
   type SortField
@@ -83,22 +82,5 @@ describe("viewDiffers", () => {
     const sorted = { ...base, sort: { sort: "code", dir: "desc" } as const };
     expect(viewDiffers(sorted)).toBe(false);
     expect(viewDiffers({ ...sorted, folded: true })).toBe(true);
-  });
-});
-
-describe("showLabel", () => {
-  const noun = { one: "division", many: "divisions" };
-
-  it("names the result in the noun that agrees with its number", () => {
-    expect(showLabel(12, noun)).toBe("Show 12 divisions");
-    expect(showLabel(1, noun)).toBe("Show 1 division");
-    expect(showLabel(0, noun)).toBe("Show 0 divisions");
-    expect(showLabel(3, { one: "deleted division", many: "deleted divisions" })).toBe(
-      "Show 3 deleted divisions"
-    );
-  });
-
-  it("says Done while the count isn't known", () => {
-    expect(showLabel(null, noun)).toBe("Done");
   });
 });

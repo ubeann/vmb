@@ -4,8 +4,8 @@
   page and, once the card is under 32rem and its rows fold to two lines, Sort
   by and Order instead of the columns. A choice applies at once and the panel
   stays open; a dot on the button says something differs from the default, and
-  Reset puts every part back. The footer's action names what the list now
-  shows ("Show 12 divisions") and closes the layer, applying nothing. The sort
+  Reset puts every part back. The footer's "Done" closes the layer, applying
+  nothing: nothing in View changes the count. The sort
   and page size live in the URL, the columns in the browser (`ColumnVisibility`).
 
   It sits in the list's layer (ADR-0053), so it is the panel by its button, a
@@ -19,7 +19,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
-  import { listHref, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
+  import { listHref, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { DEFAULT_PER_PAGE, PER_PAGE_OPTIONS } from "@vmb/types";
   import ArrowDownIcon from "@lucide/svelte/icons/arrow-down";
@@ -37,7 +37,6 @@
     foldsAt,
     orderChoices,
     pickField,
-    showLabel,
     sortChanges,
     sortDiffers,
     viewDiffers,
@@ -51,9 +50,7 @@
     perPage,
     sort,
     defaultSort,
-    sortFields,
-    shown,
-    noun
+    sortFields
   }: {
     base: MasterListPathname;
     columns: ColumnVisibility<Id>;
@@ -65,10 +62,6 @@
     defaultSort: ListSort;
     /** The columns Sort by offers, in order; the first is the default's. */
     sortFields: readonly SortField[];
-    /** Rows the list shows with the picks in; null while it isn't known. */
-    shown: number | null;
-    /** What those rows are called, agreeing with their number. */
-    noun: CountNoun;
   } = $props();
 
   // The panel is portalled, outside the card's container queries, so the card's
@@ -278,9 +271,9 @@
         </RadioGroup.Root>
       </section>
     </LayerBody>
-    <!-- the picks are already applied: this only closes the layer, naming the result (ADR-0053 rule 4) -->
+    <!-- the picks are already applied and can't change the count: this only closes the layer (ADR-0053 rule 4) -->
     <LayerFooter>
-      <LayerAction label={showLabel(shown, noun)} icon={Settings2Icon} onclick={layer.close} />
+      <LayerAction label="Done" icon={CheckIcon} onclick={layer.close} />
     </LayerFooter>
   {/snippet}
 </Layer>
