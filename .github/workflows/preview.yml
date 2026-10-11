@@ -168,6 +168,10 @@ jobs:
 
           emit_code_relevant_change "$BASE_SHA" HEAD preview
 
+      # Every step from here on needs the same guard, `if:
+      # steps.changes.outputs.code_changed != 'false'`: a step without it runs on
+      # a docs-only PR and can create the resources this gate exists to avoid.
+      #
       # Toolchain, pnpm store cache, and a frozen-lockfile install: the same
       # composite action `ci.yml` bootstraps with (issue #79).
       - uses: ./.github/actions/setup

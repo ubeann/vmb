@@ -10,9 +10,9 @@
 #     workflow edit cannot change the deployed artifact, so it must not force a
 #     deploy.
 #   - `preview.yml`'s `Detect code-relevant changes` step, the first step of
-#     its `preview` job, gates the preview on a pull request. It uses the canonical list plus `.github/workflows/**`: a
-#     workflow edit still has to be exercised by that PR's own preview run
-#     before it lands (ADR-0023).
+#     its `preview` job, gates the preview on a pull request. It uses the
+#     canonical list plus `.github/workflows/**`: a workflow edit still has to
+#     be exercised by that PR's own preview run before it lands (ADR-0023).
 #
 # `preview.yml` used to hold the canonical list in its `on.paths` trigger, with
 # `ci.yml` a hand-kept copy (issue #70). A workflow's `on.paths` cannot reference
