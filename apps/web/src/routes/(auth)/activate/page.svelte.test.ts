@@ -899,6 +899,11 @@ describe("activate page", () => {
         (box) => box.textContent?.trim() ?? ""
       );
 
+    const activeBox = (container: Element) =>
+      [...container.querySelectorAll("[data-slot=input-otp-slot]")].findIndex((box) =>
+        box.hasAttribute("data-active")
+      );
+
     it("draws six boxes for one field named Code", async () => {
       const screen = await render(Page, codeStep);
 
@@ -950,21 +955,38 @@ describe("activate page", () => {
       expect(boxes(screen.container)).toEqual(["1", "2", "", "", "", ""]);
     });
 
+    // bits-ui's PinInput re-reads the caret 0, 10 and 50 ms after every value
+    // change, and a caret move inside that window can be overwritten (#375).
+    // Timers fire in due order, so a 60 ms wait started after the digit runs
+    // after all three.
+    const afterDigitSettles = () => new Promise((resolve) => setTimeout(resolve, 60));
+
     it("moves between boxes with the arrow keys", async () => {
       const screen = await render(Page, codeStep);
       const code = screen.getByLabelText("Code");
 
       await code.click();
       await userEvent.keyboard("123");
-      await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
-      const active = () =>
-        [...screen.container.querySelectorAll("[data-slot=input-otp-slot]")].findIndex((box) =>
-          box.hasAttribute("data-active")
-        );
-      await expect.poll(active).toBe(1);
+      await afterDigitSettles();
+      await userEvent.keyboard("{ArrowLeft}");
+      await expect.poll(() => activeBox(screen.container)).toBe(2);
+      await userEvent.keyboard("{ArrowLeft}");
+      await expect.poll(() => activeBox(screen.container)).toBe(1);
 
       await userEvent.keyboard("{ArrowRight}");
-      await expect.poll(active).toBe(2);
+      await expect.poll(() => activeBox(screen.container)).toBe(2);
+    });
+
+    it("moves two boxes for two quick arrow presses", async () => {
+      const screen = await render(Page, codeStep);
+      const code = screen.getByLabelText("Code");
+
+      await code.click();
+      await userEvent.keyboard("123");
+      await afterDigitSettles();
+      await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+
+      await expect.poll(() => activeBox(screen.container)).toBe(1);
     });
 
     it("fills every box from a pasted code", async () => {
@@ -1039,11 +1061,13 @@ describe("activate page", () => {
 
     it("does not send twice while the first send is under way", async () => {
       const screen = await render(Page, codeStep);
-      await screen.getByLabelText("Code").click();
+      const code = screen.getByLabelText("Code");
+      await code.click();
       await userEvent.keyboard("123456");
       await expect.poll(() => submissions.length).toBe(1);
 
       await userEvent.keyboard("{Backspace}6");
+      await expect.element(code).toHaveValue("123456");
 
       expect(submissions).toHaveLength(1);
     });
