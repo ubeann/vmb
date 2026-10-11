@@ -40,6 +40,8 @@ export const SETTLE_MS = 200;
 /** A scrollbar's width: the most the window and the page may disagree by. */
 const SCROLLBAR = 20;
 const STEADY_CAP_MS = 1000;
+/** How many frames running the gap must hold before it counts as a scrollbar. */
+const STEADY_FRAMES = 3;
 
 type SteadyOptions = {
   gap?: () => number;
@@ -49,7 +51,7 @@ type SteadyOptions = {
 
 /**
  * Calls `open` once the window and the page agree on the width, a scrollbar
- * apart, or after a second (rule 6). A modal layer locks scrolling and pads the
+ * apart and holding for three frames, or after a second (rule 6). A modal layer locks scrolling and pads the
  * page by "window − page", read as the scrollbar; a panel still on screen past
  * a phone's new edge widens the window (691px for a 425px page after a DevTools
  * device preset), and opening then would squeeze the page by the difference.
@@ -65,10 +67,16 @@ export function whenSteady(
 ) {
   const start = now();
   let cancelled = false;
+  let last = NaN;
+  let held = 0;
   const check = () => {
     if (cancelled) return;
     const apart = gap();
-    if ((apart >= 0 && apart <= SCROLLBAR) || now() - start >= STEADY_CAP_MS) open();
+    // a scrollbar holds its width; a closing panel's overflow shrinks frame by frame
+    held = apart === last ? held + 1 : 1;
+    last = apart;
+    const steady = apart >= 0 && apart <= SCROLLBAR && held >= STEADY_FRAMES;
+    if (steady || now() - start >= STEADY_CAP_MS) open();
     else frame(check);
   };
   frame(check);

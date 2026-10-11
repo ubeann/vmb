@@ -41,9 +41,27 @@ describe("whenSteady", () => {
     expect(opened).toBe(0);
     gap = 15;
     time.tick();
+    time.tick();
+    expect(opened).toBe(0);
+    time.tick();
     expect(opened).toBe(1);
     time.tick();
     expect(opened).toBe(1);
+  });
+
+  it("waits while the gap still shrinks, as a closing panel's does on a phone", async () => {
+    // a phone has no scrollbar: 11px a frame into a closing panel is not one
+    const time = clock();
+    const gaps = [266, 120, 40, 11, 4, 0, 0, 0, 0];
+    let opened = 0;
+    let at = -1;
+    whenSteady(() => (at = opened++), { gap: () => gaps.shift() ?? 0, ...time });
+
+    for (let i = 0; i < 5; i++) time.tick();
+    expect(opened).toBe(0);
+    for (let i = 0; i < 3; i++) time.tick();
+    expect(opened).toBe(1);
+    expect(at).toBe(0);
   });
 
   it("opens after a second at most", () => {
