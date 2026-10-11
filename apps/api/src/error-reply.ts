@@ -1,4 +1,10 @@
-import { ConflictError, DomainError, ForbiddenError, NotFoundError } from "@vmb/db";
+import {
+  ConflictError,
+  DomainError,
+  ForbiddenError,
+  NotFoundError,
+  StaleRecordError
+} from "@vmb/db";
 import { ApiErrorSchema, type ApiError, type ApiErrorCode } from "@vmb/types";
 import type { Context, ErrorHandler, Hono, NotFoundHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -23,7 +29,7 @@ function reply(
 
 function statusOf(error: DomainError): ContentfulStatusCode {
   if (error instanceof NotFoundError) return 404;
-  if (error instanceof ConflictError) return 409;
+  if (error instanceof ConflictError || error instanceof StaleRecordError) return 409;
   if (error instanceof ForbiddenError) return 403;
   return 500;
 }

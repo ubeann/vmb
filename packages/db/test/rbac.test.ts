@@ -286,7 +286,8 @@ describe("assigning roles to users", () => {
     roleIds,
     profilePhotoPath: "",
     password: "",
-    passwordConfirmation: ""
+    passwordConfirmation: "",
+    updatedAt: user.updatedAt
   });
 
   it("creates a user holding the chosen roles, named in the result", async () => {
@@ -320,12 +321,12 @@ describe("assigning roles to users", () => {
       // saving the same set again is harmless, and an empty set clears the roles
       await store(db).updateUser(
         created.id,
-        edit(created, [MANAGER_FINANCE]),
+        edit(updated, [MANAGER_FINANCE]),
         await actor(db, SUPER_ADMIN_USER)
       );
       const cleared = await store(db).updateUser(
         created.id,
-        edit(created, []),
+        edit(await store(db).getUser(created.id), []),
         await actor(db, SUPER_ADMIN_USER)
       );
       expect(cleared.roles).toEqual([]);
@@ -464,7 +465,8 @@ describe("reaching a more privileged user", () => {
     status: user.status,
     profilePhotoPath: "",
     password: "a-brand-new-password",
-    passwordConfirmation: "a-brand-new-password"
+    passwordConfirmation: "a-brand-new-password",
+    updatedAt: user.updatedAt
   });
 
   it("refuses to edit, delete or restore a user who holds permissions the caller lacks", async () => {
@@ -519,7 +521,11 @@ describe("reaching a more privileged user", () => {
       });
       // a Super Admin may manage anyone
       await expect(
-        store(db).updateUser(MANAGER, resetPassword(manager), await actor(db, ADMIN))
+        store(db).updateUser(
+          MANAGER,
+          resetPassword(await store(db).getUser(MANAGER)),
+          await actor(db, ADMIN)
+        )
       ).resolves.toMatchObject({
         id: MANAGER
       });
@@ -587,7 +593,8 @@ describe("what a request costs (ADR-0045's amendment)", () => {
           roleIds: [MANAGER_FINANCE],
           profilePhotoPath: "",
           password: "",
-          passwordConfirmation: ""
+          passwordConfirmation: "",
+          updatedAt: target.updatedAt
         },
         caller
       );

@@ -4,7 +4,8 @@ import {
   type Division,
   type DivisionInput,
   type DivisionListRequest,
-  type DivisionListResponse
+  type DivisionListResponse,
+  type DivisionUpdateInput
 } from "@vmb/types";
 import {
   and,
@@ -21,8 +22,15 @@ import {
   type SQL
 } from "drizzle-orm";
 import { divisions } from "../schema/master.js";
-import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { NotFoundError } from "../errors.js";
+import {
+  conflictFrom,
+  nextStamp,
+  nullIfEmpty,
+  toIso,
+  unchangedSince,
+  type MasterDb
+} from "./db.js";
+import { NotFoundError, StaleRecordError } from "../errors.js";
 
 const DIVISION_CONFLICTS = {
   master_divisions_name_unique: {
@@ -189,23 +197,41 @@ export async function createDivision(db: MasterDb, input: DivisionInput): Promis
   }
 }
 
+/**
+ * Save an edit, if the division is still as the editor loaded it: `input.updatedAt`
+ * is compared inside the update, so nothing saved since can be overwritten. A
+ * miss is a 409 when the division exists and a 404 when it does not.
+ */
 export async function updateDivision(
   db: MasterDb,
   id: string,
-  input: DivisionInput
+  input: DivisionUpdateInput
 ): Promise<Division> {
+  const { updatedAt, ...fields } = input;
+
   try {
     const rows = await db
       .update(divisions)
-      .set({ ...input, description: nullIfEmpty(input.description), updatedAt: new Date() })
-      .where(eq(divisions.id, id))
+      .set({
+        ...fields,
+        description: nullIfEmpty(fields.description),
+        updatedAt: nextStamp(divisions.updatedAt)
+      })
+      .where(and(eq(divisions.id, id), unchangedSince(divisions.updatedAt, updatedAt)))
       .returning();
     const row = rows[0];
-    if (!row) throw new NotFoundError("Division not found.");
-    return toDivision(row);
+    if (row) return toDivision(row);
   } catch (error) {
     return conflictFrom(error, DIVISION_CONFLICTS);
   }
+
+  const found = await db
+    .select({ id: divisions.id })
+    .from(divisions)
+    .where(eq(divisions.id, id))
+    .limit(1);
+  if (!found[0]) throw new NotFoundError("Division not found.");
+  throw new StaleRecordError();
 }
 
 /**

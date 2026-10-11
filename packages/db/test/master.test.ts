@@ -28,6 +28,12 @@ const division = (overrides: Partial<DivisionInput> = {}): DivisionInput => ({
   ...overrides
 });
 
+/** An edit of a record the editor loaded: the fields to save, and the `updatedAt` it read. */
+const editing = <T extends object>(loaded: { updatedAt: string | null }, fields: T) => ({
+  ...fields,
+  updatedAt: loaded.updatedAt
+});
+
 const listQuery = (overrides: Partial<DivisionListRequest> = {}): DivisionListRequest => ({
   status: [],
   trashed: "exclude",
@@ -90,7 +96,7 @@ describe("divisions store", () => {
 
       const updated = await store.updateDivision(
         created.id,
-        division({ name: "Operations HQ", isActive: false })
+        editing(created, division({ name: "Operations HQ", isActive: false }))
       );
       expect(updated).toMatchObject({ id: created.id, name: "Operations HQ", isActive: false });
     });
@@ -283,7 +289,7 @@ describe("divisions store", () => {
       // a rename that lands first is not undone by the switch
       await store.updateDivision(
         created.id,
-        division({ name: "Operations HQ", colorHex: "#112233" })
+        editing(created, division({ name: "Operations HQ", colorHex: "#112233" }))
       );
       const off = await store.setDivisionActive(created.id, false);
 
@@ -376,9 +382,9 @@ describe("divisions store", () => {
       const missing = "00000000-0000-4000-8000-000000000000";
 
       await expect(store.getDivision(missing)).rejects.toThrow("Division not found.");
-      await expect(store.updateDivision(missing, division())).rejects.toThrow(
-        "Division not found."
-      );
+      await expect(
+        store.updateDivision(missing, { ...division(), updatedAt: null })
+      ).rejects.toThrow("Division not found.");
       await expect(store.deleteDivision(missing)).rejects.toThrow("Division not found.");
       await expect(store.restoreDivision(missing)).rejects.toThrow("Deleted division not found.");
     });
@@ -435,7 +441,10 @@ describe("roles store", () => {
       const store = storeFor(db);
       const created = await store.createRole(role());
 
-      const updated = await store.updateRole(created.id, role({ name: "Senior Staff" }));
+      const updated = await store.updateRole(
+        created.id,
+        editing(created, role({ name: "Senior Staff" }))
+      );
       expect(updated).toMatchObject({ name: "Senior Staff" });
 
       await store.deleteRole(created.id);
@@ -467,7 +476,7 @@ describe("roles store", () => {
       );
 
       await expect(
-        store.updateRole("00000000-0000-4000-8000-000000000002", role())
+        store.updateRole("00000000-0000-4000-8000-000000000002", { ...role(), updatedAt: null })
       ).rejects.toBeInstanceOf(ForbiddenError);
       await expect(store.deleteRole("00000000-0000-4000-8000-000000000002")).rejects.toMatchObject({
         code: "SYSTEM_ROLE"
@@ -482,7 +491,9 @@ describe("roles store", () => {
       const missing = "00000000-0000-4000-8000-000000000000";
 
       await expect(store.getRole(missing)).rejects.toThrow("Role not found.");
-      await expect(store.updateRole(missing, role())).rejects.toThrow("Role not found.");
+      await expect(store.updateRole(missing, { ...role(), updatedAt: null })).rejects.toThrow(
+        "Role not found."
+      );
       await expect(store.deleteRole(missing)).rejects.toThrow("Role not found.");
     });
   });
@@ -661,7 +672,8 @@ describe("users store", () => {
         status: "inactive",
         profilePhotoPath: "",
         password: "",
-        passwordConfirmation: ""
+        passwordConfirmation: "",
+        updatedAt: created.updatedAt
       };
       const updated = await store.updateUser(created.id, update, ACTOR);
 
@@ -691,7 +703,8 @@ describe("users store", () => {
           status: "active",
           profilePhotoPath: "",
           password: "newpassword123",
-          passwordConfirmation: "newpassword123"
+          passwordConfirmation: "newpassword123",
+          updatedAt: created.updatedAt
         },
         ACTOR
       );
@@ -728,7 +741,8 @@ describe("users store", () => {
             status: "active",
             profilePhotoPath: "",
             password: "newpassword123",
-            passwordConfirmation: "newpassword123"
+            passwordConfirmation: "newpassword123",
+            updatedAt: created.updatedAt
           },
           ACTOR
         )
@@ -766,7 +780,12 @@ describe("users store", () => {
           status: "active",
           profilePhotoPath: "",
           password: "password123",
-          passwordConfirmation: "password123"
+          passwordConfirmation: "password123",
+          updatedAt: await scalar<string>(
+            client,
+            `select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as value
+               from master.users where id = 'd2000000-0000-4000-8000-000000000099'`
+          )
         },
         ACTOR
       );
@@ -848,19 +867,22 @@ describe("users store", () => {
         {
           ...input(),
           password: "",
-          passwordConfirmation: ""
+          passwordConfirmation: "",
+          updatedAt: created.updatedAt
         },
         ACTOR
       );
       expect(await count(client, `select count(*)::int as value from public.session`)).toBe(1);
 
+      const afterFirst = await store.getUser(created.id);
       await store.updateUser(
         created.id,
         {
           ...input(),
           status: "suspended",
           password: "",
-          passwordConfirmation: ""
+          passwordConfirmation: "",
+          updatedAt: afterFirst.updatedAt
         },
         ACTOR
       );
@@ -899,7 +921,8 @@ describe("users store", () => {
             status: "active",
             profilePhotoPath: "",
             password: "",
-            passwordConfirmation: ""
+            passwordConfirmation: "",
+            updatedAt: second.updatedAt
           },
           ACTOR
         )
@@ -925,13 +948,321 @@ describe("users store", () => {
             status: "active",
             profilePhotoPath: "",
             password: "",
-            passwordConfirmation: ""
+            passwordConfirmation: "",
+            updatedAt: null
           },
           ACTOR
         )
       ).rejects.toThrow("User not found.");
       await expect(store.deleteUser(missing, ACTOR)).rejects.toThrow("User not found.");
       await expect(store.restoreUser(missing, ACTOR)).rejects.toThrow("Deleted user not found.");
+    });
+  });
+});
+
+describe("edits over a newer save", () => {
+  const ACTOR = { id: "00000000-0000-4000-8000-0000000000aa", permissions: [] };
+  const missing = "00000000-0000-4000-8000-000000000000";
+
+  const newUser = (overrides: Partial<UserCreateInput> = {}): UserCreateInput => ({
+    name: "Rina Wijaya",
+    email: "rina@vmblogistics.id",
+    phone: "+628111000001",
+    roleIds: [],
+    status: "active",
+    profilePhotoPath: "",
+    password: "password123",
+    passwordConfirmation: "password123",
+    ...overrides
+  });
+
+  const userEdit = (
+    loaded: { name: string; email: string; phone: string | null; updatedAt: string | null },
+    overrides: Partial<UserUpdateInput> = {}
+  ): UserUpdateInput => ({
+    name: loaded.name,
+    email: loaded.email,
+    phone: loaded.phone ?? "",
+    status: "active",
+    profilePhotoPath: "",
+    password: "",
+    passwordConfirmation: "",
+    updatedAt: loaded.updatedAt,
+    ...overrides
+  });
+
+  it("saves a division with the updatedAt it loaded and refuses an older one, changing nothing", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const loaded = await store.createDivision(division());
+
+      const first = await store.updateDivision(
+        loaded.id,
+        editing(loaded, division({ name: "Operations HQ" }))
+      );
+      expect(first.name).toBe("Operations HQ");
+      expect(first.updatedAt).not.toBe(loaded.updatedAt);
+
+      // a second editor still holding the first load
+      await expect(
+        store.updateDivision(loaded.id, editing(loaded, division({ name: "Operations West" })))
+      ).rejects.toMatchObject({
+        code: "STALE_RECORD",
+        issues: [{ path: "updatedAt" }]
+      });
+      await expect(store.getDivision(loaded.id)).resolves.toEqual(first);
+
+      // reloading and saving again goes through
+      await expect(
+        store.updateDivision(loaded.id, editing(first, division({ name: "Operations West" })))
+      ).resolves.toMatchObject({ name: "Operations West" });
+    });
+  });
+
+  it("tells a stale division from a missing one", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const loaded = await store.createDivision(division());
+
+      await expect(
+        store.updateDivision(loaded.id, { ...division(), updatedAt: "2020-01-01T00:00:00.000Z" })
+      ).rejects.toMatchObject({ code: "STALE_RECORD" });
+      await expect(
+        store.updateDivision(missing, editing(loaded, division()))
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+  });
+
+  it("compares at the millisecond the column keeps, for a stamp written by the database's clock", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      // `now()` carries microseconds; the column keeps milliseconds and so does the API
+      await insertDivision(client, "d1000000-0000-4000-8000-000000000001");
+      const loaded = await store.getDivision("d1000000-0000-4000-8000-000000000001");
+      expect(loaded.updatedAt).toMatch(/\.\d{3}Z$/);
+
+      await expect(
+        store.updateDivision(loaded.id, editing(loaded, division({ name: "Hub 2", code: "HUB" })))
+      ).resolves.toMatchObject({ name: "Hub 2" });
+
+      // one millisecond off is a different version
+      const off = new Date(Date.parse(loaded.updatedAt ?? "") + 1).toISOString();
+      const current = await store.getDivision(loaded.id);
+      expect(current.updatedAt).not.toBe(off);
+      await expect(
+        store.updateDivision(loaded.id, { ...division(), updatedAt: off })
+      ).rejects.toMatchObject({ code: "STALE_RECORD" });
+    });
+  });
+
+  it("edits a division that was never stamped, and refuses a stamp for it", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      const created = await store.createDivision(division());
+      await client.exec(`update master.divisions set updated_at = null where id = '${created.id}'`);
+
+      await expect(
+        store.updateDivision(created.id, { ...division(), updatedAt: created.updatedAt })
+      ).rejects.toMatchObject({ code: "STALE_RECORD" });
+      const saved = await store.updateDivision(created.id, { ...division(), updatedAt: null });
+      expect(saved.updatedAt).not.toBeNull();
+    });
+  });
+
+  it("moves a record's updatedAt past the one it replaces, so a stamp in the same millisecond is never reissued", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      const division_ = await store.createDivision(division());
+      const role_ = await store.createRole(role());
+      const user_ = await store.createUser(
+        {
+          name: "Rina Wijaya",
+          email: "rina@vmblogistics.id",
+          phone: "+628111000001",
+          roleIds: [],
+          status: "active",
+          profilePhotoPath: "",
+          password: "password123",
+          passwordConfirmation: "password123"
+        },
+        { id: "00000000-0000-4000-8000-0000000000aa", permissions: [] }
+      );
+      // a stamp the database's clock has not reached yet, as a save a moment ago in the same millisecond would leave
+      const ahead = "2999-01-01T00:00:00.000Z";
+      for (const [table, id] of [
+        ["divisions", division_.id],
+        ["roles", role_.id],
+        ["users", user_.id]
+      ]) {
+        await client.exec(`update master.${table} set updated_at = '${ahead}' where id = '${id}'`);
+      }
+      const after = "2999-01-01T00:00:00.001Z";
+
+      const saved = [
+        await store.updateDivision(division_.id, { ...division(), updatedAt: ahead }),
+        await store.updateRole(role_.id, { ...role(), updatedAt: ahead }),
+        await store.updateUser(
+          user_.id,
+          {
+            name: user_.name,
+            email: user_.email,
+            phone: user_.phone ?? "",
+            status: "active",
+            profilePhotoPath: "",
+            password: "",
+            passwordConfirmation: "",
+            updatedAt: ahead
+          },
+          { id: "00000000-0000-4000-8000-0000000000aa", permissions: [] }
+        )
+      ];
+
+      expect(saved.map((record) => record.updatedAt)).toEqual([after, after, after]);
+    });
+  });
+
+  it("lets exactly one of two saves from the same load win: the check and the write are one statement", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const loaded = await store.createDivision(division());
+
+      // both are in flight before either lands, so a read first and a write after would let both through
+      const results = await Promise.allSettled([
+        store.updateDivision(loaded.id, editing(loaded, division({ name: "Ada" }))),
+        store.updateDivision(loaded.id, editing(loaded, division({ name: "Budi" })))
+      ]);
+
+      expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+      const lost = results.find((result) => result.status === "rejected");
+      expect(lost).toMatchObject({ reason: { code: "STALE_RECORD" } });
+      const winner = results.find((result) => result.status === "fulfilled");
+      await expect(store.getDivision(loaded.id)).resolves.toEqual(
+        winner?.status === "fulfilled" ? winner.value : undefined
+      );
+    });
+  });
+
+  it("refuses a stale role save, keeps the row, and still answers a missing or system role as before", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      const loaded = await store.createRole(role());
+      const first = await store.updateRole(loaded.id, editing(loaded, role({ name: "Senior" })));
+
+      await expect(
+        store.updateRole(loaded.id, editing(loaded, role({ name: "Junior" })))
+      ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
+      await expect(store.getRole(loaded.id)).resolves.toEqual(first);
+
+      await expect(store.updateRole(missing, editing(loaded, role()))).rejects.toMatchObject({
+        code: "NOT_FOUND"
+      });
+      await client.exec(`update master.roles set is_system = true where id = '${loaded.id}'`);
+      await expect(store.updateRole(loaded.id, editing(first, role()))).rejects.toMatchObject({
+        code: "SYSTEM_ROLE"
+      });
+    });
+  });
+
+  it("lets exactly one of two role saves from the same load win", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const loaded = await store.createRole(role());
+
+      const results = await Promise.allSettled([
+        store.updateRole(loaded.id, editing(loaded, role({ name: "Ada" }))),
+        store.updateRole(loaded.id, editing(loaded, role({ name: "Budi" })))
+      ]);
+
+      expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+    });
+  });
+
+  it("refuses a stale user save and changes nothing: row, identity, credential, roles, sessions", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      const staff = await insertRole(client, "Staff");
+      const created = await store.createUser(newUser(), ACTOR);
+      await client.exec(
+        `insert into public.session (id, expires_at, token, created_at, updated_at, user_id)
+          values ('s1', now() + interval '1 day', 'token-1', now(), now(), '${created.id}')`
+      );
+
+      // someone else saves first, with a password and a role
+      const first = await store.updateUser(
+        created.id,
+        userEdit(created, {
+          name: "Rina W.",
+          roleIds: [staff],
+          password: "firstpassword1",
+          passwordConfirmation: "firstpassword1"
+        }),
+        ACTOR
+      );
+      expect(first.updatedAt).not.toBe(created.updatedAt);
+
+      // the second editor, still holding the first load, tries everything at once
+      for (const password of ["", "secondpassword2"]) {
+        await expect(
+          store.updateUser(
+            created.id,
+            userEdit(created, {
+              name: "Rina Z.",
+              email: "rina.z@vmblogistics.id",
+              status: "suspended",
+              roleIds: [],
+              password,
+              passwordConfirmation: password
+            }),
+            ACTOR
+          )
+        ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
+      }
+
+      await expect(store.getUser(created.id)).resolves.toEqual(first);
+      expect(
+        await scalar<string>(client, `select name from public."user" where id = '${created.id}'`)
+      ).toBe("Rina W.");
+      expect(
+        await scalar<string>(client, `select email from public."user" where id = '${created.id}'`)
+      ).toBe("rina@vmblogistics.id");
+      expect(
+        await scalar<string>(
+          client,
+          `select password from public.account where account_id = '${created.id}'`
+        )
+      ).toBe("hashed:firstpassword1");
+      expect(
+        await count(
+          client,
+          `select count(*)::int as value from master.user_roles where user_id = '${created.id}'`
+        )
+      ).toBe(1);
+      expect(await count(client, `select count(*)::int as value from public.session`)).toBe(1);
+
+      // reloading and saving again goes through
+      await expect(
+        store.updateUser(created.id, userEdit(first, { name: "Rina Z." }), ACTOR)
+      ).resolves.toMatchObject({ name: "Rina Z." });
+    });
+  });
+
+  it("tells a stale user from a missing one, and lets one of two saves from the same load win", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      const loaded = await store.createUser(newUser(), ACTOR);
+
+      await expect(store.updateUser(missing, userEdit(loaded), ACTOR)).rejects.toMatchObject({
+        code: "NOT_FOUND"
+      });
+
+      const results = await Promise.allSettled([
+        store.updateUser(loaded.id, userEdit(loaded, { name: "Ada" }), ACTOR),
+        store.updateUser(loaded.id, userEdit(loaded, { name: "Budi" }), ACTOR)
+      ]);
+      expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+      expect(results.find((result) => result.status === "rejected")).toMatchObject({
+        reason: { code: "STALE_RECORD" }
+      });
     });
   });
 });

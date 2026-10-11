@@ -14,10 +14,12 @@ import {
   type DivisionInput,
   type DivisionListRequest,
   type DivisionListResponse,
+  type DivisionUpdateInput,
   type Role,
   type RoleInput,
   type RoleListQuery,
   type RoleListResponse,
+  type RoleUpdateInput,
   type User,
   type UserCreateInput,
   type UserListQuery,
@@ -154,7 +156,7 @@ export function createDivision(
 export function updateDivision(
   client: ApiClient,
   id: string,
-  input: DivisionInput
+  input: DivisionUpdateInput
 ): Promise<ApiResult<Division>> {
   return client.api.master.divisions[":id"]
     .$patch({ param: { id }, json: input })
@@ -211,7 +213,7 @@ export function createRole(client: ApiClient, input: RoleInput): Promise<ApiResu
 export function updateRole(
   client: ApiClient,
   id: string,
-  input: RoleInput
+  input: RoleUpdateInput
 ): Promise<ApiResult<Role>> {
   return client.api.master.roles[":id"]
     .$patch({ param: { id }, json: input })

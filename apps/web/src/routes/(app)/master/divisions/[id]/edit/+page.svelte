@@ -15,7 +15,10 @@
 <Page width="narrow" class="flex flex-col gap-4">
   <PageHeader title="Edit division" />
 
-  <DivisionForm form={data.form} />
+  <DivisionForm
+    form={data.form}
+    reloadHref={resolve("/(app)/master/divisions/[id]/edit", { id: data.division.id })}
+  />
 
   <p>
     <a href={resolve("/(app)/master/divisions/[id]", { id: data.division.id })}>Back to division</a>

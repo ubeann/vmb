@@ -4,6 +4,8 @@ import type { Division, Role, User } from "@vmb/types";
  * A stored record always has its text columns; the forms work in the empty
  * string. These map a record into the shape the shared input schema parses,
  * so an edit form loads the values the admin edits, not the storage shape.
+ * `updatedAt` rides along as the stamp the save is checked against, so it is
+ * the exact string the API served.
  */
 export function divisionFormData(division: Division) {
   return {
@@ -12,7 +14,8 @@ export function divisionFormData(division: Division) {
     description: division.description ?? "",
     colorHex: division.colorHex,
     iconName: division.iconName,
-    isActive: division.isActive
+    isActive: division.isActive,
+    updatedAt: division.updatedAt
   };
 }
 
@@ -22,7 +25,8 @@ export function roleFormData(role: Role) {
     description: role.description ?? "",
     colorHex: role.colorHex,
     iconName: role.iconName,
-    isActive: role.isActive
+    isActive: role.isActive,
+    updatedAt: role.updatedAt
   };
 }
 
@@ -35,6 +39,7 @@ export function userFormData(user: User) {
     status: user.status,
     profilePhotoPath: user.profilePhotoPath ?? "",
     password: "",
-    passwordConfirmation: ""
+    passwordConfirmation: "",
+    updatedAt: user.updatedAt
   };
 }

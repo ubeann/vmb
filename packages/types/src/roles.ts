@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { checkboxSchema, optionalText } from "./inputs.js";
+import { checkboxSchema, optionalText, updatedAtSchema } from "./inputs.js";
 import { PageSchema, PerPageSchema, SearchSchema, listResponse } from "./list.js";
 
 export const RoleSchema = z.object({
@@ -43,6 +43,11 @@ export const RoleInputSchema = z.object({
 });
 
 export type RoleInput = z.infer<typeof RoleInputSchema>;
+
+/** An edit: the fields of a new role plus the `updatedAt` the editor loaded. */
+export const RoleUpdateInputSchema = RoleInputSchema.extend({ updatedAt: updatedAtSchema });
+
+export type RoleUpdateInput = z.infer<typeof RoleUpdateInputSchema>;
 
 export const RoleSortSchema = z.enum(["name", "updatedAt"]).default("name");
 

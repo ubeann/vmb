@@ -1,4 +1,4 @@
-import { DivisionInputSchema } from "@vmb/types";
+import { DivisionInputSchema, DivisionUpdateInputSchema } from "@vmb/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const withApiClientMock = vi.fn();
@@ -149,6 +149,75 @@ describe("createMasterFormAction", () => {
     expect(result).toMatchObject({
       status: 500,
       data: { form: { message: "Something went wrong. Please try again." } }
+    });
+  });
+});
+
+describe("createMasterFormAction on an edit", () => {
+  const STAMP = "2026-01-05T01:10:00.123Z";
+  const editAction = createMasterFormAction({
+    schema: DivisionUpdateInputSchema,
+    logLabel: "test division update",
+    submit: (client, data, event) => submit(client, data, event),
+    redirectTo: (record) => `/master/divisions/${record.id}`
+  });
+
+  it("passes the updatedAt the form carried to the API as it was served", async () => {
+    submit.mockResolvedValue({ ok: true, value: { id: "d1000000-0000-4000-8000-000000000001" } });
+
+    await expect(editAction(fakeEvent({ ...submitted, updatedAt: STAMP }))).rejects.toMatchObject({
+      status: 303
+    });
+
+    expect(submit).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ updatedAt: STAMP }),
+      expect.anything()
+    );
+  });
+
+  it("reads an empty updatedAt as a record that was never stamped", async () => {
+    submit.mockResolvedValue({ ok: true, value: { id: "d1000000-0000-4000-8000-000000000001" } });
+
+    await expect(editAction(fakeEvent({ ...submitted, updatedAt: "" }))).rejects.toMatchObject({
+      status: 303
+    });
+
+    expect(submit).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ updatedAt: null }),
+      expect.anything()
+    );
+  });
+
+  it("refuses an updatedAt that is not a timestamp, without calling the API", async () => {
+    const result = await editAction(fakeEvent({ ...submitted, updatedAt: "yesterday" }));
+
+    expect(result).toMatchObject({ status: 400, data: { form: { valid: false } } });
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("keeps the submitted input and puts a stale record's conflict on updatedAt", async () => {
+    const message = "This record was changed by someone else since you opened it.";
+    submit.mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "STALE_RECORD",
+      error: message,
+      issues: [{ path: "updatedAt", message }]
+    });
+
+    const result = await editAction(fakeEvent({ ...submitted, name: "My edit", updatedAt: STAMP }));
+
+    expect(result).toMatchObject({
+      status: 409,
+      data: {
+        form: {
+          data: { name: "My edit", code: "OPS", updatedAt: STAMP },
+          errors: { updatedAt: [message] },
+          message
+        }
+      }
     });
   });
 });

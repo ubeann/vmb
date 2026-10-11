@@ -127,7 +127,8 @@ describe("master API client", () => {
       description: "",
       colorHex: "#2563EB",
       iconName: "heroicon-o-cog-6-tooth",
-      isActive: true
+      isActive: true,
+      updatedAt: STAMP
     });
     await deleteDivision(client, ID);
     await restoreDivision(client, ID);
@@ -138,6 +139,32 @@ describe("master API client", () => {
       `DELETE /api/master/divisions/${ID}`,
       `POST /api/master/divisions/${ID}/restore`
     ]);
+  });
+
+  it("sends the updatedAt it was given with an update, and reads a stale one as a conflict", async () => {
+    const message = "This record was changed by someone else since you opened it.";
+    const { client, calls } = clientWith(() =>
+      json({ code: "STALE_RECORD", message, issues: [{ path: "updatedAt", message }] }, 409)
+    );
+
+    const result = await updateDivision(client, ID, {
+      name: "Operations HQ",
+      code: "OPS",
+      description: "",
+      colorHex: "#2563EB",
+      iconName: "heroicon-o-cog-6-tooth",
+      isActive: true,
+      updatedAt: STAMP
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? "")).toMatchObject({ updatedAt: STAMP });
+    expect(result).toEqual({
+      ok: false,
+      status: 409,
+      code: "STALE_RECORD",
+      error: message,
+      issues: [{ path: "updatedAt", message }]
+    });
   });
 
   it("switches a division with the status-only endpoints and no lookup first", async () => {

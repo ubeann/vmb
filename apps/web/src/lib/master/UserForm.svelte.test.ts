@@ -1,4 +1,4 @@
-import { UserUpdateInputSchema } from "@vmb/types";
+import { UserCreateInputSchema, UserUpdateInputSchema } from "@vmb/types";
 import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
@@ -61,5 +61,67 @@ describe("UserForm", () => {
     await expect.element(message).toBeVisible();
     const field = message.element().closest("label")?.querySelector("input");
     expect(field?.getAttribute("name")).toBe("email");
+  });
+});
+
+describe("UserForm on an edit", () => {
+  const STAMP = "2026-01-05T01:10:00.123Z";
+  const reloadHref = "/master/things/1/edit";
+  const loaded = {
+    name: "Rina Wijaya",
+    email: "rina@vmblogistics.id",
+    phone: "0811-1000-0001",
+    roleIds: [],
+    status: "active" as const,
+    profilePhotoPath: "",
+    password: "",
+    passwordConfirmation: ""
+  };
+
+  it("posts the updatedAt it loaded in a hidden field, with no conflict line", async () => {
+    const form = await superValidate({ ...loaded, updatedAt: STAMP }, zod4(UserUpdateInputSchema));
+
+    const screen = await render(UserForm, { form, reloadHref, roles });
+
+    const stamp = document.querySelector<HTMLInputElement>('input[name="updatedAt"]');
+    expect(stamp?.type).toBe("hidden");
+    expect(stamp?.value).toBe(STAMP);
+    await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("posts an empty field for a record that was never stamped", async () => {
+    const form = await superValidate({ ...loaded, updatedAt: null }, zod4(UserUpdateInputSchema));
+
+    await render(UserForm, { form, reloadHref, roles });
+
+    expect(document.querySelector<HTMLInputElement>('input[name="updatedAt"]')?.value).toBe("");
+  });
+
+  it("has no updatedAt field on a create", async () => {
+    const form = await superValidate(zod4(UserCreateInputSchema), { errors: false });
+
+    await render(UserForm, { form, roles });
+
+    expect(document.querySelector('input[name="updatedAt"]')).toBeNull();
+  });
+
+  it("keeps the input and says the record changed, with a reload link, on a stale save", async () => {
+    const form = await superValidate(
+      { ...loaded, name: "My edit", updatedAt: STAMP },
+      zod4(UserUpdateInputSchema)
+    );
+    setError(form, "updatedAt", "This record was changed by someone else since you opened it.");
+
+    const screen = await render(UserForm, { form, reloadHref, roles });
+
+    await expect.element(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByRole("alert").element().textContent).toContain(
+      "Someone else changed this record since you opened it."
+    );
+    const reload = screen.getByRole("link", { name: "Reload" });
+    await expect.element(reload).toHaveAttribute("href", reloadHref);
+    await expect.element(reload).toHaveAttribute("data-sveltekit-reload");
+    await expect.element(screen.getByRole("textbox", { name: "Name" })).toHaveValue("My edit");
+    expect(document.querySelector<HTMLInputElement>('input[name="updatedAt"]')?.value).toBe(STAMP);
   });
 });

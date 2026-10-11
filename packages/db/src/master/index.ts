@@ -4,10 +4,12 @@ import type {
   DivisionInput,
   DivisionListRequest,
   DivisionListResponse,
+  DivisionUpdateInput,
   Role,
   RoleInput,
   RoleListQuery,
   RoleListResponse,
+  RoleUpdateInput,
   User,
   UserCreateInput,
   UserListQuery,
@@ -55,7 +57,7 @@ export type MasterStore = {
   listDivisions(query: DivisionListRequest): Promise<DivisionListResponse>;
   getDivision(id: string): Promise<Division>;
   createDivision(input: DivisionInput): Promise<Division>;
-  updateDivision(id: string, input: DivisionInput): Promise<Division>;
+  updateDivision(id: string, input: DivisionUpdateInput): Promise<Division>;
   deleteDivision(id: string): Promise<void>;
   restoreDivision(id: string): Promise<Division>;
   setDivisionActive(id: string, isActive: boolean): Promise<Division>;
@@ -63,7 +65,7 @@ export type MasterStore = {
   listRoles(query: RoleListQuery): Promise<RoleListResponse>;
   getRole(id: string): Promise<Role>;
   createRole(input: RoleInput): Promise<Role>;
-  updateRole(id: string, input: RoleInput): Promise<Role>;
+  updateRole(id: string, input: RoleUpdateInput): Promise<Role>;
   deleteRole(id: string): Promise<void>;
 
   listUsers(query: UserListQuery): Promise<UserListResponse>;

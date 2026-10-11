@@ -45,6 +45,19 @@ export class ConflictError extends DomainError {
   }
 }
 
+/**
+ * An edit was made over a record that changed since the editor loaded it. It
+ * names `updatedAt`, so a form can show the line beside its hidden stamp
+ * (ADR-0048's field issues).
+ */
+export class StaleRecordError extends DomainError {
+  readonly code = "STALE_RECORD";
+
+  constructor(message = "This record was changed by someone else since you opened it.") {
+    super(message, [{ path: "updatedAt", message }]);
+  }
+}
+
 /** The caller may not do this to this record, whatever their permissions. */
 export class ForbiddenError extends DomainError {
   constructor(
