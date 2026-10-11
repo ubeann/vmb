@@ -180,22 +180,34 @@ export function showingRange(list: { page: number; perPage: number; total: numbe
   return { from, to: Math.min(list.total, from + list.perPage - 1) };
 }
 
+/** What a list counts: one word for all numbers, or its singular and plural ("deleted division"). */
+export type CountNoun = string | { one: string; many: string };
+
+const nounFor = (noun: CountNoun, n: number) =>
+  typeof noun === "string" ? noun : n === 1 ? noun.one : noun.many;
+
 /**
  * The footer's count line (ADR-0051 rule 5). `outOf` is how many rows the view
  * holds before the search and filters, or null when none is set: a narrowed
  * list that fits one page reads "3 of 12 divisions", and one that pages keeps
- * its range and says what it was cut from.
+ * its range and says what it was cut from. The noun agrees with the number it
+ * follows. `nameCount` makes an unfiltered range name what it counts ("Showing
+ * 1–25 of 60 deleted divisions"), as the Trash does (rule 9).
  */
 export function countSummary(
   list: { page: number; perPage: number; total: number },
-  noun: string,
-  outOf: number | null
+  noun: CountNoun,
+  outOf: number | null,
+  nameCount = false
 ): string {
   const range = showingRange(list);
-  if (list.total === 0) return outOf === null ? `No ${noun}` : `0 of ${outOf} ${noun}`;
-  if (range.from === 0) return `${list.total} ${noun} in all, none on this page`;
+  if (list.total === 0)
+    return outOf === null ? `No ${nounFor(noun, 0)}` : `0 of ${outOf} ${nounFor(noun, outOf)}`;
+  if (range.from === 0)
+    return `${list.total} ${nounFor(noun, list.total)} in all, none on this page`;
   if (outOf !== null && range.from === 1 && range.to === list.total)
-    return `${list.total} of ${outOf} ${noun}`;
+    return `${list.total} of ${outOf} ${nounFor(noun, outOf)}`;
   const showing = `Showing ${range.from}–${range.to} of ${list.total}`;
-  return outOf === null ? showing : `${showing} · ${outOf} ${noun} in all`;
+  if (outOf !== null) return `${showing} · ${outOf} ${nounFor(noun, outOf)} in all`;
+  return nameCount ? `${showing} ${nounFor(noun, list.total)}` : showing;
 }

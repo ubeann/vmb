@@ -1,5 +1,10 @@
 import { withApiClient } from "$lib/api-access.js";
-import { deleteDivision, listDivisions, restoreDivision } from "$lib/master/api.js";
+import {
+  deleteDivision,
+  listDivisions,
+  restoreDivision,
+  setDivisionActive
+} from "$lib/master/api.js";
 import { runRowAction } from "$lib/master/form-action.js";
 import { canonicalListSearch, parseListQuery } from "$lib/master/list.js";
 import { DEFAULT_TIME_ZONE, DivisionListQuerySchema, resolveDateFilter, todayIn } from "@vmb/types";
@@ -68,6 +73,16 @@ export const actions: Actions = {
     runRowAction(event, {
       logLabel: "division delete",
       run: (client, id) => deleteDivision(client, id)
+    }),
+  activate: (event) =>
+    runRowAction(event, {
+      logLabel: "division activate",
+      run: (client, id) => setDivisionActive(client, id, true)
+    }),
+  deactivate: (event) =>
+    runRowAction(event, {
+      logLabel: "division deactivate",
+      run: (client, id) => setDivisionActive(client, id, false)
     }),
   restore: (event) =>
     runRowAction(event, {

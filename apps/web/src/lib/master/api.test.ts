@@ -8,6 +8,7 @@ import {
   listDivisions,
   listRoles,
   restoreDivision,
+  setDivisionActive,
   updateDivision
 } from "./api.js";
 
@@ -137,6 +138,41 @@ describe("master API client", () => {
       `DELETE /api/master/divisions/${ID}`,
       `POST /api/master/divisions/${ID}/restore`
     ]);
+  });
+
+  it("flips a division's active flag by sending its own fields back with the other value", async () => {
+    const stored = { ...division, description: "Fleet", isActive: true };
+    const { client, calls } = clientWith((call) =>
+      json(call.method === "GET" ? stored : { ...stored, isActive: false })
+    );
+
+    const result = await setDivisionActive(client, ID, false);
+
+    expect(result).toMatchObject({ ok: true, value: { isActive: false } });
+    expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+      `GET /api/master/divisions/${ID}`,
+      `PATCH /api/master/divisions/${ID}`
+    ]);
+    expect(JSON.parse(calls[1]!.body ?? "")).toEqual({
+      name: "Operations",
+      code: "OPS",
+      description: "Fleet",
+      colorHex: "#2563EB",
+      iconName: "heroicon-o-cog-6-tooth",
+      isActive: false
+    });
+  });
+
+  it("stops at the lookup when the division is gone", async () => {
+    const { client, calls } = clientWith(() =>
+      json({ code: "NOT_FOUND", message: "Division not found." }, 404)
+    );
+
+    await expect(setDivisionActive(client, ID, true)).resolves.toMatchObject({
+      ok: false,
+      status: 404
+    });
+    expect(calls).toHaveLength(1);
   });
 
   it("maps an API failure to its status, code and message", async () => {

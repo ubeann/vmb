@@ -162,9 +162,11 @@ describe("divisions list", () => {
       .toHaveAttribute("href", "/master/divisions/d1000000-0000-4000-8000-000000000001");
     await expect.element(screen.getByText("OPS")).toBeVisible();
     const table = screen.getByRole("table");
+    // there is no Status column: only the inactive row carries a pill (ADR-0051 rule 7)
     await expect
-      .element(table.getByText("Active", { exact: true }))
-      .toHaveAttribute("data-tone", "success");
+      .element(table.getByRole("columnheader", { name: "Status" }))
+      .not.toBeInTheDocument();
+    await expect.element(table.getByText("Active", { exact: true })).not.toBeInTheDocument();
     await expect
       .element(table.getByText("Inactive", { exact: true }))
       .toHaveAttribute("data-tone", "neutral");
@@ -196,7 +198,6 @@ describe("divisions list", () => {
 
     const cell = (name: RegExp) => screen.getByRole("columnheader", { name }).element();
     expect(cell(/^Code/).getBoundingClientRect().width).toBeLessThan(120);
-    expect(cell(/^Status/).getBoundingClientRect().width).toBeLessThan(120);
 
     const description = screen.getByText(text).element();
     expect(description.getAttribute("title")).toBe(text);
@@ -338,18 +339,236 @@ describe("divisions list", () => {
     await expect
       .element(reader.getByRole("link", { name: "New division" }))
       .not.toBeInTheDocument();
-    await reader.getByRole("button", { name: "Actions for Operations" }).click();
-    await expect.element(reader.getByRole("menuitem", { name: "View" })).toBeVisible();
-    await expect.element(reader.getByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();
-    await expect.element(reader.getByRole("menuitem", { name: "Delete…" })).not.toBeInTheDocument();
-    await userEvent.keyboard("{Escape}");
+    await expect
+      .element(reader.getByRole("button", { name: /^Actions for / }))
+      .not.toBeInTheDocument();
+    await expect.element(reader.getByRole("link", { name: /^Edit / })).not.toBeInTheDocument();
     reader.unmount();
+
+    const editor = await render(
+      Page,
+      props("/master/divisions", {
+        permissions: ["master-divisions.view_any", "master-divisions.update"]
+      })
+    );
+    await editor.getByRole("button", { name: "Actions for Operations" }).click();
+    await expect.element(editor.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    await expect.element(editor.getByRole("menuitem", { name: "Deactivate" })).toBeVisible();
+    await expect.element(editor.getByRole("menuitem", { name: "Delete…" })).not.toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    editor.unmount();
 
     const admin = await render(Page, props("/master/divisions"));
     await expect.element(admin.getByRole("link", { name: "New division" })).toBeVisible();
     await admin.getByRole("button", { name: "Actions for Operations" }).click();
     await expect.element(admin.getByRole("menuitem", { name: "Edit" })).toBeVisible();
     await expect.element(admin.getByRole("menuitem", { name: "Delete…" })).toBeVisible();
+    await expect.element(admin.getByRole("menuitem", { name: "View" })).not.toBeInTheDocument();
+  });
+
+  it("gives a row with one action a button, not a menu of one (ADR-0051 rule 8)", async () => {
+    const screen = await render(
+      Page,
+      props("/master/divisions", {
+        permissions: ["master-divisions.view_any", "master-divisions.delete"]
+      })
+    );
+
+    await expect
+      .element(screen.getByRole("button", { name: /^Actions for / }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "Delete Operations" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "Delete Operations?" })).toBeVisible();
+  });
+
+  it("names the row menu's trigger and keeps it a button slot for the touch size", async () => {
+    const screen = await render(Page, props("/master/divisions"));
+
+    const trigger = screen.getByRole("button", { name: "Actions for Operations" });
+    await expect.element(trigger).toHaveAttribute("data-slot", "button");
+    await trigger.click();
+    // each item carries an icon; the destructive one is the only one not muted
+    const items = screen.getByRole("menuitem").elements();
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      "Edit",
+      "Deactivate",
+      "Delete…"
+    ]);
+    for (const item of items) expect(item.querySelector("svg")).not.toBeNull();
+  });
+
+  it("has no axe violations with an inactive row and a row menu open", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    await expect.element(screen.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    // axe reads colours, which are blended until the menu's entrance animation has finished
+    const menu = screen.getByRole("menu").element();
+    await Promise.all(menu.getAnimations({ subtree: true }).map((animation) => animation.finished));
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("deactivates a Division through the API and offers an Undo that reactivates it", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => actionReply("success", 200, '{"ok":true}'));
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    await screen.getByRole("menuitem", { name: "Deactivate" }).click();
+
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Operations deactivated",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Undo" }) })
+      )
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/master/divisions?/deactivate",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect((fetch.mock.calls[0]?.[1]?.body as FormData).get("id")).toBe(division.id);
+    expect(invalidateAll).toHaveBeenCalledTimes(1);
+
+    const [, options] = toast.success.mock.calls[0] as [string, { action: { onClick(): void } }];
+    options.action.onClick();
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Operations activated", {
+        duration: 10_000,
+        action: undefined
+      })
+    );
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/master/divisions?/activate",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("offers Activate on an inactive row, and says so when the API refuses", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      actionReply("failure", 403, '{"error":"You do not have permission to do that."}')
+    );
+    const screen = await render(Page, props("/master/divisions", { items: [inactive] }));
+
+    await screen.getByRole("button", { name: "Actions for Retired" }).click();
+    await expect
+      .element(screen.getByRole("menuitem", { name: "Deactivate" }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("menuitem", { name: "Activate" }).click();
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("You do not have permission to do that.")
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(invalidateAll).not.toHaveBeenCalled();
+  });
+
+  it("opens the record on a click anywhere on the row, but not from its own controls", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await expect
+      .element(screen.getByRole("link", { name: "Operations" }))
+      .toHaveAttribute("href", `/master/divisions/${division.id}`);
+
+    await screen.getByText("OPS").click();
+    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+
+    // Cmd/Ctrl-click is the name link's, for a new tab: the row does not also navigate
+    goto.mockClear();
+    await userEvent.keyboard("{Meta>}");
+    await screen.getByText("OPS").click({ modifiers: ["Meta"] });
+    await userEvent.keyboard("{/Meta}");
+    expect(goto).not.toHaveBeenCalled();
+
+    goto.mockClear();
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    await userEvent.keyboard("{Escape}");
+    expect(goto).not.toHaveBeenCalled();
+  });
+
+  it("paints every cell of a hovered row, and of a row with its menu open, in the same frame", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    const row = (name: string) =>
+      screen.getByRole("link", { name }).element().closest("tr") as HTMLTableRowElement;
+    // what a reader sees behind each cell: its own colour (the pinned ones) or else the row's
+    const colours = (tr: HTMLTableRowElement) =>
+      [...tr.cells].map((cell) => {
+        const own = getComputedStyle(cell).backgroundColor;
+        return own === "rgba(0, 0, 0, 0)" ? getComputedStyle(tr).backgroundColor : own;
+      });
+    const resting = colours(row("Retired"));
+
+    // a row painted by the row's own fade would still read the resting colour at this moment
+    expect(getComputedStyle(row("Operations")).transitionDuration).toBe("0s");
+
+    await screen.getByText("OPS").hover();
+    const hovered = colours(row("Operations"));
+    expect(new Set(hovered).size).toBe(1);
+    expect(hovered[0]).not.toBe(resting[0]);
+
+    // with the pointer gone from the row, the open menu alone holds the colour
+    await userEvent.unhover(screen.getByText("OPS").element());
+    expect(colours(row("Operations"))).toEqual(resting);
+    const trigger = screen.getByRole("button", { name: "Actions for Operations" });
+    await trigger.click();
+    // the pointer on the menu, which sits outside the row
+    await userEvent.hover(screen.getByRole("menuitem", { name: "Edit" }).element());
+    const open = colours(row("Operations"));
+    expect(open).toEqual(hovered);
+  });
+
+  it("gives a Trashed row a Restore button and restores through the API", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
+    const screen = await render(
+      Page,
+      props("/master/divisions?trashed=only", { items: [trashed] })
+    );
+
+    await expect
+      .element(screen.getByRole("button", { name: /^Actions for / }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "Restore Operations" }).click();
+
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("Operations restored"));
+    expect(fetch).toHaveBeenCalledWith(
+      "/master/divisions?/restore",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(invalidateAll).toHaveBeenCalled();
+  });
+
+  it("says why the Trash keeps everything, counts what it holds and offers no permanent delete", async () => {
+    const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
+    const screen = await render(
+      Page,
+      props("/master/divisions?trashed=only", { items: [trashed] })
+    );
+
+    await expect
+      .element(
+        screen.getByText(
+          "Deleted divisions stay here for the audit trail. Restore one to use it again."
+        )
+      )
+      .toBeVisible();
+    await expect.element(screen.getByText("Showing 1–1 of 1 deleted division")).toBeVisible();
+    await expect
+      .element(screen.getByText(/delete(?:d)? permanently|purge/i))
+      .not.toBeInTheDocument();
+
+    expect(await axeViolations(document.body)).toEqual([]);
+
+    // the live list says none of it
+    screen.unmount();
+    const live = await render(Page, props("/master/divisions"));
+    await expect.element(live.getByText(/audit trail/)).not.toBeInTheDocument();
   });
 
   it("asks before deleting, and says the Division can come back from Trash", async () => {
@@ -404,8 +623,7 @@ describe("divisions list", () => {
       props("/master/divisions?trashed=only", { items: [trashed] })
     );
 
-    await screen.getByRole("button", { name: "Actions for Operations" }).click();
-    await screen.getByRole("menuitem", { name: "Restore" }).click();
+    await screen.getByRole("button", { name: "Restore Operations" }).click();
 
     await vi.waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("A division with that name already exists.")
@@ -413,7 +631,7 @@ describe("divisions list", () => {
     expect(invalidateAll).not.toHaveBeenCalled();
   });
 
-  it("offers Restore, not Edit or Delete, on a Trashed row", async () => {
+  it("shows the Trash tab and its Deleted column on a Trashed row", async () => {
     const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
     const screen = await render(
       Page,
@@ -424,9 +642,8 @@ describe("divisions list", () => {
       .element(screen.getByRole("link", { name: /^Trash 3 divisions$/ }))
       .toHaveAttribute("aria-current", "page");
     await expect.element(screen.getByRole("columnheader", { name: "Deleted" })).toBeVisible();
-    await screen.getByRole("button", { name: "Actions for Operations" }).click();
-    await expect.element(screen.getByRole("menuitem", { name: "Restore" })).toBeVisible();
-    await expect.element(screen.getByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "Restore Operations" })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: /^Edit / })).not.toBeInTheDocument();
   });
 
   it("tells an empty list, a search with no match, an empty Trash and a failure apart", async () => {
@@ -445,6 +662,11 @@ describe("divisions list", () => {
 
     const trash = await render(Page, props("/master/divisions?trashed=only", { items: [] }));
     await expect.element(trash.getByRole("heading", { name: "The Trash is empty" })).toBeVisible();
+    await expect
+      .element(
+        trash.getByText("A division you delete waits here, and you can restore it at any time.")
+      )
+      .toBeVisible();
     trash.unmount();
 
     const failed = await render(Page, props("/master/divisions", { failed: true }));

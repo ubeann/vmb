@@ -247,6 +247,22 @@ describe("countSummary", () => {
     );
   });
 
+  it("agrees the noun with its number, and names an unfiltered range when asked", () => {
+    const trash = { one: "deleted division", many: "deleted divisions" };
+
+    expect(countSummary(list(1, 1), trash, null, true)).toBe("Showing 1–1 of 1 deleted division");
+    expect(countSummary(list(1, 60), trash, null, true)).toBe(
+      "Showing 1–25 of 60 deleted divisions"
+    );
+    expect(countSummary(list(1, 60), trash, null)).toBe("Showing 1–25 of 60");
+    expect(countSummary(list(1, 0), trash, null)).toBe("No deleted divisions");
+    expect(countSummary(list(1, 1), trash, 1)).toBe("1 of 1 deleted division");
+    expect(countSummary(list(1, 1), trash, 4)).toBe("1 of 4 deleted divisions");
+    expect(countSummary(list(1, 40), trash, 60)).toBe(
+      "Showing 1–25 of 40 · 60 deleted divisions in all"
+    );
+  });
+
   it("reads n of m when a search or filter narrows the list to one page", () => {
     expect(countSummary(list(1, 3), "divisions", 12)).toBe("3 of 12 divisions");
     expect(countSummary(list(1, 1), "divisions in the Trash", 4)).toBe(
