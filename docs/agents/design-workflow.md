@@ -1,6 +1,6 @@
 # Design workflow: a screen's look, art and motion
 
-How to take a screen from a working-but-plain UI to a branded one, as proven on the auth pages (#196, PR #197). The worked example, with its brief, storyboard, prompts, credit log and review fixes, is `docs/design/etched-login/README.md`. Read it alongside this doc; it is the reference for what each step produces.
+How to take a screen from a working-but-plain UI to a branded one, as proven on the auth pages (#196, PR #197). This doc is about a screen's art and motion; deciding its layout or interaction first is a prototype round, `ui-prototype-round.md`. The worked example, with its brief, storyboard, prompts, credit log and review fixes, is `docs/design/etched-login/README.md`. Read it alongside this doc; it is the reference for what each step produces.
 
 Each design round gets its own folder, `docs/design/<round>/`, holding the round README, the chosen `sources/`, and any asset scripts.
 

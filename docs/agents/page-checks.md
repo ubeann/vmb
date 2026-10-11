@@ -33,7 +33,18 @@ Previews never send email (`EMAIL_TRANSPORT=log`, ADR-0019): the API logs it, co
 
 ## Local dev servers
 
-Several worktrees often run at once, so start each `vite dev` on its own port (`--port <n> --strictPort`) and fail fast rather than reach another worktree's server. Start it as a background task with a long timeout; a short one stops it mid-check.
+Several worktrees often run at once, so start each `vite dev` on its own port (`--port <n> --strictPort`) and fail fast rather than reach another worktree's server. A harness background task is stopped after two hours at most, which cut a prototype session's server three times in one afternoon. For a server that must outlive a check, start it detached and keep its PID:
+
+```
+cd apps/web && nohup pnpm exec vite dev --port <n> --strictPort > /tmp/vite-<n>.log 2>&1 &
+echo $! > /tmp/vite-<n>.pid
+```
+
+Read `/tmp/vite-<n>.log` for its output, and `kill "$(cat /tmp/vite-<n>.pid)"` when the work is done. For a quick look at one width or scheme, T3's `preview_resize` and `preview_set_appearance` are enough; the screenshot script is for every viewport.
+
+## Touch
+
+A sheet, dialog or panel that closes on a tap outside needs a real-touch check, because bits-ui dismisses from the tap's click rather than from pointerdown; the Filter panel's tap-outside bug (#376) reached the preview before anyone tapped it. Run the Playwright check with `hasTouch: true` and `page.tap`, as the layer tests do, or open the page on an iOS simulator through T3's `device_open` (`t3-code.md`).
 
 ## Lighthouse
 

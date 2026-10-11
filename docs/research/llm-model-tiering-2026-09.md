@@ -16,6 +16,11 @@ and still dated 2026-09-24. Every new claim is dated 2026-09-27.
 Earlier content is unchanged except the daily row of the tier table; every new claim is dated
 2026-09-30.
 
+**Updated 2026-10-11:** Claude Haiku 5.5 (released Oct 7 2026) fills the Claude `fast` slot,
+Claude Fable 5.1 gets a new `apex` tier now that the Claude plan is Max 5x, and Gemini 3.1 Pro has
+entered T3 Code's picker. See "October 2026 refresh" under Recommendation. Earlier content is
+unchanged; every new claim is dated 2026-10-11.
+
 **Review by: 2026-12-24 (quarterly), or as soon as a provider is added to T3 Code's routing,
 whichever comes first.** Both platforms in the original table shipped new model waves inside the
 three weeks before this research, and the task brief that produced this file flagged quarterly
@@ -269,6 +274,84 @@ DeepSWE, GPT-6.1 Sol matches it for a fifth of the price. Astra stays in the tab
 its only edge left, computer use, is exactly why it's the fallback. Revisit it at the next review.
 Independent runs of both new models would settle it; none were found yet.
 
+### October 2026 refresh (added 2026-10-11)
+
+Three things changed in the fortnight after the daily-tier refresh: Anthropic released Claude
+Haiku 5.5, the owner moved the Claude plan to Max 5x, and T3 Code's picker gained Gemini 3.1 Pro.
+Everything in this section was checked on 2026-10-11 against Anthropic's own model and support
+pages unless marked otherwise.
+
+**Claude Haiku 5.5** (released Oct 7 2026, model ID `claude-haiku-5-5`) is Anthropic's cheap
+tier, positioned "for high-volume, latency-sensitive tasks such as classification, extraction, and
+routing" and for "subagent tasks". It has a 1M context window, 128K max output, adaptive thinking
+with a `medium` default effort, and the Opus 4.7 tokenizer, so "the same text counts as
+approximately 30% more tokens than on Claude Haiku 4.5". Coding figures are secondary: Terminal-Bench
+4.0 39.2% against Sonnet 5.5's 70.6% (DataCamp, relaying Anthropic's table), FrontierCode 1.1 Main
+46.4%, and 90.44% on Vals AI's Vibe Code Bench v1.1, third of 110 models (aggregator). Anthropic's
+own announcement page returned HTTP 404 on 2026-10-11, so no vendor benchmark table was read
+directly. On that evidence it is a `fast`-tier model, not a daily driver.
+
+**Claude Fable 5.1** (model ID `claude-fable-5-1`) is Anthropic's most capable widely released
+model, "for demanding reasoning and long-horizon agentic work, or when your evals on Claude Opus 5.5
+at higher effort still fall short". 1M context, 128K output, thinking always on, `high` default
+effort. Claude Code needs 2.1.255 or later; 2.1.296 is installed.
+
+| Model (checked 2026-10-11) | Price in / out per MTok (primary)                                         | Cache read                     | Context / max output |
+| -------------------------- | ------------------------------------------------------------------------- | ------------------------------ | -------------------- |
+| Claude Fable 5.1           | $10.00 / $50.00                                                           | 2.5% of input ($0.25)          | 1M / 128K            |
+| Claude Opus 5.5            | $4.00 / $20.00                                                            | 5% of input ($0.20)            | 1M / 128K            |
+| Claude Sonnet 5.5          | $2.00 / $10.00                                                            | 5% of input ($0.10)            | 1M / 128K            |
+| Claude Haiku 5.5           | $0.10 / $0.50 up to 100K tokens of prompt; $0.50 / $2.50 over 100K tokens | $0.01 ($0.05 over 100K tokens) | 1M / 128K            |
+
+**The Max plan and Fable.** Anthropic's support pages say:
+
+- Both Pro and Max "have a five-hour session limit and a weekly limit", and "these limits are
+  shared across Claude and Claude Code", including IDE use.
+- On Max plans (and premium Team and Enterprise seats) Fable 5 and 5.1 "are included as a standard
+  part of your plan. You can use up to 50% of your weekly usage limits on Fable models at no extra
+  cost." Fable usage "draw[s] from your plan's regular weekly usage limits" and uses them faster
+  than other models; "you can never use more than your weekly limit". The support page on usage
+  credits describes this as "a separate weekly limit for Fable" that resets weekly. On Pro, Fable
+  runs on usage credits from the start.
+- When the Fable share is used up, a Max user can "keep using Fable models with usage credits, or
+  switch to another model". Usage credits bill at API rates. The monthly API credits that come with
+  Max "can't be used in Claude Code or the Claude apps".
+- The Fable 5 promotion that applied to Pro ended on July 19 2026 and never covered Fable 5.1.
+- Anthropic publishes no token or message figures for either limit; the meter in Claude's settings
+  is the only source.
+
+**Observed usage (local, read 2026-10-11).** Claude Code's session logs under `~/.claude/projects`
+and `~/.claude-sharing/projects` for 2026-10-07 to 2026-10-11 sum to about 4.3M Opus 5.5 output
+tokens and 1.09 billion Opus 5.5 cache-read tokens on the personal account, and 2.75M / 0.59 billion
+on Sonnet 5.5. One prototype thread alone (`t3/improve-table-filter-header-ui`) accounts for 1.7M
+Opus output tokens and 579M cache reads, which at API rates is about $300, against about $200 for the
+eight list-kit build threads together. The weekly limit is spent mostly by long Opus sessions whose
+context is re-read every turn, which is the case for routing Fable to short planning work only.
+
+**Verdict and tier changes:**
+
+| Tier       | Claude (from 2026-10-11) | Reasoning                                                                                                                                                                                                                                                                                                                                       |
+| ---------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fast`     | **Claude Haiku 5.5**     | Fills the slot that was empty since 2026-09-24 (Haiku 4.5 was reference only and not in the picker). At $0.10 / $0.50 it is priced like GPT-6 Luna. Its Terminal-Bench 4.0 score is half Sonnet 5.5's, so it takes subagent legwork, the read-only morning digest and `trivial` tickets, and the dispatcher only after a week of clean digests. |
+| `daily`    | Claude Sonnet 5.5        | Unchanged.                                                                                                                                                                                                                                                                                                                                      |
+| `frontier` | Claude Opus 5.5          | Unchanged for builds and reviews.                                                                                                                                                                                                                                                                                                               |
+| `apex`     | **Claude Fable 5.1**     | New tier for planning only (grilling, specs, tickets, ADRs, retros, the `complex` second opinion). At 2.5 times Opus 5.5's per-token price and inside a 50% weekly share, a long unattended build could spend the week's planning allowance, so the night loop never uses it. When the share is spent, planning falls back to `frontier`.       |
+
+**Gemini 3.1 Pro is in the picker.** `orchestrator_capabilities` (read 2026-10-11) lists
+`gemini-pro-agent` ("Gemini 3.1 Pro (High)") and `gemini-3.1-pro-low` on the Antigravity instance,
+which the 2026-09-27 update said was not offered. No coding benchmark was gathered for it, so the
+#184 decision stands: reviewer only, no tier slot. It becomes the first fallback for the
+cross-provider review of a `complex` ticket when Codex has no usage left, which happened on
+2026-10-11: Codex's quota ran out mid-day, `orchestrator_capabilities` reported "Timed out while
+checking Codex app-server provider status", and PR #372 was reviewed by the writing model's own
+family instead. OpenCode Go models (GLM-5.3, Kimi K3) are the second fallback; they remain out of
+scope for benchmarks (Caveat 12).
+
+**Two accounts.** T3 Code has two Claude provider instances, `Claude Personal` (`~/.claude`) and
+`Claude Sharing` (`~/.claude-sharing`), on different accounts with separate limits. The night loop
+runs on the personal one. Splitting nights and days across them is an owner decision; both profiles
+must carry the same plugins (`docs/agents/harnesses.md`).
+
 ### AI co-author addresses (added 2026-09-27)
 
 This follows the resolution order in `docs/agents/model-routing.md` ("Adopting a model: its
@@ -333,6 +416,18 @@ addresses is follow-on work in #186.
 - Context windows (fetched directly, primary): `platform.claude.com/docs/en/build-with-claude/context-windows` — accessed 2026-09-24
 - `anthropic.com/news/claude-sonnet-5` — fetched directly, primary, accessed 2026-09-24 (release date, positioning; benchmark table present on page but not machine-extractable by the fetch)
 - Claude Opus 5.5 System Card PDF: `www-cdn.anthropic.com/.../Claude%20Opus%205.5%20System%20Card.pdf` — primary source, **exceeded fetch tool size limit**; SWE-bench Pro / Terminal-Bench / CursorBench figures cited here came from a search-engine snippet describing this PDF's contents, not a direct fetch (see Caveats)
+
+**Added 2026-10-11 (all accessed 2026-10-11):**
+
+- `platform.claude.com/docs/en/models/overview` — fetched directly, primary (pricing, cache-read percentages, context and output limits, default effort for Fable 5.1, Opus 5.5, Sonnet 5.5 and Haiku 5.5; retirement dates)
+- `platform.claude.com/docs/en/models/haiku-5-5/overview` — fetched directly, primary (release date Oct 7 2026, long-context pricing tiers, cache prices, tokenizer note, positioning)
+- `anthropic.com/claude-haiku-5-5` — Anthropic's announcement, **HTTP 404 on fetch**
+- `support.claude.com/en/articles/11145838` (Using Claude Code with your Pro or Max plan) — fetched directly, primary (shared five-hour and weekly limits, usage credits, the separate Fable weekly limit on Max)
+- `support.claude.com/en/articles/15424964-claude-fable-models-on-your-plan` — fetched directly, primary, article dated September 2 2026 (Fable included on Max up to 50% of weekly usage, drawn from the regular limits; Pro on usage credits; Claude Code version floor; promotion end date)
+- `support.claude.com/en/articles/12429409-manage-usage-credits-for-paid-claude-plans` and `claude.com/pricing` — via search results, primary (usage credits after the general or Fable weekly limit; the 50% figure for Max 5x and 20x)
+- `datacamp.com/blog/claude-haiku-5-5`, `venturebeat.com/technology/anthropic-launches-claude-haiku-5-5-with-90-api-price-reduction-matching-gpt-6-luna`, `vals.ai/models/anthropic_claude-haiku-5-5`, `llm-stats.com/models/claude-haiku-5-5` — via search results, secondary and aggregator (Terminal-Bench 4.0, FrontierCode 1.1, Vibe Code Bench, tokenizer note)
+- `orchestrator_capabilities` (T3 Code MCP, server `0.0.46-nightly.20261011`), `~/.t3/userdata/settings.json` — read locally (picker contents for Antigravity and Codex, provider instances, Codex status timeout)
+- `~/.claude/projects/**/*.jsonl` and `~/.claude-sharing/projects/**/*.jsonl` — read locally (token usage per model and worktree, 2026-10-07 to 2026-10-11)
 
 **Primary — Google (added 2026-09-27, all accessed 2026-09-27):**
 
@@ -462,6 +557,23 @@ addresses is follow-on work in #186.
     figure above is 74.1%. The two figures may use different effort settings. Treat cross-vendor
     comparisons (for example Sol's 75.2% against Sonnet 5.5's 71.0%, both from OpenAI's chart) as
     directional only.
+
+15. **Haiku 5.5 coding figures are secondary (added 2026-10-11).** Anthropic's announcement page
+    (`anthropic.com/claude-haiku-5-5`, linked from the model page) returned HTTP 404 on 2026-10-11.
+    The Terminal-Bench 4.0 and FrontierCode figures come from DataCamp and similar roundups that say
+    they relay Anthropic's table; the Vibe Code Bench figure is Vals AI's own run. The model page
+    itself carries pricing, limits and positioning only. Re-check the announcement at the next
+    review.
+16. **Max plan limits are unpublished (added 2026-10-11).** Anthropic's support pages give no token
+    or message figures for the five-hour or weekly limits, or for the Fable share beyond "up to
+    50%". Third-party estimates found via search disagree with each other and were not used. The
+    observed-usage figures above come from local Claude Code session logs, which record API token
+    counts, not plan usage units, so they show proportions between threads rather than a share of
+    the weekly limit.
+17. **The Fable share can change (added 2026-10-11).** The 50% figure comes from a support article
+    dated September 2 2026 and from `claude.com/pricing`. An earlier Fable 5 promotion changed its
+    terms twice in 2026 (Caveat 16's article records the July 19 end date), so treat the share as
+    current until the next review rather than fixed.
 
 ## Where this was saved
 
