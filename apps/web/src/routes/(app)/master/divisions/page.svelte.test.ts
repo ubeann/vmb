@@ -903,6 +903,9 @@ describe("divisions list", () => {
     const screen = await render(Page, props("/master/divisions"));
     await screen.getByRole("button", { name: "View" }).click();
     await expect.element(screen.getByRole("checkbox", { name: "Code" })).toBeVisible();
+    // axe reads the colours it sees: a panel still fading in measures as low contrast
+    const panel = document.querySelector<HTMLElement>('[data-layer-frame="panel"]')!;
+    await expect.poll(() => panel.getAnimations({ subtree: true }).length).toBe(0);
 
     expect(await axeViolations(document.body)).toEqual([]);
   });
