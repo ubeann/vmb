@@ -267,7 +267,7 @@ jobs:
       # reach the published port. On a timeout the start step's log and the
       # container's own are printed, so a failed pull or a crashed server reads
       # as one.
-      - name: Wait for Postgres
+      - name: Wait for Postgres and identify its image
         id: postgres
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
