@@ -116,6 +116,26 @@ describe("a step", () => {
     expect(rect(panel()!)).toEqual(before);
   });
 
+  it("keeps the picker 8px off the window's edge around the room line", async () => {
+    // the demo's button ends 12px in. At 915px a 20rem panel leaves 583px: a
+    // 568px picker would sit 3px off the edge, so the step opens inside; at
+    // 940px it leaves 608px and the picker fits beside it
+    for (const width of [915, 940]) {
+      await browser.viewport(width, 900);
+      const screen = await render(LayerDemo);
+      await openLayer();
+      await openUpdated();
+      if (width === 915) {
+        expect(picker(), `${width}px`).toBeNull();
+        expect(title()).toBe("Updated");
+      } else {
+        expect(rect(await settled(picker())).left, `${width}px`).toBeGreaterThanOrEqual(8);
+      }
+      await userEvent.keyboard("{Escape}{Escape}");
+      screen.unmount();
+    }
+  });
+
   it("opens inside the panel at 768, which opens at 22rem and keeps its edges", async () => {
     await browser.viewport(768, 1024);
     await render(LayerDemo);

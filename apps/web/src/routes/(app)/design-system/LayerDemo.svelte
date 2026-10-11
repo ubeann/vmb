@@ -111,8 +111,10 @@
     {shown} of {DIVISIONS.length} divisions
   </p>
   <div class="ml-auto">
+    <!-- the picker is ~568px: presets with their dates and a 40px-day calendar -->
     <Layer
       label="Filters"
+      pickerWidth={576}
       stepTitle={(path) => (path.at(-1) === "range" ? "Updated: custom range" : "Updated")}
       inside={(step) => (draft?.start ? [step, "range"] : [step])}
       onclose={() => (draft = undefined)}
