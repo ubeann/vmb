@@ -101,7 +101,8 @@
   const wide = $derived(steps && !fits);
 
   function measure() {
-    fits = steps && roomBeside(button?.getBoundingClientRect().right ?? 0, pickerWidth);
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    fits = steps && roomBeside(button?.getBoundingClientRect().right ?? 0, pickerWidth, rem);
   }
 
   const api: LayerApi = {
@@ -170,7 +171,7 @@
       frame = "modal";
       ready = false;
     }
-    if (frame === "modal" && !ready) {
+    if (next === "modal" && frame === "modal" && !ready) {
       // the panel's exit leaves its overflow on screen until it unmounts
       cancelSteady();
       cancelSteady = whenSteady(() => (ready = true), { ready: () => !panel?.isConnected });

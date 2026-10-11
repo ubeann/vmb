@@ -207,6 +207,34 @@ describe("a handover", () => {
     await expect.element(screen.getByText("12 of 12 divisions")).toBeInTheDocument();
   });
 
+  // a sheet still waiting when the window widens again must not open on the wide window
+  it("back across 640px calls off a sheet still waiting to open", async () => {
+    await render(LayerDemo);
+    await openLayer();
+
+    // hold the frames the steady wait checks on, so the sheet stays waiting, as on a slow device
+    const held: FrameRequestCallback[] = [];
+    const original = window.requestAnimationFrame;
+    let holding = true;
+    window.requestAnimationFrame = (fn) => (holding ? (held.push(fn), 0) : original(fn));
+    try {
+      await browser.viewport(390, 844);
+      await handover(); // the panel hands over; the sheet waits for the page to settle
+      expect(modal()).toBeNull();
+
+      await browser.viewport(1440, 900);
+      await handover(); // back across 640px before the sheet showed
+    } finally {
+      holding = false;
+      window.requestAnimationFrame = original;
+      for (const fn of held.splice(0)) fn(performance.now());
+    }
+    await wait(1300); // past the steady wait's 1s cap
+
+    expect(modal()).toBeNull();
+    expect(panel()).not.toBeNull();
+  });
+
   it("waits until the window has stopped resizing", async () => {
     await render(LayerDemo);
     await openLayer();
