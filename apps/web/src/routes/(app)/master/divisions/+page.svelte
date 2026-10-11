@@ -152,7 +152,7 @@
   {:else}
     {@const list = data.divisions}
     <div
-      class="border-border bg-card relative overflow-hidden rounded-lg border"
+      class="border-border bg-card relative overflow-hidden rounded-xl border"
       aria-busy={loading}
     >
       {#if loading}
@@ -330,7 +330,7 @@
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger>
                       {#snippet child({ props })}
-                        <Button {...props} variant="ghost" size="sm">
+                        <Button {...props} data-slot="button" variant="ghost" size="sm">
                           <span class="max-sm:sr-only">Actions</span><span class="sr-only">
                             for {division.name}</span
                           >
@@ -402,7 +402,7 @@
       <Dialog.Footer>
         <Dialog.Close>
           {#snippet child({ props })}
-            <Button {...props} variant="outline">Cancel</Button>
+            <Button {...props} data-slot="button" variant="outline">Cancel</Button>
           {/snippet}
         </Dialog.Close>
         <Button type="submit" variant="destructive" disabled={deleting}>

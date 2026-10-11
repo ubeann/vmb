@@ -37,7 +37,7 @@
     listHref(base, page.url.searchParams, changes);
 
   const pageLink =
-    "focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-md text-sm tabular-nums focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-11";
+    "focus-visible:ring-ring inline-flex size-8 items-center justify-center rounded-(--control-radius) text-sm tabular-nums focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-11";
 </script>
 
 <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
@@ -60,8 +60,10 @@
         onValueChange={(value) => goto(resolve(to({ perPage: value })), { noScroll: true })}
       >
         <!-- named by its label and its value, so the visible "25" is part of the name -->
-        <Select.Trigger aria-labelledby="{uid}-per-page {uid}-per-page-value" class="w-20"
-          ><span id="{uid}-per-page-value">{list.perPage}</span></Select.Trigger
+        <Select.Trigger
+          aria-labelledby="{uid}-per-page {uid}-per-page-value"
+          variant="kit"
+          class="w-20"><span id="{uid}-per-page-value">{list.perPage}</span></Select.Trigger
         >
         <Select.Content>
           {#each PER_PAGE_OPTIONS as size (size)}
