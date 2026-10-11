@@ -13,6 +13,7 @@
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "audit:signatures": "pnpm audit signatures",
     "knip": "pnpm --filter @vmb/web exec svelte-kit sync && knip"
   },
   "devDependencies": {

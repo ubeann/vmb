@@ -179,9 +179,17 @@ jobs:
       # Every installed package must carry a valid npm registry signature, so a
       # tarball altered after publishing fails here (ADR-0047, #321). Known
       # advisories are not gated here: a new one would turn unrelated PRs red,
-      # so Dependabot alerts and security updates track those instead.
+      # so Dependabot alerts and security updates track those instead. It runs
+      # through turbo, hashed on the lockfile, the workspace file and the root
+      # `package.json`, so an unchanged lockfile replays the pass instead of
+      # spending 14 s of a billed minute (#383). A bump always changes the
+      # lockfile, so a Dependabot run still runs the check.
       - name: Registry signatures
-        run: pnpm audit signatures
+        run: pnpm turbo audit:signatures
+        env:
+          # Empty on a Dependabot run, where turbo falls back to the local cache.
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       # apps/web's component tests render .svelte files in a real browser
       # (vitest-browser-svelte + @vitest/browser-playwright). CI drives the
