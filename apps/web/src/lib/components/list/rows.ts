@@ -34,6 +34,13 @@ export function opensRecord(event: MouseEvent): boolean {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
   if (!(event.target instanceof Element)) return false;
   if (event.target.closest("a, button, input, label, [role='menuitem']")) return false;
-  // dragging across a row to copy a code is not a click on it
-  return window.getSelection()?.isCollapsed !== false;
+  // dragging across this row to copy a code is not a click on it; a selection elsewhere is
+  const selection = window.getSelection();
+  const row = event.currentTarget;
+  const selectingHere =
+    selection &&
+    !selection.isCollapsed &&
+    row instanceof Node &&
+    row.contains(selection.anchorNode);
+  return !selectingHere;
 }

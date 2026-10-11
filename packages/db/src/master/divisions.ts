@@ -212,7 +212,8 @@ export async function updateDivision(
  * Switch a live division on or off. It writes `is_active` and `updated_at` and
  * nothing else, so a row's Activate or Deactivate cannot overwrite a field
  * someone else is editing, as a whole-record update would. A Trashed division
- * is not switched: it comes back with Restore first.
+ * is not switched: it comes back with Restore first. `updated_at` moves only
+ * when the flag changes.
  */
 export async function setDivisionActive(
   db: MasterDb,
@@ -221,7 +222,11 @@ export async function setDivisionActive(
 ): Promise<Division> {
   const rows = await db
     .update(divisions)
-    .set({ isActive, updatedAt: new Date() })
+    // "Updated" moves only when the flag does, so a double click or an Undo of nothing leaves it alone
+    .set({
+      isActive,
+      updatedAt: sql`case when ${divisions.isActive} is distinct from ${isActive} then now() else ${divisions.updatedAt} end`
+    })
     .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
     .returning();
 

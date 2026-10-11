@@ -503,6 +503,14 @@ describe("divisions list", () => {
     await screen.getByText("OPS").click();
     expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
+    // a selection made elsewhere on the page does not swallow the click
+    goto.mockClear();
+    const heading = screen.getByRole("heading", { name: "Divisions", level: 1 }).element();
+    getSelection()?.selectAllChildren(heading);
+    await screen.getByText("OPS").click();
+    getSelection()?.removeAllRanges();
+    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+
     // Cmd/Ctrl-click is the name link's, for a new tab: the row does not also navigate
     goto.mockClear();
     await userEvent.keyboard("{Meta>}");

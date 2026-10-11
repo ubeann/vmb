@@ -305,9 +305,14 @@ describe("divisions store", () => {
         name: "Operations HQ",
         isActive: true
       });
-      // switching to the state it is already in is not an error
+      // switching to the state it is already in is not an error, and leaves "Updated" alone
+      const on = await store.getDivision(created.id);
       await expect(store.setDivisionActive(created.id, true)).resolves.toMatchObject({
-        isActive: true
+        isActive: true,
+        updatedAt: on.updatedAt
+      });
+      await expect(store.setDivisionActive(created.id, false)).resolves.toMatchObject({
+        isActive: false
       });
     });
   });

@@ -124,7 +124,7 @@
       await invalidateAll();
     });
 
-  /** Activate or Deactivate through the real update; the toast's Undo puts it back (without an Undo of its own). */
+  /** Activate or Deactivate through the status-only endpoints; the toast's Undo puts it back (without an Undo of its own). */
   const setActive = (division: Division, active: boolean, undoable = true) =>
     inOrder(async () => {
       const result = await postRowAction(
