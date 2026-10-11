@@ -87,6 +87,7 @@
     )
   );
 
+  const label = "inline-flex max-w-64 items-center gap-1.5 px-2 font-medium";
   const chip =
     "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 inline-flex h-8 items-stretch overflow-hidden rounded-(--control-radius) text-sm ring-1 ring-inset pointer-coarse:h-11";
   const part =
@@ -101,7 +102,7 @@
       <button
         type="button"
         data-slot="filter-chip"
-        class={cn("inline-flex max-w-64 items-center gap-1.5 px-2 font-medium", part)}
+        class={cn(label, part)}
         onclick={() => document.querySelector<HTMLInputElement>("input[type=search]")?.focus()}
       >
         <SearchIcon aria-hidden="true" class="text-primary size-4 shrink-0" />
@@ -128,16 +129,11 @@
         <span class="truncate">{text}</span>
       {/snippet}
       {#if onopen}
-        <button
-          type="button"
-          data-slot="filter-chip"
-          class={cn("inline-flex max-w-64 items-center gap-1.5 px-2 font-medium", part)}
-          onclick={onopen}>{@render body()}</button
+        <button type="button" data-slot="filter-chip" class={cn(label, part)} onclick={onopen}
+          >{@render body()}</button
         >
       {:else}
-        <span class="inline-flex max-w-64 items-center gap-1.5 px-2 font-medium"
-          >{@render body()}</span
-        >
+        <span class={label}>{@render body()}</span>
       {/if}
       <a
         href={resolve(listHref(base, page.url.searchParams, { [filter.key]: null }))}

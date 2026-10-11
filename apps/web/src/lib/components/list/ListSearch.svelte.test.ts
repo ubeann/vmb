@@ -164,6 +164,22 @@ describe("ListSearch", () => {
     expect(spinner()).toBeNull();
   });
 
+  it("stays busy when a keystroke comes in while an earlier search is still on its way", async () => {
+    mockPage.url = new URL("http://localhost/master/divisions");
+    const navigation = pendingGoto();
+    const screen = await render(ListSearch, props);
+    const box = screen.getByRole("searchbox");
+
+    await box.fill("o");
+    await vi.waitFor(() => expect(goto).toHaveBeenCalledTimes(1));
+    await box.fill("op");
+    navigation.settle();
+
+    // the first search lands, but "op" has not been sent yet
+    await expect.element(box).toHaveAttribute("aria-busy", "true");
+    await vi.waitFor(() => expect(goto).toHaveBeenCalledTimes(2));
+  });
+
   it("names the matched fields, and shortens the placeholder when the field would cut it off", async () => {
     mockPage.url = new URL("http://localhost/master/divisions");
     const long = "Search name, code or description";

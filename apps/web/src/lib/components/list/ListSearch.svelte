@@ -104,6 +104,8 @@
 
   function oninput() {
     clearTimeout(timer);
+    // a search already on its way is out of date now, so it must not end the busy state
+    latest++;
     busy = true;
     timer = setTimeout(() => search(value), DEBOUNCE_MS);
   }
@@ -190,7 +192,7 @@
       type="button"
       data-slot="search-clear"
       aria-label="Clear the search"
-      class="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring absolute top-1/2 right-1 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-[calc(var(--control-radius)-0.25rem)] focus-visible:ring-2 focus-visible:outline-none pointer-coarse:size-9"
+      class="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring absolute top-1/2 right-1 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-[calc(var(--control-radius)-0.25rem)] focus-visible:ring-2 focus-visible:outline-none pointer-coarse:right-0 pointer-coarse:size-11"
       onclick={clear}><XIcon aria-hidden="true" class="size-3.5" /></button
     >
   {:else if !focused}
