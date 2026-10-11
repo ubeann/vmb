@@ -60,7 +60,7 @@
         <li>
           {#if list.page > 1}
             <a
-              class={cn(pageLink, "hover:bg-accent")}
+              class={cn(pageLink, "hover:bg-muted")}
               href={resolve(to({ page: Math.min(list.page - 1, totalPages) }))}
             >
               <ChevronLeftIcon aria-hidden="true" class="size-4" /><span class="sr-only"
@@ -83,7 +83,7 @@
                   pageLink,
                   entry === list.page
                     ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium ring-1 ring-inset"
-                    : "hover:bg-accent"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 href={resolve(to({ page: entry }))}
                 aria-current={entry === list.page ? "page" : undefined}
@@ -94,7 +94,7 @@
         {/each}
         <li>
           {#if list.page < totalPages}
-            <a class={cn(pageLink, "hover:bg-accent")} href={resolve(to({ page: list.page + 1 }))}>
+            <a class={cn(pageLink, "hover:bg-muted")} href={resolve(to({ page: list.page + 1 }))}>
               <ChevronRightIcon aria-hidden="true" class="size-4" /><span class="sr-only"
                 >Next page</span
               >

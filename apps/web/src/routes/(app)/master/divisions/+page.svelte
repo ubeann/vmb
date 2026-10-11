@@ -460,14 +460,12 @@
               {#if columns.visible("description")}
                 <Table.Head scope="col" class={columnClass("text")}>Description</Table.Head>
               {/if}
-              {#if inTrash}
-                <Table.Head scope="col" class={columnClass("meta")}>Deleted</Table.Head>
-              {/if}
-              {#if columns.visible("updatedAt")}
+              <!-- deleting stamps updatedAt too, so the Trash has one date: Deleted, sorted on that stamp -->
+              {#if inTrash || columns.visible("updatedAt")}
                 <SortableHead
                   {base}
                   column="updatedAt"
-                  label="Updated"
+                  label={inTrash ? "Deleted" : "Updated"}
                   current={sort}
                   class={columnClass("meta")}
                 />
@@ -567,14 +565,11 @@
                     >
                   </Table.Cell>
                 {/if}
-                {#if inTrash}
+                {#if inTrash || columns.visible("updatedAt")}
                   <Table.Cell class={columnClass("meta")}
-                    ><RecordTime iso={division.deletedAt} /></Table.Cell
-                  >
-                {/if}
-                {#if columns.visible("updatedAt")}
-                  <Table.Cell class={columnClass("meta")}
-                    ><RecordTime iso={division.updatedAt} /></Table.Cell
+                    ><RecordTime
+                      iso={inTrash ? division.deletedAt : division.updatedAt}
+                    /></Table.Cell
                   >
                 {/if}
                 {#if columns.visible("createdAt")}

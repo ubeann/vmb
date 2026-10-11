@@ -161,7 +161,7 @@ describe("the Status filter", () => {
     await browser.viewport(1440, 900);
     const screen = await toolbar("?search=ops&status=active&updated=week&page=2");
 
-    await expect.element(screen.getByRole("button", { name: "Filter 2 active" })).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: "Filter 2 in use" })).toBeVisible();
     await openPanel(screen);
     await screen.getByRole("button", { name: "Reset" }).click();
     expect(goto).toHaveBeenLastCalledWith(

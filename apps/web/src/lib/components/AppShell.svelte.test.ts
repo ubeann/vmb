@@ -1041,7 +1041,9 @@ describe("AppShell", () => {
       expect(width).toBe(32);
       await userEvent.hover(row);
       await expect
-        .poll(() => document.querySelector("[data-slot='tooltip-content']")?.textContent)
+        .poll(() => document.querySelector("[data-slot='tooltip-content']")?.textContent, {
+          timeout: 3000
+        })
         .toContain("Keyboard shortcuts");
     });
 

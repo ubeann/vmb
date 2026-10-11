@@ -331,7 +331,7 @@ describe("divisions list", () => {
     await expect
       .element(screen.getByRole("link", { name: "Remove filter Status: Active" }))
       .not.toBeInTheDocument();
-    await screen.getByRole("button", { name: /^Filter 1 active$/ }).click();
+    await screen.getByRole("button", { name: /^Filter 1 in use$/ }).click();
 
     const sheet = screen.getByRole("dialog", { name: "Filters" });
     await expect.element(sheet.getByRole("checkbox", { name: /^Active/ })).toBeChecked();
@@ -806,7 +806,7 @@ describe("divisions list", () => {
     await expect
       .element(screen.getByRole("link", { name: /^Trash 3 deleted divisions$/ }))
       .toHaveAttribute("aria-current", "page");
-    await expect.element(screen.getByRole("columnheader", { name: "Deleted" })).toBeVisible();
+    await expect.element(screen.getByRole("columnheader", { name: /^Deleted/ })).toBeVisible();
     await expect.element(screen.getByRole("button", { name: "Restore Operations" })).toBeVisible();
     await expect.element(screen.getByRole("link", { name: /^Edit / })).not.toBeInTheDocument();
   });
@@ -1227,7 +1227,7 @@ describe("divisions list", () => {
       }
       const filter = screen.getByRole("button", { name: /^Filter/ }).element();
       const badge = filter.querySelector("span.tabular-nums")!;
-      expect(badge.textContent).toBe("1");
+      expect(badge.textContent).toBe("1 in use");
       expect(getComputedStyle(badge).position).toBe("absolute");
     });
 
@@ -1406,5 +1406,116 @@ describe("divisions list", () => {
         await screen.unmount();
       }
     });
+  });
+});
+
+// The list kit's polish (#397): what an owner's audit against the prototype found.
+describe("list kit polish", () => {
+  const size = (element: Element) => {
+    const { width, height } = element.getBoundingClientRect();
+    return [Math.round(width * 10) / 10, Math.round(height * 10) / 10];
+  };
+  const badge = (button: Element) => button.querySelector<HTMLElement>(".rounded-full")!;
+
+  it("makes the Filter count a circle at full width and keeps the folded badge 16px, saying 'in use'", async () => {
+    await browser.viewport(1280, 900);
+    const wide = await render(Page, props("/master/divisions?status=active"));
+    const button = wide.getByRole("button", { name: "Filter 1 in use" });
+    await expect.element(button).toBeVisible();
+    expect(size(badge(button.element()))).toEqual([20, 20]);
+    wide.unmount();
+
+    await browser.viewport(600, 900);
+    const folded = await render(Page, props("/master/divisions?status=active"));
+    const corner = folded.getByRole("button", { name: "Filter 1 in use" });
+    await expect.element(corner).toBeVisible();
+    expect(size(badge(corner.element()))).toEqual([16, 16]);
+  });
+
+  it("shows one date column in the Trash, Deleted, and leaves All as it was", async () => {
+    await browser.viewport(1280, 900);
+    const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
+    const trash = await render(Page, props("/master/divisions?trashed=only", { items: [trashed] }));
+
+    await expect.element(trash.getByRole("columnheader", { name: /Deleted/ })).toBeVisible();
+    await expect
+      .element(trash.getByRole("columnheader", { name: /Updated/ }))
+      .not.toBeInTheDocument();
+    // Deleted is the updatedAt stamp, so sorting on it is that sort
+    await expect
+      .element(trash.getByRole("link", { name: "Deleted, sort ascending" }))
+      .toHaveAttribute("href", "/master/divisions?trashed=only&sort=updatedAt&dir=asc");
+    trash.unmount();
+
+    const all = await render(Page, props("/master/divisions"));
+    await expect.element(all.getByRole("columnheader", { name: /Updated/ })).toBeVisible();
+    await expect
+      .element(all.getByRole("columnheader", { name: /Deleted/ }))
+      .not.toBeInTheDocument();
+  });
+
+  it("sizes the View panel w-64 with h-8 rows and h-7 rows-per-page buttons", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("button", { name: "View" }).click();
+
+    const panel = document.querySelector<HTMLElement>('[data-layer-frame="panel"]')!;
+    // 16rem; offsetWidth, as the panel is still zooming in and a bounding box shrinks with it
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    expect(panel.offsetWidth).toBe(16 * rem);
+    expect(
+      screen.getByRole("checkbox", { name: "Code" }).element().closest("label")!.offsetHeight
+    ).toBe(32);
+    expect((screen.getByRole("radio", { name: "50" }).element() as HTMLElement).offsetHeight).toBe(
+      28
+    );
+  });
+
+  it("makes Reset a muted text link in View and in Filter, with a focus ring", async () => {
+    await browser.viewport(1280, 900);
+    const view = await render(
+      Page,
+      props("/master/divisions?sort=code&dir=desc&perPage=50&status=active")
+    );
+
+    for (const [button, dialog] of [
+      ["View changed", "View"],
+      ["Filter 1 in use", "Filters"]
+    ] as const) {
+      await view.getByRole("button", { name: button }).click();
+      const reset = view
+        .getByRole("dialog", { name: dialog })
+        .getByRole("button", { name: "Reset" });
+      const style = getComputedStyle(reset.element());
+      expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+      expect(style.textDecorationLine).toBe("none");
+      // the footer count is the muted text colour
+      expect(style.color).toBe(getComputedStyle(view.getByRole("status").element()).color);
+
+      await userEvent.hover(reset);
+      expect(getComputedStyle(reset.element()).textDecorationLine).toBe("underline");
+      // the layer puts focus on its title; one Tab reaches Reset, by keyboard, so the ring shows
+      await userEvent.keyboard("{Tab}");
+      await expect.element(reset).toHaveFocus();
+      expect(getComputedStyle(reset.element()).boxShadow).not.toBe("none");
+      await userEvent.keyboard("{Escape}");
+    }
+  });
+
+  it("mutes the desktop page numbers except the current one, and dims a disabled Previous on a phone", async () => {
+    await browser.viewport(1280, 900);
+    const desktop = await render(Page, props("/master/divisions?page=1", { total: 239 }));
+    const pages = desktop.getByRole("navigation", { name: "Pages" });
+    const color = (name: string) =>
+      getComputedStyle(pages.getByRole("link", { name }).element()).color;
+    expect(color("Page 2")).not.toBe(color("Page 1"));
+    expect(color("Page 2")).toBe(getComputedStyle(desktop.getByRole("status").element()).color);
+    desktop.unmount();
+
+    await browser.viewport(390, 844);
+    const phone = await render(Page, props("/master/divisions?page=1", { total: 239 }));
+    const previous = phone.getByRole("link", { name: "Previous" }).element();
+    expect(getComputedStyle(previous).opacity).toBe("0.5");
+    expect(getComputedStyle(previous).pointerEvents).toBe("none");
   });
 });
