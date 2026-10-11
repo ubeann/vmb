@@ -11,6 +11,8 @@ vi.mock("$app/navigation", () => ({ goto: (...args: unknown[]) => goto(...args) 
 
 const { render } = await import("vitest-browser-svelte");
 const { default: ListSearch } = await import("./ListSearch.svelte");
+const { default: Fixture } = await import("./list-search-fixture.svelte");
+const { SINGLE_KEY_STORAGE, shortcuts } = await import("$lib/components/shortcuts.svelte.js");
 
 const props = { base: "/master/divisions", label: "Search divisions" } as const;
 
@@ -22,6 +24,9 @@ function pendingGoto() {
 }
 
 afterEach(async () => {
+  shortcuts.open = false;
+  shortcuts.singleKey = true;
+  localStorage.clear();
   goto.mockReset();
   await browser.viewport(414, 896);
 });
@@ -97,6 +102,61 @@ describe("ListSearch", () => {
     await userEvent.keyboard("/");
     await expect.element(screen.getByRole("searchbox")).toHaveFocus();
     await expect.element(screen.getByRole("searchbox")).toHaveValue("");
+  });
+
+  it("leaves / alone with the single-key switch off, and drops its hint", async () => {
+    mockPage.url = new URL("http://localhost/master/divisions");
+    await browser.viewport(1024, 800);
+    shortcuts.setSingleKey(false);
+    const screen = await render(ListSearch, props);
+
+    await userEvent.keyboard("/");
+    await expect.element(screen.getByRole("searchbox")).not.toHaveFocus();
+    await expect.element(screen.getByText("/", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole("searchbox").element().hasAttribute("aria-keyshortcuts")).toBe(false);
+  });
+
+  describe("on the shortcut sheet", () => {
+    const sheet = () => browser.getByRole("dialog", { name: "Keyboard shortcuts" });
+
+    it("lists / on a list with keyboard rows off", async () => {
+      mockPage.url = new URL("http://localhost/master/divisions");
+      await render(Fixture, { keyboardRows: false });
+      shortcuts.open = true;
+
+      await expect
+        .element(sheet().getByRole("heading", { name: "On the Divisions list" }))
+        .toBeVisible();
+      await expect.element(sheet().getByText("Search")).toBeVisible();
+      await expect.element(sheet().getByText("Edit")).not.toBeInTheDocument();
+      await expect
+        .element(sheet().getByRole("heading", { name: "On a row" }))
+        .not.toBeInTheDocument();
+    });
+
+    it("lists / once on a list with keyboard rows on", async () => {
+      mockPage.url = new URL("http://localhost/master/divisions");
+      await render(Fixture, { keyboardRows: true });
+      shortcuts.open = true;
+
+      await expect
+        .element(sheet().getByRole("heading", { name: "On the Divisions list" }))
+        .toBeVisible();
+      await expect.element(sheet().getByRole("heading", { name: "On a row" })).toBeVisible();
+      await expect.element(sheet().getByText("Search", { exact: true })).toBeVisible();
+      await expect.element(sheet().getByText("Search", { exact: true })).toHaveLength(1);
+      await expect.element(sheet().getByRole("heading", { level: 3 })).toHaveLength(3);
+    });
+
+    it("says / is off, rather than hiding it, with the switch off", async () => {
+      mockPage.url = new URL("http://localhost/master/divisions");
+      localStorage.setItem(SINGLE_KEY_STORAGE, "off");
+      await render(Fixture, { keyboardRows: false });
+      shortcuts.open = true;
+
+      await expect.element(sheet().getByText("Search", { exact: true })).toBeVisible();
+      await expect.element(sheet().getByText("Off", { exact: true })).toHaveLength(2);
+    });
   });
 
   it("shows the / hint while the field is empty and unfocused, and our own × once there is text", async () => {

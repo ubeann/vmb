@@ -6,7 +6,7 @@
     {
       title: "On the test page",
       icon: StarIcon,
-      rows: [{ keys: ["X"], what: "Do the test thing" }]
+      rows: [{ keys: ["X"], what: "Do the test thing", single: true }]
     }
   ]);
 </script>

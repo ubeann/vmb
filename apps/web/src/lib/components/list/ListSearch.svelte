@@ -3,7 +3,8 @@
   works without JavaScript, carrying the list's other parameters as hidden
   fields. With JavaScript the list follows the typing, about 300ms after it
   stops, keeping focus and scroll; one search adds one history entry, not one
-  per keystroke. `/` anywhere outside a field focuses the box.
+  per keystroke. `/` anywhere outside a field focuses the box, unless the single-key
+  shortcuts are switched off (ADR-0052 rule 5), and the shortcut sheet lists it on every list.
 
   The placeholder names the fields the query matches, and `shortPlaceholder`
   takes over when the field would cut it off (ADR-0051 rule 3). The right-hand
@@ -16,10 +17,12 @@
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
+  import { shortcuts, useShortcuts } from "$lib/components/shortcuts.svelte.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { listHref, type MasterListPathname } from "$lib/master/list.js";
   import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
   import SearchIcon from "@lucide/svelte/icons/search";
+  import ListIcon from "@lucide/svelte/icons/list";
   import XIcon from "@lucide/svelte/icons/x";
   import { onDestroy, untrack } from "svelte";
 
@@ -28,6 +31,7 @@
     label,
     placeholder = "Search…",
     shortPlaceholder,
+    listName,
     class: className = ""
   }: {
     base: MasterListPathname;
@@ -36,6 +40,8 @@
     placeholder?: string;
     /** Used instead of `placeholder` when the field is too narrow to show it whole. */
     shortPlaceholder?: string;
+    /** The list's name on the shortcut sheet: "Divisions" makes "On the Divisions list". */
+    listName?: string;
     class?: string;
   } = $props();
 
@@ -59,6 +65,20 @@
   let sent: string | null = null;
   let latest = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+
+  // `/` is on the sheet on every list, whether or not the list has keyboard rows; the rows'
+  // own section merges with this one
+  useShortcuts(() =>
+    listName
+      ? [
+          {
+            title: `On the ${listName} list`,
+            icon: ListIcon,
+            rows: [{ keys: ["/"], what: "Search", single: true }]
+          }
+        ]
+      : []
+  );
 
   $effect(() => {
     document.fonts.ready.then(() => (fontsReady = true));
@@ -131,9 +151,12 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key !== "/" || !shortcuts.singleKey) return;
     const target = event.target as HTMLElement | null;
     if (
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
       target?.closest(
         "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='menu']"
       )
@@ -176,7 +199,7 @@
     type="search"
     name="search"
     aria-label={label}
-    aria-keyshortcuts="/"
+    aria-keyshortcuts={shortcuts.singleKey ? "/" : undefined}
     aria-busy={busy}
     placeholder={shownPlaceholder}
     autocomplete="off"
@@ -195,7 +218,7 @@
       class="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring absolute top-1/2 right-1 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-[calc(var(--control-radius)-0.25rem)] focus-visible:ring-2 focus-visible:outline-none pointer-coarse:right-0 pointer-coarse:size-11"
       onclick={clear}><XIcon aria-hidden="true" class="size-3.5" /></button
     >
-  {:else if !focused}
+  {:else if !focused && shortcuts.singleKey}
     <kbd
       aria-hidden="true"
       class="text-muted-foreground border-border pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border px-1.5 font-mono text-[0.7rem] sm:block"

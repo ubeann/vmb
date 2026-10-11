@@ -1,5 +1,5 @@
 import { modified, shouldIgnore } from "$lib/components/key-guard.js";
-import { useShortcuts, type ShortcutRow } from "$lib/components/shortcuts.svelte.js";
+import { shortcuts, useShortcuts, type ShortcutRow } from "$lib/components/shortcuts.svelte.js";
 import ListIcon from "@lucide/svelte/icons/list";
 import MousePointerClickIcon from "@lucide/svelte/icons/mouse-pointer-click";
 
@@ -11,7 +11,7 @@ type KeyedAction = {
 };
 
 export type RowKeysOptions<T extends { id: string }> = {
-  /** Keyboard rows are off unless a list turns them on (ADR-0052 rule 4). */
+  /** Keyboard rows are on unless a list turns them off (ADR-0052 rule 4). */
   enabled?: boolean;
   /** The list's name on the sheet: "Divisions" makes "On the Divisions list". */
   title: string;
@@ -19,7 +19,7 @@ export type RowKeysOptions<T extends { id: string }> = {
   open: (item: T) => void;
   /** The actions a row offers now; one whose `key` is pressed runs. */
   actions: (item: T) => KeyedAction[];
-  /** What each key does, for the sheet's "On a row" section. */
+  /** What each key does, for the sheet's "On a row" section; each row's keys are marked `single`. */
   help: ShortcutRow[];
 };
 
@@ -29,14 +29,18 @@ const same = (want: string, got: string) =>
   want.length === 1 ? want.toLowerCase() === got.toLowerCase() : want === got;
 
 /**
- * Keyboard rows for a list (ADR-0052 rule 4). ↑↓ or J/K mark a row, Enter opens it, Esc
- * leaves it, and each action's key acts on the marked row, else the row holding focus, else
- * the row under the pointer; never while typing or with another layer open. Delete asks
- * first, as its action does; one key never deletes.
+ * Keyboard rows for a list (ADR-0052 rule 4), on unless the list passes `enabled: false`.
+ * ↑↓ or J/K mark a row, Enter opens it, Esc leaves it, and each action's key acts on the
+ * marked row, else the row holding focus, else the row under the pointer; never while typing
+ * or with another layer open. Delete asks first, as its action does; one key never deletes.
+ *
+ * With the single-key switch off (rule 5) J/K and every action key do nothing, Backspace
+ * included: it isn't a printable character, but gating the action keys as one set is the
+ * simpler rule to state. The arrows, Enter and Esc stay.
  *
  * Create it while the page's component initialises, and spread `row(item)` on each
- * `<tr>`, `menu(item).content` on its row menu's content. With `enabled` off all of it is inert and
- * adds nothing to the page.
+ * `<tr>`, `menu(item).content` on its row menu's content. With `enabled` false all of it is
+ * inert and adds nothing to the page.
  */
 export class RowKeys<T extends { id: string }> {
   readonly enabled: boolean;
@@ -46,7 +50,7 @@ export class RowKeys<T extends { id: string }> {
 
   constructor(options: RowKeysOptions<T>) {
     this.#options = options;
-    this.enabled = options.enabled ?? false;
+    this.enabled = options.enabled ?? true;
     if (!this.enabled) return;
 
     useShortcuts(() => [
@@ -54,8 +58,8 @@ export class RowKeys<T extends { id: string }> {
         title: `On the ${options.title} list`,
         icon: ListIcon,
         rows: [
-          { keys: ["/"], what: "Search" },
-          { keys: ["↑", "↓"], alt: ["J", "K"], what: "Move between rows" },
+          { keys: ["/"], what: "Search", single: true },
+          { keys: ["↑", "↓"], alt: ["J", "K"], altSingle: true, what: "Move between rows" },
           { keys: ["Enter"], what: "Open the row" },
           { keys: ["Esc"], what: "Leave the row" }
         ]
@@ -83,6 +87,11 @@ export class RowKeys<T extends { id: string }> {
           ?.scrollIntoView({ block: "nearest" });
       }
     });
+  }
+
+  /** Whether the keys that are printable characters work: keyboard rows on, and the single-key switch on. */
+  get keys(): boolean {
+    return this.enabled && shortcuts.singleKey;
   }
 
   /** Attributes for a row's `<tr>`: its id, and the mark. */
@@ -117,6 +126,7 @@ export class RowKeys<T extends { id: string }> {
   }
 
   #act(event: KeyboardEvent, item: T): boolean {
+    if (!shortcuts.singleKey) return false;
     const action = this.#options
       .actions(item)
       .find((candidate) => candidate.run && candidate.key && this.#matches(candidate.key, event));
@@ -164,10 +174,10 @@ export class RowKeys<T extends { id: string }> {
     this.#tabbed = event.key === "Tab";
     if (shouldIgnore(event)) return;
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-    if (key === "ArrowDown" || key === "j") {
+    if (key === "ArrowDown" || (key === "j" && shortcuts.singleKey)) {
       event.preventDefault();
       this.#move(1);
-    } else if (key === "ArrowUp" || key === "k") {
+    } else if (key === "ArrowUp" || (key === "k" && shortcuts.singleKey)) {
       event.preventDefault();
       this.#move(-1);
     } else if (key === "Enter") {

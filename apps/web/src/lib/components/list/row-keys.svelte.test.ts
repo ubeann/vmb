@@ -4,7 +4,7 @@ import { page as browser, userEvent } from "vitest/browser";
 // Isolated renders don't load the global stylesheet; the pointer and sheet need it.
 import "../../../app.css";
 
-import { shortcuts } from "$lib/components/shortcuts.svelte.js";
+import { SINGLE_KEY_STORAGE, shortcuts } from "$lib/components/shortcuts.svelte.js";
 
 const { render } = await import("vitest-browser-svelte");
 const { default: Fixture } = await import("./row-keys-fixture.svelte");
@@ -14,6 +14,8 @@ const marked = () => document.querySelector("tr[data-marked]")?.textContent?.tri
 
 afterEach(() => {
   shortcuts.open = false;
+  shortcuts.singleKey = true;
+  localStorage.clear();
 });
 
 describe("keyboard rows", () => {
@@ -143,6 +145,67 @@ describe("keyboard rows", () => {
     await expect.element(sheet.getByRole("heading", { name: "On a row" })).toBeVisible();
     await expect.element(sheet.getByText("Move between rows")).toBeVisible();
     await expect.element(sheet.getByText("Delete…")).toBeVisible();
+  });
+
+  it("is on unless a list passes enabled: false", async () => {
+    await render(Fixture, { log: vi.fn() });
+    await userEvent.keyboard("{ArrowDown}");
+    expect(marked()).toContain("Alpha");
+  });
+
+  describe("with the single-key switch off (ADR-0052 rule 5)", () => {
+    it("ignores J, K and the action keys, Backspace and Delete included, and keeps the arrows, Enter and Esc", async () => {
+      const log = vi.fn();
+      shortcuts.setSingleKey(false);
+      await render(Fixture, { log });
+
+      await userEvent.keyboard("je{Backspace}{Delete}k");
+      expect(marked()).toBeNull();
+      expect(log).not.toHaveBeenCalled();
+
+      await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+      expect(marked()).toContain("Bravo");
+      await userEvent.keyboard("j");
+      expect(marked()).toContain("Bravo");
+      await userEvent.keyboard("e{Backspace}");
+      expect(log).not.toHaveBeenCalled();
+      await userEvent.keyboard("{Enter}");
+      expect(log).toHaveBeenCalledWith("open Bravo");
+      await userEvent.keyboard("{ArrowUp}");
+      expect(marked()).toContain("Alpha");
+      await userEvent.keyboard("{Escape}");
+      expect(marked()).toBeNull();
+    });
+
+    it("does not act on the row under the pointer, and drops the keys from the row menu", async () => {
+      const log = vi.fn();
+      shortcuts.setSingleKey(false);
+      const screen = await render(Fixture, { log });
+
+      await userEvent.hover(row("Charlie"));
+      await userEvent.keyboard("e");
+      expect(log).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: "Actions for Bravo" }));
+      await expect.element(browser.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+      expect(document.querySelector("[data-slot='dropdown-menu-shortcut']")).toBeNull();
+      await userEvent.keyboard("e");
+      expect(log).not.toHaveBeenCalled();
+    });
+
+    it("keeps the sections on the sheet, with the single-key rows marked off", async () => {
+      localStorage.setItem(SINGLE_KEY_STORAGE, "off");
+      await render(Fixture, { log: vi.fn() });
+      shortcuts.open = true;
+
+      const sheet = browser.getByRole("dialog", { name: "Keyboard shortcuts" });
+      await expect.element(sheet.getByRole("heading", { name: "On a row" })).toBeVisible();
+      await expect.element(sheet.getByText("Edit")).toBeVisible();
+      // ?, /, Edit and Delete…; the arrows stay, so "Move between rows" only loses its J and K
+      await expect.element(sheet.getByText("Off", { exact: true })).toHaveLength(4);
+      await expect.element(sheet.getByText("Move between rows")).toBeVisible();
+      await expect.element(sheet.getByText("J K off")).toBeVisible();
+    });
   });
 
   it("does nothing when off: no mark, no keys, no sections, no key in the menu", async () => {
