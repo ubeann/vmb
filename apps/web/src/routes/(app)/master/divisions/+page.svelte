@@ -104,43 +104,45 @@
     confirmOpen = true;
   }
 
-  // a second click while a row action is in flight is ignored, so an Undo cannot overtake it
-  let busy = false;
+  // row actions run one after another, so an Undo clicked while another request is in flight
+  // waits its turn rather than overtaking it, or being dropped
+  let queue: Promise<unknown> = Promise.resolve();
+  const inOrder = <T,>(task: () => Promise<T>): Promise<T> => {
+    const next = queue.then(task);
+    queue = next.catch(() => {});
+    return next;
+  };
 
-  async function restore(division: Division) {
-    if (busy) return;
-    busy = true;
-    const result = await postRowAction(`${actionPath}?/restore`, division.id).finally(
-      () => (busy = false)
-    );
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success(`${division.name} restored`);
-    await invalidateAll();
-  }
+  const restore = (division: Division) =>
+    inOrder(async () => {
+      const result = await postRowAction(`${actionPath}?/restore`, division.id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${division.name} restored`);
+      await invalidateAll();
+    });
 
   /** Activate or Deactivate through the real update; the toast's Undo puts it back (without an Undo of its own). */
-  async function setActive(division: Division, active: boolean, undoable = true) {
-    if (busy) return;
-    busy = true;
-    const result = await postRowAction(
-      `${actionPath}?/${active ? "activate" : "deactivate"}`,
-      division.id
-    ).finally(() => (busy = false));
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success(`${division.name} ${active ? "activated" : "deactivated"}`, {
-      duration: 10_000,
-      action: undoable
-        ? { label: "Undo", onClick: () => setActive(division, !active, false) }
-        : undefined
+  const setActive = (division: Division, active: boolean, undoable = true) =>
+    inOrder(async () => {
+      const result = await postRowAction(
+        `${actionPath}?/${active ? "activate" : "deactivate"}`,
+        division.id
+      );
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${division.name} ${active ? "activated" : "deactivated"}`, {
+        duration: 10_000,
+        action: undoable
+          ? { label: "Undo", onClick: () => setActive(division, !active, false) }
+          : undefined
+      });
+      await invalidateAll();
     });
-    await invalidateAll();
-  }
 
   type RowAction = {
     key: string;

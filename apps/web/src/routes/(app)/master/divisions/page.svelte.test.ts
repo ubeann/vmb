@@ -445,6 +445,34 @@ describe("divisions list", () => {
     );
   });
 
+  it("runs row actions in order, so a later click waits for the one in flight", async () => {
+    let release: () => void = () => {};
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((done) => {
+            release = () => done(actionReply("success", 200, '{"ok":true}'));
+          })
+      )
+      .mockImplementation(async () => actionReply("success", 200, '{"ok":true}'));
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    await screen.getByRole("menuitem", { name: "Deactivate" }).click();
+    await screen.getByRole("button", { name: "Actions for Retired" }).click();
+    await screen.getByRole("menuitem", { name: "Activate" }).click();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    release();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(fetch.mock.calls.map((call) => call[0])).toEqual([
+      "/master/divisions?/deactivate",
+      "/master/divisions?/activate"
+    ]);
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledTimes(2));
+  });
+
   it("offers Activate on an inactive row, and says so when the API refuses", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       actionReply("failure", 403, '{"error":"You do not have permission to do that."}')
