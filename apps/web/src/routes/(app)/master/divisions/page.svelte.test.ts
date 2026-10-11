@@ -898,6 +898,65 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("button", { name: "Reset" })).not.toBeInTheDocument();
   });
 
+  it("ends View with an action that names what the list shows, and closes it", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 7 }));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    await screen.getByRole("radio", { name: "50" }).click();
+    goto.mockClear();
+    await screen.getByRole("button", { name: "Show 7 divisions" }).click();
+
+    // it applies nothing: the picks already did
+    expect(goto).not.toHaveBeenCalled();
+    await expect.element(screen.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "View" })).toHaveFocus();
+  });
+
+  it("agrees the action's noun with the count, and in the Trash", async () => {
+    await browser.viewport(1280, 900);
+    const one = await render(Page, props("/master/divisions", { total: 1 }));
+    await one.getByRole("button", { name: "View" }).click();
+    await expect.element(one.getByRole("button", { name: "Show 1 division" })).toBeVisible();
+    one.unmount();
+
+    const trash = await render(Page, props("/master/divisions?trashed=only", { total: 3 }));
+    await trash.getByRole("button", { name: "View" }).click();
+    await expect
+      .element(trash.getByRole("button", { name: "Show 3 deleted divisions" }))
+      .toBeVisible();
+    trash.unmount();
+
+    const failed = await render(Page, props("/master/divisions", { failed: true }));
+    await failed.getByRole("button", { name: "View" }).click();
+    await expect.element(failed.getByRole("button", { name: "Done" })).toBeVisible();
+  });
+
+  it("closes the sheet and the dialog from the same action, and the sheet doesn't scroll at 375 x 667", async () => {
+    await browser.viewport(375, 667);
+    const sheet = await render(Page, props("/master/divisions", { total: 12 }));
+    await sheet.getByRole("button", { name: "View" }).click();
+
+    const frame = document.querySelector<HTMLElement>('[data-layer-frame="modal"]')!;
+    const body = frame.querySelector<HTMLElement>(".overflow-y-auto")!;
+    await expect.poll(() => frame.getAnimations({ subtree: true }).length).toBe(0);
+    // the sort steps are the tallest content View has; the action sits under all of it
+    await expect.element(sheet.getByRole("radiogroup", { name: "Sort by" })).toBeVisible();
+    expect(body.scrollHeight).toBeLessThanOrEqual(body.clientHeight);
+    const action = sheet.getByRole("button", { name: "Show 12 divisions" }).element();
+    expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(innerHeight);
+
+    await sheet.getByRole("button", { name: "Show 12 divisions" }).click();
+    await expect.element(sheet.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+    sheet.unmount();
+
+    await browser.viewport(520, 800);
+    const dialog = await render(Page, props("/master/divisions", { total: 12 }));
+    await dialog.getByRole("button", { name: "View" }).click();
+    await dialog.getByRole("button", { name: "Show 12 divisions" }).click();
+    await expect.element(dialog.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+  });
+
   it("has no axe violations with the View panel open", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions"));

@@ -1,5 +1,6 @@
 // The rules behind the View panel (ADR-0051 rule 6), kept apart from the
 // component so they can be checked without a browser.
+import { nounFor, type CountNoun } from "../../master/list.js";
 import { DEFAULT_PER_PAGE } from "@vmb/types";
 
 export type SortDirection = "asc" | "desc";
@@ -53,6 +54,14 @@ export function sortChanges(choice: ListSort, defaults: ListSort) {
 export function pickField(field: SortField): ListSort {
   return { sort: field.sort, dir: field.start };
 }
+
+/**
+ * The footer action's label (ADR-0053 rule 4): it names what the list shows
+ * once the picks are in, in the nouns the tabs and footer use, "Show 3 deleted
+ * divisions"; "Done" while the count isn't known.
+ */
+export const showLabel = (shown: number | null, noun: CountNoun): string =>
+  shown === null ? "Done" : `Show ${shown} ${nounFor(noun, shown)}`;
 
 /** Whether a sort is not the list's default. */
 export const sortDiffers = (sort: ListSort, defaults: ListSort): boolean =>

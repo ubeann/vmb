@@ -4,8 +4,9 @@
   page and, once the card is under 32rem and its rows fold to two lines, Sort
   by and Order instead of the columns. A choice applies at once and the panel
   stays open; a dot on the button says something differs from the default, and
-  Reset puts every part back. The sort and page size live in the URL, the
-  columns in the browser (`ColumnVisibility`).
+  Reset puts every part back. The footer's action names what the list now
+  shows ("Show 12 divisions") and closes the layer, applying nothing. The sort
+  and page size live in the URL, the columns in the browser (`ColumnVisibility`).
 
   It sits in the list's layer (ADR-0053), so it is the panel by its button, a
   dialog or a bottom sheet by screen size. Put it in `ListToolbar`'s `actions`;
@@ -18,7 +19,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
-  import { listHref, type MasterListPathname } from "$lib/master/list.js";
+  import { listHref, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { DEFAULT_PER_PAGE, PER_PAGE_OPTIONS } from "@vmb/types";
   import ArrowDownIcon from "@lucide/svelte/icons/arrow-down";
@@ -30,12 +31,13 @@
   import Settings2Icon from "@lucide/svelte/icons/settings-2";
   import { RadioGroup } from "bits-ui";
   import type { ColumnVisibility } from "./column-visibility.svelte.js";
-  import { Layer, LayerBody } from "./layer/index.js";
+  import { Layer, LayerAction, LayerBody, LayerFooter } from "./layer/index.js";
   import { TOOL_BUTTON, TOOL_LABEL } from "./tool-button.js";
   import {
     foldsAt,
     orderChoices,
     pickField,
+    showLabel,
     sortChanges,
     sortDiffers,
     viewDiffers,
@@ -49,7 +51,9 @@
     perPage,
     sort,
     defaultSort,
-    sortFields
+    sortFields,
+    shown,
+    noun
   }: {
     base: MasterListPathname;
     columns: ColumnVisibility<Id>;
@@ -61,6 +65,10 @@
     defaultSort: ListSort;
     /** The columns Sort by offers, in order; the first is the default's. */
     sortFields: readonly SortField[];
+    /** Rows the list shows with the picks in; null while it isn't known. */
+    shown: number | null;
+    /** What those rows are called, agreeing with their number. */
+    noun: CountNoun;
   } = $props();
 
   // The panel is portalled, outside the card's container queries, so the card's
@@ -155,58 +163,31 @@
     {/if}
   {/snippet}
 
-  <LayerBody>
-    {#if folded}
-      <section aria-labelledby="{uid}-sort" class="border-border border-b px-4 py-3">
-        <h3 id="{uid}-sort" class={heading}>
-          <ArrowUpDownIcon aria-hidden="true" class="size-3.5" />Sort by
-        </h3>
-        <RadioGroup.Root
-          value={field?.sort ?? ""}
-          onValueChange={(value) => {
-            const next = sortFields.find((each) => each.sort === value);
-            if (next) apply({ sort: pickField(next) });
-          }}
-          aria-labelledby="{uid}-sort"
-          class="-mx-2 flex flex-col"
-        >
-          {#each sortFields as each (each.sort)}
-            <RadioGroup.Item value={each.sort}>
-              {#snippet child({ props, checked })}
-                <button
-                  {...props}
-                  data-slot="layer-row"
-                  class={cn(row, "justify-between", checked && "font-medium")}
-                >
-                  {each.label}
-                  {#if checked}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
-                </button>
-              {/snippet}
-            </RadioGroup.Item>
-          {/each}
-        </RadioGroup.Root>
-      </section>
-      {#if field}
-        <section aria-labelledby="{uid}-order" class="border-border border-b px-4 py-3">
-          <h3 id="{uid}-order" class={heading}>
-            <ArrowDownIcon aria-hidden="true" class="size-3.5" />Order
+  {#snippet children(layer)}
+    <LayerBody>
+      {#if folded}
+        <section aria-labelledby="{uid}-sort" class="border-border border-b px-4 py-3">
+          <h3 id="{uid}-sort" class={heading}>
+            <ArrowUpDownIcon aria-hidden="true" class="size-3.5" />Sort by
           </h3>
           <RadioGroup.Root
-            value={shownSort.dir}
-            onValueChange={(value) =>
-              apply({ sort: { sort: field.sort, dir: value === "desc" ? "desc" : "asc" } })}
-            aria-labelledby="{uid}-order"
+            value={field?.sort ?? ""}
+            onValueChange={(value) => {
+              const next = sortFields.find((each) => each.sort === value);
+              if (next) apply({ sort: pickField(next) });
+            }}
+            aria-labelledby="{uid}-sort"
             class="-mx-2 flex flex-col"
           >
-            {#each orderChoices(field) as choice (choice.dir)}
-              <RadioGroup.Item value={choice.dir}>
+            {#each sortFields as each (each.sort)}
+              <RadioGroup.Item value={each.sort}>
                 {#snippet child({ props, checked })}
                   <button
                     {...props}
                     data-slot="layer-row"
                     class={cn(row, "justify-between", checked && "font-medium")}
                   >
-                    {choice.label}
+                    {each.label}
                     {#if checked}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
                   </button>
                 {/snippet}
@@ -214,59 +195,92 @@
             {/each}
           </RadioGroup.Root>
         </section>
+        {#if field}
+          <section aria-labelledby="{uid}-order" class="border-border border-b px-4 py-3">
+            <h3 id="{uid}-order" class={heading}>
+              <ArrowDownIcon aria-hidden="true" class="size-3.5" />Order
+            </h3>
+            <RadioGroup.Root
+              value={shownSort.dir}
+              onValueChange={(value) =>
+                apply({ sort: { sort: field.sort, dir: value === "desc" ? "desc" : "asc" } })}
+              aria-labelledby="{uid}-order"
+              class="-mx-2 flex flex-col"
+            >
+              {#each orderChoices(field) as choice (choice.dir)}
+                <RadioGroup.Item value={choice.dir}>
+                  {#snippet child({ props, checked })}
+                    <button
+                      {...props}
+                      data-slot="layer-row"
+                      class={cn(row, "justify-between", checked && "font-medium")}
+                    >
+                      {choice.label}
+                      {#if checked}<CheckIcon aria-hidden="true" class="text-primary size-4" />{/if}
+                    </button>
+                  {/snippet}
+                </RadioGroup.Item>
+              {/each}
+            </RadioGroup.Root>
+          </section>
+        {/if}
+      {:else}
+        <section aria-labelledby="{uid}-columns" class="border-border border-b px-4 py-3">
+          <h3 id="{uid}-columns" class={heading}>
+            <Columns3Icon aria-hidden="true" class="size-3.5" />Columns
+          </h3>
+          <div class="-mx-2 flex flex-col">
+            {#each pinned as column (column.id)}
+              <div class={cn(row, "text-muted-foreground hover:bg-transparent")}>
+                <LockIcon aria-hidden="true" class="size-4" />{column.label}
+                <span class="ml-auto text-xs">Always shown</span>
+              </div>
+            {/each}
+            {#each hideable as column (column.id)}
+              <Label class={cn(row, "cursor-pointer font-normal")}>
+                <Checkbox
+                  checked={columns.visible(column.id)}
+                  onCheckedChange={(on) => columns.set(column.id, on)}
+                />{column.label}
+              </Label>
+            {/each}
+          </div>
+        </section>
       {/if}
-    {:else}
-      <section aria-labelledby="{uid}-columns" class="border-border border-b px-4 py-3">
-        <h3 id="{uid}-columns" class={heading}>
-          <Columns3Icon aria-hidden="true" class="size-3.5" />Columns
-        </h3>
-        <div class="-mx-2 flex flex-col">
-          {#each pinned as column (column.id)}
-            <div class={cn(row, "text-muted-foreground hover:bg-transparent")}>
-              <LockIcon aria-hidden="true" class="size-4" />{column.label}
-              <span class="ml-auto text-xs">Always shown</span>
-            </div>
-          {/each}
-          {#each hideable as column (column.id)}
-            <Label class={cn(row, "cursor-pointer font-normal")}>
-              <Checkbox
-                checked={columns.visible(column.id)}
-                onCheckedChange={(on) => columns.set(column.id, on)}
-              />{column.label}
-            </Label>
-          {/each}
-        </div>
-      </section>
-    {/if}
 
-    <section aria-labelledby="{uid}-rows" class="px-4 py-3">
-      <h3 id="{uid}-rows" class={cn(heading, "mb-2")}>
-        <Rows3Icon aria-hidden="true" class="size-3.5" />Rows per page
-      </h3>
-      <RadioGroup.Root
-        value={String(shownPerPage)}
-        onValueChange={(value) => apply({ perPage: Number(value) })}
-        orientation="horizontal"
-        aria-labelledby="{uid}-rows"
-        class="flex gap-1.5"
-      >
-        {#each PER_PAGE_OPTIONS as size (size)}
-          <RadioGroup.Item value={String(size)}>
-            {#snippet child({ props, checked })}
-              <button
-                {...props}
-                data-slot="layer-pill"
-                class={cn(
-                  "focus-visible:ring-ring inline-flex h-8 flex-1 items-center justify-center rounded-(--control-radius) text-sm tabular-nums ring-1 ring-inset focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11",
-                  checked
-                    ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium"
-                    : "ring-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}>{size}</button
-              >
-            {/snippet}
-          </RadioGroup.Item>
-        {/each}
-      </RadioGroup.Root>
-    </section>
-  </LayerBody>
+      <section aria-labelledby="{uid}-rows" class="px-4 py-3">
+        <h3 id="{uid}-rows" class={cn(heading, "mb-2")}>
+          <Rows3Icon aria-hidden="true" class="size-3.5" />Rows per page
+        </h3>
+        <RadioGroup.Root
+          value={String(shownPerPage)}
+          onValueChange={(value) => apply({ perPage: Number(value) })}
+          orientation="horizontal"
+          aria-labelledby="{uid}-rows"
+          class="flex gap-1.5"
+        >
+          {#each PER_PAGE_OPTIONS as size (size)}
+            <RadioGroup.Item value={String(size)}>
+              {#snippet child({ props, checked })}
+                <button
+                  {...props}
+                  data-slot="layer-pill"
+                  class={cn(
+                    "focus-visible:ring-ring inline-flex h-8 flex-1 items-center justify-center rounded-(--control-radius) text-sm tabular-nums ring-1 ring-inset focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11",
+                    checked
+                      ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium"
+                      : "ring-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}>{size}</button
+                >
+              {/snippet}
+            </RadioGroup.Item>
+          {/each}
+        </RadioGroup.Root>
+      </section>
+    </LayerBody>
+    <!-- the picks are already applied: this only closes the layer, naming the result (ADR-0053 rule 4) -->
+    <LayerFooter>
+      <LayerAction label={showLabel(shown, noun)} icon={Settings2Icon} onclick={layer.close} />
+    </LayerFooter>
+  {/snippet}
 </Layer>

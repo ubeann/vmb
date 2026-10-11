@@ -287,6 +287,8 @@
           {sort}
           {defaultSort}
           {sortFields}
+          shown={data.divisions ? data.divisions.total : null}
+          noun={inTrash ? NOUNS.trash : NOUNS.all}
         />
       {/snippet}
     </ListToolbar>
