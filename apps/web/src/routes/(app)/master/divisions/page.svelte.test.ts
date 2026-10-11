@@ -1239,6 +1239,31 @@ describe("divisions list", () => {
       expect(first!.textContent).not.toContain("Fleet");
     });
 
+    it("says under 32rem what the columns show: a hidden Updated is not there, a shown Created is", async () => {
+      await browser.viewport(414, 896);
+      localStorage.setItem(
+        "vmb:list-columns:divisions",
+        JSON.stringify({
+          name: true,
+          code: true,
+          description: true,
+          updatedAt: false,
+          createdAt: true
+        })
+      );
+      const screen = await render(Page, props("/master/divisions"));
+
+      await expect
+        .poll(() => {
+          const row = screen.getByRole("link", { name: "Operations" }).element().closest("tr")!;
+          const line = [...row.querySelectorAll("td:first-child p")].find((p) =>
+            p.checkVisibility()
+          );
+          return line?.textContent?.replace(/\s+/g, " ").trim();
+        })
+        .toMatch(/^OPS · Created \d{1,2} \w{3} 2026$/);
+    });
+
     it("dims an inactive row's tile and name under 32rem, and leads its second line with Inactive", async () => {
       await browser.viewport(414, 896);
       const screen = await render(Page, props("/master/divisions"));

@@ -276,6 +276,17 @@
     ]
   });
 
+  // what a row folded to two lines says under its name, following the columns the user shows
+  // (the Trash always says when it was deleted, as its column does)
+  function metaParts(division: Division) {
+    const parts: ("inactive" | "code" | "changed" | "created")[] = [];
+    if (!division.isActive) parts.push("inactive");
+    if (columns.visible("code")) parts.push("code");
+    if (inTrash || columns.visible("updatedAt")) parts.push("changed");
+    if (columns.visible("createdAt")) parts.push("created");
+    return parts;
+  }
+
   // a click anywhere on a row opens the record; the name stays a real link for a new tab (ADR-0051 rule 7)
   function openRow(event: MouseEvent, division: Division) {
     if (!opensRecord(event)) return;
@@ -524,18 +535,23 @@
                         </p>
                       {/if}
                       <p class={META_LINE}>
-                        {#if !division.isActive}
-                          <span class="text-foreground/80 font-medium">Inactive</span>{SEP}
-                        {/if}
-                        {#if columns.visible("code")}
-                          <span class="font-mono"
-                            ><Marked text={division.code} term={data.query.search} /></span
-                          >{SEP}
-                        {/if}
-                        {inTrash ? "Deleted" : "Updated"}{SPACE}<RecordTime
-                          day
-                          iso={inTrash ? division.deletedAt : division.updatedAt}
-                        />
+                        {#each metaParts(division) as part, index (part)}
+                          {#if index > 0}{SEP}{/if}
+                          {#if part === "inactive"}
+                            <span class="text-foreground/80 font-medium">Inactive</span>
+                          {:else if part === "code"}
+                            <span class="font-mono"
+                              ><Marked text={division.code} term={data.query.search} /></span
+                            >
+                          {:else if part === "changed"}
+                            {inTrash ? "Deleted" : "Updated"}{SPACE}<RecordTime
+                              day
+                              iso={inTrash ? division.deletedAt : division.updatedAt}
+                            />
+                          {:else}
+                            Created{SPACE}<RecordTime day iso={division.createdAt} />
+                          {/if}
+                        {/each}
                       </p>
                     </div>
                   </div>
