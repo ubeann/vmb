@@ -25,7 +25,7 @@ passing='{
     "files": [{"path": "apps/web/src/lib/components/AppShell.svelte"}],
     "statusCheckRollup": [
       {"__typename": "CheckRun", "name": "Verify", "status": "COMPLETED", "conclusion": "SUCCESS"},
-      {"__typename": "CheckRun", "name": "Real Postgres", "status": "COMPLETED", "conclusion": "SKIPPED"},
+      {"__typename": "CheckRun", "name": "Release", "status": "COMPLETED", "conclusion": "SKIPPED"},
       {"__typename": "StatusContext", "context": "Socket", "state": "SUCCESS"}
     ],
     "closingIssuesReferences": [{"number": 218}]
