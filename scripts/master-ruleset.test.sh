@@ -50,9 +50,9 @@ ok "a pull request needs no approvals and no code owner" \
     | .required_approving_review_count == 0 and .require_code_owner_review == false'
 ok "squash and merge are the allowed merge methods" \
   payload_ok '.rules[] | select(.type == "pull_request") | .parameters.allowed_merge_methods == ["squash", "merge"]'
-ok "Verify and Real Postgres are required, pinned to the GitHub Actions app" \
+ok "only Verify is required, pinned to the GitHub Actions app" \
   payload_ok '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks
-    == [{context: "Verify", integration_id: 15368}, {context: "Real Postgres", integration_id: 15368}]'
+    == [{context: "Verify", integration_id: 15368}]'
 ok "strict status checks are off" \
   payload_ok '.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy == false'
 ok "an unknown argument is refused" test "$(bash master-ruleset.sh --bogus >/dev/null 2>&1; echo $?)" = 2

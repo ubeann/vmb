@@ -3,7 +3,8 @@
 # Create or update the branch ruleset that protects the default branch. Merging
 # to `master` deploys to production (`ci.yml`'s Release job), so GitHub itself
 # refuses what must never land there: a force-push, a deletion, a push that
-# skips a pull request, and a merge while `Verify` or `Real Postgres` is red.
+# skips a pull request, and a merge while `Verify` is red (the real-server
+# database suite is a step inside it, ADR-0043).
 # `scripts/merge-gate.sh` stays the second layer and the only thing that decides
 # what an agent may merge. The reasoning is in ADR-0054.
 #
@@ -53,8 +54,7 @@ payload() {
         strict_required_status_checks_policy: false,
         do_not_enforce_on_create: false,
         required_status_checks: [
-          {context: "Verify", integration_id: $app},
-          {context: "Real Postgres", integration_id: $app}
+          {context: "Verify", integration_id: $app}
         ]
       }}
     ]

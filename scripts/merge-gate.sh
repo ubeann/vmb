@@ -3,7 +3,7 @@
 # Decide whether an agent may merge a PR without the owner. Merging to `master`
 # deploys to production (`ci.yml`'s Release job). GitHub enforces the basics
 # through the `master` ruleset (`scripts/master-ruleset.sh`, ADR-0054): a PR, a
-# green `Verify` and `Real Postgres`, and no force-push or deletion. It cannot
+# green `Verify`, and no force-push or deletion. It cannot
 # judge the rest (the ticket's tier, its criteria, the door, the paths touched),
 # so this script stays the only thing that decides what an agent may merge. The
 # loop that runs it is `docs/agents/ticket-loop.md`.
