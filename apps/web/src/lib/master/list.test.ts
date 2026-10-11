@@ -8,11 +8,13 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   canonicalListSearch,
+  countSummary,
   listHref,
   pageWindow,
   parseListQuery,
   showingRange,
-  sortState
+  sortState,
+  toggleListValue
 } from "./list.js";
 
 const parse = (search: string) => {
@@ -212,5 +214,50 @@ describe("showingRange", () => {
 
   it("shows nothing for a page past the end, rather than an impossible range", () => {
     expect(showingRange({ page: 4, perPage: 25, total: 60 })).toEqual({ from: 0, to: 0 });
+  });
+});
+
+describe("toggleListValue", () => {
+  const order = ["active", "inactive"];
+
+  it("adds a value to a filter, keeping the order the list offers", () => {
+    expect(toggleListValue(null, "inactive", order)).toBe("inactive");
+    expect(toggleListValue("inactive", "active", order)).toBe("active,inactive");
+  });
+
+  it("drops a value that is already chosen, and the filter with its last value", () => {
+    expect(toggleListValue("active,inactive", "active", order)).toBe("inactive");
+    expect(toggleListValue("active", "active", order)).toBeNull();
+  });
+
+  it("reads the old `all` as no filter, and ignores a value the list doesn't offer", () => {
+    expect(toggleListValue("all", "active", order)).toBe("active");
+    expect(toggleListValue("archived", "active", order)).toBe("active");
+  });
+});
+
+describe("countSummary", () => {
+  const list = (page: number, total: number) => ({ page, perPage: 25, total });
+
+  it("reads the range of an unfiltered list, and says so when there are none", () => {
+    expect(countSummary(list(1, 60), "divisions", null)).toBe("Showing 1–25 of 60");
+    expect(countSummary(list(1, 0), "divisions", null)).toBe("No divisions");
+    expect(countSummary(list(4, 60), "divisions", null)).toBe(
+      "60 divisions in all, none on this page"
+    );
+  });
+
+  it("reads n of m when a search or filter narrows the list to one page", () => {
+    expect(countSummary(list(1, 3), "divisions", 12)).toBe("3 of 12 divisions");
+    expect(countSummary(list(1, 1), "divisions in the Trash", 4)).toBe(
+      "1 of 4 divisions in the Trash"
+    );
+    expect(countSummary(list(1, 0), "divisions", 12)).toBe("0 of 12 divisions");
+  });
+
+  it("keeps the range on a filtered list that still pages, and adds what it was cut from", () => {
+    expect(countSummary(list(2, 60), "divisions", 240)).toBe(
+      "Showing 26–50 of 60 · 240 divisions in all"
+    );
   });
 });

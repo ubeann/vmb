@@ -47,21 +47,48 @@ describe("the divisions list load", () => {
   it("loads the page the URL asks for, with the Trash count from the same answer", async () => {
     listDivisionsMock.mockResolvedValue({ ok: true, value: page(40, 3) });
 
-    const result = await load(event("?search=ops&sort=code&status=active,inactive"));
+    const result = await load(event("?sort=code"));
 
-    expect(result).toMatchObject({ divisions: { total: 40 }, trashCount: 3 });
+    expect(result).toMatchObject({ divisions: { total: 40 }, trashCount: 3, outOf: null });
     expect(listDivisionsMock).toHaveBeenCalledTimes(1);
     expect(listDivisionsMock).toHaveBeenCalledWith(
       {},
       expect.objectContaining({
-        search: "ops",
         sort: "code",
-        status: ["active", "inactive"],
         trashed: "exclude",
         perPage: 25,
         tz: "Asia/Jakarta"
       })
     );
+  });
+
+  it('counts the view without the search and filters, for "n of m" in the footer', async () => {
+    listDivisionsMock.mockImplementation(async (_client, query: { perPage: number }) => ({
+      ok: true,
+      value: query.perPage === 10 ? page(12) : page(3, 1)
+    }));
+
+    const result = await load(event("?search=ops&status=active,inactive&trashed=only"));
+
+    expect(result).toMatchObject({ divisions: { total: 3 }, trashCount: 1, outOf: 12 });
+    expect(listDivisionsMock).toHaveBeenCalledTimes(2);
+    const unfiltered = listDivisionsMock.mock.calls[1]?.[1];
+    expect(unfiltered).toMatchObject({ status: [], trashed: "only", perPage: 10 });
+    expect(unfiltered.search).toBeUndefined();
+  });
+
+  it("still opens the list when the unfiltered count fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    listDivisionsMock.mockImplementation(async (_client, query: { perPage: number }) =>
+      query.perPage === 10
+        ? { ok: false, status: 500, error: "boom" }
+        : { ok: true, value: page(3) }
+    );
+
+    const result = await load(event("?search=ops"));
+
+    expect(result).toMatchObject({ divisions: { total: 3 }, outOf: null });
+    consoleError.mockRestore();
   });
 
   it("sends a date preset as the days it means today in the reader's zone", async () => {

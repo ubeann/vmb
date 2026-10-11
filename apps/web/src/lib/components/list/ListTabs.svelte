@@ -1,7 +1,8 @@
 <!--
-  The All · Trash switch above a list (#301), replacing the old "Trashed"
-  select. Each tab is a link that sets or clears `trashed=only`, keeping the
-  search and filters, and the Trash tab says how many records it holds.
+  The All · Trash views on the card's top edge (#301, #363). Each tab is a link
+  that sets or clears `trashed=only`, keeping the search and filters, and says
+  how many rows it would show: the counts follow the search and filters
+  (ADR-0051 rule 2).
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
@@ -12,33 +13,36 @@
   let {
     base,
     label,
-    trashCount,
-    countNoun
+    views,
+    countNoun,
+    class: className = ""
   }: {
     base: MasterListPathname;
     label: string;
-    trashCount: number | null;
+    /** Rows in each view; null when the list could not be loaded. */
+    views: { all: number; trash: number } | null;
     /** What the count counts, read after it by a screen reader: "divisions". */
     countNoun: string;
+    class?: string;
   } = $props();
 
   const inTrash = $derived(page.url.searchParams.get("trashed") === "only");
   const tabs = $derived([
-    { name: "All", count: null, current: !inTrash, trashed: null },
-    { name: "Trash", count: trashCount, current: inTrash, trashed: "only" }
+    { name: "All", count: views?.all ?? null, current: !inTrash, trashed: null },
+    { name: "Trash", count: views?.trash ?? null, current: inTrash, trashed: "only" }
   ]);
 </script>
 
-<nav aria-label={label} class="border-border flex gap-1 border-b">
+<nav aria-label={label} class={cn("-mb-px flex items-center gap-4 self-stretch", className)}>
   {#each tabs as tab (tab.name)}
     <a
       href={resolve(listHref(base, page.url.searchParams, { trashed: tab.trashed }))}
       aria-current={tab.current ? "page" : undefined}
       data-sveltekit-noscroll
       class={cn(
-        "focus-visible:ring-ring -mb-px inline-flex h-10 items-center gap-2 border-b-2 px-3 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none pointer-coarse:h-11",
+        "focus-visible:ring-ring inline-flex h-12 items-center gap-1.5 border-b-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none",
         tab.current
-          ? "border-primary text-foreground"
+          ? "border-foreground text-foreground"
           : "text-muted-foreground hover:text-foreground border-transparent"
       )}
     >

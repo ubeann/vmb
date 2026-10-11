@@ -23,22 +23,44 @@ export const load: PageServerLoad = async (event) => {
     created: resolveDateFilter(query.created, today),
     tz: READER_TIME_ZONE
   };
-  const access = await withApiClient(event, (client) => listDivisions(client, request));
+  const filtered =
+    Boolean(query.search || query.updated || query.created) || query.status.length > 0;
+  const access = await withApiClient(event, (client) =>
+    Promise.all([
+      listDivisions(client, request),
+      // What the view holds before the search and filters, for "n of m divisions" (ADR-0051
+      // rule 5); only its `total` is read, so the smallest page size keeps it cheap. It is
+      // optional, so a failure here must not take the list down with it.
+      filtered
+        ? listDivisions(client, {
+            ...DivisionListQuerySchema.parse({ trashed: query.trashed, perPage: "10" }),
+            tz: READER_TIME_ZONE
+          }).catch((error: unknown) => ({ ok: false as const, error }))
+        : null
+    ])
+  );
 
   if (!access.ok) {
     console.error("divisions list: failed to reach the API", access.error);
-    return { query, divisions: null, trashCount: null };
+    return { query, divisions: null, trashCount: null, outOf: null };
   }
 
-  const list = access.value;
+  const [list, unfiltered] = access.value;
   if (!list.ok) {
     if (list.status === 403) error(403, list.error);
     console.error("divisions list: API refused the request", list.error);
-    return { query, divisions: null, trashCount: null };
+    return { query, divisions: null, trashCount: null, outOf: null };
   }
+  if (unfiltered && !unfiltered.ok)
+    console.error("divisions list: could not count the unfiltered view", unfiltered.error);
 
-  // the Trash tab counts what the search and filters match there (ADR-0051 rule 2)
-  return { query, divisions: list.value, trashCount: list.value.views.trash };
+  return {
+    query,
+    divisions: list.value,
+    // the Trash tab counts what the search and filters match there (ADR-0051 rule 2)
+    trashCount: list.value.views.trash,
+    outOf: unfiltered?.ok ? unfiltered.value.total : null
+  };
 };
 
 export const actions: Actions = {

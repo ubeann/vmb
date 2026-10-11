@@ -14,7 +14,8 @@ vi.mock("$app/state", () => ({ page: mockPage, navigating: { to: null } }));
 const toast = { success: vi.fn(), error: vi.fn() };
 vi.mock("svelte-sonner", () => ({ toast }));
 const invalidateAll = vi.fn(async () => {});
-vi.mock("$app/navigation", () => ({ goto: vi.fn(), invalidateAll }));
+const goto = vi.fn(async () => {});
+vi.mock("$app/navigation", () => ({ goto, invalidateAll }));
 
 // The form action's answer, as `use:enhance` would hand it to the page.
 let deleteResult: { type: "success" | "failure"; status: number; data: Record<string, unknown> };
@@ -77,7 +78,13 @@ const ALL = [
 
 function props(
   url: string,
-  overrides: { items?: Division[]; total?: number; permissions?: string[]; failed?: boolean } = {}
+  overrides: {
+    items?: Division[];
+    total?: number;
+    outOf?: number;
+    permissions?: string[];
+    failed?: boolean;
+  } = {}
 ) {
   mockPage.url = new URL(url, "http://localhost");
   const items = overrides.items ?? [division, inactive];
@@ -98,7 +105,8 @@ function props(
             views: { all: overrides.total ?? items.length, trash: 3 },
             facets: { status: { active: 1, inactive: 1 } }
           },
-      trashCount: 3
+      trashCount: 3,
+      outOf: overrides.outOf ?? null
     } as PageData
   };
 }
@@ -109,6 +117,7 @@ afterEach(async () => {
   toast.success.mockReset();
   toast.error.mockReset();
   invalidateAll.mockClear();
+  goto.mockClear();
   await browser.viewport(414, 896);
 });
 
@@ -127,9 +136,9 @@ describe("divisions list", () => {
       .element(screen.getByRole("searchbox", { name: "Search divisions" }))
       .toHaveValue("ops");
 
-    // the All · Trash switch, with the Trash count, keeps the search
+    // the All · Trash tabs, each with its count, keep the search
     await expect
-      .element(screen.getByRole("link", { name: "All" }))
+      .element(screen.getByRole("link", { name: /^All 60 divisions$/ }))
       .toHaveAttribute("aria-current", "page");
     await expect
       .element(screen.getByRole("link", { name: /^Trash 3 divisions$/ }))
@@ -152,11 +161,12 @@ describe("divisions list", () => {
       .element(screen.getByRole("link", { name: "Operations" }))
       .toHaveAttribute("href", "/master/divisions/d1000000-0000-4000-8000-000000000001");
     await expect.element(screen.getByText("OPS")).toBeVisible();
+    const table = screen.getByRole("table");
     await expect
-      .element(screen.getByText("Active", { exact: true }))
+      .element(table.getByText("Active", { exact: true }))
       .toHaveAttribute("data-tone", "success");
     await expect
-      .element(screen.getByText("Inactive", { exact: true }))
+      .element(table.getByText("Inactive", { exact: true }))
       .toHaveAttribute("data-tone", "neutral");
 
     await expect.element(screen.getByText("Showing 1–25 of 60")).toBeVisible();
@@ -194,6 +204,100 @@ describe("divisions list", () => {
       parseFloat(getComputedStyle(description).fontSize) * 48
     );
     expect(description.scrollWidth).toBeGreaterThan(description.clientWidth);
+  });
+
+  it("says what the page is in one line, with the action on the title row", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    const title = screen.getByRole("heading", { name: "Divisions", level: 1 }).element();
+    const action = screen.getByRole("link", { name: "New division" }).element();
+    const description = screen.getByText("Organisational units that group stock and budgets.");
+    await expect.element(description).toBeVisible();
+    expect(action.getBoundingClientRect().top).toBeLessThan(title.getBoundingClientRect().bottom);
+    expect(description.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      title.getBoundingClientRect().bottom
+    );
+  });
+
+  it("puts the tabs, search, Filter and Columns on the card's top edge, and the chips under them", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(
+      Page,
+      props("/master/divisions?search=ops&status=active,inactive", { total: 2, outOf: 12 })
+    );
+
+    const card = screen
+      .getByRole("heading", { name: "Divisions", level: 1 })
+      .element()
+      .closest("header")!.parentElement!.children[1]!;
+    const within = (element: Element) => card.contains(element);
+    expect(within(screen.getByRole("link", { name: /^All 2 divisions$/ }).element())).toBe(true);
+    expect(within(screen.getByRole("searchbox").element())).toBe(true);
+    expect(within(screen.getByRole("button", { name: /^Filter/ }).element())).toBe(true);
+    expect(within(screen.getByRole("button", { name: "Columns" }).element())).toBe(true);
+
+    // the search is a chip too, and so is a filter with several values
+    await expect
+      .element(screen.getByRole("link", { name: "Clear the search" }))
+      .toHaveAttribute("href", "/master/divisions?status=active,inactive");
+    await expect
+      .element(screen.getByRole("link", { name: "Remove filter Status: Active, Inactive" }))
+      .toHaveAttribute("href", "/master/divisions?search=ops");
+    // Clear all comes after the last chip and clears the search with the filters
+    await expect
+      .element(screen.getByRole("link", { name: "Clear all" }))
+      .toHaveAttribute("href", "/master/divisions");
+
+    // "n of m divisions" is in the footer
+    await expect.element(screen.getByText("2 of 12 divisions")).toBeVisible();
+  });
+
+  it("shows no chip strip and no Clear all while nothing is searched or filtered", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await expect
+      .element(screen.getByRole("list", { name: "Filters in use" }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole("link", { name: "Clear all" })).not.toBeInTheDocument();
+  });
+
+  it("opens the Filter menu from a chip, and a tick in it applies at once", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions?status=active"));
+
+    await screen.getByRole("button", { name: "Status Active" }).click();
+    const active = screen.getByRole("menuitemcheckbox", { name: "Active" });
+    const inactive = screen.getByRole("menuitemcheckbox", { name: "Inactive" });
+    await expect.element(active).toHaveAttribute("aria-checked", "true");
+    await expect.element(inactive).toHaveAttribute("aria-checked", "false");
+
+    await inactive.click();
+    expect(goto).toHaveBeenCalledWith(
+      "/master/divisions?status=active,inactive",
+      expect.objectContaining({ noScroll: true })
+    );
+    // the menu stays open for the next choice
+    await expect.element(active).toBeVisible();
+
+    await active.click();
+    expect(goto).toHaveBeenLastCalledWith(
+      "/master/divisions",
+      expect.objectContaining({ noScroll: true })
+    );
+  });
+
+  it("marks the searched text in the name, code and description", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions?search=op"));
+
+    const marked = [...screen.container.querySelectorAll("tbody mark")].map(
+      (mark) => mark.textContent
+    );
+    // Operations (name, description "day-to-day operations") and OPS (code)
+    expect(marked).toEqual(["Op", "OP", "op"]);
+    expect(screen.container.querySelector("tbody a[href$='0001']")?.textContent).toBe("Operations");
   });
 
   it("moves the chips into a Filters sheet on a narrow screen", async () => {
