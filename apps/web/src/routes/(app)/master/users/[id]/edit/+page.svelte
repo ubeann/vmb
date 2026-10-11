@@ -12,6 +12,10 @@
 
 <h2>Edit user</h2>
 
-<UserForm form={data.form} roles={data.roles} />
+<UserForm
+  form={data.form}
+  roles={data.roles}
+  reloadHref={resolve("/(app)/master/users/[id]/edit", { id: data.user.id })}
+/>
 
 <p><a href={resolve("/(app)/master/users/[id]", { id: data.user.id })}>Back to user</a></p>

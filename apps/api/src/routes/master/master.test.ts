@@ -9,7 +9,7 @@ import type {
 } from "@vmb/types";
 import { allPermissionKeys } from "@vmb/types";
 import { Hono } from "hono";
-import { ConflictError, ForbiddenError, NotFoundError } from "@vmb/db";
+import { ConflictError, ForbiddenError, NotFoundError, StaleRecordError } from "@vmb/db";
 import type { MasterStore } from "@vmb/db";
 import { describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../bindings.js";
@@ -313,7 +313,11 @@ describe("master API: divisions", () => {
     expect(store.getDivision).toHaveBeenCalledWith(ID);
 
     await expect(
-      appWith(store).request(`/divisions/${ID}`, json("PATCH", divisionBody), env)
+      appWith(store).request(
+        `/divisions/${ID}`,
+        json("PATCH", { ...divisionBody, updatedAt: STAMP }),
+        env
+      )
     ).resolves.toMatchObject({ status: 200 });
     expect(store.updateDivision).toHaveBeenCalledWith(
       ID,
@@ -455,7 +459,7 @@ describe("master API: roles", () => {
     });
 
     await expect(
-      appWith(store).request(`/roles/${ID}`, json("PATCH", body), env)
+      appWith(store).request(`/roles/${ID}`, json("PATCH", { ...body, updatedAt: STAMP }), env)
     ).resolves.toMatchObject({ status: 200 });
     await expect(
       appWith(store).request(`/roles/${ID}`, { method: "DELETE" }, env)
@@ -550,7 +554,11 @@ describe("master API: users", () => {
       })
     });
 
-    const response = await appWith(store).request(`/users/${ID}`, json("PATCH", body), env);
+    const response = await appWith(store).request(
+      `/users/${ID}`,
+      json("PATCH", { ...body, updatedAt: STAMP }),
+      env
+    );
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ code: "PERMISSION_ESCALATION", message });
@@ -634,14 +642,18 @@ describe("master API: users", () => {
     const isPasswordBreached = vi.fn(async () => true);
     const app = appWith(store, isPasswordBreached);
 
-    const refused = await app.request(`/users/${ID}`, json("PATCH", body), env);
+    const refused = await app.request(
+      `/users/${ID}`,
+      json("PATCH", { ...body, updatedAt: STAMP }),
+      env
+    );
     expect(refused.status).toBe(400);
     expect(store.updateUser).not.toHaveBeenCalled();
 
     isPasswordBreached.mockClear();
     const kept = await app.request(
       `/users/${ID}`,
-      json("PATCH", { ...body, password: "", passwordConfirmation: "" }),
+      json("PATCH", { ...body, password: "", passwordConfirmation: "", updatedAt: STAMP }),
       env
     );
     expect(kept.status).toBe(200);
@@ -671,7 +683,7 @@ describe("master API: users", () => {
     const store = fakeStore();
     const response = await appWith(store).request(
       `/users/${ID}`,
-      json("PATCH", { ...body, password: "", passwordConfirmation: "" }),
+      json("PATCH", { ...body, password: "", passwordConfirmation: "", updatedAt: STAMP }),
       env
     );
 
@@ -687,7 +699,8 @@ describe("master API: users", () => {
       json("PATCH", {
         ...body,
         password: "newa-long-enough-password",
-        passwordConfirmation: "newa-long-enough-password"
+        passwordConfirmation: "newa-long-enough-password",
+        updatedAt: STAMP
       }),
       env
     );
@@ -741,5 +754,137 @@ describe("master API: users", () => {
       message: taken.message,
       issues: [taken]
     });
+  });
+});
+
+describe("master API: edits over a newer save", () => {
+  const edits = [
+    {
+      name: "division",
+      path: `/divisions/${ID}`,
+      method: "updateDivision",
+      body: {
+        name: "Operations",
+        code: "OPS",
+        description: "",
+        colorHex: "#2563EB",
+        iconName: "heroicon-o-cog-6-tooth",
+        isActive: true
+      }
+    },
+    {
+      name: "role",
+      path: `/roles/${ID}`,
+      method: "updateRole",
+      body: {
+        name: "Staff",
+        description: "",
+        colorHex: "#805AD5",
+        iconName: "heroicon-o-user",
+        isActive: true
+      }
+    },
+    {
+      name: "user",
+      path: `/users/${ID}`,
+      method: "updateUser",
+      body: {
+        name: "Rina Wijaya",
+        email: "rina@vmblogistics.id",
+        phone: "0811-1000-0001",
+        roleIds: [],
+        status: "active",
+        profilePhotoPath: "",
+        password: "",
+        passwordConfirmation: ""
+      }
+    }
+  ] as const;
+
+  it.each(edits)("hands a $name's updatedAt to the store", async ({ path, method, body }) => {
+    const store = fakeStore();
+
+    const response = await appWith(store).request(
+      path,
+      json("PATCH", { ...body, updatedAt: STAMP }),
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(store[method]).toHaveBeenCalledWith(
+      ID,
+      expect.objectContaining({ updatedAt: STAMP }),
+      ...(method === "updateUser" ? [CALLER] : [])
+    );
+  });
+
+  it.each(edits)("rejects a $name PATCH without updatedAt", async ({ path, method, body }) => {
+    const store = fakeStore();
+
+    const response = await appWith(store).request(path, json("PATCH", body), env);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "VALIDATION_FAILED",
+      issues: [{ path: "updatedAt" }]
+    });
+    expect(store[method]).not.toHaveBeenCalled();
+  });
+
+  it.each(edits)(
+    "rejects a $name updatedAt that is not a timestamp",
+    async ({ path, method, body }) => {
+      const store = fakeStore();
+
+      for (const updatedAt of ["yesterday", "", 0]) {
+        const response = await appWith(store).request(
+          path,
+          json("PATCH", { ...body, updatedAt }),
+          env
+        );
+        expect(response.status).toBe(400);
+      }
+      expect(store[method]).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(edits)(
+    "answers 409 STALE_RECORD when a $name changed since it was loaded",
+    async ({ path, method, body }) => {
+      const message = "This record was changed by someone else since you opened it.";
+      const store = fakeStore({
+        [method]: vi.fn(async () => {
+          throw new StaleRecordError();
+        })
+      });
+
+      const response = await appWith(store).request(
+        path,
+        json("PATCH", { ...body, updatedAt: STAMP }),
+        env
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({
+        code: "STALE_RECORD",
+        message,
+        issues: [{ path: "updatedAt", message }]
+      });
+    }
+  );
+
+  it("creating does not take an updatedAt", async () => {
+    const store = fakeStore();
+
+    const response = await appWith(store).request(
+      "/divisions",
+      json("POST", { ...edits[0].body }),
+      env
+    );
+
+    expect(response.status).toBe(201);
+    expect(store.createDivision).toHaveBeenCalledWith(
+      expect.not.objectContaining({ updatedAt: expect.anything() })
+    );
   });
 });

@@ -12,6 +12,9 @@
 
 <h2>Edit role</h2>
 
-<RoleForm form={data.form} />
+<RoleForm
+  form={data.form}
+  reloadHref={resolve("/(app)/master/roles/[id]/edit", { id: data.role.id })}
+/>
 
 <p><a href={resolve("/(app)/master/roles/[id]", { id: data.role.id })}>Back to role</a></p>

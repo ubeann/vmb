@@ -1,5 +1,5 @@
-import { DivisionInputSchema } from "@vmb/types";
-import { superValidate } from "sveltekit-superforms/server";
+import { DivisionInputSchema, DivisionUpdateInputSchema } from "@vmb/types";
+import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
 
@@ -48,5 +48,71 @@ describe("DivisionForm", () => {
       .toHaveValue("Fleet and day-to-day operations");
     await expect.element(screen.getByRole("checkbox", { name: "Active" })).not.toBeChecked();
     await expect.element(screen.getByRole("button", { name: "Update division" })).toBeVisible();
+  });
+});
+
+describe("DivisionForm on an edit", () => {
+  const STAMP = "2026-01-05T01:10:00.123Z";
+  const reloadHref = "/master/things/1/edit";
+  const loaded = {
+    name: "Operations",
+    code: "OPS",
+    description: "",
+    colorHex: "#2563EB",
+    iconName: "heroicon-o-cog-6-tooth",
+    isActive: true
+  };
+
+  it("posts the updatedAt it loaded in a hidden field, with no conflict line", async () => {
+    const form = await superValidate(
+      { ...loaded, updatedAt: STAMP },
+      zod4(DivisionUpdateInputSchema)
+    );
+
+    const screen = await render(DivisionForm, { form, reloadHref });
+
+    const stamp = document.querySelector<HTMLInputElement>('input[name="updatedAt"]');
+    expect(stamp?.type).toBe("hidden");
+    expect(stamp?.value).toBe(STAMP);
+    await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("posts an empty field for a record that was never stamped", async () => {
+    const form = await superValidate(
+      { ...loaded, updatedAt: null },
+      zod4(DivisionUpdateInputSchema)
+    );
+
+    await render(DivisionForm, { form, reloadHref });
+
+    expect(document.querySelector<HTMLInputElement>('input[name="updatedAt"]')?.value).toBe("");
+  });
+
+  it("has no updatedAt field on a create", async () => {
+    const form = await superValidate(zod4(DivisionInputSchema), { errors: false });
+
+    await render(DivisionForm, { form });
+
+    expect(document.querySelector('input[name="updatedAt"]')).toBeNull();
+  });
+
+  it("keeps the input and says the record changed, with a reload link, on a stale save", async () => {
+    const form = await superValidate(
+      { ...loaded, name: "My edit", updatedAt: STAMP },
+      zod4(DivisionUpdateInputSchema)
+    );
+    setError(form, "updatedAt", "This record was changed by someone else since you opened it.");
+
+    const screen = await render(DivisionForm, { form, reloadHref });
+
+    await expect.element(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByRole("alert").element().textContent).toContain(
+      "Someone else changed this record since you opened it."
+    );
+    const reload = screen.getByRole("link", { name: "Reload" });
+    await expect.element(reload).toHaveAttribute("href", reloadHref);
+    await expect.element(reload).toHaveAttribute("data-sveltekit-reload");
+    await expect.element(screen.getByRole("textbox", { name: "Name" })).toHaveValue("My edit");
+    expect(document.querySelector<HTMLInputElement>('input[name="updatedAt"]')?.value).toBe(STAMP);
   });
 });

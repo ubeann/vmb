@@ -2,7 +2,8 @@ import {
   RoleInputSchema,
   RoleListQuerySchema,
   RoleListResponseSchema,
-  RoleSchema
+  RoleSchema,
+  RoleUpdateInputSchema
 } from "@vmb/types";
 import { Hono } from "hono";
 import { requirePermission } from "./permission.js";
@@ -23,10 +24,15 @@ export const roleRoutes = new Hono<MasterEnv>()
     const role = await c.get("store").getRole(pathId(c));
     return c.json(RoleSchema.parse(role));
   })
-  .patch("/:id", requirePermission("master-roles.update"), jsonBody(RoleInputSchema), async (c) => {
-    const role = await c.get("store").updateRole(pathId(c), c.req.valid("json"));
-    return c.json(RoleSchema.parse(role));
-  })
+  .patch(
+    "/:id",
+    requirePermission("master-roles.update"),
+    jsonBody(RoleUpdateInputSchema),
+    async (c) => {
+      const role = await c.get("store").updateRole(pathId(c), c.req.valid("json"));
+      return c.json(RoleSchema.parse(role));
+    }
+  )
   .delete("/:id", requirePermission("master-roles.delete"), async (c) => {
     await c.get("store").deleteRole(pathId(c));
     return c.body(null, 204);

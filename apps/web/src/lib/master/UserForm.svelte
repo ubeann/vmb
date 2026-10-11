@@ -1,4 +1,5 @@
 <script lang="ts">
+  import UpdatedAtField from "./UpdatedAtField.svelte";
   import {
     PASSWORD_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
@@ -10,16 +11,21 @@
   import { superForm, type SuperValidated } from "sveltekit-superforms";
   import { zod4Client } from "sveltekit-superforms/adapters";
 
+  // a new user's form has no `updatedAt`; an edit's carries the one it loaded
+  type Fields = Omit<UserUpdateInput, "updatedAt"> & { updatedAt?: string | null };
+
   let {
     form,
     roles,
     passwordRequired = false,
-    submitLabel = "Save user"
+    submitLabel = "Save user",
+    reloadHref
   }: {
-    form: SuperValidated<UserUpdateInput>;
+    form: SuperValidated<Fields>;
     roles: Array<{ id: string; name: string }>;
     passwordRequired?: boolean;
     submitLabel?: string;
+    reloadHref?: string;
   } = $props();
 
   // svelte-ignore state_referenced_locally
@@ -34,6 +40,10 @@
 </script>
 
 <form method="POST" use:enhance>
+  {#if reloadHref && $fields.updatedAt !== undefined}
+    <UpdatedAtField value={$fields.updatedAt} error={$errors.updatedAt} {reloadHref} />
+  {/if}
+
   <fieldset>
     <legend>Personal details</legend>
 

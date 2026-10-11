@@ -191,7 +191,8 @@ describe("master API permissions", () => {
           status: "active",
           profilePhotoPath: "",
           password: "",
-          passwordConfirmation: ""
+          passwordConfirmation: "",
+          updatedAt: "2026-01-05T01:10:00.000Z"
         })
       },
       env

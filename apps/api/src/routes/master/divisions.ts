@@ -2,7 +2,8 @@ import {
   DivisionInputSchema,
   DivisionListRequestSchema,
   DivisionListResponseSchema,
-  DivisionSchema
+  DivisionSchema,
+  DivisionUpdateInputSchema
 } from "@vmb/types";
 import { Hono } from "hono";
 import { requirePermission } from "./permission.js";
@@ -31,7 +32,7 @@ export const divisionRoutes = new Hono<MasterEnv>()
   .patch(
     "/:id",
     requirePermission("master-divisions.update"),
-    jsonBody(DivisionInputSchema),
+    jsonBody(DivisionUpdateInputSchema),
     async (c) => {
       const division = await c.get("store").updateDivision(pathId(c), c.req.valid("json"));
       return c.json(DivisionSchema.parse(division));

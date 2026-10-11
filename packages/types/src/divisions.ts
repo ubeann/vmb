@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { checkboxSchema, optionalText } from "./inputs.js";
+import { checkboxSchema, optionalText, updatedAtSchema } from "./inputs.js";
 import {
   DateFilterSchema,
   PageSchema,
@@ -56,6 +56,13 @@ export const DivisionInputSchema = z.object({
 });
 
 export type DivisionInput = z.infer<typeof DivisionInputSchema>;
+
+/** An edit: the fields of a new division plus the `updatedAt` the editor loaded. */
+export const DivisionUpdateInputSchema = DivisionInputSchema.extend({
+  updatedAt: updatedAtSchema
+});
+
+export type DivisionUpdateInput = z.infer<typeof DivisionUpdateInputSchema>;
 
 export const DivisionSortSchema = z
   .enum(["name", "code", "createdAt", "updatedAt"])

@@ -29,8 +29,16 @@ import {
   uniqueIds,
   type Actor
 } from "./guards.js";
-import { conflictFrom, nullIfEmpty, toIso, type MasterDb } from "./db.js";
-import { NotFoundError } from "../errors.js";
+import {
+  conflictFrom,
+  nextStamp,
+  nullIfEmpty,
+  rowsOf,
+  toIso,
+  unchangedSince,
+  type MasterDb
+} from "./db.js";
+import { NotFoundError, StaleRecordError } from "../errors.js";
 
 // A user's columns plus whether Better Auth has verified the email: the
 // identity owns verification (ADR-0032), so it is read from there rather than
@@ -251,10 +259,12 @@ export async function updateUser(
     roleSync = sql`, role_removal as (
           delete from master.user_roles
            where user_id = ${id}::uuid and role_id = any(${uuidArray(removed)})
+             and exists (select 1 from business_user)
           returning 1
         ), role_addition as (
           insert into master.user_roles (user_id, role_id)
           select ${id}::uuid, r from unnest(${uuidArray(added)}) as r
+           where exists (select 1 from business_user)
           on conflict do nothing
           returning 1
         )`;
@@ -263,12 +273,19 @@ export async function updateUser(
   const photo = nullIfEmpty(input.profilePhotoPath);
 
   try {
+    // `where id = … and <unchanged since>` is the stale check, inside the
+    // statement that writes: when it matches no row, nothing in the statement
+    // changes (the role sync and the identity writes all read `business_user`)
+    // and the final select returns no row.
+    const stamp = unchangedSince(users.updatedAt, input.updatedAt);
+    let result: unknown;
+
     if (input.password === "") {
       // One statement, so an existing Better Auth identity cannot drift from
       // the business row when either side refuses the change (a duplicate
       // email, most likely). An identity that does not exist yet is #7's
       // transform to create.
-      await db.execute(sql`
+      result = await db.execute(sql`
         with business_user as (
           update master.users
              set name = ${input.name},
@@ -276,16 +293,19 @@ export async function updateUser(
                  phone = ${input.phone},
                  email = ${input.email},
                  profile_photo_path = ${photo},
+                 updated_at = ${nextStamp(users.updatedAt)}
+           where id = ${id} and ${stamp}
+          returning id
+        ), auth_update as (
+          update public."user"
+             set name = ${input.name},
+                 email = ${input.email},
+                 image = ${photo},
                  updated_at = now()
-           where id = ${id}
+           where id = (select id::text from business_user)
           returning id
         )${roleSync}
-        update public."user"
-           set name = ${input.name},
-               email = ${input.email},
-               image = ${photo},
-               updated_at = now()
-         where id = (select id::text from business_user)
+        select id from business_user
       `);
     } else {
       const passwordHash = await options.hashPassword(input.password);
@@ -293,7 +313,7 @@ export async function updateUser(
       // The same statement also upserts the credential, so a legacy-imported
       // user (a business row with no Better Auth identity) becomes able to
       // sign in, and a refused write aborts every part of the change together.
-      await db.execute(sql`
+      result = await db.execute(sql`
         with business_user as (
           update master.users
              set name = ${input.name},
@@ -301,8 +321,8 @@ export async function updateUser(
                  phone = ${input.phone},
                  email = ${input.email},
                  profile_photo_path = ${photo},
-                 updated_at = now()
-           where id = ${id}
+                 updated_at = ${nextStamp(users.updatedAt)}
+           where id = ${id} and ${stamp}
           returning id, name, email, profile_photo_path
         ), auth_update as (
           update public."user"
@@ -324,14 +344,23 @@ export async function updateUser(
            where account_id = (select id::text from business_user)
              and provider_id = 'credential'
           returning id
+        ), credential_insert as (
+          insert into public.account
+            (id, account_id, provider_id, user_id, password, created_at, updated_at)
+          select ${crypto.randomUUID()}, b.id::text, 'credential', b.id::text,
+                 ${passwordHash}, now(), now()
+            from business_user b
+           where not exists (select 1 from credential_update)
+          returning id
         )${roleSync}
-        insert into public.account
-          (id, account_id, provider_id, user_id, password, created_at, updated_at)
-        select ${crypto.randomUUID()}, b.id::text, 'credential', b.id::text,
-               ${passwordHash}, now(), now()
-          from business_user b
-         where not exists (select 1 from credential_update)
+        select id from business_user
       `);
+    }
+
+    if (rowsOf(result).length === 0) {
+      // the record is not there, or changed since the editor loaded it
+      await getUser(db, id);
+      throw new StaleRecordError();
     }
   } catch (error) {
     return conflictFrom(error, EMAIL_CONFLICT);

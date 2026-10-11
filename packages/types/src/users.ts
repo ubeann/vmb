@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { indonesianPhoneSchema, optionalText } from "./inputs.js";
+import { indonesianPhoneSchema, optionalText, updatedAtSchema } from "./inputs.js";
 import { PASSWORD_CONTEXT_MESSAGE, passwordContainsContext, passwordSchema } from "./password.js";
 import {
   PageSchema,
@@ -55,22 +55,24 @@ const userFields = {
  * empty password means "leave the credential alone" on the edit form and is
  * rejected on create, so the two schemas share everything else.
  */
-function userFormSchema<R extends z.ZodType>(roleIds: R) {
-  return z
-    .object({
-      ...userFields,
-      roleIds,
-      password: z.union([z.literal(""), passwordSchema]).default(""),
-      passwordConfirmation: z.string().default("")
-    })
-    .refine((data) => data.password === "" || !passwordContainsContext(data.password, data.email), {
-      message: PASSWORD_CONTEXT_MESSAGE,
-      path: ["password"]
-    });
+const passwordFields = {
+  password: z.union([z.literal(""), passwordSchema]).default(""),
+  passwordConfirmation: z.string().default("")
+};
+
+function refusePasswordContext<T extends z.ZodType<{ password: string; email: string }>>(
+  schema: T
+) {
+  return schema.refine(
+    (data) => data.password === "" || !passwordContainsContext(data.password, data.email),
+    { message: PASSWORD_CONTEXT_MESSAGE, path: ["password"] }
+  );
 }
 
 // A new user starts with the roles chosen, none by default.
-export const UserCreateInputSchema = userFormSchema(z.array(z.uuid()).default([]))
+export const UserCreateInputSchema = refusePasswordContext(
+  z.object({ ...userFields, roleIds: z.array(z.uuid()).default([]), ...passwordFields })
+)
   .refine((data) => data.password !== "", {
     message: "Password is required.",
     path: ["password"]
@@ -83,10 +85,18 @@ export const UserCreateInputSchema = userFormSchema(z.array(z.uuid()).default([]
 export type UserCreateInput = z.infer<typeof UserCreateInputSchema>;
 
 // Omitting `roleIds` leaves the user's roles alone; a list is their whole new set.
-export const UserUpdateInputSchema = userFormSchema(z.array(z.uuid()).optional()).refine(
-  (data) => data.password === "" || data.password === data.passwordConfirmation,
-  { message: "Passwords do not match.", path: ["passwordConfirmation"] }
-);
+// `updatedAt` is the stamp the editor loaded, so a save over a newer edit is refused.
+export const UserUpdateInputSchema = refusePasswordContext(
+  z.object({
+    ...userFields,
+    roleIds: z.array(z.uuid()).optional(),
+    ...passwordFields,
+    updatedAt: updatedAtSchema
+  })
+).refine((data) => data.password === "" || data.password === data.passwordConfirmation, {
+  message: "Passwords do not match.",
+  path: ["passwordConfirmation"]
+});
 
 export type UserUpdateInput = z.infer<typeof UserUpdateInputSchema>;
 
