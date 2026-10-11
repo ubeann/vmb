@@ -20,6 +20,8 @@ export const load: PageServerLoad = async (event) => {
   if (!access.value.ok) {
     error(pageErrorStatus(access.value.status), access.value.error);
   }
+  // a Trashed user is read-only until restored (ADR-0055): the API answers an edit of one 404, and so does this
+  if (access.value.value.deletedAt) error(404, "User not found.");
 
   return {
     user: access.value.value,

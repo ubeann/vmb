@@ -58,3 +58,25 @@ describe("a division's pages name it for the top bar's trail", () => {
     await expect(edit.load(event)).resolves.toMatchObject({ division, crumb });
   });
 });
+
+describe("a division's edit route", () => {
+  it("opens the form for a live division", async () => {
+    await expect(edit.load(event)).resolves.toMatchObject({ division });
+  });
+
+  it("is not found for a Trashed division, as the API answers an edit of one", async () => {
+    getDivisionMock.mockResolvedValue({
+      ok: true,
+      value: { ...division, deletedAt: "2026-10-06T01:00:00.000Z" }
+    });
+
+    await expect(edit.load(event)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("still shows a Trashed division on its view page, which is where Restore lives", async () => {
+    const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
+    getDivisionMock.mockResolvedValue({ ok: true, value: trashed });
+
+    await expect(view.load(event)).resolves.toMatchObject({ division: trashed });
+  });
+});
