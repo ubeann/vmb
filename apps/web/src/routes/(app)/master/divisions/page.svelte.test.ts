@@ -890,8 +890,8 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("button", { name: "Reset" })).not.toBeInTheDocument();
   });
 
-  it("ends View with Done, which closes it without applying anything", async () => {
-    await browser.viewport(1280, 900);
+  it("ends View with Done in the sheet, which closes it without applying anything", async () => {
+    await browser.viewport(390, 844);
     const screen = await render(Page, props("/master/divisions", { total: 12 }));
 
     await screen.getByRole("button", { name: "View" }).click();
@@ -907,8 +907,27 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("button", { name: "View" })).toHaveFocus();
   });
 
-  it("says Done in the Trash and when the list failed to load, too", async () => {
+  it("has no footer on the panel: View ends at Rows per page, and Esc closes it", async () => {
     await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 12 }));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "View" })).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: "Done" })).not.toBeInTheDocument();
+    const panel = document.querySelector<HTMLElement>('[data-layer-frame="panel"]')!;
+    expect(
+      [...panel.querySelectorAll<HTMLElement>("[data-layer-action]")].filter(
+        (el) => el.getClientRects().length > 0
+      )
+    ).toEqual([]);
+
+    await userEvent.keyboard("{Escape}");
+    await expect.element(screen.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "View" })).toHaveFocus();
+  });
+
+  it("says Done in the Trash and when the list failed to load, too", async () => {
+    await browser.viewport(390, 844);
     const trash = await render(Page, props("/master/divisions?trashed=only", { total: 3 }));
     await trash.getByRole("button", { name: "View" }).click();
     await expect.element(trash.getByRole("button", { name: "Done" })).toBeVisible();

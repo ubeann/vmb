@@ -171,7 +171,7 @@ describe("the Status filter", () => {
   });
 
   it("names the view it is in: the Trash's rows are deleted divisions, and a count of one is singular", async () => {
-    await browser.viewport(1440, 900);
+    await browser.viewport(390, 844);
     const screen = await toolbar("?trashed=only");
     await openPanel(screen);
 
@@ -180,14 +180,80 @@ describe("the Status filter", () => {
       .toBeVisible();
   });
 
-  it("offers no Reset while nothing is filtered, and closes on 'Show n divisions'", async () => {
+  it("offers no Reset while nothing is filtered", async () => {
     await browser.viewport(1440, 900);
     const screen = await toolbar();
     await openPanel(screen);
 
     await expect.element(screen.getByRole("button", { name: "Reset" })).not.toBeInTheDocument();
-    await screen.getByRole("button", { name: "Show 12 divisions" }).click();
+  });
+});
+
+describe("the action that only closes the layer", () => {
+  // the layer's actions a person can see: a footer hidden on the panel takes no space
+  const shown = () =>
+    [...layer().querySelectorAll<HTMLElement>("[data-layer-action]")].filter(
+      (el) => el.getClientRects().length > 0
+    );
+
+  it("is not on the panel: every pick applies at once and a click outside, Esc or the button closes it", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await toolbar();
+    await openPanel(screen);
+
+    expect(layer().dataset.layerFrame).toBe("panel");
+    expect(shown().map((el) => el.textContent)).toEqual([]);
+    await expect.element(screen.getByRole("button", { name: /^Show / })).not.toBeInTheDocument();
+    // the panel ends at the last row, with no footer under it
+    const last = [...layer().querySelectorAll<HTMLElement>("[data-slot=filter-date-row]")].at(-1)!;
+    expect(
+      layer().getBoundingClientRect().bottom - last.getBoundingClientRect().bottom
+    ).toBeLessThan(16);
+
+    await userEvent.keyboard("{Escape}");
     await expect.poll(() => find("[data-layer-frame]")).toBeNull();
+    await expect.element(screen.getByRole("button", { name: /^Filter/ })).toHaveFocus();
+  });
+
+  it.each([
+    ["the sheet", 390],
+    ["the dialog", 560]
+  ])("is in %s, closes it and gives focus back to the Filter button", async (_name, width) => {
+    await browser.viewport(width, 844);
+    const screen = await toolbar();
+    await openPanel(screen);
+
+    expect(layer().dataset.layerFrame).toBe("modal");
+    const action = screen.getByRole("button", { name: "Show 12 divisions" });
+    await expect.element(action).toBeVisible();
+    expect(await axeViolations(layer())).toEqual([]);
+    await action.click();
+
+    await expect.poll(() => find("[data-layer-frame]")).toBeNull();
+    await expect.element(screen.getByRole("button", { name: /^Filter/ })).toHaveFocus();
+  });
+
+  it("leaves the range's Apply in every frame, because it applies something", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await toolbar();
+    await openPanel(screen);
+    row("Updated").click();
+    await expect.poll(() => picker()).not.toBeNull();
+    // beside the panel: Apply is there and the panel itself still has no close action
+    await expect
+      .element(screen.getByRole("button", { name: "Pick a start and an end" }))
+      .toBeVisible();
+    expect(shown()).toEqual([]);
+    await userEvent.keyboard("{Escape}{Escape}");
+
+    // inside the panel, at a width with no room beside it
+    await browser.viewport(768, 900);
+    await openPanel(screen);
+    row("Updated").click();
+    await screen.getByRole("button", { name: /^Custom range/ }).click();
+    await expect
+      .element(screen.getByRole("button", { name: "Pick a start and an end" }))
+      .toBeVisible();
   });
 });
 
@@ -408,15 +474,6 @@ describe("on a phone", () => {
       expect.anything()
     );
     await expect.element(screen.getByRole("button", { name: "Show 12 divisions" })).toBeVisible();
-  });
-
-  it("closes the sheet on 'Show n divisions'", async () => {
-    await browser.viewport(375, 667);
-    const screen = await toolbar();
-    await openPanel(screen);
-
-    await screen.getByRole("button", { name: "Show 12 divisions" }).click();
-    await expect.poll(() => find("[data-layer-frame]")).toBeNull();
   });
 });
 

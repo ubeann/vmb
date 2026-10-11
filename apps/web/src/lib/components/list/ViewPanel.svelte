@@ -4,8 +4,9 @@
   page and, once the card is under 32rem and its rows fold to two lines, Sort
   by and Order instead of the columns. A choice applies at once and the panel
   stays open; a dot on the button says something differs from the default, and
-  Reset puts every part back. The footer's "Done" closes the layer, applying
-  nothing: nothing in View changes the count. The sort
+  Reset puts every part back. In the sheet and the dialog a footer "Done" closes
+  the layer, applying nothing (nothing in View changes the count); the panel
+  has no footer, since a click outside, Esc or the button closes it. The sort
   and page size live in the URL, the columns in the browser (`ColumnVisibility`).
 
   It sits in the list's layer (ADR-0053), so it is the panel by its button, a
@@ -271,8 +272,8 @@
         </RadioGroup.Root>
       </section>
     </LayerBody>
-    <!-- the picks are already applied and can't change the count: this only closes the layer (ADR-0053 rule 4) -->
-    <LayerFooter>
+    <!-- the picks are already applied and can't change the count: this only closes the layer, so the sheet and dialog have it and the panel does not (ADR-0053 rule 4) -->
+    <LayerFooter modalOnly>
       <LayerAction label="Done" icon={CheckIcon} onclick={layer.close} />
     </LayerFooter>
   {/snippet}

@@ -7,8 +7,8 @@
   custom range: beside the panel where the picker fits, in a step of its own
   where it doesn't, the custom range a step of its own again so no step
   scrolls on a phone. A choice applies at once, as a link to the list with the
-  parameter changed, and the panel stays open; its main action names the rows
-  shown and closes it. Reset clears the filters and keeps the search.
+  parameter changed, and the panel stays open. In the sheet and the dialog a
+  footer action names the rows shown and closes it; the panel has none. Reset clears the filters and keeps the search.
 -->
 <script lang="ts">
   import { goto } from "$app/navigation";
@@ -269,7 +269,8 @@
         {/if}
       {/each}
     </LayerBody>
-    <LayerFooter>
+    <!-- only closes the layer: the sheet and dialog have it, the panel does not (ADR-0053 rule 4) -->
+    <LayerFooter modalOnly>
       <LayerAction
         label={shown === null ? "Done" : `Show ${shown} ${nounFor(noun, shown)}`}
         icon={ListFilterIcon}
