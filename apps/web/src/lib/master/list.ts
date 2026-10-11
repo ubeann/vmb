@@ -92,6 +92,22 @@ export function pageHref(
 export type MasterListHref = MasterListPathname | `${MasterListPathname}?${string}`;
 
 /**
+ * A value filter's parameter with one value switched on or off, in the order
+ * the list offers its values (the order the URL is canonical in). `null` once
+ * no value is left, which `listHref` takes as dropping the parameter.
+ */
+export function toggleListValue(
+  current: string | null,
+  value: string,
+  order: readonly string[]
+): string | null {
+  const picked = new Set(splitListParam(current ?? ""));
+  if (!picked.delete(value)) picked.add(value);
+  const next = order.filter((candidate) => picked.has(candidate));
+  return next.length > 0 ? next.join(",") : null;
+}
+
+/**
  * The list kit keeps its whole state in the URL (#301), so every control is a
  * link to the same list with one or more parameters changed. `null` or an
  * empty string removes a parameter. Any change other than the page goes back to
@@ -162,4 +178,24 @@ export function showingRange(list: { page: number; perPage: number; total: numbe
   const from = (list.page - 1) * list.perPage + 1;
   if (from > list.total) return { from: 0, to: 0 };
   return { from, to: Math.min(list.total, from + list.perPage - 1) };
+}
+
+/**
+ * The footer's count line (ADR-0051 rule 5). `outOf` is how many rows the view
+ * holds before the search and filters, or null when none is set: a narrowed
+ * list that fits one page reads "3 of 12 divisions", and one that pages keeps
+ * its range and says what it was cut from.
+ */
+export function countSummary(
+  list: { page: number; perPage: number; total: number },
+  noun: string,
+  outOf: number | null
+): string {
+  const range = showingRange(list);
+  if (list.total === 0) return outOf === null ? `No ${noun}` : `0 of ${outOf} ${noun}`;
+  if (range.from === 0) return `${list.total} ${noun} in all, none on this page`;
+  if (outOf !== null && range.from === 1 && range.to === list.total)
+    return `${list.total} of ${outOf} ${noun}`;
+  const showing = `Showing ${range.from}–${range.to} of ${list.total}`;
+  return outOf === null ? showing : `${showing} · ${outOf} ${noun} in all`;
 }

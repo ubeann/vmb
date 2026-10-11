@@ -21,8 +21,8 @@
   import { columnClass, TEXT_CAP } from "$lib/components/list/columns.js";
   import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
   import ListFooter from "$lib/components/list/ListFooter.svelte";
-  import ListTabs from "$lib/components/list/ListTabs.svelte";
   import ListToolbar from "$lib/components/list/ListToolbar.svelte";
+  import Marked from "$lib/components/list/Marked.svelte";
   import { postRowAction } from "$lib/components/list/row-action.js";
   import SortableHead from "$lib/components/list/SortableHead.svelte";
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
@@ -34,6 +34,7 @@
   import type { Division, PermissionKey } from "@vmb/types";
   import Building2Icon from "@lucide/svelte/icons/building-2";
   import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+  import CircleDotIcon from "@lucide/svelte/icons/circle-dot";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import SearchXIcon from "@lucide/svelte/icons/search-x";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
@@ -51,6 +52,7 @@
     {
       key: "status",
       label: "Status",
+      icon: CircleDotIcon,
       options: [
         { value: "active", label: "Active" },
         { value: "inactive", label: "Inactive" }
@@ -126,10 +128,7 @@
 </svelte:head>
 
 <Page width="default" class="flex flex-col gap-5">
-  <PageHeader
-    title="Divisions"
-    description="A User belongs to one or more Divisions through the Roles they hold."
-  >
+  <PageHeader title="Divisions" description="Organisational units that group stock and budgets.">
     {#snippet action()}
       {#if can("master-divisions.create")}
         <Button href={resolve("/master/divisions/new")}>
@@ -139,26 +138,32 @@
     {/snippet}
   </PageHeader>
 
-  <ListTabs {base} label="Division views" trashCount={data.trashCount} countNoun="divisions" />
-
-  <ListToolbar {base} searchLabel="Search divisions" filters={FILTERS}>
-    {#snippet actions()}
-      <ColumnsMenu {columns} />
-    {/snippet}
-  </ListToolbar>
-
-  {#if !data.divisions}
-    <Notice variant="destructive">Could not load divisions. Please try again.</Notice>
-  {:else}
-    {@const list = data.divisions}
-    <div
-      class="border-border bg-card relative overflow-hidden rounded-xl border"
-      aria-busy={loading}
+  <div class="border-border bg-card relative overflow-hidden rounded-xl border" aria-busy={loading}>
+    <ListToolbar
+      {base}
+      viewsLabel="Division views"
+      countNoun="divisions"
+      views={data.divisions ? data.divisions.views : null}
+      searchLabel="Search divisions"
+      searchPlaceholder="Search name, code or description"
+      searchShortPlaceholder="Search divisions"
+      filters={FILTERS}
     >
+      {#snippet actions()}
+        <ColumnsMenu {columns} />
+      {/snippet}
+    </ListToolbar>
+
+    {#if !data.divisions}
+      <div class="p-4">
+        <Notice variant="destructive">Could not load divisions. Please try again.</Notice>
+      </div>
+    {:else}
+      {@const list = data.divisions}
       {#if loading}
         <p
           role="status"
-          class="bg-card text-muted-foreground border-border absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-full border px-3 py-1 text-sm shadow-sm"
+          class="bg-card text-muted-foreground border-border absolute top-1/2 left-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border px-3 py-1 text-sm shadow-sm"
         >
           Loading…
         </p>
@@ -285,19 +290,20 @@
                     </span>
                     <a
                       href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
-                      class="truncate font-medium hover:underline">{division.name}</a
+                      class="truncate font-medium hover:underline"
+                      ><Marked text={division.name} term={data.query.search} /></a
                     >
                   </div>
                 </Table.Cell>
                 {#if columns.visible("code")}
                   <Table.Cell class={cn("font-mono text-xs", columnClass("utility"))}
-                    >{division.code}</Table.Cell
+                    ><Marked text={division.code} term={data.query.search} /></Table.Cell
                   >
                 {/if}
                 {#if columns.visible("description")}
                   <Table.Cell class={cn("text-muted-foreground", columnClass("text"))}>
                     <span class={TEXT_CAP} title={division.description ?? undefined}
-                      >{division.description ?? "—"}</span
+                      ><Marked text={division.description ?? "—"} term={data.query.search} /></span
                     >
                   </Table.Cell>
                 {/if}
@@ -385,9 +391,16 @@
           </Table.Body>
         </Table.Root>
       {/if}
-    </div>
+    {/if}
+  </div>
 
-    <ListFooter {base} {list} noun={inTrash ? "divisions in the Trash" : "divisions"} />
+  {#if data.divisions}
+    <ListFooter
+      {base}
+      list={data.divisions}
+      noun={inTrash ? "divisions in the Trash" : "divisions"}
+      outOf={data.outOf}
+    />
   {/if}
 </Page>
 

@@ -63,8 +63,8 @@ describe("Button-rendered triggers", () => {
     const tags = startTags(readFileSync(columnsMenu, "utf8"));
     expect(tags.some(({ tag }) => tag.includes("{...props}"))).toBe(true);
 
-    const filterChips = join(src, "lib/components/list/FilterChips.svelte");
-    const triggers = startTags(readFileSync(filterChips, "utf8"), /<\w+\.Trigger\b/g);
+    const filterMenu = join(src, "lib/components/list/FilterMenu.svelte");
+    const triggers = startTags(readFileSync(filterMenu, "utf8"), /<\w+\.Trigger\b/g);
     expect(triggers.some(({ tag }) => tag.includes("buttonVariants("))).toBe(true);
   });
 });

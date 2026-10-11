@@ -1,5 +1,6 @@
 <!--
-  The foot of a list (#301): "Showing x–y of n", the page size, and the
+  The foot of a list (#301, #363): "Showing x–y of n", or "n of m" once a search
+  or filter narrows the list (ADR-0051 rule 5), the page size, and the
   numbered pages. The count is a status region, so a screen reader hears the
   new range after a search, filter or page change. Page sizes are the shared
   PER_PAGE_OPTIONS; changing one goes back to page 1.
@@ -9,7 +10,7 @@
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import * as Select from "$lib/components/ui/select/index.js";
-  import { listHref, pageWindow, showingRange, type MasterListPathname } from "$lib/master/list.js";
+  import { countSummary, listHref, pageWindow, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { PER_PAGE_OPTIONS } from "@vmb/types";
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
@@ -18,17 +19,19 @@
   let {
     base,
     list,
-    noun
+    noun,
+    outOf = null
   }: {
     base: MasterListPathname;
     list: { page: number; perPage: number; total: number };
     noun: string;
+    /** Rows the view holds before the search and filters; null when none is set or it is unknown. */
+    outOf?: number | null;
   } = $props();
 
   const uid = $props.id();
 
   const totalPages = $derived(Math.max(1, Math.ceil(list.total / list.perPage)));
-  const range = $derived(showingRange(list));
   // a page past the end (the URL asked for it) still pages back to one that exists
   const current = $derived(Math.min(list.page, totalPages));
   const pages = $derived(pageWindow(current, totalPages));
@@ -42,13 +45,7 @@
 
 <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
   <p role="status" class="text-muted-foreground tabular-nums">
-    {#if list.total === 0}
-      No {noun}
-    {:else if range.from === 0}
-      {list.total} {noun} in all, none on this page
-    {:else}
-      Showing {range.from}–{range.to} of {list.total}
-    {/if}
+    {countSummary(list, noun, outOf)}
   </p>
 
   <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
