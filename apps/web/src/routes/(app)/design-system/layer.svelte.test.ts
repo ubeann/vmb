@@ -123,7 +123,7 @@ describe("a step", () => {
     expect(before.width).toBe(352);
 
     await openUpdated();
-    expect(picker()).toBeNull();
+    await expect.poll(picker).toBeNull();
     expect(title()).toBe("Updated");
     const { left, right, top } = rect(panel()!);
     expect({ left, right, top }).toEqual({
@@ -151,14 +151,14 @@ describe("a handover", () => {
     await browser.viewport(390, 844);
     await handover();
     await expect.poll(modal).not.toBeNull();
-    expect(picker()).toBeNull();
+    await expect.poll(picker).toBeNull();
     expect(title()).toBe("Updated: custom range");
     expect(halfPicked()).toBe(true);
 
     await browser.viewport(1440, 900);
     await handover();
     await expect.poll(picker).not.toBeNull();
-    expect(modal()).toBeNull();
+    await expect.poll(modal).toBeNull();
     expect(halfPicked()).toBe(true);
 
     await expect.element(screen.getByText("12 of 12 divisions")).toBeInTheDocument();
@@ -174,7 +174,7 @@ describe("a handover", () => {
     await browser.viewport(768, 1024);
     await handover();
     await expect.poll(title).toBe("Updated: custom range");
-    expect(picker()).toBeNull();
+    await expect.poll(picker).toBeNull();
     expect(panel()).not.toBeNull();
     expect(halfPicked()).toBe(true);
 
@@ -198,9 +198,9 @@ describe("a handover", () => {
     await wait(100);
     // still the panel 100ms after the last resize
     expect(panel()).not.toBeNull();
-    expect(modal()).toBeNull();
+    await expect.poll(modal).toBeNull();
     await handover();
-    expect(modal()).not.toBeNull();
+    await expect.poll(modal).not.toBeNull();
   });
 });
 
@@ -231,11 +231,11 @@ describe("closing", () => {
 
     await screen.getByText("12 of 12 divisions").click();
     await expect.poll(panel).toBeNull();
-    expect(picker()).toBeNull();
+    await expect.poll(picker).toBeNull();
 
     await openLayer();
     expect(title()).toBe("Filters");
-    expect(picker()).toBeNull();
+    await expect.poll(picker).toBeNull();
   });
 
   it("by × reopens at the top level", async () => {
