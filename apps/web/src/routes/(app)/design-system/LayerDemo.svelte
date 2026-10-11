@@ -177,7 +177,7 @@
             </button>
           </section>
         </LayerBody>
-        <LayerFooter>
+        <LayerFooter modalOnly>
           <LayerAction
             label="Show {shown} {shown === 1 ? 'division' : 'divisions'}"
             icon={ListFilterIcon}

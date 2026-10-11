@@ -7,6 +7,8 @@
     readonly frame: LayerFrame;
     /** The steps open inside the layer, outermost first; empty at the top level. */
     readonly path: readonly string[];
+    /** The step whose picker is open beside the panel, so its row can show it is expanded; null when none is. */
+    readonly beside: string | null;
     /** Opens a step: beside the panel where its picker fits, inside the layer where not. */
     open(step: string): void;
     /** Goes back one step. */
@@ -112,6 +114,9 @@
     get path() {
       return path;
     },
+    get beside() {
+      return besideStep;
+    },
     open(next) {
       if (frame === "panel" && path.length === 0 && beside && fits) besideStep = next;
       else path = [...path, next];
@@ -131,6 +136,17 @@
     measure();
     ready = true;
     open = true;
+  }
+
+  /**
+   * Opens the layer as its button does, on a step when given one: how a chip
+   * opens the Filter panel at its filter. Open already, it goes to that step
+   * from the top.
+   */
+  export function openAt(next?: string) {
+    if (!open) show();
+    else api.top();
+    if (next) api.open(next);
   }
 
   // rule 7: what a closed layer forgets
@@ -160,6 +176,62 @@
       clearTimeout(settling);
       removeEventListener("resize", settle);
     };
+  });
+
+  // A click that only closes the panel is only that. The panel hears an outside
+  // press after the click has already run, so a row beneath it (`openRow` on
+  // the list) opened its record as well. The press is caught on its way down,
+  // and the click it ends in is swallowed, and the panel closed from here: on
+  // touch bits-ui dismisses from that click, which this one would never let it
+  // see. Only the panel needs it: the sheet and dialog have an overlay that
+  // stops a tap reaching what lies beneath, and bits-ui closes them from it.
+  // Another layer's button is let through, so Filter can hand over to View in
+  // one click, and so is anything a layer's own control opened (a menu or
+  // listbox). The swallow is dropped once the press is over (a cancelled touch
+  // scroll, a drag released elsewhere), so a later keyboard click is not eaten.
+  $effect(() => {
+    if (!open) return;
+    const owns = (target: EventTarget | null) =>
+      target instanceof Element &&
+      Boolean(
+        target.closest(
+          "[data-layer-frame], [data-layer-picker], [data-layer-trigger], [role=menu], [role=listbox]"
+        )
+      );
+    let disarm = () => {};
+    const ondown = (event: PointerEvent) => {
+      disarm();
+      if (frame !== "panel" || event.button !== 0 || owns(event.target)) return;
+      let dropping: ReturnType<typeof setTimeout> | undefined;
+      const swallow = (click: Event) => {
+        // Enter or Space on a button is a click with no pointer behind it
+        if ((click as MouseEvent).detail === 0) return;
+        disarm();
+        click.stopImmediatePropagation();
+        click.preventDefault();
+        close();
+      };
+      // the click follows its press within the same gesture; one that has not come
+      // shortly after the press ended is not coming
+      const released = () => {
+        clearTimeout(dropping);
+        dropping = setTimeout(disarm, 100);
+      };
+      disarm = () => {
+        clearTimeout(dropping);
+        removeEventListener("click", swallow, true);
+        removeEventListener("pointerup", released, true);
+        removeEventListener("pointercancel", disarm, true);
+        disarm = () => {};
+      };
+      addEventListener("click", swallow, true);
+      addEventListener("pointerup", released, true);
+      addEventListener("pointercancel", disarm, true);
+    };
+    addEventListener("pointerdown", ondown, true);
+    // closing the layer ends this effect, but a swallow armed by the press that closed it must
+    // still catch its click
+    return () => removeEventListener("pointerdown", ondown, true);
   });
 
   function follow() {

@@ -43,6 +43,8 @@
   import { cn } from "$lib/utils.js";
   import { DivisionListQuerySchema, type Division, type PermissionKey } from "@vmb/types";
   import Building2Icon from "@lucide/svelte/icons/building-2";
+  import CalendarClockIcon from "@lucide/svelte/icons/calendar-clock";
+  import CalendarPlusIcon from "@lucide/svelte/icons/calendar-plus";
   import CircleDotIcon from "@lucide/svelte/icons/circle-dot";
   import EllipsisVerticalIcon from "@lucide/svelte/icons/ellipsis-vertical";
   import HistoryIcon from "@lucide/svelte/icons/history";
@@ -73,7 +75,9 @@
         { value: "active", label: "Active" },
         { value: "inactive", label: "Inactive" }
       ]
-    }
+    },
+    { kind: "date", key: "updated", label: "Updated", icon: CalendarClockIcon },
+    { kind: "date", key: "created", label: "Created", icon: CalendarPlusIcon }
   ];
 
   const columns = new ColumnVisibility("divisions", [
@@ -273,6 +277,7 @@
       {base}
       viewsLabel="Division views"
       countNouns={NOUNS}
+      facets={data.divisions ? data.divisions.facets : null}
       views={data.divisions ? data.divisions.views : null}
       searchLabel="Search divisions"
       searchPlaceholder="Search name, code or description"

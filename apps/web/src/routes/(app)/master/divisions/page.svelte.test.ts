@@ -266,45 +266,51 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("link", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
-  it("opens the Filter menu from a chip, and a tick in it applies at once", async () => {
+  it("opens the Filter panel from a chip, and a tick in it applies at once", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions?status=active"));
 
     await screen.getByRole("button", { name: "Status Active" }).click();
-    const active = screen.getByRole("menuitemcheckbox", { name: "Active" });
-    const inactive = screen.getByRole("menuitemcheckbox", { name: "Inactive" });
-    await expect.element(active).toHaveAttribute("aria-checked", "true");
-    await expect.element(inactive).toHaveAttribute("aria-checked", "false");
+    const panel = screen.getByRole("dialog", { name: "Filters" });
+    const active = panel.getByRole("checkbox", { name: /^Active/ });
+    const inactive = panel.getByRole("checkbox", { name: /^Inactive/ });
+    await expect.element(active).toBeChecked();
+    await expect.element(inactive).not.toBeChecked();
 
     await inactive.click();
     expect(goto).toHaveBeenCalledWith(
       "/master/divisions?status=active,inactive",
       expect.objectContaining({ noScroll: true })
     );
-    // the menu stays open for the next choice
+    // the panel stays open for the next choice
     await expect.element(active).toBeVisible();
-
-    // the mocked page URL never moves, so this builds on the two ticks above
-    await active.click();
-    expect(goto).toHaveBeenLastCalledWith(
-      "/master/divisions?status=inactive",
-      expect.objectContaining({ noScroll: true })
-    );
   });
 
-  it("keeps both choices when a second tick comes before the first navigation lands", async () => {
-    await browser.viewport(1280, 900);
-    const screen = await render(Page, props("/master/divisions"));
+  it("opens the Filter panel on a date filter from its chip", async () => {
+    await browser.viewport(1440, 900);
+    const screen = await render(Page, props("/master/divisions?updated=week"));
 
-    await screen.getByRole("button", { name: /^Filter/ }).click();
-    await screen.getByRole("menuitemcheckbox", { name: "Active" }).click();
-    await screen.getByRole("menuitemcheckbox", { name: "Inactive" }).click();
+    await screen.getByRole("button", { name: "Updated Last 7 days" }).click();
+    await expect
+      .element(screen.getByRole("radio", { name: /^Last 7 days/ }))
+      .toHaveAttribute("aria-checked", "true");
+    await expect
+      .element(screen.getByRole("link", { name: "Remove filter Updated: Last 7 days" }))
+      .toHaveAttribute("href", "/master/divisions");
+  });
 
-    // the page URL has not changed between the two ticks, as while a navigation is loading
-    expect(goto).toHaveBeenLastCalledWith(
-      "/master/divisions?status=active,inactive",
-      expect.anything()
-    );
+  it("is one Filter button at every width, the phone's a funnel with the count in its corner", async () => {
+    const screen = await render(Page, props("/master/divisions?status=active"));
+
+    // no chip strip on a phone: the button counts what is filtered and the panel lists it
+    await expect
+      .element(screen.getByRole("link", { name: "Remove filter Status: Active" }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: /^Filter 1 active$/ }).click();
+
+    const sheet = screen.getByRole("dialog", { name: "Filters" });
+    await expect.element(sheet.getByRole("checkbox", { name: /^Active/ })).toBeChecked();
+    await expect.element(sheet.getByRole("button", { name: /^Show 2 divisions$/ })).toBeVisible();
   });
 
   it("marks the searched text in the name, code and description", async () => {
@@ -317,20 +323,6 @@ describe("divisions list", () => {
     // Operations (name, description "day-to-day operations") and OPS (code)
     expect(marked).toEqual(["Op", "OP", "op"]);
     expect(screen.container.querySelector("tbody a[href$='0001']")?.textContent).toBe("Operations");
-  });
-
-  it("moves the chips into a Filters sheet on a narrow screen", async () => {
-    const screen = await render(Page, props("/master/divisions?status=active"));
-
-    await expect
-      .element(screen.getByRole("link", { name: "Remove filter Status: Active" }))
-      .not.toBeInTheDocument();
-    await screen.getByRole("button", { name: /^Filters 1 active$/ }).click();
-
-    const sheet = screen.getByRole("dialog", { name: "Filters" });
-    await expect
-      .element(sheet.getByRole("link", { name: "Remove filter Status: Active" }))
-      .toHaveAttribute("href", "/master/divisions");
   });
 
   it("offers each action only to a caller who holds its permission", async () => {
@@ -524,6 +516,83 @@ describe("divisions list", () => {
     await screen.getByRole("button", { name: "Actions for Operations" }).click();
     await userEvent.keyboard("{Escape}");
     expect(goto).not.toHaveBeenCalled();
+  });
+
+  it.each(["Filter", "View"])(
+    "closes %s on a click outside without also opening the row beneath it",
+    async (button) => {
+      await browser.viewport(1440, 900);
+      const screen = await render(Page, props("/master/divisions"));
+
+      await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
+      await expect
+        .element(document.querySelector<HTMLElement>('[data-layer-frame="panel"]'))
+        .toBeVisible();
+
+      // the click that closes the layer is only that
+      await screen.getByText("OPS").click();
+      await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
+      expect(goto).not.toHaveBeenCalled();
+
+      // and the next one, with nothing open, opens the record as it always did
+      await screen.getByText("OPS").click();
+      expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    }
+  );
+
+  it.each(["Filter", "View"])(
+    "closes %s on a touch tap on a row, and opens nothing",
+    async (button) => {
+      await browser.viewport(1024, 900);
+      const screen = await render(Page, props("/master/divisions"));
+      await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
+      await expect
+        .element(document.querySelector<HTMLElement>('[data-layer-frame="panel"]'))
+        .toBeVisible();
+
+      // a finger: touch pointer events, then the click they end in
+      const code = screen.getByText("OPS").element();
+      const init = { bubbles: true, cancelable: true, composed: true, pointerType: "touch" };
+      code.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          ...init,
+          pointerId: 7,
+          isPrimary: true,
+          button: 0,
+          buttons: 1
+        })
+      );
+      code.dispatchEvent(
+        new PointerEvent("pointerup", {
+          ...init,
+          pointerId: 7,
+          isPrimary: true,
+          button: 0,
+          buttons: 0
+        })
+      );
+      code.dispatchEvent(new MouseEvent("click", { ...init, button: 0, detail: 1 }));
+
+      await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
+      expect(goto).not.toHaveBeenCalled();
+    }
+  );
+
+  it("tints the current page in the pager instead of filling it", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 60 }));
+
+    const current = screen.getByRole("link", { name: "Page 1" }).element() as HTMLElement;
+    expect(current.getAttribute("aria-current")).toBe("page");
+    const solid = Object.assign(document.createElement("div"), { className: "bg-primary" });
+    document.body.append(solid);
+    const filled = getComputedStyle(solid).backgroundColor;
+    solid.remove();
+    const style = getComputedStyle(current);
+    expect(style.backgroundColor).not.toBe(filled);
+    // a quiet tint with a hairline ring, its text the page's own colour
+    expect(style.boxShadow).not.toBe("none");
+    expect(style.color).toBe(getComputedStyle(screen.container).color);
   });
 
   it("paints every cell of a hovered row, and of a row with its menu open, in the same frame", async () => {
@@ -898,8 +967,8 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("button", { name: "Reset" })).not.toBeInTheDocument();
   });
 
-  it("ends View with Done, which closes it without applying anything", async () => {
-    await browser.viewport(1280, 900);
+  it("ends View with Done in the sheet, which closes it without applying anything", async () => {
+    await browser.viewport(390, 844);
     const screen = await render(Page, props("/master/divisions", { total: 12 }));
 
     await screen.getByRole("button", { name: "View" }).click();
@@ -915,8 +984,27 @@ describe("divisions list", () => {
     await expect.element(screen.getByRole("button", { name: "View" })).toHaveFocus();
   });
 
-  it("says Done in the Trash and when the list failed to load, too", async () => {
+  it("has no footer on the panel: View ends at Rows per page, and Esc closes it", async () => {
     await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 12 }));
+
+    await screen.getByRole("button", { name: "View" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "View" })).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: "Done" })).not.toBeInTheDocument();
+    const panel = document.querySelector<HTMLElement>('[data-layer-frame="panel"]')!;
+    expect(
+      [...panel.querySelectorAll<HTMLElement>("[data-layer-action]")].filter(
+        (el) => el.getClientRects().length > 0
+      )
+    ).toEqual([]);
+
+    await userEvent.keyboard("{Escape}");
+    await expect.element(screen.getByRole("dialog", { name: "View" })).not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "View" })).toHaveFocus();
+  });
+
+  it("says Done in the Trash and when the list failed to load, too", async () => {
+    await browser.viewport(390, 844);
     const trash = await render(Page, props("/master/divisions?trashed=only", { total: 3 }));
     await trash.getByRole("button", { name: "View" }).click();
     await expect.element(trash.getByRole("button", { name: "Done" })).toBeVisible();
