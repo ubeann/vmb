@@ -13,25 +13,29 @@ import type { LayoutServerLoad } from "./$types.js";
 export const load: LayoutServerLoad = async (event) => {
   const user = event.locals.user;
   // The sidebar writes its own cookie when toggled; reading it here renders the
-  // collapse state the user left, with no flash on a reload.
-  const sidebarOpen = event.cookies.get(SIDEBAR_COOKIE_NAME) !== "false";
-  if (!user) return { division: null, permissions: [], sidebarOpen };
+  // collapse state the user left, with no flash on a reload. A cookie means the user
+  // chose; with none, a tablet starts on the icon rail (ADR-0050).
+  const sidebarCookie = event.cookies.get(SIDEBAR_COOKIE_NAME);
+  const sidebarOpen = sidebarCookie !== "false";
+  const sidebarSaved = sidebarCookie !== undefined;
+  if (!user) return { division: null, permissions: [], sidebarOpen, sidebarSaved };
 
   const access = await withApiClient(event, (client) => getMyAccess(client));
 
   if (!access.ok) {
     console.error("app layout load: failed to reach the API", access.error);
-    return { division: null, permissions: [], sidebarOpen };
+    return { division: null, permissions: [], sidebarOpen, sidebarSaved };
   }
   if (!access.value.ok) {
     console.error("app layout load: API refused the access lookup", access.value.error);
-    return { division: null, permissions: [], sidebarOpen };
+    return { division: null, permissions: [], sidebarOpen, sidebarSaved };
   }
 
   const [division] = access.value.value.divisions;
   return {
     division: division ? { name: division.name, iconName: division.iconName } : null,
     permissions: access.value.value.permissions,
-    sidebarOpen
+    sidebarOpen,
+    sidebarSaved
   };
 };

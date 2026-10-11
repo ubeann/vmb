@@ -28,7 +28,13 @@
 <Toaster richColors closeButton />
 
 {#if data.user}
-  <AppShell user={data.user} division={data.division} sidebarOpen={data.sidebarOpen} bind:panel>
+  <AppShell
+    user={data.user}
+    division={data.division}
+    sidebarOpen={data.sidebarOpen}
+    sidebarSaved={data.sidebarSaved}
+    bind:panel
+  >
     {@render children()}
   </AppShell>
 {:else}

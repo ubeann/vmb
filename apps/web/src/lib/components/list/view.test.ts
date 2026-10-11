@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DATE_ORDER,
-  FOLD_BELOW_REM,
   TEXT_ORDER,
-  foldsAt,
   orderChoices,
   pickField,
   sortChanges,
@@ -14,19 +12,6 @@ import {
 const name: SortField = { sort: "name", label: "Name", ...TEXT_ORDER };
 const updated: SortField = { sort: "updatedAt", label: "Last updated", ...DATE_ORDER };
 const defaults = { sort: "name", dir: "asc" } as const;
-
-describe("foldsAt", () => {
-  it("folds under 32rem of card and not at it, whatever the root font size", () => {
-    expect(foldsAt(511)).toBe(true);
-    expect(foldsAt(512)).toBe(false);
-    expect(foldsAt(FOLD_BELOW_REM * 20 - 1, 20)).toBe(true);
-    expect(foldsAt(FOLD_BELOW_REM * 20, 20)).toBe(false);
-  });
-
-  it("does not fold a card that has not been measured yet", () => {
-    expect(foldsAt(0)).toBe(false);
-  });
-});
 
 describe("orderChoices", () => {
   it("lists a text column A to Z first and a date column newest first", () => {

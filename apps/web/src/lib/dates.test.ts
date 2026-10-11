@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAbsolute, formatRelative } from "./dates.js";
+import { formatAbsolute, formatDay, formatRelative } from "./dates.js";
 
 const iso = "2026-10-05T03:04:00.000Z";
 
@@ -7,6 +7,13 @@ describe("formatAbsolute", () => {
   it("writes the date and time in the given timezone", () => {
     expect(formatAbsolute(iso, "Asia/Jakarta")).toBe("5 Oct 2026, 10:04");
     expect(formatAbsolute(iso, "UTC")).toBe("5 Oct 2026, 03:04");
+  });
+});
+
+describe("formatDay", () => {
+  it("keeps the day and drops the time, in the given timezone", () => {
+    expect(formatDay(iso, "UTC")).toBe("5 Oct 2026");
+    expect(formatDay("2026-10-05T20:00:00.000Z", "Asia/Jakarta")).toBe("6 Oct 2026");
   });
 });
 

@@ -5,13 +5,15 @@
   switches to its own zone once it takes over. The tooltip adds nothing the
   absolute time doesn't already say, so the cell is not a tab stop: a list of
   25 rows would otherwise put 25 extra stops between the toolbar and the footer.
+  `day` is for a line too short for the time (a row folded to two lines): it
+  shows the day alone and the tooltip gives the full time.
 -->
 <script lang="ts">
   import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-  import { formatAbsolute, formatRelative } from "$lib/dates.js";
+  import { formatAbsolute, formatDay, formatRelative } from "$lib/dates.js";
   import { onMount } from "svelte";
 
-  let { iso }: { iso: string | null } = $props();
+  let { iso, day = false }: { iso: string | null; day?: boolean } = $props();
 
   const EMPTY = "—";
 
@@ -24,6 +26,7 @@
   let now = $state(new Date());
 
   const absolute = $derived(iso ? formatAbsolute(iso, timeZone) : null);
+  const shown = $derived(iso && day ? formatDay(iso, timeZone) : absolute);
 </script>
 
 {#if iso && absolute}
@@ -32,11 +35,11 @@
       <Tooltip.Trigger>
         {#snippet child({ props })}
           <time {...props} tabindex="-1" datetime={iso} class="whitespace-nowrap"
-            >{absolute}{timeZone ? ` ${timeZone}` : ""}</time
+            >{shown}{timeZone && !day ? ` ${timeZone}` : ""}</time
           >
         {/snippet}
       </Tooltip.Trigger>
-      <Tooltip.Content>{formatRelative(iso, now)}</Tooltip.Content>
+      <Tooltip.Content>{day ? `${absolute} · ` : ""}{formatRelative(iso, now)}</Tooltip.Content>
     </Tooltip.Root>
   </Tooltip.Provider>
 {:else}

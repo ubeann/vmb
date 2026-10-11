@@ -18,6 +18,16 @@ export function formatAbsolute(iso: string, timeZone?: string): string {
   }).format(new Date(iso));
 }
 
+/** "5 Jan 2026": the day alone, for a line too short for the time. */
+export function formatDay(iso: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone
+  }).format(new Date(iso));
+}
+
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ["year", 365 * 24 * 60 * 60],
   ["month", 30 * 24 * 60 * 60],

@@ -22,13 +22,6 @@ export const TEXT_ORDER = { start: "asc", asc: "A to Z", desc: "Z to A" } as con
 /** Date columns start with the latest. */
 export const DATE_ORDER = { start: "desc", asc: "Oldest first", desc: "Newest first" } as const;
 
-/** Under this many rem of card, rows fold to two lines and sorting moves into View (ADR-0051 rule 11). */
-export const FOLD_BELOW_REM = 32;
-
-/** Whether a card `width` px wide has folded its rows, at the root font size `rem` px. */
-export const foldsAt = (width: number, rem = 16): boolean =>
-  width > 0 && width < FOLD_BELOW_REM * rem;
-
 /** The order choices of a field, its starting direction first. */
 export function orderChoices(field: SortField): { dir: SortDirection; label: string }[] {
   const choices = [

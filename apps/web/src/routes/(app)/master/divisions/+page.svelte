@@ -3,7 +3,9 @@
   the domain modules compose from: search, filter chips, an All · Trash switch,
   sortable columns, paging and a View panel, with the whole state in the URL.
   Actions follow the caller's permissions; the API refuses the same things.
-  Rows, row actions and the Trash follow ADR-0051 rules 7 to 9. Keyboard rows
+  Rows, row actions and the Trash follow ADR-0051 rules 7 to 9, and the card
+  answers to its own width (rule 11): the description folds under the name below
+  42rem, and below 32rem rows are two lines with no header row. Keyboard rows
   (ADR-0052 rule 4) are wired but off, as Divisions ships.
 -->
 <script lang="ts">
@@ -19,8 +21,9 @@
   import RecordTime from "$lib/components/RecordTime.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
-  import { columnClass, TEXT_CAP } from "$lib/components/list/columns.js";
+  import { columnClass, TEXT_TRUNCATE } from "$lib/components/list/columns.js";
   import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
+  import ListCard from "$lib/components/list/ListCard.svelte";
   import ListFooter from "$lib/components/list/ListFooter.svelte";
   import ListToolbar from "$lib/components/list/ListToolbar.svelte";
   import Marked from "$lib/components/list/Marked.svelte";
@@ -28,13 +31,18 @@
   import { postRowAction } from "$lib/components/list/row-action.js";
   import { RowKeys } from "$lib/components/list/row-keys.svelte.js";
   import {
+    INACTIVE_NAME_CLASS,
+    INACTIVE_PILL_CLASS,
+    INACTIVE_TILE_CLASS,
+    META_LINE,
     opensRecord,
     PINNED_BG_CLASS,
     ROW_ACTION_CLASS,
     ROW_CLASS,
     ROW_MARK_CLASS,
     ROW_MENU_CLASS,
-    ROW_MENU_TRIGGER_CLASS
+    ROW_MENU_TRIGGER_CLASS,
+    TEXT_LINE
   } from "$lib/components/list/rows.js";
   import SortableHead from "$lib/components/list/SortableHead.svelte";
   import ViewPanel from "$lib/components/list/ViewPanel.svelte";
@@ -66,6 +74,10 @@
   import type { PageData } from "./$types.js";
 
   let { data }: { data: PageData } = $props();
+
+  // the folded second line joins its parts explicitly: a template would drop the edge spaces
+  const SEP = " · ";
+  const SPACE = " ";
 
   const base = "/master/divisions";
   const actionPath = resolve(base);
@@ -264,6 +276,17 @@
     ]
   });
 
+  // what a row folded to two lines says under its name, following the columns the user shows
+  // (the Trash always says when it was deleted, as its column does)
+  function metaParts(division: Division) {
+    const parts: ("inactive" | "code" | "changed" | "created")[] = [];
+    if (!division.isActive) parts.push("inactive");
+    if (columns.visible("code")) parts.push("code");
+    if (inTrash || columns.visible("updatedAt")) parts.push("changed");
+    if (columns.visible("createdAt")) parts.push("created");
+    return parts;
+  }
+
   // a click anywhere on a row opens the record; the name stays a real link for a new tab (ADR-0051 rule 7)
   function openRow(event: MouseEvent, division: Division) {
     if (!opensRecord(event)) return;
@@ -318,7 +341,7 @@
     {/snippet}
   </PageHeader>
 
-  <div class="border-border bg-card relative overflow-hidden rounded-xl border" aria-busy={loading}>
+  <ListCard busy={loading}>
     <ListToolbar
       {base}
       viewsLabel="Division views"
@@ -416,7 +439,8 @@
         {/if}
       {:else}
         <Table.Root class={cn("transition-opacity", loading && "opacity-50")}>
-          <Table.Header>
+          <!-- under 32rem the header row goes; sorting is in View (ADR-0051 rule 11) -->
+          <Table.Header class="@max-lg/list:hidden">
             <Table.Row class="hover:bg-transparent">
               <SortableHead
                 {base}
@@ -431,14 +455,14 @@
                   column="code"
                   label="Code"
                   current={sort}
-                  class={columnClass("utility")}
+                  class={columnClass("meta")}
                 />
               {/if}
               {#if columns.visible("description")}
                 <Table.Head scope="col" class={columnClass("text")}>Description</Table.Head>
               {/if}
               {#if inTrash}
-                <Table.Head scope="col" class={columnClass("utility")}>Deleted</Table.Head>
+                <Table.Head scope="col" class={columnClass("meta")}>Deleted</Table.Head>
               {/if}
               {#if columns.visible("updatedAt")}
                 <SortableHead
@@ -446,7 +470,7 @@
                   column="updatedAt"
                   label="Updated"
                   current={sort}
-                  class={columnClass("utility")}
+                  class={columnClass("meta")}
                 />
               {/if}
               {#if columns.visible("createdAt")}
@@ -455,7 +479,7 @@
                   column="createdAt"
                   label="Created"
                   current={sort}
-                  class={columnClass("utility")}
+                  class={columnClass("meta")}
                 />
               {/if}
               <!-- pinned at the right as Name is at the left, so a scrolled table keeps its actions in view -->
@@ -482,42 +506,80 @@
                   )}
                 >
                   <div class="flex items-center gap-2.5">
-                    <RecordTile iconName={division.iconName} colorHex={division.colorHex} />
-                    <a
-                      href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
-                      class="truncate font-medium hover:underline"
-                      ><Marked text={division.name} term={data.query.search} /></a
-                    >
-                    {#if !division.isActive}
-                      <!-- only the exception is marked; there is no Status column (ADR-0051 rule 7) -->
-                      <StatusPill status="Inactive" class="shrink-0" />
-                    {/if}
+                    <RecordTile
+                      iconName={division.iconName}
+                      colorHex={division.colorHex}
+                      class={!division.isActive ? INACTIVE_TILE_CLASS : undefined}
+                    />
+                    <div class="flex min-w-0 flex-col @max-lg/list:gap-0.5">
+                      <div class="flex min-w-0 items-center gap-2.5">
+                        <a
+                          href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
+                          class={cn(
+                            "truncate font-medium hover:underline",
+                            !division.isActive && INACTIVE_NAME_CLASS
+                          )}><Marked text={division.name} term={data.query.search} /></a
+                        >
+                        {#if !division.isActive}
+                          <!-- only the exception is marked; there is no Status column (ADR-0051 rule 7) -->
+                          <StatusPill
+                            status="Inactive"
+                            class={cn("shrink-0", INACTIVE_PILL_CLASS)}
+                          />
+                        {/if}
+                      </div>
+                      <!-- what the folded columns stand in for, under the name (ADR-0051 rule 11) -->
+                      {#if columns.visible("description") && division.description}
+                        <p class={TEXT_LINE} title={division.description}>
+                          <Marked text={division.description} term={data.query.search} />
+                        </p>
+                      {/if}
+                      <p class={META_LINE}>
+                        {#each metaParts(division) as part, index (part)}
+                          {#if index > 0}{SEP}{/if}
+                          {#if part === "inactive"}
+                            <span class="text-foreground/80 font-medium">Inactive</span>
+                          {:else if part === "code"}
+                            <span class="font-mono"
+                              ><Marked text={division.code} term={data.query.search} /></span
+                            >
+                          {:else if part === "changed"}
+                            {inTrash ? "Deleted" : "Updated"}{SPACE}<RecordTime
+                              day
+                              iso={inTrash ? division.deletedAt : division.updatedAt}
+                            />
+                          {:else}
+                            Created{SPACE}<RecordTime day iso={division.createdAt} />
+                          {/if}
+                        {/each}
+                      </p>
+                    </div>
                   </div>
                 </Table.Cell>
                 {#if columns.visible("code")}
-                  <Table.Cell class={cn("font-mono text-xs", columnClass("utility"))}
+                  <Table.Cell class={cn("font-mono text-xs", columnClass("meta"))}
                     ><Marked text={division.code} term={data.query.search} /></Table.Cell
                   >
                 {/if}
                 {#if columns.visible("description")}
                   <Table.Cell class={cn("text-muted-foreground", columnClass("text"))}>
-                    <span class={TEXT_CAP} title={division.description ?? undefined}
+                    <span class={TEXT_TRUNCATE} title={division.description ?? undefined}
                       ><Marked text={division.description ?? "—"} term={data.query.search} /></span
                     >
                   </Table.Cell>
                 {/if}
                 {#if inTrash}
-                  <Table.Cell class={columnClass("utility")}
+                  <Table.Cell class={columnClass("meta")}
                     ><RecordTime iso={division.deletedAt} /></Table.Cell
                   >
                 {/if}
                 {#if columns.visible("updatedAt")}
-                  <Table.Cell class={columnClass("utility")}
+                  <Table.Cell class={columnClass("meta")}
                     ><RecordTime iso={division.updatedAt} /></Table.Cell
                   >
                 {/if}
                 {#if columns.visible("createdAt")}
-                  <Table.Cell class={columnClass("utility")}
+                  <Table.Cell class={columnClass("meta")}
                     ><RecordTime iso={division.createdAt} /></Table.Cell
                   >
                 {/if}
@@ -613,7 +675,7 @@
         </Table.Root>
       {/if}
     {/if}
-  </div>
+  </ListCard>
 
   {#if data.divisions}
     <ListFooter
