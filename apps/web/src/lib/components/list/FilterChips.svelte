@@ -99,7 +99,11 @@
     class?: string;
   } = $props();
 
-  const today = readerToday();
+  // read again whenever the URL changes, so a tab left open past midnight moves to the new day
+  const today = $derived.by(() => {
+    void page.url.search;
+    return readerToday();
+  });
   const active = $derived(activeFilters(filters, page.url.searchParams, today));
   const search = $derived(withSearch ? (page.url.searchParams.get("search") ?? "") : "");
   const clearAll = $derived(

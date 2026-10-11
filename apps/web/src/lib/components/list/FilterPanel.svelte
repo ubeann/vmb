@@ -74,8 +74,12 @@
   // the panel's picker beside it is a column of presets and a 40px-day calendar
   const PICKER_WIDTH = 576;
 
-  const today = readerToday();
-  const maxDay = parseDate(today);
+  // read again whenever the URL changes, so a tab left open past midnight moves to the new day
+  const today = $derived.by(() => {
+    void page.url.search;
+    return readerToday();
+  });
+  const maxDay = $derived(parseDate(today));
 
   let layer = $state<ReturnType<typeof Layer>>();
   const rangeStep = "range";
@@ -134,7 +138,7 @@
 
   // The custom range being picked, before Apply; the month the calendar shows
   let draft = $state<PickedRange | undefined>();
-  let month = $state<DateValue>(maxDay);
+  let month = $state<DateValue>(parseDate(readerToday()));
   const picked = $derived<DateRange | null>(
     draft?.start && draft.end ? { from: draft.start.toString(), to: draft.end.toString() } : null
   );
