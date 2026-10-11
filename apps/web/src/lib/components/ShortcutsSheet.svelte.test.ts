@@ -89,6 +89,8 @@ describe("the shortcut sheet", () => {
     await render(Fixture, { withPage: true });
     await userEvent.keyboard("?");
     await expect.element(sheet()).toBeVisible();
+    // Axe reads the colours it sees, and blends the text of a half-faded sheet: wait out the fade-in.
+    await expect.poll(() => document.getAnimations().length).toBe(0);
 
     expect(await axeViolations(document.body)).toEqual([]);
   });
