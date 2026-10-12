@@ -27,9 +27,15 @@ permissions:
 jobs:
   lint:
     name: Check Ticket Shape
-    # Only tickets in the agent pool are checked; relabelling one to
-    # `needs-triage` below fires `labeled` again, and this condition ends it.
-    if: contains(github.event.issue.labels.*.name, 'ready-for-agent')
+    # Only open, unclaimed tickets in the agent pool are checked. The frontier
+    # (`scripts/frontier.sh`) already skips a ticket with an assignee, so a
+    # bounce there only adds noise to a build under way, and a closed ticket
+    # has nothing left to build. Relabelling one to `needs-triage` below fires
+    # `labeled` again, and this condition ends it.
+    if: >-
+      contains(github.event.issue.labels.*.name, 'ready-for-agent')
+      && github.event.issue.state == 'open'
+      && github.event.issue.assignee == null
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
