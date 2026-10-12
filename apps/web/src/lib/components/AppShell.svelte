@@ -46,6 +46,7 @@
     sidebarOpen,
     sidebarSaved,
     panel = $bindable(null),
+    footerAt = "pinned",
     children
   }: {
     user: { id: string; name: string; email: string; image?: string | null };
@@ -55,6 +56,12 @@
     sidebarSaved: boolean;
     /** The scrolling panel, for the layout's snapshot to keep its place across history. */
     panel?: HTMLElement | null;
+    /**
+     * PROTOTYPE (prototype/divisions): where the footer strip sits from 48rem up. `pinned`
+     * is today's, below the scrolling panel; `inPanel` scrolls it in at the end of the
+     * panel; `afterPanel` lets the window scroll, so it follows the panel on the frame.
+     */
+    footerAt?: "pinned" | "inPanel" | "afterPanel";
     children: Snippet;
   } = $props();
 
@@ -98,6 +105,7 @@
 <Sidebar.Provider
   {open}
   onOpenChange={(next) => (chosen = next)}
+  data-footer-at={footerAt}
   class="[--header-height:3.5rem] sm:[--header-height:4rem] md:[--header-height:4.5rem]"
 >
   <AppSidebar railDefault={!sidebarSaved && chosen === null}>
@@ -136,7 +144,10 @@
   </AppSidebar>
 
   <div
-    class="md:peer-folded:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-folded:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit) flex min-w-0 flex-1 flex-col md:h-svh"
+    class="md:peer-folded:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-folded:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit) flex min-w-0 flex-1 flex-col {footerAt ===
+    'pinned'
+      ? 'md:h-svh'
+      : 'min-h-svh'}"
   >
     <header
       data-scrolled={scrollY > 0}
@@ -162,17 +173,37 @@
       bind:ref={panel}
       id="main-content"
       tabindex={-1}
-      class="bg-card dark:bg-background w-auto min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none md:m-2 md:mt-0 md:ml-0 md:min-h-0 md:overflow-y-auto md:rounded-xl md:shadow-sm md:*:shrink-0 lg:p-6"
+      class="bg-card dark:bg-background w-auto min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm md:*:shrink-0 lg:p-6 {footerAt ===
+      'afterPanel'
+        ? ''
+        : 'md:min-h-0 md:overflow-y-auto'}"
     >
       {@render children()}
+      {#if footerAt === "inPanel"}
+        <!-- PROTOTYPE: pushed to the panel's foot on a short page, after the content on a long one -->
+        <div class="mt-auto pt-6">
+          <SiteFooter class="max-w-none px-0 pt-3 pb-0 sm:px-0 lg:px-0" />
+        </div>
+      {/if}
     </Sidebar.Inset>
 
     <!-- Below the panel, not inside it, so it stays the page's contentinfo landmark.
          It sits on the sidebar's colour. From tablet up it takes 8px on the left and
          12px on the right; the phone keeps the panel's 16px. `sm:px-3` and `lg:px-3`
          beat SiteFooter's own `sm:px-10 lg:px-16`. -->
-    <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-3 sm:pl-2 lg:px-3 lg:pl-2" />
+    {#if footerAt !== "inPanel"}
+      <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-3 sm:pl-2 lg:px-3 lg:pl-2" />
+    {/if}
   </div>
 </Sidebar.Provider>
 
 <ShortcutsSheet />
+
+<style>
+  /* PROTOTYPE (prototype/divisions): when the window scrolls, a bounce past either end (macOS,
+     iPadOS) shows the page's canvas, which takes the body's background unless the root has its
+     own. Painting the root in the frame's colour makes the bounce read as more frame. */
+  :global(html:has([data-footer-at="afterPanel"])) {
+    background-color: var(--sidebar);
+  }
+</style>

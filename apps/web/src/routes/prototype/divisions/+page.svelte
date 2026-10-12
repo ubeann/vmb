@@ -11,7 +11,12 @@
 
   let { data }: { data: PageData } = $props();
 
-  const VARIANTS = [{ key: "A", name: "Today (master)" }];
+  // B and C keep today's page and move the footer strip (the layout reads the key)
+  const VARIANTS = [
+    { key: "A", name: "Today: footer pinned under the panel" },
+    { key: "B", name: "Footer at the end of the panel" },
+    { key: "C", name: "Page scrolls, footer below the panel" }
+  ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
 
@@ -19,7 +24,7 @@
   <title>Divisions prototype {variant} — VMB</title>
 </svelte:head>
 
-{#if variant === "A"}
+{#if ["A", "B", "C"].includes(variant)}
   <VariantA {data} />
 {/if}
 
