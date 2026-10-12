@@ -4,7 +4,7 @@
   import type { PageData } from "./$types.js";
   import { resolve } from "$app/paths";
 
-  let { data, form }: { data: PageData; form: { error?: string } | null } = $props();
+  let { data, form }: { data: PageData; form: { error?: string; code?: string } | null } = $props();
 </script>
 
 <svelte:head>
@@ -18,7 +18,12 @@
   />
 
   {#if form?.error}
-    <p role="alert" class="error">{form.error}</p>
+    <p role="alert" class="error">
+      {form.error}
+      {#if form.code === "DIVISION_IN_USE"}
+        <a href={resolve("/master/roles")}>Go to Roles</a>
+      {/if}
+    </p>
   {/if}
 
   <dl>

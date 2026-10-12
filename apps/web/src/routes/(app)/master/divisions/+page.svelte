@@ -138,9 +138,12 @@
   let confirmOpen = $state(false);
   let target = $state<Division | null>(null);
   let deleting = $state(false);
+  // why the API refused the delete, shown in the dialog beside the choice it blocks
+  let refusal = $state<string | null>(null);
 
   function askDelete(division: Division) {
     target = division;
+    refusal = null;
     confirmOpen = true;
   }
 
@@ -295,10 +298,14 @@
   const submitDelete: SubmitFunction = () => {
     const division = target;
     deleting = true;
+    refusal = null;
     return async ({ result, update }) => {
       deleting = false;
       if (result.type === "failure") {
-        toast.error(String(result.data?.error ?? "Something went wrong. Please try again."));
+        const error = String(result.data?.error ?? "Something went wrong. Please try again.");
+        // a division still in use stays in the dialog, where the way out is named
+        if (result.data?.code === "DIVISION_IN_USE") refusal = error;
+        else toast.error(error);
         return;
       }
       confirmOpen = false;
@@ -688,6 +695,14 @@
       <Dialog.Title>Delete {target?.name}?</Dialog.Title>
       <Dialog.Description>It moves to the Trash. You can restore it from Trash.</Dialog.Description>
     </Dialog.Header>
+    {#if refusal}
+      <Notice variant="destructive">
+        {refusal}
+        <a href={resolve("/master/roles")} class="font-medium underline underline-offset-2"
+          >Go to Roles</a
+        >
+      </Notice>
+    {/if}
     <form method="POST" action="?/delete" use:enhance={submitDelete}>
       <input type="hidden" name="id" value={target?.id ?? ""} />
       <Dialog.Footer>

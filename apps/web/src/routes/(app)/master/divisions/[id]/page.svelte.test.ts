@@ -32,6 +32,31 @@ describe("the division view page", () => {
     expect(screen.getByRole("button", { name: "Restore" }).elements()).toHaveLength(0);
   });
 
+  it("says why a delete was refused while the division has roles, and where to go", async () => {
+    const message =
+      "2 roles belong to this division. Move them to another division or delete them first.";
+    const screen = await render(Page, {
+      data: pageData(),
+      form: { error: message, code: "DIVISION_IN_USE" }
+    });
+
+    await expect.element(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByRole("alert").element().textContent).toContain(message);
+    await expect
+      .element(screen.getByRole("link", { name: "Go to Roles" }))
+      .toHaveAttribute("href", "/master/roles");
+  });
+
+  it("offers no link to Roles for another failure", async () => {
+    const screen = await render(Page, {
+      data: pageData(),
+      form: { error: "Something went wrong. Please try again." }
+    });
+
+    await expect.element(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Go to Roles" }).elements()).toHaveLength(0);
+  });
+
   it("shows a Trashed division read-only, with Restore as its only action", async () => {
     const screen = await render(Page, {
       data: pageData({ deletedAt: "2026-10-06T01:00:00.000Z" }),

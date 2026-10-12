@@ -31,13 +31,13 @@ export class NotFoundError extends DomainError {
  * its field in `issues`, so a form can show the message on that field.
  */
 export class ConflictError extends DomainError {
-  readonly code: Extract<ApiErrorCode, "CONFLICT" | "ROLE_IN_USE">;
+  readonly code: Extract<ApiErrorCode, "CONFLICT" | "ROLE_IN_USE" | "DIVISION_IN_USE">;
 
   constructor(
     message = "That value is already taken.",
     options: {
       issues?: ValidationIssue[];
-      code?: Extract<ApiErrorCode, "CONFLICT" | "ROLE_IN_USE">;
+      code?: Extract<ApiErrorCode, "CONFLICT" | "ROLE_IN_USE" | "DIVISION_IN_USE">;
     } = {}
   ) {
     super(message, options.issues);
