@@ -18,7 +18,8 @@
     { key: "C", name: "Page scrolls, footer below the panel" },
     { key: "D", name: "C + a one-page list counts its rows" },
     { key: "E", name: "D, phone bar: logo, or ‹ Divisions on a record" },
-    { key: "F", name: "D, phone bar: logo, trail above the heading" }
+    { key: "F", name: "D, phone bar: logo, trail above the heading" },
+    { key: "G", name: "D, phone bar: logo, no trail at all" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -27,7 +28,7 @@
   <title>Divisions prototype {variant} — VMB</title>
 </svelte:head>
 
-{#if ["D", "E", "F"].includes(variant)}
+{#if ["D", "E", "F", "G"].includes(variant)}
   <VariantA {data} wholeCount />
 {:else if ["A", "B", "C"].includes(variant)}
   <VariantA {data} />

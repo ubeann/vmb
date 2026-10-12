@@ -70,9 +70,10 @@
     /**
      * PROTOTYPE (prototype/divisions): what the bar shows beside the menu button below 48rem.
      * `bar` is today's (the section's crumb); `back` is the logo on a section's own page and
-     * "‹ Section" below it; `page` is the logo, with the trail above the page's heading.
+     * "‹ Section" below it; `page` is the logo, with the trail above the page's heading;
+     * `none` is the logo alone, leaving the way back to the gesture and the page's own link.
      */
-    crumbs?: "bar" | "back" | "page";
+    crumbs?: "bar" | "back" | "page" | "none";
     /** PROTOTYPE: the path and record the trail is read from, for a route outside the nav. */
     trailPath?: string;
     trailRecord?: RecordCrumb;
