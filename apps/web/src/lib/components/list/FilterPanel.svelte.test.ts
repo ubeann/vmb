@@ -287,6 +287,24 @@ describe("the Filter layer's measures", () => {
     expect((layer() as HTMLElement).offsetWidth).toBe(22 * rem());
   });
 
+  it("makes the sheet's and dialog's rows 44px, as the prototype's phone sheet had them, and the date rows 56px plus their hairline", async () => {
+    for (const width of [390, 560]) {
+      await browser.viewport(width, 844);
+      const modal = await toolbar();
+      await openPanel(modal);
+      const option = modal
+        .getByRole("checkbox", { name: /^Active/ })
+        .element()
+        .closest("label")!;
+      expect(size(option)[1]).toBe(44);
+      // the prototype's 56px row (h-14) is padding and 44px button, plus the hairline under it here
+      expect(size(row("Updated").parentElement!)[1]).toBe(57);
+      await userEvent.keyboard("{Escape}");
+      await expect.poll(() => find("[data-layer-frame]")).toBeNull();
+      modal.unmount();
+    }
+  });
+
   it("keeps Reset a link by the title on the panel, and moves it beside the main action in the sheet and dialog", async () => {
     await browser.viewport(1440, 900);
     const panel = await toolbar("?status=active");

@@ -174,7 +174,7 @@
   }
 
   const rowClass =
-    "hover:bg-muted flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm whitespace-nowrap pointer-coarse:h-11";
+    "hover:bg-muted flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm whitespace-nowrap pointer-coarse:h-11 in-data-[layer-frame=modal]:h-11";
 </script>
 
 <Layer
@@ -266,7 +266,7 @@
                 {@const count = facets?.[filter.key]?.[option.value]}
                 <Label
                   data-slot="filter-option"
-                  class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 font-normal pointer-coarse:h-11"
+                  class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 font-normal in-data-[layer-frame=modal]:h-11 pointer-coarse:h-11"
                 >
                   <Checkbox
                     variant="kit"
