@@ -19,13 +19,14 @@
     D: "afterPanel",
     E: "afterPanel",
     F: "afterPanel",
-    G: "afterPanel"
+    G: "afterPanel",
+    H: "afterPanel"
   } as const;
   const footerAt = $derived(
     FOOTER[page.url.searchParams.get("variant") as keyof typeof FOOTER] ?? "pinned"
   );
-  // round 3: E to G try the bar below 48rem; `?at=record` reads the trail as a record's page
-  const CRUMBS = { E: "back", F: "page", G: "none" } as const;
+  // round 3: E to H try the bar below 48rem; `?at=record` reads the trail as a record's page
+  const CRUMBS = { E: "back", F: "page", G: "none", H: "bare" } as const;
   const crumbs = $derived(
     CRUMBS[page.url.searchParams.get("variant") as keyof typeof CRUMBS] ?? "bar"
   );

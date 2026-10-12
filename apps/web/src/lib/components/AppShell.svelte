@@ -71,9 +71,10 @@
      * PROTOTYPE (prototype/divisions): what the bar shows beside the menu button below 48rem.
      * `bar` is today's (the section's crumb); `back` is the logo on a section's own page and
      * "‹ Section" below it; `page` is the logo, with the trail above the page's heading;
-     * `none` is the logo alone, leaving the way back to the gesture and the page's own link.
+     * `none` is the logo alone, leaving the way back to the gesture and the page's own link;
+     * `bare` drops the logo too, since the sidebar's sheet carries it.
      */
-    crumbs?: "bar" | "back" | "page" | "none";
+    crumbs?: "bar" | "back" | "page" | "none" | "bare";
     /** PROTOTYPE: the path and record the trail is read from, for a route outside the nav. */
     trailPath?: string;
     trailRecord?: RecordCrumb;
@@ -186,7 +187,7 @@
             <ChevronLeftIcon class="size-5 shrink-0" aria-hidden="true" />
             <span class="truncate">{parent.label}</span>
           </a>
-        {:else}
+        {:else if crumbs !== "bare"}
           <a
             href={resolve("/")}
             class="focus-visible:ring-ring flex items-center rounded-md focus-visible:ring-2 focus-visible:outline-none md:hidden"
