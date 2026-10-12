@@ -386,6 +386,8 @@
           "bg-[oklch(0.2_0.08_268/0.45)] supports-backdrop-filter:backdrop-blur-none",
         layerPrototype.backdrop === "glass" &&
           "bg-[oklch(0.2_0.08_268/0.08)] supports-backdrop-filter:backdrop-blur-none",
+        layerPrototype.backdrop === "black" &&
+          "bg-black/40 supports-backdrop-filter:backdrop-blur-none dark:bg-[oklch(0.2_0.08_268/0.45)]",
         layerPrototype.backdrop === "tint" &&
           "bg-[oklch(0.2_0.08_268/0.3)] supports-backdrop-filter:backdrop-blur-[2px]"
       )}

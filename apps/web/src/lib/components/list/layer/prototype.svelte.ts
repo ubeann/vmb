@@ -5,7 +5,7 @@
 // and a 4px blur).
 export const layerPrototype = $state<{
   titleIcon: "none" | "plain" | "tile";
-  backdrop: "today" | "scrim" | "glass" | "tint";
+  backdrop: "today" | "scrim" | "glass" | "tint" | "black";
 }>({
   titleIcon: "none",
   backdrop: "today"

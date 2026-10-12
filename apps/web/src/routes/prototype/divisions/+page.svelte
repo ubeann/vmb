@@ -28,19 +28,28 @@
     { key: "L", name: "I + the button's icon in a tile before the title" },
     { key: "M", name: "K + a navy scrim, no blur" },
     { key: "N", name: "K + a glass sheet over a clear backdrop" },
-    { key: "O", name: "K + a navy tint over a soft blur" }
+    { key: "O", name: "K + a navy tint over a soft blur" },
+    { key: "P", name: "M, black in light mode, navy in dark" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // round 5: K and L give the sheet and dialog title the button's icon
   $effect.pre(() => {
-    layerPrototype.titleIcon = ["K", "M", "N", "O"].includes(variant)
+    layerPrototype.titleIcon = ["K", "M", "N", "O", "P"].includes(variant)
       ? "plain"
       : variant === "L"
         ? "tile"
         : "none";
     // round 6: M to O try the backdrop behind the sheet and dialog
     layerPrototype.backdrop =
-      variant === "M" ? "scrim" : variant === "N" ? "glass" : variant === "O" ? "tint" : "today";
+      variant === "M"
+        ? "scrim"
+        : variant === "N"
+          ? "glass"
+          : variant === "O"
+            ? "tint"
+            : variant === "P"
+              ? "black"
+              : "today";
   });
 </script>
 
@@ -48,7 +57,7 @@
   <title>Divisions prototype {variant} — VMB</title>
 </svelte:head>
 
-{#if ["I", "K", "L", "M", "N", "O"].includes(variant)}
+{#if ["I", "K", "L", "M", "N", "O", "P"].includes(variant)}
   <VariantA {data} wholeCount viewResetAt="footer" />
 {:else if variant === "J"}
   <VariantA {data} wholeCount viewResetAt="start" />
