@@ -14,7 +14,7 @@ When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the 
 
 ## The rest of the vocabulary
 
-A ticket carries one category (`bug`, `enhancement` or `research`) and one state from the table above. A `ready-for-agent` ticket also needs:
+A ticket carries one category (`bug`, `enhancement` or `research`) and one state from the table above. The category picks the issue form, and so the sections the lint expects: a `bug` says what's wrong and what to fix, an `enhancement` what to build, a `research` ticket what to find out (below). A `ready-for-agent` ticket also needs:
 
 - **Exactly one `complexity:*` label**: `trivial`, `standard` or `complex`, chosen when the ticket is created (criteria in `model-routing.md`). A `complex` ticket states its reason under a `## Why complex` heading.
 - **`review:human`** when an acceptance criterion needs the owner's eyes: a design call, a look on a real device, anything no check can settle. The agent still builds it; the PR just never merges without the owner.

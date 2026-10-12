@@ -4,7 +4,7 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 ## Conventions
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies. Head the body with the sections of the category's issue form under `.github/ISSUE_TEMPLATE/` (`bug.yml` for a bug, `ticket.yml` otherwise); `ticket-lint.sh` bounces a `ready-for-agent` ticket whose headings differ.
 - **Read an issue**: `gh issue view <number> --json number,title,state,body,labels,comments`. (`--comments` alone prints only the comments, so an issue without any comes back empty.)
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`

@@ -156,5 +156,37 @@ check "research questions without checkboxes fail" 1 "\`## Questions\` has no \`
   "research,ready-for-agent,complexity:standard" \
   "${research//- \[ \] /}"
 
+bug="### What's wrong
+
+git status in the main checkout fails after a worktree commit.
+
+### What to fix
+
+The test clears git's hook environment before its git init.
+
+### Acceptance criteria
+
+- [ ] A worktree commit leaves the main checkout non-bare
+
+### Blocked by
+
+None"
+
+check "a bug-form ticket passes" 0 "" \
+  "bug,ready-for-agent,complexity:trivial" "$bug"
+
+check "a bug ticket written from a known cause passes without its first section" 0 "" \
+  "bug,ready-for-agent,complexity:trivial" "### What to fix${bug#*### What to fix}"
+
+check "a bug ticket is not held to What to build" 1 "Missing a \`## What to fix\` section." \
+  "bug,ready-for-agent,complexity:trivial" "$good"
+
+check "a build ticket is not held to What to fix" 1 "Missing a \`## What to build\` section." \
+  "enhancement,ready-for-agent,complexity:trivial" "$bug"
+
+check "bug criteria without checkboxes fail" 1 "\`## Acceptance criteria\` has no \`- [ ]\` checkbox items" \
+  "bug,ready-for-agent,complexity:trivial" \
+  "${bug//- \[ \] /}"
+
 printf '\n%d checks, %d failed\n' "$checks" "$failures"
 [ "$failures" -eq 0 ]

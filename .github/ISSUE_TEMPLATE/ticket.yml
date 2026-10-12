@@ -1,8 +1,9 @@
 # The same sections `/to-tickets` writes, so a ticket filed by hand and one an
 # agent filed read alike. It starts in `needs-triage`: `/triage` adds the
 # complexity label and moves it to `ready-for-agent` (docs/agents/ticket-loop.md).
+# Something broken goes through `bug.yml`, whose sections start from what's wrong.
 name: Ticket
-description: Something to build or fix, written so an agent could pick it up.
+description: Something to build, written so an agent could pick it up. A bug has its own form.
 labels: [needs-triage]
 body:
   - type: input

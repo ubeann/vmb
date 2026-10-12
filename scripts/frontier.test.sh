@@ -19,8 +19,10 @@ failures=0
 checks=0
 
 body='## What to build\n\nA thing.\n\n## Acceptance criteria\n\n- [ ] It works\n\n## Blocked by\n\nNone.'
+# A `bug` ticket is held to the bug form's sections (ticket-lint.sh).
+bug_body=${body/What to build/What to fix}
 
-queue=$(jq -n --arg body "$(printf '%b' "$body")" '{
+queue=$(jq -n --arg body "$(printf '%b' "$body")" --arg bug_body "$(printf '%b' "$bug_body")" '{
   milestones: [{title: "Focus", open: {totalCount: 2}, closed: {totalCount: 3}}],
   referenced: {"7": "OPEN", "8": "CLOSED"},
   issues: [
@@ -30,7 +32,7 @@ queue=$(jq -n --arg body "$(printf '%b' "$body")" '{
     {number: 30, title: "In flight", body: $body,
      labels: {nodes: [{name: "ready-for-agent"}, {name: "complexity:standard"}]},
      assignees: {nodes: [{login: "vmb-agent"}]}, milestone: {title: "Focus", state: "OPEN"}, blockedBy: {nodes: []}},
-    {number: 40, title: "A bug in the milestone", body: $body,
+    {number: 40, title: "A bug in the milestone", body: $bug_body,
      labels: {nodes: [{name: "ready-for-agent"}, {name: "bug"}, {name: "complexity:standard"}]},
      assignees: {nodes: []}, milestone: {title: "Focus", state: "OPEN"}, blockedBy: {nodes: []}},
     {number: 50, title: "Blocked by a dependency", body: $body,
