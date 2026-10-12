@@ -26,7 +26,9 @@ import {
   assertCanChangeRoles,
   assertCanManageUser,
   currentRoleIds,
+  outOfReach,
   uniqueIds,
+  withinReach,
   type Actor
 } from "./guards.js";
 import {
@@ -298,7 +300,9 @@ export async function updateUser(
 
     await assertCanManageUser(db, actor, id);
     try {
-      await writeUser(db, id, input, passwordHash, sql``);
+      // the check above answers first with its own message; the reach test in
+      // the write closes the window after it (ADR-0055)
+      await writeUser(db, id, input, passwordHash, sql``, actor, withinReach(actor, id));
     } catch (error) {
       return conflictFrom(error, EMAIL_CONFLICT);
     }
@@ -324,7 +328,16 @@ export async function updateUser(
         const removed = before.filter((role) => !next.includes(role));
         await assertCanChangeRoles(tx, actor.permissions, [...added, ...removed]);
 
-        await writeUser(tx, id, input, passwordHash, roleSync(id, added, removed));
+        // the row lock above already holds the target's roles still
+        await writeUser(
+          tx,
+          id,
+          input,
+          passwordHash,
+          roleSync(id, added, removed),
+          actor,
+          sql`true`
+        );
       });
     } catch (error) {
       return conflictFrom(error, EMAIL_CONFLICT);
@@ -347,31 +360,54 @@ export async function updateUser(
  * inside the statement that writes: when it matches no row nothing in the
  * statement changes (the role sync and the identity writes all read
  * `business_user`), and this throws: 404 for a user gone or Trashed since the
- * checks before it, 409 for one that changed since the editor loaded it.
+ * checks before it, 403 for one another caller's role grant put out of the
+ * editor's reach since, 409 for one that changed since the editor loaded it.
+ * `reach` is the reach test for that `where`; a save that changes roles passes
+ * `true`, since it holds the user's row lock instead.
  */
 async function writeUser(
   db: MasterDb,
   id: string,
   input: UserUpdateInput,
   passwordHash: string | undefined,
-  roles: SQL
+  roles: SQL,
+  actor: Actor,
+  reach: SQL
 ): Promise<void> {
   const photo = nullIfEmpty(input.profilePhotoPath);
-  const stamp = unchangedSince(users.updatedAt, input.updatedAt);
+  const unchanged = unchangedSince(users.updatedAt, input.updatedAt);
+  const stamp = sql`${unchanged} and ${reach}`;
   const result =
     passwordHash === undefined
       ? await writeFields(db, id, input, photo, stamp, roles)
       : await writeFieldsAndCredential(db, id, input, photo, stamp, passwordHash, roles);
 
   if (rowsOf(result).length === 0) {
-    const current = await db
-      .select({ deletedAt: users.deletedAt })
-      .from(users)
-      .where(eq(users.id, id))
-      .limit(1);
-    if (!current[0] || current[0].deletedAt) throw new NotFoundError("User not found.");
-    throw new StaleRecordError();
+    throw await whyNotWritten(db, actor, id, () => new StaleRecordError());
   }
+}
+
+/**
+ * Why a write that matched no row did: only the wording of the refusal comes
+ * from this read, the write itself was decided in its own statement. In this
+ * order: the user is gone or Trashed (404), the caller's reach no longer
+ * covers them (403), or else they changed since the editor loaded them, which
+ * is `stale`.
+ */
+async function whyNotWritten(db: MasterDb, actor: Actor, id: string, stale: () => Error) {
+  const rows = await db
+    .select({
+      deletedAt: users.deletedAt,
+      inReach: sql<boolean>`${withinReach(actor, id)}`
+    })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  const row = rows[0];
+
+  if (!row || row.deletedAt) return new NotFoundError("User not found.");
+  if (!row.inReach) return outOfReach();
+  return stale();
 }
 
 function writeFields(
@@ -466,6 +502,12 @@ function writeFieldsAndCredential(
   `);
 }
 
+/**
+ * Trash a user. `assertCanManageUser` answers first with its own message; the
+ * reach test in the delete's `where` closes the window after it, so a user
+ * whose reach grew since is not written and answers 403 (ADR-0055). A delete
+ * that matches no row reads once to say why: 404, then 403, then 409.
+ */
 export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promise<void> {
   await assertCanManageUser(db, actor, id);
 
@@ -473,10 +515,25 @@ export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promis
     .update(users)
     // a stamp an editor still holds is never reissued, so its save is stale (as after a save)
     .set({ deletedAt: new Date(), updatedAt: nextStamp(users.updatedAt) })
-    .where(and(eq(users.id, id), isNull(users.deletedAt)))
+    .where(
+      and(
+        eq(users.id, id),
+        isNull(users.deletedAt),
+        // the check above reads and this is decided in the write: a role granted
+        // to the user since is out of the caller's reach and nothing is written
+        withinReach(actor, id)
+      )
+    )
     .returning({ id: users.id });
 
-  if (!rows[0]) throw new NotFoundError("User not found.");
+  if (!rows[0]) {
+    throw await whyNotWritten(
+      db,
+      actor,
+      id,
+      () => new StaleRecordError("This user changed while it was being deleted. Try again.")
+    );
+  }
 
   // The sign-in gate reads this row (#7): soft-deleting it blocks future
   // sessions, and ending the current ones here closes the window for cookies

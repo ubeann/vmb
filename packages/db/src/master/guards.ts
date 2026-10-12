@@ -1,5 +1,5 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { rolePermissions, roles, userRoles } from "../schema/master.js";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { rolePermissions, roles, userRoles, users } from "../schema/master.js";
 import type { MasterDb } from "./db.js";
 import { ForbiddenError, NotFoundError } from "../errors.js";
 
@@ -69,7 +69,7 @@ export async function assertCanChangeRoles(
  * and sign in as them. People may always edit themselves.
  */
 export async function assertCanManageUser(db: MasterDb, actor: Actor, targetId: string) {
-  if (actor.id.toLowerCase() === targetId.toLowerCase()) return;
+  if (isSelf(actor, targetId)) return;
 
   const held = await db
     .select({ id: userRoles.roleId })
@@ -82,10 +82,48 @@ export async function assertCanManageUser(db: MasterDb, actor: Actor, targetId: 
   );
   const mine = new Set(actor.permissions);
 
-  if (needed.some((key) => !mine.has(key))) {
-    throw new ForbiddenError(
-      "PERMISSION_ESCALATION",
-      "You cannot change a user who holds permissions you do not have."
-    );
-  }
+  if (needed.some((key) => !mine.has(key))) throw outOfReach();
+}
+
+/** The refusal for a user holding permissions the caller lacks. */
+export function outOfReach() {
+  return new ForbiddenError(
+    "PERMISSION_ESCALATION",
+    "You cannot change a user who holds permissions you do not have."
+  );
+}
+
+/**
+ * `assertCanManageUser`'s test as a condition of the statement that writes: the
+ * user in `target` holds, through their active roles, no permission outside
+ * `actor`'s. The check ahead of a write reads, and a role granted after that
+ * read lands on a user the caller may no longer manage; this one is decided
+ * inside the write itself, as `deleted_at is null` is (ADR-0055). It is not
+ * true for a caller's own user, which the guard lets through. It reads the
+ * user's id from `master.users`, so it belongs in a statement that writes or
+ * selects that table.
+ */
+export function withinReach(actor: Actor, targetId: string): SQL {
+  if (isSelf(actor, targetId)) return sql`true`;
+
+  const held =
+    actor.permissions.length === 0
+      ? sql`array[]::text[]`
+      : sql`array[${sql.join(
+          actor.permissions.map((key) => sql`${key}`),
+          sql`, `
+        )}]::text[]`;
+
+  return sql`not exists (
+    select 1
+      from master.user_roles ur
+      join master.roles r on r.id = ur.role_id and r.is_active
+      join master.role_permissions rp on rp.role_id = r.id
+     where ur.user_id = ${users.id} and rp.permission_key <> all(${held})
+  )`;
+}
+
+/** Whether the caller is changing their own user, whom the reach rule never refuses. */
+function isSelf(actor: Actor, targetId: string): boolean {
+  return actor.id.toLowerCase() === targetId.toLowerCase();
 }
