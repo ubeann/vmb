@@ -1,4 +1,4 @@
-// Manual Neon experiment for #271. Use only an isolated development branch:
+// Manual Neon experiment for #271, with a Trashed user added for #405. Use only an isolated development branch:
 // OTP_TIMING_DATABASE_URL=... pnpm --filter @vmb/api test test/otp-timing.test.ts
 // Email transport is stubbed; all auth and database operations are real.
 import { randomUUID } from "node:crypto";
@@ -21,6 +21,11 @@ it.skipIf(!databaseUrl)(
     const id = randomUUID();
     const registered = `otp-timing-${id}@example.invalid`;
     const unknown = `otp-absent-${id}@example.invalid`;
+    // A live user and a Trashed one: each a Better Auth identity and a business
+    // record (ADR-0032), the Trashed one with `deleted_at` set (ADR-0055).
+    const trashedId = randomUUID();
+    const trashed = `otp-trashed-${id}@example.invalid`;
+    const kinds = { registered, trashed, unknown };
     const auth = createAuth({
       DATABASE_URL: databaseUrl!,
       BETTER_AUTH_SECRET: "isolated-otp-timing-secret-at-least-32-characters",
@@ -55,23 +60,35 @@ it.skipIf(!databaseUrl)(
       const body = (await response.json()) as { code?: string };
       return { ms: performance.now() - start, status: response.status, code: body.code };
     }
-    await db.execute(
-      sql`insert into "user" (id,name,email,email_verified,created_at,updated_at) values (${id},'OTP timing',${registered},true,now(),now())`
-    );
+    for (const [userId, email, deletedAt] of [
+      [id, registered, null],
+      [trashedId, trashed, new Date().toISOString()]
+    ] as const) {
+      await db.execute(
+        sql`insert into "user" (id,name,email,email_verified,created_at,updated_at) values (${userId},'OTP timing',${email},true,now(),now())`
+      );
+      await db.execute(
+        sql`insert into master.users (id,name,email,created_at,updated_at,deleted_at) values (${userId},'OTP timing',${email},now(),now(),${deletedAt})`
+      );
+    }
     try {
-      const results: Record<string, { registered: number[]; unknown: number[] }> = {};
+      type Kind = keyof typeof kinds;
+      const results: Record<string, Record<Kind, number[]>> = {};
       for (const path of ["request-password-reset", "check-verification-otp", "reset-password"]) {
-        const samples = { registered: [] as number[], unknown: [] as number[] };
+        const samples: Record<Kind, number[]> = { registered: [], trashed: [], unknown: [] };
         for (let i = 0; i < 14; i++) {
-          // Alternate which case runs first. Discard two warm-up pairs.
-          for (const kind of i % 2
-            ? (["unknown", "registered"] as const)
-            : (["registered", "unknown"] as const)) {
-            const email = kind === "registered" ? registered : unknown;
-            // Each sample starts with a fresh request, before expiry/attempt limits.
+          // Rotate which case runs first. Discard two warm-up rounds.
+          const order = (["registered", "trashed", "unknown"] as const).map(
+            (_, n, all) => all[(n + i) % all.length]!
+          );
+          for (const kind of order) {
+            const email = kinds[kind];
+            // Each sample starts with a fresh request, before expiry/attempt limits,
+            // and before the hourly per-email request limit (#252) can answer 429.
             await db.execute(
               sql`delete from verification where identifier = ${`forget-password-otp-${email}`}`
             );
+            await db.execute(sql`delete from rate_limit where key like 'code-request:%'`);
             if (path !== "request-password-reset")
               expect((await call("request-password-reset", email)).status).toBe(200);
             const result = await call(path, email);
@@ -103,9 +120,10 @@ it.skipIf(!databaseUrl)(
       }
     } finally {
       await db.execute(
-        sql`delete from verification where identifier in (${`forget-password-otp-${registered}`},${`forget-password-otp-${unknown}`})`
+        sql`delete from verification where identifier in (${`forget-password-otp-${registered}`},${`forget-password-otp-${trashed}`},${`forget-password-otp-${unknown}`})`
       );
-      await db.execute(sql`delete from "user" where id = ${id}`);
+      await db.execute(sql`delete from master.users where id in (${id},${trashedId})`);
+      await db.execute(sql`delete from "user" where id in (${id},${trashedId})`);
       for (const ip of ips)
         await db.execute(sql`delete from rate_limit where key like ${`%${ip}%`}`);
     }

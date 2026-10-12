@@ -151,7 +151,12 @@ function buildAuth(env: Bindings) {
       // checks the code first (`check-verification-otp`, #254), then spends it
       // with the password. `disableSignUp` keeps an unknown email from being
       // auto-registered by the OTP endpoints.
-      privateEmailOtp((email, otp) => sendOtpEmail(env, email, otp))
+      // A Trashed user is read-only, so for these paths they are an unknown
+      // email (ADR-0055).
+      privateEmailOtp(
+        (email, otp) => sendOtpEmail(env, email, otp),
+        async (userId) => (await store.getSignInEligibility(userId))?.deletedAt != null
+      )
     ]
   });
 }

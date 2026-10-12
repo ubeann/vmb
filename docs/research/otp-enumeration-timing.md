@@ -40,6 +40,24 @@ Milliseconds, rounded; each pair is **registered / unknown**.
 
 The before distributions are separated in this run; the after distributions overlap and medians differ by 1–3 ms. This supports removing the asymmetric database path rather than padding replies. It is not a statistical proof of zero timing leakage. Successful redemption remains different: possession of the delivered code authorizes that transition.
 
+## #405 re-measurement (2026-10-12)
+
+A Trashed user (ADR-0055) is now an unknown email to every OTP path, with the same business-record lookup and equal database work for all three kinds of email. This re-measures the three endpoints with a **Trashed** email beside the registered and unknown ones.
+
+**Method change from #271:** a temporary Neon project, `vmb-issue-405-timing`, in the same region as VMB (`aws-ap-southeast-1`, Postgres 18), with the schema **built from the repository's migrations** (`pnpm --filter @vmb/db db:migrate`, 32 of 32 applied to an empty database) instead of a schema-only branch with later migrations patched in. It held `public.user`, `verification`, `account`, `rate_limit` and `master.users` with `deleted_at`, and no data beyond the experiment's synthetic rows. The project was deleted after the run. Its compute was fixed at 0.25 CU, below VMB's 0.25–2 CU, so absolute times are not comparable with the 2026-10-04 table; the comparison is between the three kinds within this run.
+
+Otherwise as above: `apps/api/test/otp-timing.test.ts`, two warm-up rounds discarded, twelve samples kept, the order of the three kinds rotated each round. Two changes to the experiment: it adds the `trashed` kind (an identity plus a `master.users` row with `deleted_at` set, beside a live registered one), and it clears the `code-request:` rows in `rate_limit` before each sample, because the hourly per-email request limit (#252, five an hour) did not exist at #271 and otherwise answered 429.
+
+Milliseconds, rounded; p50 (min–max):
+
+| Endpoint                 | registered    | trashed       | unknown       |
+| ------------------------ | ------------- | ------------- | ------------- |
+| `request-password-reset` | 166 (159–174) | 171 (157–294) | 165 (158–196) |
+| `check-verification-otp` | 258 (230–488) | 252 (239–493) | 252 (231–506) |
+| `reset-password`         | 358 (334–617) | 371 (352–446) | 360 (353–370) |
+
+The three distributions overlap on every endpoint, and the medians are within 13 ms of each other. The widest gap is `reset-password`, where Trashed sits 11 ms above unknown and 13 ms above registered, inside the spread of the others. The Trashed path does two more queries than a live email's (the decoy swap's read and write), so a small upward lean there is plausible. These are local Node measurements, **not deployed Cloudflare Worker end-to-end timings**, and twelve samples do not establish constant-time execution under every load. Successful redemption still differs: possession of the delivered code authorizes that transition.
+
 ## Regression coverage and rollout
 
 `activate-reply.test.ts` exercises the public API handler with the real Better Auth implementation and a memory database. It covers matching statuses/bodies through wrong attempts, exhaustion, expiry, subsequent invalidation, mixed Verify/reset attempts, resend, uppercase email normalization and alternate issuance paths. Registered activation still checks a code without spending it, redeems it once, and signs in with the new password. Existing tests retain request rate limits, unknown-address send suppression and background-send failure behavior.
