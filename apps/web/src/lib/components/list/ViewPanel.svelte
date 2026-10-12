@@ -51,7 +51,8 @@
     perPage,
     sort,
     defaultSort,
-    sortFields
+    sortFields,
+    resetAt = "title"
   }: {
     base: MasterListPathname;
     columns: ColumnVisibility<Id>;
@@ -63,6 +64,11 @@
     defaultSort: ListSort;
     /** The columns Sort by offers, in order; the first is the default's. */
     sortFields: readonly SortField[];
+    /**
+     * PROTOTYPE (prototype/divisions): where Reset sits in the sheet and dialog. `title` is
+     * today's; `footer` is a ghost button beside Done, as Filter's; `start` leads the header.
+     */
+    resetAt?: "title" | "footer" | "start";
   } = $props();
 
   // The panel is portalled, outside the card's container queries, so the card says
@@ -124,7 +130,7 @@
   const heading = "text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium";
 </script>
 
-<Layer label="View" panelClass="w-64">
+<Layer label="View" panelClass="w-64" headerStart={resetAt === "start"}>
   {#snippet trigger({ props })}
     <Button {...props} data-slot="button" title="View" variant="outline" class={TOOL_BUTTON}>
       <Settings2Icon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}
@@ -138,8 +144,11 @@
 
   {#snippet headerAction()}
     {#if differs}
-      <button type="button" data-slot="layer-reset" class={LAYER_RESET} onclick={reset}
-        >Reset</button
+      <button
+        type="button"
+        data-slot="layer-reset"
+        class={cn(LAYER_RESET, resetAt === "footer" && "in-data-[layer-frame=modal]:hidden")}
+        onclick={reset}>Reset</button
       >
     {/if}
   {/snippet}
@@ -262,6 +271,14 @@
     </LayerBody>
     <!-- the picks are already applied and can't change the count: this only closes the layer, so the sheet and dialog have it and the panel does not (ADR-0053 rule 4) -->
     <LayerFooter modalOnly>
+      {#if resetAt === "footer" && differs}
+        <Button
+          type="button"
+          variant="ghost"
+          class="in-data-[layer-frame=modal]:h-11"
+          onclick={reset}>Reset</Button
+        >
+      {/if}
       <LayerAction label="Done" icon={CheckIcon} onclick={layer.close} />
     </LayerFooter>
   {/snippet}

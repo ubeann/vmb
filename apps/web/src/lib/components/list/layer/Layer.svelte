@@ -60,7 +60,8 @@
     panelClass,
     children,
     step,
-    beside
+    beside,
+    headerStart = false
   }: {
     /** The top level's title, such as "Filters"; also the layer's accessible name. */
     label: string;
@@ -84,6 +85,11 @@
     step?: Snippet<[readonly string[], LayerApi]>;
     /** A step's picker beside the panel. Without it, steps always open inside. */
     beside?: Snippet<[string, LayerApi]>;
+    /**
+     * PROTOTYPE (prototype/divisions): in the sheet and dialog, the header action leads the
+     * bar and the title sits in the middle, as a phone's sheet does ("Reset · View · ×").
+     */
+    headerStart?: boolean;
   } = $props();
 
   // opened and closed only through show() and close(), which set up and forget its steps
@@ -410,12 +416,21 @@
         <ChevronLeftIcon aria-hidden="true" class={modal ? "size-5" : undefined} />
       </Button>
     {/if}
+    {#if modal && headerStart && !path.length}
+      <!-- PROTOTYPE: as wide as the close button, so the title stays in the middle -->
+      <div class="flex w-16 shrink-0 justify-start">
+        {#if headerAction}{@render headerAction(api)}{/if}
+      </div>
+    {/if}
     {#if modal}
       <Dialog.Title
         id={titleId}
         tabindex={-1}
         data-layer-title=""
-        class="min-w-0 flex-1 truncate text-base font-semibold outline-none">{title}</Dialog.Title
+        class={cn(
+          "min-w-0 flex-1 truncate text-base font-semibold outline-none",
+          headerStart && !path.length && "text-center"
+        )}>{title}</Dialog.Title
       >
     {:else}
       <h2
@@ -427,8 +442,9 @@
         {title}
       </h2>
     {/if}
-    {#if !path.length && headerAction}{@render headerAction(api)}{/if}
+    {#if !path.length && headerAction && !(modal && headerStart)}{@render headerAction(api)}{/if}
     {#if modal}
+      {#if headerStart && !path.length}<div class="w-5 shrink-0"></div>{/if}
       <Dialog.Close>
         {#snippet child({ props })}
           <Button

@@ -76,7 +76,16 @@
   import type { PageData } from "./$types.js";
 
   // PROTOTYPE: `wholeCount` is round 2's footer count (variant D)
-  let { data, wholeCount = false }: { data: PageData; wholeCount?: boolean } = $props();
+  // `viewResetAt` is round 4's View sheet header (variants I and J)
+  let {
+    data,
+    wholeCount = false,
+    viewResetAt = "title"
+  }: {
+    data: PageData;
+    wholeCount?: boolean;
+    viewResetAt?: "title" | "footer" | "start";
+  } = $props();
 
   // the folded second line joins its parts explicitly: a template would drop the edge spaces
   const SEP = " · ";
@@ -371,6 +380,7 @@
           {sort}
           {defaultSort}
           {sortFields}
+          resetAt={viewResetAt}
         />
       {/snippet}
     </ListToolbar>

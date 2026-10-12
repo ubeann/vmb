@@ -20,7 +20,9 @@
     { key: "E", name: "D, phone bar: logo, or ‹ Divisions on a record" },
     { key: "F", name: "D, phone bar: logo, trail above the heading" },
     { key: "G", name: "D, phone bar: logo, no trail at all" },
-    { key: "H", name: "D, phone bar: the menu button and the avatar only" }
+    { key: "H", name: "D, phone bar: the menu button and the avatar only" },
+    { key: "I", name: "H, View sheet: Reset beside Done, as Filter's" },
+    { key: "J", name: "H, View sheet: Reset · View · ×" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
 </script>
@@ -29,7 +31,11 @@
   <title>Divisions prototype {variant} — VMB</title>
 </svelte:head>
 
-{#if ["D", "E", "F", "G", "H"].includes(variant)}
+{#if variant === "I"}
+  <VariantA {data} wholeCount viewResetAt="footer" />
+{:else if variant === "J"}
+  <VariantA {data} wholeCount viewResetAt="start" />
+{:else if ["D", "E", "F", "G", "H"].includes(variant)}
   <VariantA {data} wholeCount />
 {:else if ["A", "B", "C"].includes(variant)}
   <VariantA {data} />
