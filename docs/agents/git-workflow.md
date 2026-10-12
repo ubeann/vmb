@@ -79,7 +79,7 @@ For a manual stack made in linked worktrees, merge bottom-up with the same merge
 
 `lefthook` (pinned in `.mise.toml`, config in `lefthook.yml`) runs local checks for fast feedback:
 
-- **`pre-commit`**, on staged files: `prettier --write` (auto-fixes and re-stages), `eslint` on the file's own package, `shellcheck` on `scripts/**/*.sh`, `actionlint` when a workflow changes, and the preview identifier tests when `scripts/preview-identifiers*.sh` changes.
+- **`pre-commit`**, on staged files: `prettier --write` (auto-fixes and re-stages), `eslint` on the file's own package, `shellcheck` on `scripts/**/*.sh`, the git-init guard on the same files (a script that runs `git init` or `git clone` clears `git rev-parse --local-env-vars` first, since a hook exports the caller's `GIT_DIR`), `actionlint` when a workflow changes, and the preview identifier tests when `scripts/preview-identifiers*.sh` changes.
 - **`commit-msg`**: a Conventional Commits subject with no trailing `(#n)`, and the `Co-Authored-By` trailers' shape, addresses and `vmb-agent` line when a model is credited. `scripts/check-commit-msg.test.sh` pins its cases.
 
 `mise install` installs the hooks; run `lefthook install` by hand if you cloned before they existed, or after `but setup` (which installs its own `pre-commit`/`post-checkout` wrappers and can displace them — see gitbutler#12748).

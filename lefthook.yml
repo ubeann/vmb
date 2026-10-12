@@ -31,6 +31,15 @@ pre-commit:
     shellcheck:
       glob: "scripts/**/*.sh"
       run: shellcheck {staged_files}
+    # From a hook, `git init` follows the caller's GIT_DIR and re-initialised
+    # the shared repository as bare (#422). Shellcheck cannot see that; this
+    # requires the env guard above any repository-creating command.
+    git-init-guard:
+      glob: "scripts/**/*.sh"
+      run: scripts/check-git-init-guard.sh {staged_files}
+    check-git-init-guard:
+      glob: "scripts/check-git-init-guard*.sh"
+      run: bash scripts/check-git-init-guard.test.sh
     # The preview identifier module is shared by preview.yml and cleanup.yml, so
     # a wrong slug orphans a Pages deployment or a Neon branch rather than
     # merely looking odd; shellcheck cannot see behaviour, this can.

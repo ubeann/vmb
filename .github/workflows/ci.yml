@@ -351,6 +351,16 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: find scripts -name '*.sh' -print0 | xargs -0 -r shellcheck
 
+      # Lefthook runs the scripts' tests from a hook, where `git init` follows
+      # the caller's GIT_DIR and once re-initialised the shared repository as
+      # bare (#422). Every script that creates a repository must clear that
+      # environment first; the check's own cases run beside it.
+      - name: Guard repository-creating scripts
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          bash scripts/check-git-init-guard.test.sh
+          find scripts -name '*.sh' -print0 | xargs -0 -r scripts/check-git-init-guard.sh
+
       # The preview identifier scheme is shared by preview.yml and cleanup.yml,
       # so a wrong slug is an orphaned Pages deployment or Neon branch rather
       # than a cosmetic bug. Shellcheck cannot check behaviour, so the module's
