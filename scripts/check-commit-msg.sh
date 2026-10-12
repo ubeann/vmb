@@ -3,9 +3,10 @@
 # Validate a commit message against the conventions in docs/agents/git-workflow.md.
 #
 # Run by lefthook's `commit-msg` hook (issue #62). Enforces a Conventional
-# Commits subject, and the shape of the co-author trailer when one is present.
-# The repo has no required status checks, so this is the only hard enforcement
-# of the message conventions. Bypass deliberately with `--no-verify`.
+# Commits subject with no trailing `(#n)`, and the co-author trailers' shape,
+# addresses and the `vmb-agent` line when a model is credited. The repo has no
+# required status checks, so this is the only hard enforcement of the message
+# conventions. Bypass deliberately with `--no-verify`.
 #
 # Usage: scripts/check-commit-msg.sh <commit-msg-file>
 
@@ -32,6 +33,19 @@ if ! printf '%s\n' "$subject" |
   {
     echo "commit subject must be Conventional Commits: <type>(<scope>): <description>"
     echo "  types: $types"
+    echo "  got:   $subject"
+    echo "  bypass deliberately with --no-verify"
+  } >&2
+  exit 1
+fi
+
+# The ticket is linked by `Closes #<n>` in the PR body, and GitHub appends the
+# PR's own `(#n)` when it squashes. A ticket number in the subject lands on
+# `master` as `... (#418) (#420)`, two numbers nobody can tell apart.
+if printf '%s\n' "$subject" | grep -Eq '\(#[0-9]+\)[[:space:]]*$'; then
+  {
+    echo "commit subject must not end with an issue number: GitHub adds the PR's (#n) at squash"
+    echo "  link the ticket with 'Closes #<n>' in the PR body, or 'Refs: #<n>' in the commit body"
     echo "  got:   $subject"
     echo "  bypass deliberately with --no-verify"
   } >&2
@@ -75,6 +89,20 @@ if grep -q '^Co-Authored-By: ' "$msg_file"; then
       printf '%s\n' "$unregistered" | sed 's/^/  /'
       echo "  register the address in $coauthor_list"
       echo "  see docs/agents/model-routing.md for the resolution order"
+      echo "  bypass deliberately with --no-verify"
+    } >&2
+    exit 1
+  fi
+
+  # A model's trailer credits the tier; the vmb-agent line links the commit to
+  # the agents' GitHub account. Both or neither (docs/agents/git-workflow.md,
+  # Co-authoring AI-assisted work).
+  agent_address='341066383+vmb-agent@users.noreply.github.com'
+  if printf '%s\n' "$well_formed" | grep -vFx "$agent_address" | grep -q . &&
+    ! printf '%s\n' "$well_formed" | grep -qFx "$agent_address"; then
+    {
+      echo "a model's Co-Authored-By trailer needs the vmb-agent line beside it:"
+      echo "  Co-Authored-By: vmb-agent <$agent_address>"
       echo "  bypass deliberately with --no-verify"
     } >&2
     exit 1
