@@ -10,8 +10,10 @@ describe("the list column rule (ADR-0050)", () => {
     expect(columnClass("meta")).toBe("w-px whitespace-nowrap @max-lg/list:hidden");
   });
 
-  it("lets the identity column take the card once rows fold to two lines, and truncate inside it", () => {
-    expect(columnClass("identity")).toBe("@max-lg/list:w-full @max-lg/list:max-w-0");
+  it("lets the identity column take the spare width once the free text folds, down to 20ch, and truncate inside it", () => {
+    expect(columnClass("identity")).toBe(
+      "@max-2xl/list:w-full @max-2xl/list:max-w-0 @max-2xl/list:min-w-[20ch]"
+    );
   });
 
   it("gives free text the spare width down to 16ch, and folds it under 42rem of card", () => {

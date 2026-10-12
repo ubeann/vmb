@@ -7,7 +7,8 @@
  * - `meta`: codes, dates and the like. They shrink to their content, and under
  *   32rem of card they fold into the identity's second line (`META_LINE`).
  * - `identity`: the column that names the row. It shares the remaining width,
- *   and takes all of it once the rows fold to two lines.
+ *   and takes the spare width once the free text folds under 42rem of card,
+ *   truncating down to 20ch (rows then fold to two lines under 32rem).
  * - `text`: free text such as a description. It takes the spare width and
  *   truncates down to about 16ch, its cell wrapping the value in
  *   `TEXT_TRUNCATE` with the full text in `title`. Under 42rem of card it folds
@@ -19,7 +20,7 @@ const COLUMN_CLASS: Record<ColumnKind, string> = {
   utility: "w-px whitespace-nowrap",
   meta: "w-px whitespace-nowrap @max-lg/list:hidden",
   // max-w-0 stops the name's own width from widening the table; the card is what it shares
-  identity: "@max-lg/list:w-full @max-lg/list:max-w-0",
+  identity: "@max-2xl/list:w-full @max-2xl/list:max-w-0 @max-2xl/list:min-w-[20ch]",
   text: "w-full max-w-0 min-w-[16ch] @max-2xl/list:hidden"
 };
 

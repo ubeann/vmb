@@ -876,6 +876,10 @@ describe("divisions list", () => {
   it("tells an empty list, a search with no match, an empty Trash and a failure apart", async () => {
     const none = await render(Page, props("/master/divisions", { items: [] }));
     await expect.element(none.getByRole("heading", { name: "No divisions yet" })).toBeVisible();
+    // the glossary's wording for a Division, not a second definition of it
+    await expect
+      .element(none.getByText("Divisions group warehouse items and expense budgets."))
+      .toBeVisible();
     none.unmount();
 
     const noMatch = await render(Page, props("/master/divisions?search=zzz", { items: [] }));
@@ -1579,5 +1583,90 @@ describe("list kit polish", () => {
     const previous = phone.getByRole("link", { name: "Previous" }).element();
     expect(getComputedStyle(previous).opacity).toBe("0.5");
     expect(getComputedStyle(previous).pointerEvents).toBe("none");
+  });
+});
+
+// The parity audit (#409): what docs/design/list-kit/parity.md pins that a test can check.
+describe("list kit parity", () => {
+  it("lets the name take the spare width from 32 to 42rem of card, down to 20ch, and truncate inside it", async () => {
+    const long =
+      "Corporate Services, Procurement, Logistics and Fleet Management Division of Indonesia";
+    const items = [{ ...division, name: long, description: "Fleet and day-to-day operations" }];
+    // 20ch in the cell's own font
+    const ch = (element: Element) => {
+      const probe = Object.assign(document.createElement("div"), { className: "w-[20ch]" });
+      element.append(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      return width;
+    };
+
+    await browser.viewport(660, 900);
+    const band = await render(Page, props("/master/divisions", { items }));
+    const head = band.getByRole("columnheader", { name: /^Name/ }).element();
+    const cell = document.querySelector("tbody td")!;
+    for (const element of [head, cell]) {
+      const style = getComputedStyle(element);
+      expect(style.maxWidth).toBe("0px");
+      expect(parseFloat(style.minWidth)).toBeCloseTo(ch(element), 0);
+    }
+    // the long name is cut inside the cell, and the table needs no sideways scroll
+    const link = band.getByRole("link", { name: long }).element();
+    expect(link.scrollWidth).toBeGreaterThan(link.clientWidth);
+    const frame = band.getByRole("table").element().parentElement!;
+    expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
+    band.unmount();
+
+    // from 42rem the description column is back and the name is no longer the one to stretch
+    await browser.viewport(1280, 900);
+    const wide = await render(Page, props("/master/divisions", { items }));
+    expect(
+      getComputedStyle(wide.getByRole("columnheader", { name: /^Name/ }).element()).maxWidth
+    ).toBe("none");
+  });
+
+  it("keeps the page gap at 16px, between the header and the card", async () => {
+    await browser.viewport(1280, 900);
+    await render(Page, props("/master/divisions"));
+
+    const header = document.querySelector("h1")!.closest("header")!;
+    const card = document.querySelector("[data-fold-probe]")!.parentElement!;
+    expect(card.getBoundingClientRect().top - header.getBoundingClientRect().bottom).toBe(16);
+  });
+
+  it("gives View's column checkboxes the kit's cream fill and 3:1 edge, as Filter's", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("button", { name: "View" }).click();
+    // a ticked box is filled green; the edge and fill that matter are the unchecked box's
+    const code = screen.getByRole("checkbox", { name: "Code" });
+    await code.click();
+    await expect.element(code).not.toBeChecked();
+    await Promise.all(
+      code
+        .element()
+        .getAnimations()
+        .map((animation) => animation.finished)
+    );
+
+    const box = getComputedStyle(code.element());
+    const probe = Object.assign(document.createElement("div"), {
+      className: "border border-input"
+    });
+    document.body.append(probe);
+    const edge = getComputedStyle(probe).borderTopColor;
+    probe.remove();
+    expect(box.borderTopColor).toBe(edge);
+    expect(box.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  });
+
+  it("draws no focus ring on the row menu's box when it opens from the keyboard", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    screen.getByRole("button", { name: "Actions for Operations" }).element().focus();
+    await userEvent.keyboard("{Enter}");
+    await expect.element(screen.getByRole("menu")).toBeVisible();
+    expect(getComputedStyle(screen.getByRole("menu").element()).outlineStyle).toBe("none");
   });
 });

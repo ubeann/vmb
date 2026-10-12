@@ -8,7 +8,9 @@
   where it doesn't, the custom range a step of its own again so no step
   scrolls on a phone. A choice applies at once, as a link to the list with the
   parameter changed, and the panel stays open. In the sheet and the dialog a
-  footer action names the rows shown and closes it; the panel has none. Reset clears the filters and keeps the search.
+  footer action names the rows shown and closes it, with Reset beside it; the
+  panel has no footer, its Reset a quiet link by the title. Reset clears the
+  filters and keeps the search.
 -->
 <script lang="ts">
   import { goto } from "$app/navigation";
@@ -172,7 +174,7 @@
   }
 
   const rowClass =
-    "hover:bg-muted flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm whitespace-nowrap pointer-coarse:h-11";
+    "hover:bg-muted flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm whitespace-nowrap pointer-coarse:h-11 in-data-[layer-frame=modal]:h-11";
 </script>
 
 <Layer
@@ -208,7 +210,7 @@
       <button
         type="button"
         data-slot="layer-reset"
-        class={LAYER_RESET}
+        class={cn(LAYER_RESET, "in-data-[layer-frame=modal]:hidden")}
         data-layer-reset
         onclick={reset}>Reset</button
       >
@@ -264,7 +266,7 @@
                 {@const count = facets?.[filter.key]?.[option.value]}
                 <Label
                   data-slot="filter-option"
-                  class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 font-normal pointer-coarse:h-11"
+                  class="hover:bg-muted flex h-8 cursor-pointer items-center gap-2.5 rounded-md px-2 font-normal in-data-[layer-frame=modal]:h-11 pointer-coarse:h-11"
                 >
                   <Checkbox
                     variant="kit"
@@ -282,8 +284,16 @@
         {/if}
       {/each}
     </LayerBody>
-    <!-- only closes the layer: the sheet and dialog have it, the panel does not (ADR-0053 rule 4) -->
+    <!-- only closes the layer: the sheet and dialog have it, the panel does not (ADR-0053 rule 4); Reset sits beside it there -->
     <LayerFooter modalOnly>
+      {#if inUse > 0}
+        <Button
+          type="button"
+          variant="ghost"
+          class="in-data-[layer-frame=modal]:h-11"
+          onclick={reset}>Reset</Button
+        >
+      {/if}
       <LayerAction
         label={shown === null ? "Done" : `Show ${shown} ${nounFor(noun, shown)}`}
         icon={ListFilterIcon}

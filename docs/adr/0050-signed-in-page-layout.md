@@ -73,7 +73,7 @@ Built by #348 (rules 1–3 and 6) and #349 (rules 4 and 5). How a record opens o
   - under 42rem, free text folds and rides under the identity as a second line;
   - under 32rem, rows fold to two lines, the identity over the utility values ("CBK · Updated 5 Jan 2026"), and the header row goes.
 
-  The kit has a kind per column for this: `utility` stays (actions), `meta` (codes, dates) shrinks to its content and folds into the second line under 32rem, `text` is the free text above, `identity` takes the card once rows fold. `ListCard` is the one `@container/list`; View learns the fold from the same 32rem line, so the header row, the rows and View's Sort by never disagree.
+  The kit has a kind per column for this: `utility` stays (actions), `meta` (codes, dates) shrinks to its content and folds into the second line under 32rem, `text` is the free text above, `identity` takes the spare width once the free text folds, down to 20ch (`@max-2xl/list:w-full @max-2xl/list:max-w-0 @max-2xl/list:min-w-[20ch]`), and the whole card once rows fold. `ListCard` is the one `@container/list`; View learns the fold from the same 32rem line, so the header row, the rows and View's Sort by never disagree.
 
   The second line carries what folded, the most useful first. In the list kit this replaces ADR-0035 rule 5's horizontal scroll, which stays for tables outside the kit.
 
