@@ -724,6 +724,95 @@ describe("reaching a more privileged user", () => {
     });
   });
 
+  // A role granted to the target after the caller's check and before the write
+  // (ADR-0055's reach test). PGlite is a single connection, so these run on real
+  // Postgres only, as CI's Real Postgres job does. A second connection holds a
+  // share lock on `master.users`, which stops the write at the door of its
+  // statement, before it takes its snapshot; the check ahead of it has already
+  // passed. That connection grants Super Admin to the Staff user and commits,
+  // and the write then runs against what the grant made.
+  const grantWhileWriting = async (
+    connect: () => Promise<MasterDb>,
+    write: () => Promise<unknown>
+  ) => {
+    const other = await connect();
+    await other.execute(sql`begin`);
+    await other.execute(sql`lock table master.users in share mode`);
+    const written = write();
+    written.catch(() => undefined);
+    try {
+      expect(await waitingQuery(await connect())).toMatch(/update\s+"?master"?\."?users/i);
+      await other.execute(
+        sql`insert into master.user_roles (user_id, role_id) values (${STAFF_USER}, ${SUPER_ADMIN})`
+      );
+    } finally {
+      await other.execute(sql`commit`);
+    }
+    return written;
+  };
+
+  it.skipIf(!process.env.TEST_DATABASE_URL)(
+    "refuses a delete of a user who gains a role the caller lacks after the check, and changes nothing",
+    async () => {
+      await withMigratedDb(async (db, client, _statements, connect) => {
+        await seed(client);
+        const manager = await actor(db, MANAGER);
+
+        await expect(
+          grantWhileWriting(connect!, () => store(db).deleteUser(STAFF_USER, manager))
+        ).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
+
+        expect(
+          await count(
+            client,
+            `select count(*)::int as value from master.users
+              where id = '${STAFF_USER}' and deleted_at is null`
+          )
+        ).toBe(1);
+      });
+    }
+  );
+
+  it.skipIf(!process.env.TEST_DATABASE_URL)(
+    "refuses an edit that keeps the roles of a user who gains a role the caller lacks after the check",
+    async () => {
+      await withMigratedDb(async (db, client, _statements, connect) => {
+        await seed(client);
+        const manager = await actor(db, MANAGER);
+        const staff = await store(db).getUser(STAFF_USER);
+
+        await expect(
+          grantWhileWriting(connect!, () =>
+            store(db).updateUser(STAFF_USER, resetPassword(staff), manager)
+          )
+        ).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
+
+        expect((await store(db).getUser(STAFF_USER)).updatedAt).toBe(staff.updatedAt);
+        expect(
+          await count(
+            client,
+            `select count(*)::int as value from public.account
+              where account_id = '${STAFF_USER}' and password = 'hashed:a-brand-new-password'`
+          )
+        ).toBe(0);
+      });
+    }
+  );
+
+  it("lets a caller delete themselves, and a Trashed user is not found", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      await store(db).deleteUser(MANAGER, await actor(db, MANAGER));
+      await expect(store(db).deleteUser(MANAGER, await actor(db, ADMIN))).rejects.toMatchObject({
+        code: "NOT_FOUND"
+      });
+      await expect(store(db).deleteUser(MANAGER, await actor(db, MANAGER))).rejects.toMatchObject({
+        code: "NOT_FOUND"
+      });
+    });
+  });
+
   it("leaves a user's roles alone when the update names none", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
@@ -803,6 +892,64 @@ describe("what a request costs (ADR-0045's amendment)", () => {
       // `begin` and `commit` are logged by node-postgres but not by PGlite
       const work = statements.filter((statement) => !/^\s*(begin|commit)\b/i.test(statement));
       expect(work).toHaveLength(10);
+    });
+  });
+
+  // The reach test rides inside the write's own statement (ADR-0055), so a
+  // delete, and a save that keeps the roles, cost what they did before it: the
+  // check's two reads, the write, and the sessions it ends. Only a write that
+  // matches no row adds a read, to word its refusal.
+  it("deletes a user in 4 statements, and a refused delete adds one read to say why", async () => {
+    await withMigratedDb(async (db, client, statements) => {
+      await seed(client);
+      const store = createMasterStore(db, {
+        hashPassword: async (password) => password,
+        transaction: transactionsOn(db)
+      });
+      const caller = await actor(db, ADMIN);
+      statements.length = 0;
+
+      await store.deleteUser(STAFF_USER, caller);
+      expect(statements).toHaveLength(4);
+
+      statements.length = 0;
+      await expect(store.deleteUser(STAFF_USER, caller)).rejects.toMatchObject({
+        code: "NOT_FOUND"
+      });
+      // the check's two reads, the delete that matches nothing, the read that words the 404
+      expect(statements).toHaveLength(4);
+    });
+  });
+
+  it("saves a user who keeps their roles in 6 statements, none of them a transaction", async () => {
+    await withMigratedDb(async (db, client, statements) => {
+      await seed(client);
+      const store = createMasterStore(db, {
+        hashPassword: async (password) => password,
+        transaction: transactionsOn(db)
+      });
+      const target = await store.getUser(STAFF_USER);
+      const caller = await actor(db, ADMIN);
+      statements.length = 0;
+
+      await store.updateUser(
+        STAFF_USER,
+        {
+          name: target.name,
+          email: target.email,
+          phone: target.phone ?? "+628111000077",
+          status: target.status,
+          roleIds: target.roles.map((role) => role.id),
+          profilePhotoPath: "",
+          password: "",
+          passwordConfirmation: "",
+          updatedAt: target.updatedAt
+        },
+        caller
+      );
+
+      // the roles read, the existence read, the check's two reads, the write, the result
+      expect(statements).toHaveLength(6);
     });
   });
 });
