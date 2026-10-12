@@ -27,8 +27,10 @@ const ACTOR = { id: CALLER, permissions: allPermissionKeys() };
  */
 describe("master API: a Trashed record is read-only", () => {
   const pglite = new PGlite();
-  const store = createMasterStore(drizzle(pglite, { schema }), {
-    hashPassword: async (password) => `hashed:${password}`
+  const db = drizzle(pglite, { schema });
+  const store = createMasterStore(db, {
+    hashPassword: async (password) => `hashed:${password}`,
+    transaction: (work) => db.transaction(work)
   });
   const app = withErrorReplies(
     new Hono<{ Variables: { userId: string } }>()

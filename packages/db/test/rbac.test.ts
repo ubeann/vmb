@@ -5,11 +5,17 @@ import {
   type UserUpdateInput
 } from "@vmb/types";
 import { describe, expect, it } from "vitest";
+import { sql } from "drizzle-orm";
 import { ID_GROUPS, fixtureId } from "../src/seed/ids.js";
 import { seed } from "../src/seed/run.js";
-import { ForbiddenError } from "../src/errors.js";
-import { createMasterStore, type Actor, type MasterDb } from "../src/master/index.js";
-import { count, rejects, withMigratedDatabase, withMigratedDb } from "./harness.js";
+import { ConflictError, ForbiddenError, StaleRecordError } from "../src/errors.js";
+import {
+  createMasterStore,
+  type Actor,
+  type MasterDb,
+  type OpenTransaction
+} from "../src/master/index.js";
+import { count, rejects, withMigratedDatabase, transactionsOn, withMigratedDb } from "./harness.js";
 
 const SUPER_ADMIN = fixtureId(ID_GROUPS.role, 1);
 const MANAGER_FINANCE = fixtureId(ID_GROUPS.role, 2);
@@ -112,13 +118,19 @@ describe("role-based access tables", () => {
 
 /** The caller as a request sees them: their id and the permissions it read once. */
 async function actor(db: MasterDb, id: string): Promise<Actor> {
-  const store = createMasterStore(db, { hashPassword: async (password) => password });
+  const store = createMasterStore(db, {
+    hashPassword: async (password) => password,
+    transaction: transactionsOn(db)
+  });
   return { id, permissions: await store.getPermissions(id) };
 }
 
 describe("a user's permissions", () => {
   const store = (db: MasterDb) =>
-    createMasterStore(db, { hashPassword: async (password) => password });
+    createMasterStore(db, {
+      hashPassword: async (password) => password,
+      transaction: transactionsOn(db)
+    });
   const ADMIN = fixtureId(ID_GROUPS.user, 1); // Super Admin
   const MANAGER = fixtureId(ID_GROUPS.user, 2); // Manager Finance, their only role
 
@@ -195,7 +207,10 @@ describe("a user's permissions", () => {
 
 describe("a user's access", () => {
   const store = (db: Parameters<typeof createMasterStore>[0]) =>
-    createMasterStore(db, { hashPassword: async (password) => password });
+    createMasterStore(db, {
+      hashPassword: async (password) => password,
+      transaction: transactionsOn(db)
+    });
 
   it("is the union of their active roles' permissions, sorted", async () => {
     await withMigratedDb(async (db, client) => {
@@ -258,9 +273,28 @@ describe("a user's access", () => {
   });
 });
 
+/**
+ * The statement another connection to this database is blocked on, waiting
+ * for a lock; polled until one appears, for at most ten seconds.
+ */
+async function waitingQuery(observer: MasterDb): Promise<string> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const { rows } = (await observer.execute(sql`
+      select query from pg_stat_activity
+       where datname = current_database() and wait_event_type = 'Lock'
+    `)) as unknown as { rows: Array<{ query: string }> };
+    if (rows[0]) return rows[0].query;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("no connection started waiting for a lock");
+}
+
 describe("assigning roles to users", () => {
   const store = (db: Parameters<typeof createMasterStore>[0]) =>
-    createMasterStore(db, { hashPassword: async (password) => `hashed:${password}` });
+    createMasterStore(db, {
+      hashPassword: async (password) => `hashed:${password}`,
+      transaction: transactionsOn(db)
+    });
 
   const SUPER_ADMIN_USER = fixtureId(ID_GROUPS.user, 1);
   const MANAGER_USER = fixtureId(ID_GROUPS.user, 2); // holds Manager Finance
@@ -371,6 +405,158 @@ describe("assigning roles to users", () => {
     });
   });
 
+  it("rolls a role change back whole when the save fails after the check (ADR-0049)", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const admin = await actor(db, SUPER_ADMIN_USER);
+      const target = await store(db).createUser(newUser({ roleIds: [STAFF_ROLE] }), admin);
+      const other = await store(db).createUser(
+        newUser({ email: "taken@vmblogistics.id", phone: "+628111000078" }),
+        admin
+      );
+
+      // the role writes go through, then the user's own write is refused
+      await expect(
+        store(db).updateUser(
+          target.id,
+          { ...edit(target, [MANAGER_FINANCE]), email: other.email },
+          admin
+        )
+      ).rejects.toBeInstanceOf(ConflictError);
+
+      expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
+        "Staff"
+      ]);
+    });
+  });
+
+  it("rolls back a role change whose save is stale (#378)", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const admin = await actor(db, SUPER_ADMIN_USER);
+      const target = await store(db).createUser(newUser({ roleIds: [STAFF_ROLE] }), admin);
+      // someone else saves the user after this editor loaded it
+      await store(db).updateUser(
+        target.id,
+        { ...edit(target, [STAFF_ROLE]), name: "Dani P." },
+        admin
+      );
+
+      await expect(
+        store(db).updateUser(target.id, edit(target, [MANAGER_FINANCE]), admin)
+      ).rejects.toBeInstanceOf(StaleRecordError);
+
+      expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
+        "Staff"
+      ]);
+    });
+  });
+
+  it("opens a transaction only for a save that changes roles, after hashing the password", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const steps: string[] = [];
+      const counted = createMasterStore(db, {
+        hashPassword: async (password) => {
+          steps.push("hash");
+          return password;
+        },
+        transaction: (work) => {
+          steps.push("transaction");
+          return transactionsOn(db)(work);
+        }
+      });
+      const admin = await actor(db, SUPER_ADMIN_USER);
+      const target = await store(db).createUser(newUser({ roleIds: [STAFF_ROLE] }), admin);
+
+      await counted.listUsers({
+        status: "all",
+        trashed: "exclude",
+        sort: "name",
+        dir: "asc",
+        page: 1,
+        perPage: 10
+      });
+      await counted.getUser(target.id);
+      // the form sends the roles the user already holds, or none at all
+      const kept = await counted.updateUser(target.id, edit(target, [STAFF_ROLE]), admin);
+      const omitted = await counted.updateUser(
+        target.id,
+        { ...edit(kept, []), roleIds: undefined },
+        admin
+      );
+      expect(steps).toEqual([]);
+
+      await counted.updateUser(
+        target.id,
+        { ...edit(omitted, [MANAGER_FINANCE]), password: "a-new-password" },
+        admin
+      );
+      expect(steps).toEqual(["hash", "transaction"]);
+    });
+  });
+
+  // Two role changes on one user, each in a request of its own. PGlite is a
+  // single connection, so this runs on real Postgres only, as CI's Real Postgres
+  // job does (`TEST_DATABASE_URL`).
+  it.skipIf(!process.env.TEST_DATABASE_URL)(
+    "makes a concurrent role change on the same user wait, then check what the first wrote",
+    async () => {
+      await withMigratedDb(async (db, client, _statements, connect) => {
+        await seed(client);
+        const admin = await actor(db, SUPER_ADMIN_USER);
+        const target = await store(db).createUser(newUser({ roleIds: [STAFF_ROLE] }), admin);
+
+        // Super Admin's request, on a connection of its own, holds its
+        // transaction open once its work is done, until the test lets it commit
+        const adminDb = await connect!();
+        let worked!: () => void;
+        let commit!: () => void;
+        const adminWorked = new Promise<void>((resolve) => (worked = resolve));
+        const committable = new Promise<void>((resolve) => (commit = resolve));
+        const holding: OpenTransaction = (work) =>
+          adminDb.transaction(async (tx) => {
+            const result = await work(tx);
+            worked();
+            await committable;
+            return result;
+          });
+        const adminSave = createMasterStore(adminDb, {
+          hashPassword: async (password) => password,
+          transaction: holding
+        }).updateUser(target.id, edit(target, [STAFF_ROLE, SUPER_ADMIN]), admin);
+
+        try {
+          await adminWorked;
+
+          // The Finance manager may manage the target as it was (Staff only),
+          // and without the lock their check would pass against that.
+          const managerSave = store(db).updateUser(
+            target.id,
+            edit(target, [STAFF_ROLE, MANAGER_FINANCE]),
+            await actor(db, MANAGER_USER)
+          );
+          managerSave.catch(() => undefined);
+
+          // ...so it must be waiting on the row lock, before any check, while
+          // the first change is still open
+          expect(await waitingQuery(await connect!())).toMatch(/for update/i);
+
+          commit();
+          await adminSave;
+          // it now sees the Super Admin role the first change granted
+          await expect(managerSave).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
+        } finally {
+          commit();
+        }
+        expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
+          "Staff",
+          "Super Admin"
+        ]);
+      });
+    }
+  );
+
   it("lets Super Admin grant Super Admin", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
@@ -420,7 +606,10 @@ describe("deleting a role", () => {
   it("is refused with a count while users hold it, and allowed once they do not", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const store = createMasterStore(db, { hashPassword: async (password) => password });
+      const store = createMasterStore(db, {
+        hashPassword: async (password) => password,
+        transaction: transactionsOn(db)
+      });
       const staff = fixtureId(ID_GROUPS.role, 4);
       await client.exec(
         `insert into master.user_roles (user_id, role_id) values ('${fixtureId(ID_GROUPS.user, 5)}', '${staff}'),
@@ -452,7 +641,10 @@ describe("the permission catalogue", () => {
 
 describe("reaching a more privileged user", () => {
   const store = (db: Parameters<typeof createMasterStore>[0]) =>
-    createMasterStore(db, { hashPassword: async (password) => `hashed:${password}` });
+    createMasterStore(db, {
+      hashPassword: async (password) => `hashed:${password}`,
+      transaction: transactionsOn(db)
+    });
 
   const ADMIN = fixtureId(ID_GROUPS.user, 1); // Super Admin
   const MANAGER = fixtureId(ID_GROUPS.user, 2); // Manager Finance
@@ -574,11 +766,18 @@ describe("what a request costs (ADR-0045's amendment)", () => {
 
   // A role-changing PATCH /api/master/users/:id: `requirePermission` reads the
   // caller's permissions, then the store checks and writes. 17 statements before
-  // the amendment, three of those reads of the caller's access at three apiece.
-  it("changes a user's roles in 9 statements, reading the caller's permissions once", async () => {
+  // the amendment, three of those reads of the caller's access at three apiece;
+  // 9 after it. ADR-0049 adds one net: a read of the current roles, so a save
+  // that keeps them opens no transaction, and the lock on the target's row,
+  // which the existence check folds into; the role writes stay CTEs of the
+  // user's own statement (ADR-0055), so the lock is what the transaction adds.
+  it("changes a user's roles in 10 statements, reading the caller's permissions once", async () => {
     await withMigratedDb(async (db, client, statements) => {
       await seed(client);
-      const store = createMasterStore(db, { hashPassword: async (password) => password });
+      const store = createMasterStore(db, {
+        hashPassword: async (password) => password,
+        transaction: transactionsOn(db)
+      });
       const target = await store.getUser(STAFF_USER);
       statements.length = 0;
 
@@ -601,7 +800,9 @@ describe("what a request costs (ADR-0045's amendment)", () => {
 
       expect(updated.roles.map((role) => role.name)).toEqual(["Manager Finance"]);
       expect(statements.filter((statement) => PERMISSION_READ.test(statement))).toHaveLength(1);
-      expect(statements).toHaveLength(9);
+      // `begin` and `commit` are logged by node-postgres but not by PGlite
+      const work = statements.filter((statement) => !/^\s*(begin|commit)\b/i.test(statement));
+      expect(work).toHaveLength(10);
     });
   });
 });
@@ -610,7 +811,10 @@ describe("a session that outlives its user", () => {
   it("grants nothing once the user is suspended or Trashed", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const store = createMasterStore(db, { hashPassword: async (password) => password });
+      const store = createMasterStore(db, {
+        hashPassword: async (password) => password,
+        transaction: transactionsOn(db)
+      });
       const admin = fixtureId(ID_GROUPS.user, 1);
       expect((await store.getAccess(admin)).permissions.length).toBeGreaterThan(0);
 

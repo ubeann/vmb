@@ -27,8 +27,10 @@ const CALLER = "d1000000-0000-4000-8000-000000000001";
  */
 describe("master API: the divisions list on Postgres", () => {
   const pglite = new PGlite();
-  const store = createMasterStore(drizzle(pglite, { schema }), {
-    hashPassword: async (password) => `hashed:${password}`
+  const db = drizzle(pglite, { schema });
+  const store = createMasterStore(db, {
+    hashPassword: async (password) => `hashed:${password}`,
+    transaction: (work) => db.transaction(work)
   });
   const app = withErrorReplies(
     new Hono<{ Variables: { userId: string } }>()

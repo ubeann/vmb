@@ -29,4 +29,4 @@
 - A test counts the statements a request runs against PGlite and fixes the budget, so a later change cannot quietly add round trips.
 - `GET /api/me` still returns divisions, with its queries run in parallel.
 
-The race in the trade-offs above, where a concurrent role change slips between the role check and its write, closes when that check and write run in one transaction (ADR-0049).
+The race in the trade-offs above, where a concurrent role change slipped between the role check and its write, closed when that check and write moved into one transaction that first locks the target user's row (ADR-0049, #335).
