@@ -15,7 +15,7 @@ Labels are defined in `triage-labels.md`; this doc says when they move.
 
 `/grill-with-docs` → `/to-spec` → `/to-tickets`, as in `/ask-matt`. An idea with several open questions starts as a `/wayfinder` map whose destination is the spec. Raw issues someone else filed go through `/triage` instead. Every ticket leaves this phase as `ready-for-agent` with:
 
-- the `/to-tickets` sections (the Research form's, for a `research` ticket), with criteria a reviewer can check from the diff, the preview and CI;
+- the sections of its category's issue form under `.github/ISSUE_TEMPLATE/`: `ticket.yml` (what `/to-tickets` writes), `bug.yml` for a `bug`, `research.yml` for a `research` ticket; with criteria a reviewer can check from the diff, the preview and CI;
 - one `complexity:*` label, and a `## Why complex` heading when it is `complex`;
 - `review:human` when a criterion needs the owner's eyes;
 - the reference images it was shaped from, uploaded (`issue-tracker.md`, "Images").

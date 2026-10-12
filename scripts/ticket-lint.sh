@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # Check that a `ready-for-agent` ticket has the shape an AFK agent can build
-# from: the `/to-tickets` sections (the research form's, for a `research`
-# ticket), at least one checkbox in its checklist, exactly one `complexity:*`
+# from: the `/to-tickets` sections (the bug form's for a `bug` ticket, the
+# research form's for a `research` ticket), at least one checkbox in its
+# checklist, exactly one `complexity:*`
 # label, a stated reason when that label is `complex`, and no second state
 # label. The contract lives in
 # `docs/agents/triage-labels.md` and `docs/agents/ticket-loop.md`.
@@ -34,10 +35,17 @@ has_heading() {
 
 # A `research` ticket answers questions rather than building something: its
 # sections are the research issue form's, and its checklist is the questions.
+# A `bug` ticket says what to fix rather than what to build: the bug form's
+# `What's wrong` is where the reproduction lives, but a ticket written from a
+# known cause folds it into the fix, so only `What to fix` is required.
 case "$labels" in
   *,research,*)
     headings=("What to find out" "Questions" "Done when" "Blocked by")
     checklist="Questions"
+    ;;
+  *,bug,*)
+    headings=("What to fix" "Acceptance criteria" "Blocked by")
+    checklist="Acceptance criteria"
     ;;
   *)
     headings=("What to build" "Acceptance criteria" "Blocked by")

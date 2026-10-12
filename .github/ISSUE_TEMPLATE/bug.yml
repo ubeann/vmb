@@ -1,0 +1,40 @@
+# Something broken: what's wrong, then what to fix. A fresh agent reproduces
+# from the first section before it changes anything. Once the ticket is
+# `ready-for-agent`, `scripts/ticket-lint.sh` requires the `What to fix`,
+# `Acceptance criteria` and `Blocked by` sections on a `bug` ticket; something
+# to build goes through `ticket.yml` instead.
+name: Bug
+description: Something broken, written so an agent can see it fail before fixing it.
+labels: [bug, needs-triage]
+body:
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What's wrong
+      description: What happens, what should happen instead, and how to see it. Paste screenshots here; GitHub uploads them.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: What to fix
+      description: The change, and the cause when it is known. Behaviour, not a list of files.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: One checkbox each. The first is usually that the reproduction above no longer fails.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: blocked
+    attributes:
+      label: Blocked by
+      description: The issues that must close first, or "None".
+      value: None (can start immediately)
+    validations:
+      required: true
