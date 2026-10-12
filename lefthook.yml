@@ -37,6 +37,12 @@ pre-commit:
     preview-identifiers:
       glob: "scripts/preview-identifiers*.sh"
       run: bash scripts/preview-identifiers.test.sh
+    # The commit-msg hook below is the only enforcement of the message
+    # conventions, so a wrong rule there lets bad subjects through, or blocks
+    # every commit.
+    check-commit-msg:
+      glob: "scripts/check-commit-msg*.sh"
+      run: bash scripts/check-commit-msg.test.sh
     # The ticket loop's gates decide what an agent builds and merges unattended.
     ticket-lint:
       glob: "scripts/ticket-lint*.sh"

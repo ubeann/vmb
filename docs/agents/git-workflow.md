@@ -34,6 +34,8 @@ docs: add architecture guide and decision records
 
 Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`. The body is a bullet list of _what_ changed; _why_ belongs in the PR body, not the commit.
 
+The subject carries no ticket number. GitHub appends the PR's own `(#n)` when it squashes, and that is the subject's one number; the ticket is linked by `Closes #<n>` in the PR body. A ticket number that must be greppable in `git log` goes in the body as a `Refs: #<n>` footer. The `commit-msg` hook rejects a subject ending in `(#n)`.
+
 ## Commit signing
 
 Respect the contributor's configured commit signing. A contributor's signer may ask them to approve each commit, as a password-manager SSH agent does. Run the normal commit command and allow time for that approval. If signing fails or approval is unavailable, leave the changes uncommitted (and staged if using Git) and report the failure. Use an unsigned commit only when the contributor explicitly authorizes that exception for that commit; do not silently set `commit.gpgsign=false` or use `--no-gpg-sign`.
@@ -78,7 +80,7 @@ For a manual stack made in linked worktrees, merge bottom-up with the same merge
 `lefthook` (pinned in `.mise.toml`, config in `lefthook.yml`) runs local checks for fast feedback:
 
 - **`pre-commit`**, on staged files: `prettier --write` (auto-fixes and re-stages), `eslint` on the file's own package, `shellcheck` on `scripts/**/*.sh`, `actionlint` when a workflow changes, and the preview identifier tests when `scripts/preview-identifiers*.sh` changes.
-- **`commit-msg`**: a Conventional Commits subject, and the shape of the `Co-Authored-By` trailer when one is present.
+- **`commit-msg`**: a Conventional Commits subject with no trailing `(#n)`, and the `Co-Authored-By` trailers' shape, addresses and `vmb-agent` line when a model is credited. `scripts/check-commit-msg.test.sh` pins its cases.
 
 `mise install` installs the hooks; run `lefthook install` by hand if you cloned before they existed, or after `but setup` (which installs its own `pre-commit`/`post-checkout` wrappers and can displace them — see gitbutler#12748).
 
@@ -101,6 +103,6 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Co-Authored-By: vmb-agent <341066383+vmb-agent@users.noreply.github.com>
 ```
 
-One line per model that worked on the commit, and the `vmb-agent` line once. The `commit-msg` hook checks every trailer's shape and address.
+One line per model that worked on the commit, and the `vmb-agent` line once. The `commit-msg` hook checks every trailer's shape and address, and rejects a model's trailer with no `vmb-agent` line beside it.
 
 The `commit-msg` hook rejects an address missing from `scripts/ai-coauthors.txt`. A model without an address yet gets one through the resolution order in `model-routing.md`.
