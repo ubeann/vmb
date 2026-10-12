@@ -77,4 +77,4 @@ Built by #348 (rules 1–3 and 6) and #349 (rules 4 and 5). How a record opens o
 
   The second line carries what folded, the most useful first. In the list kit this replaces ADR-0035 rule 5's horizontal scroll, which stays for tables outside the kit.
 
-- **Room on tablets (new).** Between 640 and 1023px, the page padding is 16px instead of 24px, and the sidebar starts as its icon rail. The rail is the default, not an override: a user's saved choice (the sidebar cookie) still wins. At 768px the list card grows from 456 to 656px, enough for a real table instead of two-line rows.
+- **Room on tablets (new).** Between 640 and 1023px, the page padding is 16px instead of 24px, and the sidebar starts as its icon rail. The rail is the default, not an override: a user's saved choice (the sidebar cookie) still wins. The server can't know the width, so it renders the sidebar open and flags it; a media query in `app.css` paints the flagged one as the rail from the first frame (no pre-paint script), and mounting takes the real state without a visible change. At 768px the list card grows from 456 to 656px, enough for a real table instead of two-line rows.

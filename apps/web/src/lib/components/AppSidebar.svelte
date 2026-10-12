@@ -27,10 +27,21 @@
   import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
   import PanelLeftOpen from "@lucide/svelte/icons/panel-left-open";
   import X from "@lucide/svelte/icons/x";
-  import type { Snippet } from "svelte";
+  import { onMount, type Snippet } from "svelte";
   import { prefersReducedMotion } from "svelte/motion";
 
-  let { children }: { children: Snippet } = $props();
+  let {
+    railDefault = false,
+    children
+  }: {
+    /**
+     * Whether the sidebar's state is only the default, with no saved choice and no toggle yet.
+     * On a tablet the default is the rail, which the server can't know: it renders the sidebar
+     * open and flags it here, and app.css paints the flagged one as the rail from the first frame.
+     */
+    railDefault?: boolean;
+    children: Snippet;
+  } = $props();
 
   const sidebar = Sidebar.useSidebar();
 
@@ -53,8 +64,15 @@
   // the start (`data-closing`, which app.css reads). Expanding needs none of it.
   const narrow = $derived(sidebar.state === "collapsed" && !peeking);
   let closing = $state(false);
+  // The tablet default is taken as the page comes up, and needs no slide: it was already
+  // painted as the rail. A peek closing, the user's own collapse and a later resize still slide.
+  let comingUp = true;
+  onMount(() => {
+    const done = setTimeout(() => (comingUp = false));
+    return () => clearTimeout(done);
+  });
   $effect(() => {
-    if (!narrow || prefersReducedMotion.current) {
+    if (!narrow || (railDefault && comingUp) || prefersReducedMotion.current) {
       closing = false;
       return;
     }
@@ -118,10 +136,10 @@
        rail), so the mark never swings across the panel while it narrows. -->
   <a
     href={resolve("/")}
-    class="focus-visible:ring-sidebar-ring flex h-10 items-center rounded-md pr-2 pl-4 transition-[padding] duration-(--duration-panel) ease-(--easing-standard) group-data-[collapsible=icon]:pr-0 group-data-[collapsible=icon]:pl-[5px] group-data-[collapsible=icon]:duration-(--duration-exit) focus-visible:ring-2 focus-visible:outline-none"
+    class="focus-visible:ring-sidebar-ring rail:pr-0 rail:pl-[5px] rail:duration-(--duration-exit) flex h-10 items-center rounded-md pr-2 pl-4 transition-[padding] duration-(--duration-panel) ease-(--easing-standard) focus-visible:ring-2 focus-visible:outline-none"
   >
     <VmbLogo
-      class="h-8 transition-[height] duration-(--duration-panel) ease-(--easing-standard) group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:duration-(--duration-exit)"
+      class="rail:h-6 rail:duration-(--duration-exit) h-8 transition-[height] duration-(--duration-panel) ease-(--easing-standard)"
       title="VMB, go to the dashboard"
     />
   </a>
@@ -162,6 +180,7 @@
     class="group peer text-sidebar-foreground hidden md:block"
     data-state={sidebar.state}
     data-collapsible={narrow ? "icon" : ""}
+    data-rail-default={railDefault}
     data-variant="inset"
     data-side="left"
     data-slot="sidebar"
@@ -169,7 +188,7 @@
     <!-- Holds the page's place; it follows the saved state, never the peek. -->
     <div
       data-slot="sidebar-gap"
-      class="relative w-(--sidebar-width) bg-transparent transition-[width] duration-(--duration-panel) ease-(--easing-standard) group-data-[state=collapsed]:w-[calc(var(--sidebar-width-icon)+--spacing(4))] group-data-[state=collapsed]:duration-(--duration-exit)"
+      class="folded:w-[calc(var(--sidebar-width-icon)+--spacing(4))] folded:duration-(--duration-exit) relative w-(--sidebar-width) bg-transparent transition-[width] duration-(--duration-panel) ease-(--easing-standard)"
     ></div>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
@@ -178,7 +197,7 @@
       data-peek={peeking}
       data-narrow={narrow}
       data-closing={closing}
-      class="fixed inset-y-0 start-0 z-30 hidden h-svh w-(--sidebar-width) p-2 transition-[width] duration-(--duration-panel) ease-(--easing-standard) data-[narrow=true]:w-[calc(var(--sidebar-width-icon)+--spacing(4)+2px)] data-[narrow=true]:duration-(--duration-exit) md:flex"
+      class="rail:w-[calc(var(--sidebar-width-icon)+--spacing(4)+2px)] rail:duration-(--duration-exit) fixed inset-y-0 start-0 z-30 hidden h-svh w-(--sidebar-width) p-2 transition-[width] duration-(--duration-panel) ease-(--easing-standard) md:flex"
       onpointerenter={enter}
       onpointerleave={leave}
       onfocusin={focusIn}
@@ -212,7 +231,7 @@
                 {#if shortcuts.singleKey}
                   <kbd
                     aria-hidden="true"
-                    class="border-sidebar-border text-muted-foreground ml-auto rounded border px-1.5 font-mono text-[0.7rem] group-data-[collapsible=icon]:hidden"
+                    class="border-sidebar-border text-muted-foreground rail:hidden ml-auto rounded border px-1.5 font-mono text-[0.7rem]"
                     >?</kbd
                   >
                 {/if}
@@ -226,11 +245,10 @@
                 aria-keyshortcuts="Control+B Meta+B"
                 onclick={toggle}
               >
-                {#if sidebar.open}
-                  <PanelLeftClose aria-hidden="true" />
-                {:else}
-                  <PanelLeftOpen aria-hidden="true" />
-                {/if}
+                <!-- Both, shown by look: on a tablet's default the server-rendered sidebar is
+                     open by state and the rail by look, and the icon must not swap on mount. -->
+                <PanelLeftClose aria-hidden="true" class="folded:hidden" />
+                <PanelLeftOpen aria-hidden="true" class="folded:block hidden" />
                 <span>{sidebar.open ? "Collapse" : "Expand"}</span>
               </Sidebar.MenuButton>
             </Sidebar.MenuItem>
