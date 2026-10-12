@@ -45,3 +45,13 @@ Built by the list-kit revision ticket, as the kit's layer component; #302's reco
 - **Measuring room at run time.** Rules 2 and 3 read the panel's position instead of a breakpoint, which is harder to reason about from the CSS alone. A breakpoint was wrong by the sidebar's width at the same screen size.
 - **Waiting before a handover.** For 200ms after a resize the old layer stays. A drag across 640px hands over once instead of flickering, and the squeeze in the context can't happen.
 - **Closing loses a half-picked range.** Someone who closes the panel by accident picks the days again. Reopening mid-step at another screen size was the worse failure.
+
+**Amendment (2026-10-13): Reset, the title's icon and the backdrop.** From the list kit's second prototype round ([parity sheet](../design/list-kit-round-2/parity.md)).
+
+- **Rule 4, Reset.** In the sheet and dialog, Reset is always a ghost button in the footer beside the main action: View's beside Done, as Filter's is beside "Show 12 divisions". By the title it sat next to ×, where a tap meant for × undid the sort and page size, and the two sheets of one list differed. On the panel it stays a quiet link by the title.
+  - Tried: Reset leading the header with the title centred ("Reset · View · ×"). It puts Reset in the corner hardest to reach on a phone, and the sheets still differ.
+- **The title's icon (new).** In the sheet and dialog, the top level's title follows the icon of the button that opened it (Filter's, View's): muted, `size-5`, decorative. On a phone the toolbar's buttons are icons alone, so the icon ties the layer to the button the user pressed. A step's title keeps its back arrow and no icon. The panel, which opens under its button, has none.
+  - Tried: the icon on a green tile. Green means a filter in use (ADR-0051 rule 5), and a tile reads as a record's identity, as on the list's rows.
+- **The backdrop (new).** Behind a sheet or dialog, every dialog in the app and not only the layers, the page is dimmed with no blur: black at 40% in light mode, the navy at 45% in dark (`--scrim`, ADR-0036's 2026-10-13 amendment). The registry's 10% black over a 4px blur barely parted the white sheet from a light page.
+  - Tried: a frosted glass sheet over a clear backdrop. Behind small muted text the list keeps moving, so the text's contrast varies; a 40px blur over a sliding sheet is heavy for mid-range phones; and glass isn't the etched navy-and-green look.
+  - Tried: the navy in light mode too. It tinted the warm page blue, where black only dims it.
