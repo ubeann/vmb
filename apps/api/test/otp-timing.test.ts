@@ -83,10 +83,12 @@ it.skipIf(!databaseUrl)(
           );
           for (const kind of order) {
             const email = kinds[kind];
-            // Each sample starts with a fresh request, before expiry/attempt limits.
+            // Each sample starts with a fresh request, before expiry/attempt limits,
+            // and before the hourly per-email request limit (#252) can answer 429.
             await db.execute(
               sql`delete from verification where identifier = ${`forget-password-otp-${email}`}`
             );
+            await db.execute(sql`delete from rate_limit where key like 'code-request:%'`);
             if (path !== "request-password-reset")
               expect((await call("request-password-reset", email)).status).toBe(200);
             const result = await call(path, email);
