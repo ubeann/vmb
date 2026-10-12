@@ -1045,9 +1045,13 @@ describe("edits over a newer save", () => {
         store.updateDivision(loaded.id, editing(loaded, division({ name: "Hub 2", code: "HUB" })))
       ).resolves.toMatchObject({ name: "Hub 2" });
 
-      // one millisecond off is a different version
-      const off = new Date(Date.parse(loaded.updatedAt ?? "") + 1).toISOString();
+      // one millisecond off is a different version. The millisecond before the
+      // current stamp, not the one after the loaded one: `nextStamp` writes
+      // `greatest(now(), updated_at + 1 ms)`, so a save landing within a
+      // millisecond of the insert reissues exactly `loaded + 1 ms`. Stamps only
+      // move forward, so no write can land on the millisecond before the current.
       const current = await store.getDivision(loaded.id);
+      const off = new Date(Date.parse(current.updatedAt ?? "") - 1).toISOString();
       expect(current.updatedAt).not.toBe(off);
       await expect(
         store.updateDivision(loaded.id, { ...division(), updatedAt: off })
