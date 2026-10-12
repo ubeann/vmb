@@ -24,7 +24,10 @@
     I: "afterPanel",
     J: "afterPanel",
     K: "afterPanel",
-    L: "afterPanel"
+    L: "afterPanel",
+    M: "afterPanel",
+    N: "afterPanel",
+    O: "afterPanel"
   } as const;
   const footerAt = $derived(
     FOOTER[page.url.searchParams.get("variant") as keyof typeof FOOTER] ?? "pinned"
@@ -38,7 +41,10 @@
     I: "bare",
     J: "bare",
     K: "bare",
-    L: "bare"
+    L: "bare",
+    M: "bare",
+    N: "bare",
+    O: "bare"
   } as const;
   const crumbs = $derived(
     CRUMBS[page.url.searchParams.get("variant") as keyof typeof CRUMBS] ?? "bar"

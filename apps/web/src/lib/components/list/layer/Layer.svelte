@@ -378,7 +378,18 @@
 <!-- the sheet under 480px, the dialog from 480 to 639px -->
 <Dialog.Root open={open && frame === "modal" && ready} onOpenChange={(next) => !next && close()}>
   <Dialog.Portal>
-    <DialogOverlay />
+    <!-- PROTOTYPE (round 6): the logo navy as a scrim, a clear one under glass, or a navy tint
+         over a 2px blur; `today` keeps shadcn's -->
+    <DialogOverlay
+      class={cn(
+        layerPrototype.backdrop === "scrim" &&
+          "bg-[oklch(0.2_0.08_268/0.45)] supports-backdrop-filter:backdrop-blur-none",
+        layerPrototype.backdrop === "glass" &&
+          "bg-[oklch(0.2_0.08_268/0.08)] supports-backdrop-filter:backdrop-blur-none",
+        layerPrototype.backdrop === "tint" &&
+          "bg-[oklch(0.2_0.08_268/0.3)] supports-backdrop-filter:backdrop-blur-[2px]"
+      )}
+    />
     <Dialog.Content
       bind:ref={sheet}
       data-layer-frame="modal"
@@ -386,7 +397,10 @@
       class={cn(
         "bg-popover text-popover-foreground ring-foreground/10 fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85svh] w-full max-w-[26rem] flex-col rounded-t-xl text-sm shadow-lg ring-1 outline-none",
         "data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-10 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-10 duration-200",
-        "min-[480px]:data-open:slide-in-from-bottom-4 min-[480px]:data-closed:slide-out-to-bottom-4 min-[480px]:top-1/2 min-[480px]:bottom-auto min-[480px]:max-h-[min(85svh,44rem)] min-[480px]:-translate-y-1/2 min-[480px]:rounded-2xl"
+        "min-[480px]:data-open:slide-in-from-bottom-4 min-[480px]:data-closed:slide-out-to-bottom-4 min-[480px]:top-1/2 min-[480px]:bottom-auto min-[480px]:max-h-[min(85svh,44rem)] min-[480px]:-translate-y-1/2 min-[480px]:rounded-2xl",
+        // PROTOTYPE (round 6): a frosted sheet that shows the list through it
+        layerPrototype.backdrop === "glass" &&
+          "bg-popover/60 shadow-2xl ring-white/50 backdrop-blur-2xl backdrop-saturate-150 dark:ring-white/15"
       )}
       onOpenAutoFocus={(event: Event) => {
         event.preventDefault();

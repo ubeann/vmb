@@ -25,12 +25,22 @@
     { key: "I", name: "H, View sheet: Reset beside Done, as Filter's" },
     { key: "J", name: "H, View sheet: Reset · View · ×" },
     { key: "K", name: "I + the button's icon before the sheet's title" },
-    { key: "L", name: "I + the button's icon in a tile before the title" }
+    { key: "L", name: "I + the button's icon in a tile before the title" },
+    { key: "M", name: "K + a navy scrim, no blur" },
+    { key: "N", name: "K + a glass sheet over a clear backdrop" },
+    { key: "O", name: "K + a navy tint over a soft blur" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
   // round 5: K and L give the sheet and dialog title the button's icon
   $effect.pre(() => {
-    layerPrototype.titleIcon = variant === "K" ? "plain" : variant === "L" ? "tile" : "none";
+    layerPrototype.titleIcon = ["K", "M", "N", "O"].includes(variant)
+      ? "plain"
+      : variant === "L"
+        ? "tile"
+        : "none";
+    // round 6: M to O try the backdrop behind the sheet and dialog
+    layerPrototype.backdrop =
+      variant === "M" ? "scrim" : variant === "N" ? "glass" : variant === "O" ? "tint" : "today";
   });
 </script>
 
@@ -38,7 +48,7 @@
   <title>Divisions prototype {variant} — VMB</title>
 </svelte:head>
 
-{#if variant === "I" || variant === "K" || variant === "L"}
+{#if ["I", "K", "L", "M", "N", "O"].includes(variant)}
   <VariantA {data} wholeCount viewResetAt="footer" />
 {:else if variant === "J"}
   <VariantA {data} wholeCount viewResetAt="start" />
