@@ -10,6 +10,49 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * The sidebar's looks (AppSidebar, ADR-0050 "Room on tablets"). A tablet with nothing saved
+ * starts on the icon rail, but the server can't know the screen's width, so it renders the
+ * sidebar open and flags it `data-rail-default`; this media query makes that unsaved, still
+ * open sidebar look like the rail from the first frame. Once the page is up, the sidebar's own
+ * state is `collapsed` and these variants follow the real attributes again, so taking the rail
+ * state changes nothing on screen. `:where()` keeps the flag's selector as light as the
+ * `group-data-*` ones these stand in for. The range is in px, like AppShell's `tablet` query it must agree with (a rem range would drift with the browser's font size), and the label rule near `data-closing` below repeats it.
+ *   `rail:`        what `group-data-[collapsible=icon]:` styles: collapsed and not peeking
+ *   `folded:`      what `group-data-[state=collapsed]:` styles: collapsed, peeking or not
+ *   `peer-folded:` the same, for a sibling of the sidebar
+ */
+@custom-variant rail {
+  &:is(:where(.group)[data-collapsible="icon"] *) {
+    @slot;
+  }
+  @media (min-width: 640px) and (max-width: 1023.98px) {
+    &:is(:where(.group[data-state="expanded"])[data-rail-default="true"] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant folded {
+  &:is(:where(.group)[data-state="collapsed"] *) {
+    @slot;
+  }
+  @media (min-width: 640px) and (max-width: 1023.98px) {
+    &:is(:where(.group[data-state="expanded"])[data-rail-default="true"] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant peer-folded {
+  &:is(:where(.peer)[data-state="collapsed"] ~ *) {
+    @slot;
+  }
+  @media (min-width: 640px) and (max-width: 1023.98px) {
+    &:is(:where(.peer[data-state="expanded"])[data-rail-default="true"] ~ *) {
+      @slot;
+    }
+  }
+}
+
+/*
  * Semantic tokens (ADR-0035, palette per ADR-0036). Navy ink and the logo's
  * green on warm paper; values checked against WCAG 2.2 AA — see ADR-0036 for
  * the measured pairs.
@@ -445,6 +488,15 @@
     > span:last-child {
     opacity: 0;
     transition-duration: var(--duration-exit);
+  }
+  /* The tablet default before the page is up: open by state, the rail by look (`rail:`, above). */
+  @media (min-width: 640px) and (max-width: 1023.98px) {
+    [data-slot="sidebar"][data-state="expanded"][data-rail-default="true"]
+      [data-slot="sidebar-menu-button"]
+      > span:last-child {
+      opacity: 0;
+      transition-duration: var(--duration-exit);
+    }
   }
 
   /* The registry's menu items are `cursor-default`. Ours are clickable like any

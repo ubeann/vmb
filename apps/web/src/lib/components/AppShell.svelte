@@ -19,7 +19,9 @@
   a sidebar nobody has toggled (`sidebarSaved` false: no cookie) starts as its icon
   rail. The rail is the default, not an override: the first toggle saves the
   user's own choice, and a saved one is never second-guessed. The default is
-  applied once the page is up, so the server-rendered page and its hydration agree.
+  applied once the page is up, so the server-rendered page and its hydration agree; until
+  then the server's open sidebar is flagged (`AppSidebar`'s `railDefault`) and app.css paints
+  it as the rail from the first frame, so nothing slides when the default is taken.
 -->
 <script lang="ts">
   import { afterNavigate } from "$app/navigation";
@@ -98,7 +100,7 @@
   onOpenChange={(next) => (chosen = next)}
   class="[--header-height:3.5rem] sm:[--header-height:4rem] md:[--header-height:4.5rem]"
 >
-  <AppSidebar>
+  <AppSidebar railDefault={!sidebarSaved && chosen === null}>
     <nav aria-label="Main" class="flex flex-col gap-2">
       {#each groups as group (group.label)}
         <Sidebar.Group>
@@ -108,7 +110,7 @@
               {#each group.items as item (item.href)}
                 {@const current = isCurrent(page.url.pathname, item.href)}
                 {@const Icon = NAV_ICONS[item.icon]}
-                <Sidebar.MenuItem class="transition-[padding] group-data-[collapsible=icon]:py-1">
+                <Sidebar.MenuItem class="rail:py-1 transition-[padding]">
                   <Sidebar.MenuButton
                     isActive={current}
                     class="data-[active=true]:bg-sidebar-primary/15 dark:data-[active=true]:bg-sidebar-accent h-10 pointer-coarse:h-11"
@@ -134,7 +136,7 @@
   </AppSidebar>
 
   <div
-    class="flex min-w-0 flex-1 flex-col md:h-svh md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-data-[state=collapsed]:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit)"
+    class="md:peer-folded:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-folded:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit) flex min-w-0 flex-1 flex-col md:h-svh"
   >
     <header
       data-scrolled={scrollY > 0}

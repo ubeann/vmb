@@ -785,6 +785,113 @@ describe("AppShell", () => {
     });
   });
 
+  // The server can't know a tablet's width, so it renders the unsaved sidebar open and flagged
+  // (`data-rail-default`); app.css must paint that as the rail before the page is up, so taking
+  // the default after mount changes nothing on screen.
+  describe("the tablet default on first paint", () => {
+    const sidebar = () => document.querySelector<HTMLElement>("[data-slot='sidebar']")!;
+    const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+    const look = () => {
+      const label = document.querySelector<HTMLElement>(
+        "[data-slot='sidebar-menu-button'] > span:last-child"
+      )!;
+      const button = document.querySelector<HTMLElement>("[data-slot='sidebar-menu-button']")!;
+      return {
+        container: rect("[data-slot='sidebar-container']").width,
+        gap: rect("[data-slot='sidebar-gap']").width,
+        panelLeft: rect("#main-content").left,
+        button: button.getBoundingClientRect().width,
+        label: getComputedStyle(label).opacity,
+        logo: rect("[data-slot='sidebar-container'] svg").height,
+        groupLabel: getComputedStyle(document.querySelector("[data-slot='sidebar-group-label']")!)
+          .opacity
+      };
+    };
+    // What the server sent: the sidebar open by state, with nothing of the client's yet.
+    const asServerRendered = () => {
+      const root = sidebar();
+      root.dataset.state = "expanded";
+      root.dataset.collapsible = "";
+      root.querySelector<HTMLElement>("[data-slot='sidebar-container']")!.dataset.narrow = "false";
+    };
+    const still = () => {
+      const style = document.createElement("style");
+      style.textContent = "*, *::before, *::after { transition: none !important; }";
+      document.head.append(style);
+      return style;
+    };
+
+    it("flags the default only while nothing is saved or chosen", async () => {
+      await browser.viewport(768, 900);
+      const saved = await render(AppShell, props({ sidebarSaved: true, sidebarOpen: true }));
+      expect(sidebar().dataset.railDefault).toBe("false");
+      saved.unmount();
+
+      const unsaved = await render(AppShell, props({ sidebarSaved: false }));
+      expect(sidebar().dataset.railDefault).toBe("true");
+      await unsaved.getByRole("button", { name: "Expand sidebar" }).click();
+      await expect.poll(() => sidebar().dataset.railDefault).toBe("false");
+    });
+
+    it("looks like the rail before the page is up, and the same after it takes the rail", async () => {
+      const style = still();
+      try {
+        for (const [width, height] of [
+          [768, 1024],
+          [1023, 768]
+        ] as const) {
+          await browser.viewport(width, height);
+          const screen = await render(AppShell, props({ sidebarSaved: false }));
+          try {
+            await expect
+              .poll(() => sidebar().dataset.state, { message: `${width}px` })
+              .toBe("collapsed");
+            const taken = look();
+            expect(taken.container, `${width}px`).toBeLessThan(80);
+            // the page keeps its 8px beside the rail (`peer-folded:`), not flush against it
+            expect(taken.panelLeft - taken.gap, `${width}px`).toBe(8);
+
+            asServerRendered();
+            expect(sidebar().dataset.state).toBe("expanded");
+            expect(look(), `${width}px`).toEqual(taken);
+          } finally {
+            screen.unmount();
+          }
+        }
+      } finally {
+        style.remove();
+      }
+    });
+
+    it("keeps the icon of the state it will take: Expand on the rail, never Collapse", async () => {
+      await browser.viewport(768, 900);
+      await render(AppShell, props({ sidebarSaved: false }));
+      asServerRendered();
+      const icons = [...document.querySelectorAll("[data-slot='sidebar-footer'] svg")].filter(
+        (icon) => icon.getClientRects().length
+      );
+      const names = icons.map((icon) => icon.getAttribute("class") ?? "");
+      expect(names.some((name) => name.includes("panel-left-open"))).toBe(true);
+      expect(names.some((name) => name.includes("panel-left-close"))).toBe(false);
+    });
+
+    it("does not apply from 1024px: the unsaved sidebar stays open", async () => {
+      await browser.viewport(1100, 900);
+      await render(AppShell, props({ sidebarSaved: false }));
+      const open = look();
+      asServerRendered();
+      expect(look()).toEqual(open);
+      expect(open.container).toBeGreaterThan(200);
+    });
+
+    it("is not applied to a saved open sidebar on a tablet", async () => {
+      await browser.viewport(768, 900);
+      await render(AppShell, props({ sidebarSaved: true, sidebarOpen: true }));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(look().container).toBeGreaterThan(200);
+    });
+  });
+
   describe("peeking at the collapsed rail", () => {
     const container = () => document.querySelector<HTMLElement>("[data-slot='sidebar-container']")!;
     const gap = () => document.querySelector<HTMLElement>("[data-slot='sidebar-gap']")!;
