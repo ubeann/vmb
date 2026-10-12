@@ -1418,7 +1418,7 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
       });
     });
 
-    it("keeps a Trashed division's roles and their holders, and drops it from where they belong until restored", async () => {
+    it("keeps the roles of a division Trashed before the refusal, and their holders, and drops it from where they belong until restored", async () => {
       await withMigratedDb(async (db, client) => {
         const store = storeFor(db);
         const hub = await store.createDivision(division());
@@ -1431,7 +1431,8 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
           permissions: ["master-users.view_any"]
         });
 
-        await store.deleteDivision(hub.id);
+        // a division Trashed before it was refused while it had roles (#406): its roles stay attached
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
 
         // nothing cascades: the role stays scoped to the Trashed division and its holder keeps it
         await expect(store.getRole(staff)).resolves.toMatchObject({ divisionId: hub.id });
@@ -1446,6 +1447,139 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
         await store.restoreDivision(hub.id);
         await expect(store.getAccess(rina.id)).resolves.toMatchObject({
           divisions: [{ id: hub.id }]
+        });
+      });
+    });
+  });
+
+  describe("deleting a division that still has roles (#406)", () => {
+    const refusal = (roles: number) => ({
+      code: "DIVISION_IN_USE",
+      message:
+        roles === 1
+          ? "1 role belongs to this division. Move it to another division or delete it first."
+          : `${roles} roles belong to this division. Move them to another division or delete them first.`
+    });
+
+    it("refuses while any role belongs to it, names the count and changes nothing", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const first = await insertRole(client, "Dispatcher", hub.id);
+
+        await expect(store.deleteDivision(hub.id)).rejects.toMatchObject(refusal(1));
+        await insertRole(client, "Driver", hub.id);
+        await expect(store.deleteDivision(hub.id)).rejects.toMatchObject(refusal(2));
+
+        // the row, its stamp and its roles are as they were
+        await expect(store.getDivision(hub.id)).resolves.toEqual(hub);
+        expect(
+          await count(
+            client,
+            `select count(*)::int as value from master.roles where division_id = '${hub.id}'`
+          )
+        ).toBe(2);
+
+        // roles do not soft-delete, so deleting them is what lets the division go
+        await client.exec(`delete from master.roles where division_id = '${hub.id}'`);
+        await expect(store.deleteDivision(hub.id)).resolves.toBeUndefined();
+        await expect(store.getDivision(hub.id)).resolves.toMatchObject({
+          deletedAt: expect.any(String)
+        });
+        expect(first).toBeTruthy();
+      });
+    });
+
+    it("lets one go once its roles are moved to another division, and ignores other divisions' roles", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const other = await store.createDivision(division({ name: "Other", code: "OTH" }));
+        const role = await insertRole(client, "Dispatcher", hub.id);
+
+        await expect(store.deleteDivision(other.id)).resolves.toBeUndefined();
+
+        await client.exec(`update master.roles set division_id = null where id = '${role}'`);
+        await expect(store.deleteDivision(hub.id)).resolves.toBeUndefined();
+      });
+    });
+
+    it("answers a missing or already Trashed division with 404, not the refusal", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        await expect(
+          store.deleteDivision("00000000-0000-4000-8000-000000000000")
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+        // a Trashed one that still has roles (Trashed before the rule): it is out of reach, not in use
+        await insertRole(client, "Dispatcher", hub.id);
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
+        await expect(store.deleteDivision(hub.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+      });
+    });
+
+    it("decides inside the delete: one statement, with no read ahead of it", async () => {
+      await withMigratedDb(async (db, client, statements) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        await insertRole(client, "Dispatcher", hub.id);
+        const free = await store.createDivision(division({ name: "Free", code: "FRE" }));
+
+        statements.length = 0;
+        await store.deleteDivision(free.id);
+        expect(statements).toHaveLength(1);
+        expect(statements[0]).toMatch(/^update "master"\."divisions"/);
+        expect(statements[0]).toMatch(/not exists \(select 1 from "master"\."roles"/);
+      });
+    });
+
+    it("settles a role added racing the delete, in either order: the role first refuses the delete", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const outcomes: string[] = [];
+
+        for (const order of ["role first", "delete first"] as const) {
+          const raced = await store.createDivision(
+            division({
+              name: `Raced ${order}`,
+              code: order === "role first" ? "RC1" : "RC2"
+            })
+          );
+          const add = () => insertRole(client, `Role ${order}`, raced.id);
+          const remove = () => store.deleteDivision(raced.id);
+          // both in flight at once, either order: whichever the database runs first, a division
+          // whose role is in before the delete ran is refused and left live
+          const [added, removed] =
+            order === "role first"
+              ? await Promise.allSettled([add(), remove()])
+              : (await Promise.allSettled([remove(), add()])).reverse();
+          const after = await store.getDivision(raced.id);
+
+          expect(added?.status).toBe("fulfilled");
+          if (removed?.status === "fulfilled") {
+            expect(after.deletedAt).not.toBeNull();
+          } else {
+            expect(removed?.reason).toMatchObject({ code: "DIVISION_IN_USE" });
+            expect(after.deletedAt).toBeNull();
+          }
+          outcomes.push(removed?.status ?? "none");
+        }
+        // sent first, the role is what the delete meets
+        expect(outcomes[0]).toBe("rejected");
+      });
+    });
+
+    it("still restores a Trashed division that has roles", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        await insertRole(client, "Dispatcher", hub.id);
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
+
+        await expect(store.restoreDivision(hub.id)).resolves.toMatchObject({
+          id: hub.id,
+          deletedAt: null
         });
       });
     });

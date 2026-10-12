@@ -748,6 +748,68 @@ describe("divisions list", () => {
     await expect.element(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
   });
 
+  it("keeps the dialog open and says what to do when the Division still has roles", async () => {
+    const message =
+      "3 roles belong to this division. Move them to another division or delete them first.";
+    deleteResult = {
+      type: "failure",
+      status: 409,
+      data: { error: message, code: "DIVISION_IN_USE" }
+    };
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    await screen.getByRole("menuitem", { name: "Delete…" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Delete Operations?" });
+    await dialog.getByRole("button", { name: "Delete" }).click();
+
+    // the refusal is in the dialog, in words, with the way to the Roles list, and not a toast
+    await expect.element(dialog.getByRole("alert")).toBeVisible();
+    expect(dialog.getByRole("alert").element().textContent).toContain(message);
+    await expect
+      .element(dialog.getByRole("link", { name: "Go to Roles" }))
+      .toHaveAttribute("href", "/master/roles");
+    await expect.element(dialog).toBeVisible();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(invalidateAll).not.toHaveBeenCalled();
+  });
+
+  it("clears an earlier refusal when the dialog is opened for another Division", async () => {
+    deleteResult = {
+      type: "failure",
+      status: 409,
+      data: { error: "1 role belongs to this division.", code: "DIVISION_IN_USE" }
+    };
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    await screen.getByRole("menuitem", { name: "Delete…" }).click();
+    await screen
+      .getByRole("dialog", { name: "Delete Operations?" })
+      .getByRole("button", { name: "Delete" })
+      .click();
+    await expect.element(screen.getByRole("alert")).toBeVisible();
+    await screen.getByRole("button", { name: "Cancel" }).click();
+
+    await screen.getByRole("button", { name: "Actions for Retired" }).click();
+    await screen.getByRole("menuitem", { name: "Delete…" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "Delete Retired?" })).toBeVisible();
+    expect(screen.getByRole("alert").elements()).toHaveLength(0);
+  });
+
+  it("still toasts a delete that failed for another reason", async () => {
+    deleteResult = { type: "failure", status: 500, data: { error: "Something went wrong." } };
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("button", { name: "Actions for Operations" }).click();
+    await screen.getByRole("menuitem", { name: "Delete…" }).click();
+    await screen.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Something went wrong."));
+    expect(screen.getByRole("alert").elements()).toHaveLength(0);
+  });
+
   it("moves a deleted Division to the Trash and offers to undo it from the toast", async () => {
     deleteResult = { type: "success", status: 200, data: { ok: true } };
     const fetch = vi
