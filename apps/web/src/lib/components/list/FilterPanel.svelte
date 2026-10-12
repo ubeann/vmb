@@ -8,7 +8,9 @@
   where it doesn't, the custom range a step of its own again so no step
   scrolls on a phone. A choice applies at once, as a link to the list with the
   parameter changed, and the panel stays open. In the sheet and the dialog a
-  footer action names the rows shown and closes it; the panel has none. Reset clears the filters and keeps the search.
+  footer action names the rows shown and closes it, with Reset beside it; the
+  panel has no footer, its Reset a quiet link by the title. Reset clears the
+  filters and keeps the search.
 -->
 <script lang="ts">
   import { goto } from "$app/navigation";
@@ -208,7 +210,7 @@
       <button
         type="button"
         data-slot="layer-reset"
-        class={LAYER_RESET}
+        class={cn(LAYER_RESET, "in-data-[layer-frame=modal]:hidden")}
         data-layer-reset
         onclick={reset}>Reset</button
       >
@@ -282,8 +284,16 @@
         {/if}
       {/each}
     </LayerBody>
-    <!-- only closes the layer: the sheet and dialog have it, the panel does not (ADR-0053 rule 4) -->
+    <!-- only closes the layer: the sheet and dialog have it, the panel does not (ADR-0053 rule 4); Reset sits beside it there -->
     <LayerFooter modalOnly>
+      {#if inUse > 0}
+        <Button
+          type="button"
+          variant="ghost"
+          class="in-data-[layer-frame=modal]:h-11"
+          onclick={reset}>Reset</Button
+        >
+      {/if}
       <LayerAction
         label={shown === null ? "Done" : `Show ${shown} ${nounFor(noun, shown)}`}
         icon={ListFilterIcon}

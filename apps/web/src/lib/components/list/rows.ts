@@ -28,9 +28,12 @@ export const ROW_ACTION_CLASS =
 export const ROW_MENU_TRIGGER_CLASS =
   "data-[state=open]:bg-background data-[state=open]:ring-ring/50 data-[state=open]:ring-[3px]";
 
-/** Menu items carry a muted icon, except the destructive one. */
+/**
+ * Menu items carry a muted icon, except the destructive one. The menu box takes no
+ * focus ring when it opens from the keyboard: the focused item shows it.
+ */
 export const ROW_MENU_CLASS =
-  "[&_[data-slot=dropdown-menu-item]:not([data-variant=destructive])_svg]:text-muted-foreground w-48";
+  "[&_[data-slot=dropdown-menu-item]:not([data-variant=destructive])_svg]:text-muted-foreground w-48 outline-none";
 
 /**
  * What a row folds to as its card narrows (ADR-0051 rules 7 and 11). The lines

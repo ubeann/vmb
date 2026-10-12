@@ -257,6 +257,73 @@ describe("the action that only closes the layer", () => {
   });
 });
 
+// What docs/design/list-kit/parity.md pins for this layer (#409).
+describe("the Filter layer's measures", () => {
+  const size = (element: Element) => {
+    const { width, height } = element.getBoundingClientRect();
+    return [Math.round(width), Math.round(height)];
+  };
+  const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize);
+
+  it("is 20rem wide where its picker fits beside it, 22rem where it doesn't, with 32px option rows and 36px date rows", async () => {
+    await browser.viewport(1440, 900);
+    const wide = await toolbar();
+    await openPanel(wide);
+    // offsetWidth, as the panel is still zooming in and a bounding box shrinks with it
+    expect((layer() as HTMLElement).offsetWidth).toBe(20 * rem());
+    const option = wide
+      .getByRole("checkbox", { name: /^Active/ })
+      .element()
+      .closest("label")!;
+    expect(size(option)[1]).toBe(32);
+    expect(size(row("Updated"))[1]).toBe(36);
+    await userEvent.keyboard("{Escape}");
+    await expect.poll(() => find("[data-layer-frame]")).toBeNull();
+    wide.unmount();
+
+    await browser.viewport(768, 900);
+    const narrow = await toolbar();
+    await openPanel(narrow);
+    expect((layer() as HTMLElement).offsetWidth).toBe(22 * rem());
+  });
+
+  it("keeps Reset a link by the title on the panel, and moves it beside the main action in the sheet and dialog", async () => {
+    await browser.viewport(1440, 900);
+    const panel = await toolbar("?status=active");
+    await openPanel(panel);
+    const link = panel.getByRole("button", { name: "Reset" }).element();
+    expect(link.closest("[data-layer-frame]")).toBe(layer());
+    expect(link.getAttribute("data-slot")).toBe("layer-reset");
+    await userEvent.keyboard("{Escape}");
+    await expect.poll(() => find("[data-layer-frame]")).toBeNull();
+    panel.unmount();
+
+    for (const width of [390, 560]) {
+      await browser.viewport(width, 844);
+      const modal = await toolbar("?status=active&search=ops");
+      await openPanel(modal);
+      expect(layer().dataset.layerFrame).toBe("modal");
+      const reset = modal.getByRole("button", { name: "Reset" });
+      const show = modal.getByRole("button", { name: "Show 12 divisions" });
+      // one Reset, in the footer with the action it sits beside, not up by the title
+      expect(modal.getByRole("button", { name: "Reset" }).elements()).toHaveLength(1);
+      expect(reset.element().parentElement).toBe(show.element().parentElement);
+      expect(reset.element().getAttribute("data-slot")).toBe("button");
+      expect(show.element().getBoundingClientRect().left).toBeGreaterThan(
+        reset.element().getBoundingClientRect().right
+      );
+      await reset.click();
+      expect(goto).toHaveBeenLastCalledWith(
+        "/master/divisions?search=ops",
+        expect.objectContaining({ noScroll: true })
+      );
+      await userEvent.keyboard("{Escape}");
+      await expect.poll(() => find("[data-layer-frame]")).toBeNull();
+      modal.unmount();
+    }
+  });
+});
+
 describe("a date filter", () => {
   it("is a row showing its value, opening presets with their dates beside the panel", async () => {
     await browser.viewport(1440, 900);

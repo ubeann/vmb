@@ -336,7 +336,7 @@
   {/if}
 {/snippet}
 
-<Page width="default" class="flex flex-col gap-5">
+<Page width="default" class="flex flex-col gap-4">
   <PageHeader title="Divisions" description="Organisational units that group stock and budgets.">
     {#snippet action()}
       {#if can("master-divisions.create")}
@@ -434,7 +434,7 @@
           <EmptyState
             icon={Building2Icon}
             title="No divisions yet"
-            description="Divisions group the company's Roles and Users."
+            description="Divisions group warehouse items and expense budgets."
           >
             {#if can("master-divisions.create")}
               <Button href={resolve("/master/divisions/new")}>

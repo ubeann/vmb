@@ -220,6 +220,7 @@
             {#each hideable as column (column.id)}
               <Label class={cn(row, "cursor-pointer font-normal")}>
                 <Checkbox
+                  variant="kit"
                   checked={columns.visible(column.id)}
                   onCheckedChange={(on) => columns.set(column.id, on)}
                 />{column.label}
