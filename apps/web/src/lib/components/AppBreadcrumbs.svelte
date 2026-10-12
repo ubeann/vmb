@@ -10,7 +10,8 @@
   import * as Breadcrumb from "$lib/components/ui/breadcrumb/index.js";
   import { NAV_ICONS } from "$lib/nav-icons.js";
 
-  let { trail }: { trail: Crumb[] } = $props();
+  // PROTOTYPE (prototype/divisions): `full` keeps every crumb below `md`, for the trail in the page
+  let { trail, full = false }: { trail: Crumb[]; full?: boolean } = $props();
 </script>
 
 {#snippet label(crumb: Crumb)}
@@ -32,9 +33,9 @@
   <Breadcrumb.List class="flex-nowrap gap-1.5 sm:gap-2">
     {#each trail as crumb, index (index)}
       {#if index > 0}
-        <Breadcrumb.Separator class="max-md:hidden" />
+        <Breadcrumb.Separator class={full ? "" : "max-md:hidden"} />
       {/if}
-      <Breadcrumb.Item class="min-w-0 gap-1.5 {crumb.section ? '' : 'max-md:hidden'}">
+      <Breadcrumb.Item class="min-w-0 gap-1.5 {crumb.section || full ? '' : 'max-md:hidden'}">
         {#if crumb.current}
           <Breadcrumb.Page
             role={undefined}

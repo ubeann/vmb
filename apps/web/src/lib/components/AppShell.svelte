@@ -34,7 +34,9 @@
   import SidebarToggle from "$lib/components/SidebarToggle.svelte";
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-  import { trailFor } from "$lib/breadcrumbs.js";
+  import { trailFor, type RecordCrumb } from "$lib/breadcrumbs.js";
+  import VmbLogo from "$lib/components/VmbLogo.svelte";
+  import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
   import { isCurrent, NAV_GROUPS, visibleGroups } from "$lib/nav.js";
   import { NAV_ICONS } from "$lib/nav-icons.js";
   import { onMount, type Snippet } from "svelte";
@@ -47,6 +49,9 @@
     sidebarSaved,
     panel = $bindable(null),
     footerAt = "pinned",
+    crumbs = "bar",
+    trailPath,
+    trailRecord,
     children
   }: {
     user: { id: string; name: string; email: string; image?: string | null };
@@ -62,6 +67,15 @@
      * panel; `afterPanel` lets the window scroll, so it follows the panel on the frame.
      */
     footerAt?: "pinned" | "inPanel" | "afterPanel";
+    /**
+     * PROTOTYPE (prototype/divisions): what the bar shows beside the menu button below 48rem.
+     * `bar` is today's (the section's crumb); `back` is the logo on a section's own page and
+     * "‹ Section" below it; `page` is the logo, with the trail above the page's heading.
+     */
+    crumbs?: "bar" | "back" | "page";
+    /** PROTOTYPE: the path and record the trail is read from, for a route outside the nav. */
+    trailPath?: string;
+    trailRecord?: RecordCrumb;
     children: Snippet;
   } = $props();
 
@@ -74,7 +88,12 @@
   onMount(() => (mounted = true));
   const open = $derived(chosen ?? (sidebarSaved ? sidebarOpen : !(mounted && tablet.current)));
 
-  const trail = $derived(trailFor(page.url.pathname, page.data.crumb, groups));
+  const trail = $derived(
+    trailFor(trailPath ?? page.url.pathname, trailRecord ?? page.data.crumb, groups)
+  );
+  // PROTOTYPE: the section a record's page goes back to, and the crumbs above the current one
+  const parent = $derived(trail.find((crumb) => crumb.section && crumb.href));
+  const ancestors = $derived(trail.filter((crumb) => !crumb.current));
 
   // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);
@@ -154,7 +173,27 @@
       class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 px-3 transition-shadow duration-(--duration-panel) ease-(--easing-standard) max-md:border-b max-md:data-[scrolled=true]:shadow-sm sm:px-4"
     >
       <SidebarToggle />
-      <AppBreadcrumbs {trail} />
+      {#if crumbs === "bar"}
+        <AppBreadcrumbs {trail} />
+      {:else}
+        <div class="min-w-0 max-md:hidden"><AppBreadcrumbs {trail} /></div>
+        {#if crumbs === "back" && parent?.href}
+          <a
+            href={resolve(parent.href as "/")}
+            class="focus-visible:ring-ring -ml-1 flex min-w-0 items-center gap-0.5 rounded-md py-2 pr-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none md:hidden"
+          >
+            <ChevronLeftIcon class="size-5 shrink-0" aria-hidden="true" />
+            <span class="truncate">{parent.label}</span>
+          </a>
+        {:else}
+          <a
+            href={resolve("/")}
+            class="focus-visible:ring-ring flex items-center rounded-md focus-visible:ring-2 focus-visible:outline-none md:hidden"
+          >
+            <VmbLogo class="h-7" title="VMB, go to the dashboard" />
+          </a>
+        {/if}
+      {/if}
       <div class="ml-auto shrink-0">
         <ProfileMenu {user} {division} />
       </div>
@@ -178,6 +217,12 @@
         ? ''
         : 'md:min-h-0 md:overflow-y-auto'}"
     >
+      {#if crumbs === "page" && ancestors.length > 0}
+        <!-- PROTOTYPE: the trail above the heading, without the page it names -->
+        <div class="text-muted-foreground mb-2 text-sm md:hidden">
+          <AppBreadcrumbs trail={ancestors} full />
+        </div>
+      {/if}
       {@render children()}
       {#if footerAt === "inPanel"}
         <!-- PROTOTYPE: pushed to the panel's foot on a short page, after the content on a long one -->

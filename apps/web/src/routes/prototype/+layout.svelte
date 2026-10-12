@@ -13,14 +13,39 @@
     image: null
   };
   // which variant moves the footer (the page itself is today's in each)
-  const FOOTER = { B: "inPanel", C: "afterPanel", D: "afterPanel" } as const;
+  const FOOTER = {
+    B: "inPanel",
+    C: "afterPanel",
+    D: "afterPanel",
+    E: "afterPanel",
+    F: "afterPanel"
+  } as const;
   const footerAt = $derived(
     FOOTER[page.url.searchParams.get("variant") as keyof typeof FOOTER] ?? "pinned"
   );
+  // round 3: E and F try the bar below 48rem; `?at=record` reads the trail as a record's page
+  const CRUMBS = { E: "back", F: "page" } as const;
+  const crumbs = $derived(
+    CRUMBS[page.url.searchParams.get("variant") as keyof typeof CRUMBS] ?? "bar"
+  );
+  const atRecord = $derived(page.url.searchParams.get("at") === "record");
 </script>
 
 <Toaster richColors closeButton />
 
-<AppShell {user} division={null} sidebarOpen={true} sidebarSaved={false} {footerAt}>
+<AppShell
+  {user}
+  division={null}
+  sidebarOpen={true}
+  sidebarSaved={false}
+  {footerAt}
+  {crumbs}
+  trailPath={atRecord
+    ? "/master/divisions/00000000-0000-4000-8000-000000000002"
+    : "/master/divisions"}
+  trailRecord={atRecord
+    ? { label: "Finance", tile: { iconName: "heroicon-o-banknotes", colorHex: "#16A34A" } }
+    : undefined}
+>
   {@render children()}
 </AppShell>
