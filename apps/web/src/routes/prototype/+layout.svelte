@@ -13,7 +13,7 @@
     image: null
   };
   // which variant moves the footer (the page itself is today's in each)
-  const FOOTER = { B: "inPanel", C: "afterPanel" } as const;
+  const FOOTER = { B: "inPanel", C: "afterPanel", D: "afterPanel" } as const;
   const footerAt = $derived(
     FOOTER[page.url.searchParams.get("variant") as keyof typeof FOOTER] ?? "pinned"
   );

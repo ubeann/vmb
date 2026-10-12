@@ -75,7 +75,8 @@
   import { toast } from "svelte-sonner";
   import type { PageData } from "./$types.js";
 
-  let { data }: { data: PageData } = $props();
+  // PROTOTYPE: `wholeCount` is round 2's footer count (variant D)
+  let { data, wholeCount = false }: { data: PageData; wholeCount?: boolean } = $props();
 
   // the folded second line joins its parts explicitly: a template would drop the edge spaces
   const SEP = " · ";
@@ -688,6 +689,7 @@
       noun={inTrash ? NOUNS.trash : NOUNS.all}
       outOf={data.outOf}
       nameCount={inTrash}
+      {wholeCount}
     />
   {/if}
 </Page>

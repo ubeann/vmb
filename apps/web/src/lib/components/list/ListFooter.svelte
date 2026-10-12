@@ -12,6 +12,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import {
     countSummary,
+    nounFor,
     listHref,
     pageWindow,
     type CountNoun,
@@ -26,7 +27,8 @@
     list,
     noun,
     outOf = null,
-    nameCount = false
+    nameCount = false,
+    wholeCount = false
   }: {
     base: MasterListPathname;
     list: { page: number; perPage: number; total: number };
@@ -35,12 +37,22 @@
     outOf?: number | null;
     /** An unfiltered range names what it counts, as the Trash does ("of 60 deleted divisions"). */
     nameCount?: boolean;
+    /**
+     * PROTOTYPE (prototype/divisions): an unfiltered list that fits one page counts its rows
+     * ("11 divisions", "1 deleted division") rather than reading its range ("Showing 1–1 of 1").
+     */
+    wholeCount?: boolean;
   } = $props();
 
   const totalPages = $derived(Math.max(1, Math.ceil(list.total / list.perPage)));
   // a page past the end (the URL asked for it) still pages back to one that exists
   const current = $derived(Math.min(list.page, totalPages));
   const pages = $derived(pageWindow(current, totalPages));
+  const summary = $derived(
+    wholeCount && outOf === null && list.total > 0 && list.page === 1 && totalPages === 1
+      ? `${list.total} ${nounFor(noun, list.total)}`
+      : countSummary(list, noun, outOf, nameCount)
+  );
 
   const to = (changes: Record<string, string | number | null>) =>
     listHref(base, page.url.searchParams, changes);
@@ -51,7 +63,7 @@
 
 <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
   <p role="status" class="text-muted-foreground tabular-nums max-sm:text-center">
-    {countSummary(list, noun, outOf, nameCount)}
+    {summary}
   </p>
 
   {#if totalPages > 1}
