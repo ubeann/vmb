@@ -6,6 +6,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import PrototypeSwitcher from "$lib/components/PrototypeSwitcher.svelte";
+  import { layerPrototype } from "$lib/components/list/layer/prototype.svelte.js";
   import VariantA from "./VariantA.svelte";
   import type { PageData } from "./$types.js";
 
@@ -22,16 +23,22 @@
     { key: "G", name: "D, phone bar: logo, no trail at all" },
     { key: "H", name: "D, phone bar: the menu button and the avatar only" },
     { key: "I", name: "H, View sheet: Reset beside Done, as Filter's" },
-    { key: "J", name: "H, View sheet: Reset · View · ×" }
+    { key: "J", name: "H, View sheet: Reset · View · ×" },
+    { key: "K", name: "I + the button's icon before the sheet's title" },
+    { key: "L", name: "I + the button's icon in a tile before the title" }
   ];
   const variant = $derived(page.url.searchParams.get("variant") ?? "A");
+  // round 5: K and L give the sheet and dialog title the button's icon
+  $effect.pre(() => {
+    layerPrototype.titleIcon = variant === "K" ? "plain" : variant === "L" ? "tile" : "none";
+  });
 </script>
 
 <svelte:head>
   <title>Divisions prototype {variant} — VMB</title>
 </svelte:head>
 
-{#if variant === "I"}
+{#if variant === "I" || variant === "K" || variant === "L"}
   <VariantA {data} wholeCount viewResetAt="footer" />
 {:else if variant === "J"}
   <VariantA {data} wholeCount viewResetAt="start" />

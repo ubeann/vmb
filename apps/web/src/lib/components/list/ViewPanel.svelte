@@ -130,7 +130,7 @@
   const heading = "text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium";
 </script>
 
-<Layer label="View" panelClass="w-64" headerStart={resetAt === "start"}>
+<Layer label="View" icon={Settings2Icon} panelClass="w-64" headerStart={resetAt === "start"}>
   {#snippet trigger({ props })}
     <Button {...props} data-slot="button" title="View" variant="outline" class={TOOL_BUTTON}>
       <Settings2Icon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}

@@ -38,6 +38,8 @@
   import { cn } from "$lib/utils.js";
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
   import XIcon from "@lucide/svelte/icons/x";
+  import type { Component } from "svelte";
+  import { layerPrototype } from "./prototype.svelte.js";
   import { Dialog } from "bits-ui";
   import { tick, type Snippet } from "svelte";
   import { createAttachmentKey } from "svelte/attachments";
@@ -61,7 +63,8 @@
     children,
     step,
     beside,
-    headerStart = false
+    headerStart = false,
+    icon
   }: {
     /** The top level's title, such as "Filters"; also the layer's accessible name. */
     label: string;
@@ -90,6 +93,8 @@
      * bar and the title sits in the middle, as a phone's sheet does ("Reset · View · ×").
      */
     headerStart?: boolean;
+    /** PROTOTYPE: the trigger's icon, which the sheet and dialog title can carry (round 5). */
+    icon?: Component;
   } = $props();
 
   // opened and closed only through show() and close(), which set up and forget its steps
@@ -421,6 +426,18 @@
       <div class="flex w-16 shrink-0 justify-start">
         {#if headerAction}{@render headerAction(api)}{/if}
       </div>
+    {/if}
+    {#if modal && icon && !path.length && layerPrototype.titleIcon !== "none"}
+      {@const Icon = icon}
+      {#if layerPrototype.titleIcon === "tile"}
+        <span
+          class="bg-primary/10 text-primary dark:bg-primary/20 mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-(--control-radius)"
+        >
+          <Icon aria-hidden="true" class="size-4" />
+        </span>
+      {:else}
+        <Icon aria-hidden="true" class="text-muted-foreground mr-1.5 size-5 shrink-0" />
+      {/if}
     {/if}
     {#if modal}
       <Dialog.Title
