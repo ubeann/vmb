@@ -56,7 +56,8 @@ async function submittedId(request: Request): Promise<string | null> {
 /**
  * A row action that takes the record's id from the submitted form — the list
  * page's delete and restore buttons. A successful action returns so SvelteKit
- * re-runs the load; a domain failure lands on the page as `form.error`.
+ * re-runs the load; a domain failure lands on the page as `form.error`, with
+ * its API `code` as `form.code`.
  */
 export async function runRowAction(
   event: RequestEvent,
@@ -77,7 +78,11 @@ export async function runRowAction(
   }
 
   if (!access.value.ok) {
-    return fail(access.value.status as ErrorStatus, { error: access.value.error });
+    // the code rides along so a page can act on a refusal it knows, such as `DIVISION_IN_USE`
+    return fail(access.value.status as ErrorStatus, {
+      error: access.value.error,
+      code: access.value.code
+    });
   }
 
   return config.onSuccess ? config.onSuccess() : { ok: true };

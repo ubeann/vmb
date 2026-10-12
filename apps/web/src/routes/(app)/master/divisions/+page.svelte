@@ -1,9 +1,12 @@
 <!--
   The Divisions list, the pilot of the list kit (#301) that Roles, Users and
   the domain modules compose from: search, filter chips, an All · Trash switch,
-  sortable columns, paging and a columns menu, with the whole state in the URL.
+  sortable columns, paging and a View panel, with the whole state in the URL.
   Actions follow the caller's permissions; the API refuses the same things.
-  Rows, row actions and the Trash follow ADR-0051 rules 7 to 9.
+  Rows, row actions and the Trash follow ADR-0051 rules 7 to 9, and the card
+  answers to its own width (rule 11): the description folds under the name below
+  42rem, and below 32rem rows are two lines with no header row. Keyboard rows
+  (ADR-0052 rule 4) are wired but off, as Divisions ships.
 -->
 <script lang="ts">
   import { enhance } from "$app/forms";
@@ -11,37 +14,49 @@
   import { resolve } from "$app/paths";
   import { navigating, page } from "$app/state";
   import EmptyState from "$lib/components/EmptyState.svelte";
+  import KeyCap from "$lib/components/KeyCap.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import Page from "$lib/components/Page.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import RecordTime from "$lib/components/RecordTime.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
-  import ColumnsMenu from "$lib/components/list/ColumnsMenu.svelte";
   import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
-  import { columnClass, TEXT_CAP } from "$lib/components/list/columns.js";
+  import { columnClass, TEXT_TRUNCATE } from "$lib/components/list/columns.js";
   import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
+  import ListCard from "$lib/components/list/ListCard.svelte";
   import ListFooter from "$lib/components/list/ListFooter.svelte";
   import ListToolbar from "$lib/components/list/ListToolbar.svelte";
   import Marked from "$lib/components/list/Marked.svelte";
   import RecordTile from "$lib/components/list/RecordTile.svelte";
   import { postRowAction } from "$lib/components/list/row-action.js";
+  import { RowKeys } from "$lib/components/list/row-keys.svelte.js";
   import {
+    INACTIVE_NAME_CLASS,
+    INACTIVE_PILL_CLASS,
+    INACTIVE_TILE_CLASS,
+    META_LINE,
     opensRecord,
     PINNED_BG_CLASS,
     ROW_ACTION_CLASS,
     ROW_CLASS,
+    ROW_MARK_CLASS,
     ROW_MENU_CLASS,
-    ROW_MENU_TRIGGER_CLASS
+    ROW_MENU_TRIGGER_CLASS,
+    TEXT_LINE
   } from "$lib/components/list/rows.js";
   import SortableHead from "$lib/components/list/SortableHead.svelte";
+  import ViewPanel from "$lib/components/list/ViewPanel.svelte";
+  import { DATE_ORDER, TEXT_ORDER, type SortField } from "$lib/components/list/view.js";
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
   import { listHref } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
-  import type { Division, PermissionKey } from "@vmb/types";
+  import { DivisionListQuerySchema, type Division, type PermissionKey } from "@vmb/types";
   import Building2Icon from "@lucide/svelte/icons/building-2";
+  import CalendarClockIcon from "@lucide/svelte/icons/calendar-clock";
+  import CalendarPlusIcon from "@lucide/svelte/icons/calendar-plus";
   import CircleDotIcon from "@lucide/svelte/icons/circle-dot";
   import EllipsisVerticalIcon from "@lucide/svelte/icons/ellipsis-vertical";
   import HistoryIcon from "@lucide/svelte/icons/history";
@@ -60,6 +75,10 @@
 
   let { data }: { data: PageData } = $props();
 
+  // the folded second line joins its parts explicitly: a template would drop the edge spaces
+  const SEP = " · ";
+  const SPACE = " ";
+
   const base = "/master/divisions";
   const actionPath = resolve(base);
 
@@ -72,7 +91,9 @@
         { value: "active", label: "Active" },
         { value: "inactive", label: "Inactive" }
       ]
-    }
+    },
+    { kind: "date", key: "updated", label: "Updated", icon: CalendarClockIcon },
+    { kind: "date", key: "created", label: "Created", icon: CalendarPlusIcon }
   ];
 
   const columns = new ColumnVisibility("divisions", [
@@ -84,6 +105,15 @@
   ]);
   onMount(() => columns.restore());
 
+  // the sort the list has with nothing in the URL
+  const defaultSort = DivisionListQuerySchema.parse({});
+
+  // what the tabs' counts and the footer count, each agreeing with its number
+  const NOUNS = {
+    all: { one: "division", many: "divisions" },
+    trash: { one: "deleted division", many: "deleted divisions" }
+  };
+
   const can = (permission: PermissionKey) => data.permissions.includes(permission);
 
   const inTrash = $derived(data.query.trashed === "only");
@@ -92,15 +122,28 @@
       data.query.status.length > 0
   );
   const sort = $derived({ sort: data.query.sort, dir: data.query.dir });
+  // what narrow cards sort by in the View panel; a deleted division's last update is its deletion
+  const sortFields = $derived<SortField[]>([
+    { sort: "name", label: "Name", ...TEXT_ORDER },
+    { sort: "code", label: "Code", ...TEXT_ORDER },
+    {
+      sort: "updatedAt",
+      label: inTrash ? "Date deleted" : "Last updated",
+      ...DATE_ORDER
+    }
+  ]);
   // a search, filter, sort or page change on this list, still loading
   const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
 
   let confirmOpen = $state(false);
   let target = $state<Division | null>(null);
   let deleting = $state(false);
+  // why the API refused the delete, shown in the dialog beside the choice it blocks
+  let refusal = $state<string | null>(null);
 
   function askDelete(division: Division) {
     target = division;
+    refusal = null;
     confirmOpen = true;
   }
 
@@ -144,8 +187,19 @@
       await invalidateAll();
     });
 
+  // each action's key, which the row menus show and the shortcut sheet lists (ADR-0052)
+  const KEYS = {
+    edit: "E",
+    deactivate: "D",
+    activate: "A",
+    delete: "Backspace",
+    restore: "R"
+  } as const;
+
   type RowAction = {
     key: string;
+    /** The keyboard row's key for it (ADR-0052 rule 4). */
+    shortcut: string;
     label: string;
     icon: Component<{ "aria-hidden"?: "true"; "data-icon"?: string }>;
     /** Opens the record's edit page instead of running something. */
@@ -161,6 +215,7 @@
         ? [
             {
               key: "restore",
+              shortcut: KEYS.restore,
               label: "Restore",
               icon: RotateCcwIcon,
               run: () => restore(division)
@@ -172,20 +227,24 @@
     if (can("master-divisions.update")) {
       actions.push({
         key: "edit",
+        shortcut: KEYS.edit,
         label: "Edit",
         icon: PencilIcon,
-        edit: true
+        edit: true,
+        run: () => void goto(resolve("/(app)/master/divisions/[id]/edit", { id: division.id }))
       });
       actions.push(
         division.isActive
           ? {
               key: "deactivate",
+              shortcut: KEYS.deactivate,
               label: "Deactivate",
               icon: PowerOffIcon,
               run: () => setActive(division, false)
             }
           : {
               key: "activate",
+              shortcut: KEYS.activate,
               label: "Activate",
               icon: PowerIcon,
               run: () => setActive(division, true)
@@ -195,6 +254,7 @@
     if (can("master-divisions.delete")) {
       actions.push({
         key: "delete",
+        shortcut: KEYS.delete,
         label: "Delete…",
         icon: Trash2Icon,
         destructive: true,
@@ -202,6 +262,31 @@
       });
     }
     return actions;
+  }
+
+  const rowKeys = new RowKeys<Division>({
+    title: "Divisions",
+    items: () => data.divisions?.items ?? [],
+    open: (division) => void goto(resolve("/(app)/master/divisions/[id]", { id: division.id })),
+    actions: (division) => rowActions(division).map(({ shortcut: key, run }) => ({ key, run })),
+    help: [
+      { keys: [KEYS.edit], what: "Edit", single: true },
+      { keys: [KEYS.deactivate], what: "Deactivate", single: true },
+      { keys: [KEYS.activate], what: "Activate", single: true },
+      { keys: [KEYS.delete], what: "Delete…", single: true },
+      { keys: [KEYS.restore], what: "Restore, in the Trash", single: true }
+    ]
+  });
+
+  // what a row folded to two lines says under its name, following the columns the user shows
+  // (the Trash always says when it was deleted, as its column does)
+  function metaParts(division: Division) {
+    const parts: ("inactive" | "code" | "changed" | "created")[] = [];
+    if (!division.isActive) parts.push("inactive");
+    if (columns.visible("code")) parts.push("code");
+    if (inTrash || columns.visible("updatedAt")) parts.push("changed");
+    if (columns.visible("createdAt")) parts.push("created");
+    return parts;
   }
 
   // a click anywhere on a row opens the record; the name stays a real link for a new tab (ADR-0051 rule 7)
@@ -213,10 +298,14 @@
   const submitDelete: SubmitFunction = () => {
     const division = target;
     deleting = true;
+    refusal = null;
     return async ({ result, update }) => {
       deleting = false;
       if (result.type === "failure") {
-        toast.error(String(result.data?.error ?? "Something went wrong. Please try again."));
+        const error = String(result.data?.error ?? "Something went wrong. Please try again.");
+        // a division still in use stays in the dialog, where the way out is named
+        if (result.data?.code === "DIVISION_IN_USE") refusal = error;
+        else toast.error(error);
         return;
       }
       confirmOpen = false;
@@ -237,6 +326,16 @@
   <title>Divisions — VMB</title>
 </svelte:head>
 
+<!-- a row menu shows each action's key once keyboard rows are on (ADR-0052 rule 4) -->
+{#snippet keyHint(action: RowAction)}
+  {#if rowKeys.keys}
+    <!-- the cap is drawn only; the item names its key with aria-keyshortcuts -->
+    <DropdownMenu.Shortcut aria-hidden="true"
+      ><KeyCap size="sm" key={action.shortcut} /></DropdownMenu.Shortcut
+    >
+  {/if}
+{/snippet}
+
 <Page width="default" class="flex flex-col gap-5">
   <PageHeader title="Divisions" description="Organisational units that group stock and budgets.">
     {#snippet action()}
@@ -248,11 +347,12 @@
     {/snippet}
   </PageHeader>
 
-  <div class="border-border bg-card relative overflow-hidden rounded-xl border" aria-busy={loading}>
+  <ListCard busy={loading}>
     <ListToolbar
       {base}
       viewsLabel="Division views"
-      countNoun="divisions"
+      countNouns={NOUNS}
+      facets={data.divisions ? data.divisions.facets : null}
       views={data.divisions ? data.divisions.views : null}
       searchLabel="Search divisions"
       searchPlaceholder="Search name, code or description"
@@ -260,7 +360,14 @@
       filters={FILTERS}
     >
       {#snippet actions()}
-        <ColumnsMenu {columns} />
+        <ViewPanel
+          {base}
+          {columns}
+          perPage={data.query.perPage}
+          {sort}
+          {defaultSort}
+          {sortFields}
+        />
       {/snippet}
     </ListToolbar>
 
@@ -338,7 +445,8 @@
         {/if}
       {:else}
         <Table.Root class={cn("transition-opacity", loading && "opacity-50")}>
-          <Table.Header>
+          <!-- under 32rem the header row goes; sorting is in View (ADR-0051 rule 11) -->
+          <Table.Header class="@max-lg/list:hidden">
             <Table.Row class="hover:bg-transparent">
               <SortableHead
                 {base}
@@ -353,22 +461,20 @@
                   column="code"
                   label="Code"
                   current={sort}
-                  class={columnClass("utility")}
+                  class={columnClass("meta")}
                 />
               {/if}
               {#if columns.visible("description")}
                 <Table.Head scope="col" class={columnClass("text")}>Description</Table.Head>
               {/if}
-              {#if inTrash}
-                <Table.Head scope="col" class={columnClass("utility")}>Deleted</Table.Head>
-              {/if}
-              {#if columns.visible("updatedAt")}
+              <!-- deleting stamps updatedAt too, so the Trash has one date: Deleted, sorted on that stamp -->
+              {#if inTrash || columns.visible("updatedAt")}
                 <SortableHead
                   {base}
                   column="updatedAt"
-                  label="Updated"
+                  label={inTrash ? "Deleted" : "Updated"}
                   current={sort}
-                  class={columnClass("utility")}
+                  class={columnClass("meta")}
                 />
               {/if}
               {#if columns.visible("createdAt")}
@@ -377,7 +483,7 @@
                   column="createdAt"
                   label="Created"
                   current={sort}
-                  class={columnClass("utility")}
+                  class={columnClass("meta")}
                 />
               {/if}
               <!-- pinned at the right as Name is at the left, so a scrolled table keeps its actions in view -->
@@ -390,51 +496,91 @@
           </Table.Header>
           <Table.Body>
             {#each list.items as division (division.id)}
-              <Table.Row class={ROW_CLASS} onclick={(event) => openRow(event, division)}>
+              <Table.Row
+                class={ROW_CLASS}
+                onclick={(event) => openRow(event, division)}
+                {...rowKeys.row(division)}
+              >
                 <Table.Cell
                   class={cn(
                     PINNED_BG_CLASS,
+                    rowKeys.enabled && ROW_MARK_CLASS,
                     "pinned-start sticky left-0 z-10 max-w-72",
                     columnClass("identity")
                   )}
                 >
                   <div class="flex items-center gap-2.5">
-                    <RecordTile iconName={division.iconName} colorHex={division.colorHex} />
-                    <a
-                      href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
-                      class="truncate font-medium hover:underline"
-                      ><Marked text={division.name} term={data.query.search} /></a
-                    >
-                    {#if !division.isActive}
-                      <!-- only the exception is marked; there is no Status column (ADR-0051 rule 7) -->
-                      <StatusPill status="Inactive" class="shrink-0" />
-                    {/if}
+                    <RecordTile
+                      iconName={division.iconName}
+                      colorHex={division.colorHex}
+                      class={!division.isActive ? INACTIVE_TILE_CLASS : undefined}
+                    />
+                    <div class="flex min-w-0 flex-col @max-lg/list:gap-0.5">
+                      <div class="flex min-w-0 items-center gap-2.5">
+                        <a
+                          href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
+                          class={cn(
+                            "truncate font-medium hover:underline",
+                            !division.isActive && INACTIVE_NAME_CLASS
+                          )}><Marked text={division.name} term={data.query.search} /></a
+                        >
+                        {#if !division.isActive}
+                          <!-- only the exception is marked; there is no Status column (ADR-0051 rule 7) -->
+                          <StatusPill
+                            status="Inactive"
+                            class={cn("shrink-0", INACTIVE_PILL_CLASS)}
+                          />
+                        {/if}
+                      </div>
+                      <!-- what the folded columns stand in for, under the name (ADR-0051 rule 11) -->
+                      {#if columns.visible("description") && division.description}
+                        <p class={TEXT_LINE} title={division.description}>
+                          <Marked text={division.description} term={data.query.search} />
+                        </p>
+                      {/if}
+                      <p class={META_LINE}>
+                        {#each metaParts(division) as part, index (part)}
+                          {#if index > 0}{SEP}{/if}
+                          {#if part === "inactive"}
+                            <span class="text-foreground/80 font-medium">Inactive</span>
+                          {:else if part === "code"}
+                            <span class="font-mono"
+                              ><Marked text={division.code} term={data.query.search} /></span
+                            >
+                          {:else if part === "changed"}
+                            {inTrash ? "Deleted" : "Updated"}{SPACE}<RecordTime
+                              day
+                              iso={inTrash ? division.deletedAt : division.updatedAt}
+                            />
+                          {:else}
+                            Created{SPACE}<RecordTime day iso={division.createdAt} />
+                          {/if}
+                        {/each}
+                      </p>
+                    </div>
                   </div>
                 </Table.Cell>
                 {#if columns.visible("code")}
-                  <Table.Cell class={cn("font-mono text-xs", columnClass("utility"))}
+                  <Table.Cell class={cn("font-mono text-xs", columnClass("meta"))}
                     ><Marked text={division.code} term={data.query.search} /></Table.Cell
                   >
                 {/if}
                 {#if columns.visible("description")}
                   <Table.Cell class={cn("text-muted-foreground", columnClass("text"))}>
-                    <span class={TEXT_CAP} title={division.description ?? undefined}
+                    <span class={TEXT_TRUNCATE} title={division.description ?? undefined}
                       ><Marked text={division.description ?? "—"} term={data.query.search} /></span
                     >
                   </Table.Cell>
                 {/if}
-                {#if inTrash}
-                  <Table.Cell class={columnClass("utility")}
-                    ><RecordTime iso={division.deletedAt} /></Table.Cell
-                  >
-                {/if}
-                {#if columns.visible("updatedAt")}
-                  <Table.Cell class={columnClass("utility")}
-                    ><RecordTime iso={division.updatedAt} /></Table.Cell
+                {#if inTrash || columns.visible("updatedAt")}
+                  <Table.Cell class={columnClass("meta")}
+                    ><RecordTime
+                      iso={inTrash ? division.deletedAt : division.updatedAt}
+                    /></Table.Cell
                   >
                 {/if}
                 {#if columns.visible("createdAt")}
-                  <Table.Cell class={columnClass("utility")}
+                  <Table.Cell class={columnClass("meta")}
                     ><RecordTime iso={division.createdAt} /></Table.Cell
                   >
                 {/if}
@@ -472,6 +618,7 @@
                       </Button>
                     {/if}
                   {:else if actions.length > 1}
+                    {@const menu = rowKeys.menu(division)}
                     <DropdownMenu.Root>
                       <DropdownMenu.Trigger>
                         {#snippet child({ props })}
@@ -487,7 +634,7 @@
                           </Button>
                         {/snippet}
                       </DropdownMenu.Trigger>
-                      <DropdownMenu.Content align="end" class={ROW_MENU_CLASS}>
+                      <DropdownMenu.Content align="end" class={ROW_MENU_CLASS} {...menu.content}>
                         {#each actions as action, index (action.key)}
                           {#if action.destructive && index > 0}
                             <DropdownMenu.Separator />
@@ -497,18 +644,25 @@
                               {#snippet child({ props })}
                                 <a
                                   {...props}
+                                  aria-keyshortcuts={rowKeys.keys ? action.shortcut : undefined}
                                   href={resolve("/(app)/master/divisions/[id]/edit", {
                                     id: division.id
-                                  })}><action.icon aria-hidden="true" />{action.label}</a
+                                  })}
+                                  ><action.icon aria-hidden="true" />{action.label}{@render keyHint(
+                                    action
+                                  )}</a
                                 >
                               {/snippet}
                             </DropdownMenu.Item>
                           {:else}
                             <DropdownMenu.Item
                               variant={action.destructive ? "destructive" : "default"}
+                              aria-keyshortcuts={rowKeys.keys ? action.shortcut : undefined}
                               onSelect={action.run}
                             >
-                              <action.icon aria-hidden="true" />{action.label}
+                              <action.icon aria-hidden="true" />{action.label}{@render keyHint(
+                                action
+                              )}
                             </DropdownMenu.Item>
                           {/if}
                         {/each}
@@ -522,15 +676,13 @@
         </Table.Root>
       {/if}
     {/if}
-  </div>
+  </ListCard>
 
   {#if data.divisions}
     <ListFooter
       {base}
       list={data.divisions}
-      noun={inTrash
-        ? { one: "deleted division", many: "deleted divisions" }
-        : { one: "division", many: "divisions" }}
+      noun={inTrash ? NOUNS.trash : NOUNS.all}
       outOf={data.outOf}
       nameCount={inTrash}
     />
@@ -543,6 +695,14 @@
       <Dialog.Title>Delete {target?.name}?</Dialog.Title>
       <Dialog.Description>It moves to the Trash. You can restore it from Trash.</Dialog.Description>
     </Dialog.Header>
+    {#if refusal}
+      <Notice variant="destructive">
+        {refusal}
+        <a href={resolve("/master/roles")} class="font-medium underline underline-offset-2"
+          >Go to Roles</a
+        >
+      </Notice>
+    {/if}
     <form method="POST" action="?/delete" use:enhance={submitDelete}>
       <input type="hidden" name="id" value={target?.id ?? ""} />
       <Dialog.Footer>

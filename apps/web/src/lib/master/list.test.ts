@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalListSearch,
   countSummary,
+  isCanonicalListSearch,
   listHref,
   pageWindow,
   parseListQuery,
@@ -22,6 +23,26 @@ const parse = (search: string) => {
   const query = parseListQuery(DivisionListQuerySchema, url);
   return { query, canonical: canonicalListSearch(DivisionListQuerySchema, url, query) };
 };
+
+describe("isCanonicalListSearch", () => {
+  const at = (search: string) => {
+    const { canonical } = parse(search);
+    return isCanonicalListSearch(new URL(`https://vmb.test/master/divisions${search}`), canonical);
+  };
+
+  it("holds for a query that is already canonical, a comma or its encoding alike", () => {
+    expect(at("")).toBe(true);
+    expect(at("?status=active,inactive")).toBe(true);
+    // a client-side navigation re-encodes the comma before the load sees it
+    expect(at("?status=active%2Cinactive&updated=week")).toBe(true);
+  });
+
+  it("fails for a query the canonical form would change", () => {
+    expect(at("?perPage=7&status=inactive")).toBe(false);
+    expect(at("?status=inactive,active")).toBe(false);
+    expect(at("?page=1")).toBe(false);
+  });
+});
 
 describe("parseListQuery and canonicalListSearch", () => {
   it("leave a well-formed query as it is", () => {

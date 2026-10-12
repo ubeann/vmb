@@ -767,11 +767,11 @@ describe("what a request costs (ADR-0045's amendment)", () => {
   // A role-changing PATCH /api/master/users/:id: `requirePermission` reads the
   // caller's permissions, then the store checks and writes. 17 statements before
   // the amendment, three of those reads of the caller's access at three apiece;
-  // 9 after it. ADR-0049 adds two: a read of the current roles, so a save that
-  // keeps them opens no transaction, and the lock on the target's row; the
-  // existence check folds into the lock, and the role writes leave the user's
-  // statement so a failure after them shows the rollback.
-  it("changes a user's roles in 11 statements, reading the caller's permissions once", async () => {
+  // 9 after it. ADR-0049 adds one net: a read of the current roles, so a save
+  // that keeps them opens no transaction, and the lock on the target's row,
+  // which the existence check folds into; the role writes stay CTEs of the
+  // user's own statement (ADR-0055), so the lock is what the transaction adds.
+  it("changes a user's roles in 10 statements, reading the caller's permissions once", async () => {
     await withMigratedDb(async (db, client, statements) => {
       await seed(client);
       const store = createMasterStore(db, {
@@ -802,7 +802,7 @@ describe("what a request costs (ADR-0045's amendment)", () => {
       expect(statements.filter((statement) => PERMISSION_READ.test(statement))).toHaveLength(1);
       // `begin` and `commit` are logged by node-postgres but not by PGlite
       const work = statements.filter((statement) => !/^\s*(begin|commit)\b/i.test(statement));
-      expect(work).toHaveLength(11);
+      expect(work).toHaveLength(10);
     });
   });
 });

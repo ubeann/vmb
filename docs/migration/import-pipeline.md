@@ -98,7 +98,7 @@ The database suite runs on embedded Postgres by default, so it needs no service 
 pnpm test
 ```
 
-To run the same fixtures and assertions against a real server — which is what the `Real Postgres` CI job does — point the harness at one:
+To run the same fixtures and assertions against a real server — which is what the `Real Postgres` step of CI's `Verify` job does — point the harness at one:
 
 ```sh
 TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm --filter @vmb/db test

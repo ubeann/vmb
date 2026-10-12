@@ -243,6 +243,35 @@ function sameRoles(next: string[], before: string[]): boolean {
   return next.length === before.length && next.every((role) => before.includes(role));
 }
 
+/**
+ * A save's role writes, as CTEs of the statement that writes the user: each
+ * reads `business_user`, so a refused save (Trashed, stale, a duplicate email)
+ * leaves the roles alone too. The change is applied as exactly what was
+ * checked: a role someone else grants between the check and the write is not
+ * removed by this save.
+ */
+function roleSync(id: string, added: string[], removed: string[]): SQL {
+  return sql`, role_removal as (
+      delete from master.user_roles
+       where user_id = ${id}::uuid and role_id = any(${uuidArray(removed)})
+         and exists (select 1 from business_user)
+      returning 1
+    ), role_addition as (
+      insert into master.user_roles (user_id, role_id)
+      select ${id}::uuid, r from unnest(${uuidArray(added)}) as r
+       where exists (select 1 from business_user)
+      on conflict do nothing
+      returning 1
+    )`;
+}
+
+/**
+ * Save an edit, if the user is live and still as the editor loaded it. A
+ * Trashed user is read-only until restored (ADR-0055): the writing statement's
+ * own `where` refuses one, so nothing read beforehand can let a delete slip
+ * past, and it is answered as a missing user where a live user that changed
+ * since is a 409.
+ */
 export async function updateUser(
   db: MasterDb,
   options: UserStoreOptions,
@@ -260,27 +289,31 @@ export async function updateUser(
   // HTTP driver.
   const next = input.roleIds === undefined ? undefined : uniqueIds(input.roleIds);
   if (next === undefined || sameRoles(next, await currentRoleIds(db, id))) {
-    const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+    const existing = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .limit(1);
     if (!existing[0]) throw new NotFoundError("User not found.");
 
     await assertCanManageUser(db, actor, id);
     try {
-      await writeUser(db, id, input, passwordHash);
+      await writeUser(db, id, input, passwordHash, sql``);
     } catch (error) {
       return conflictFrom(error, EMAIL_CONFLICT);
     }
   } else {
     try {
-      // The checks and the writes they guard commit together or not at all,
+      // The checks and the write they guard commit together or not at all,
       // and the lock on the user's row makes a concurrent role change on the
       // same user wait for this one: it then checks what this one wrote,
       // rather than what was there before (ADR-0045's race, closed by
-      // ADR-0049).
+      // ADR-0049). A Trashed user is refused here, before any check runs.
       await options.transaction(async (tx) => {
         const locked = await tx
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.id, id))
+          .where(and(eq(users.id, id), isNull(users.deletedAt)))
           .for("update");
         if (!locked[0]) throw new NotFoundError("User not found.");
 
@@ -291,16 +324,7 @@ export async function updateUser(
         const removed = before.filter((role) => !next.includes(role));
         await assertCanChangeRoles(tx, actor.permissions, [...added, ...removed]);
 
-        await tx.execute(sql`
-          with role_removal as (
-            delete from master.user_roles
-             where user_id = ${id}::uuid and role_id = any(${uuidArray(removed)})
-          )
-          insert into master.user_roles (user_id, role_id)
-          select ${id}::uuid, r from unnest(${uuidArray(added)}) as r
-          on conflict do nothing
-        `);
-        await writeUser(tx, id, input, passwordHash);
+        await writeUser(tx, id, input, passwordHash, roleSync(id, added, removed));
       });
     } catch (error) {
       return conflictFrom(error, EMAIL_CONFLICT);
@@ -317,28 +341,35 @@ export async function updateUser(
 }
 
 /**
- * Write a user's own fields, with their Better Auth identity and, given a
- * hash, their credential, in one statement. `where id = … and <unchanged
- * since>` is the stale check, inside the statement that writes: when it
- * matches no row nothing in the statement changes, and this throws (in a
- * transaction, rolling back the role writes before it too).
+ * Write a user's own fields, with their Better Auth identity, given a hash
+ * their credential, and the save's role CTEs, in one statement. `where id = …
+ * and deleted_at is null and <unchanged since>` is the Trash and stale check,
+ * inside the statement that writes: when it matches no row nothing in the
+ * statement changes (the role sync and the identity writes all read
+ * `business_user`), and this throws: 404 for a user gone or Trashed since the
+ * checks before it, 409 for one that changed since the editor loaded it.
  */
 async function writeUser(
   db: MasterDb,
   id: string,
   input: UserUpdateInput,
-  passwordHash: string | undefined
+  passwordHash: string | undefined,
+  roles: SQL
 ): Promise<void> {
   const photo = nullIfEmpty(input.profilePhotoPath);
   const stamp = unchangedSince(users.updatedAt, input.updatedAt);
   const result =
     passwordHash === undefined
-      ? await writeFields(db, id, input, photo, stamp)
-      : await writeFieldsAndCredential(db, id, input, photo, stamp, passwordHash);
+      ? await writeFields(db, id, input, photo, stamp, roles)
+      : await writeFieldsAndCredential(db, id, input, photo, stamp, passwordHash, roles);
 
   if (rowsOf(result).length === 0) {
-    // the record is not there, or changed since the editor loaded it
-    await getUser(db, id);
+    const current = await db
+      .select({ deletedAt: users.deletedAt })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+    if (!current[0] || current[0].deletedAt) throw new NotFoundError("User not found.");
     throw new StaleRecordError();
   }
 }
@@ -348,7 +379,8 @@ function writeFields(
   id: string,
   input: UserUpdateInput,
   photo: string | null,
-  stamp: SQL
+  stamp: SQL,
+  roles: SQL
 ) {
   // One statement, so an existing Better Auth identity cannot drift from
   // the business row when either side refuses the change (a duplicate
@@ -363,7 +395,7 @@ function writeFields(
              email = ${input.email},
              profile_photo_path = ${photo},
              updated_at = ${nextStamp(users.updatedAt)}
-       where id = ${id} and ${stamp}
+       where id = ${id} and deleted_at is null and ${stamp}
       returning id
     ), auth_update as (
       update public."user"
@@ -373,7 +405,7 @@ function writeFields(
              updated_at = now()
        where id = (select id::text from business_user)
       returning id
-    )
+    )${roles}
     select id from business_user
   `);
 }
@@ -384,7 +416,8 @@ function writeFieldsAndCredential(
   input: UserUpdateInput,
   photo: string | null,
   stamp: SQL,
-  passwordHash: string
+  passwordHash: string,
+  roles: SQL
 ) {
   // The same statement also upserts the credential, so a legacy-imported
   // user (a business row with no Better Auth identity) becomes able to
@@ -398,7 +431,7 @@ function writeFieldsAndCredential(
              email = ${input.email},
              profile_photo_path = ${photo},
              updated_at = ${nextStamp(users.updatedAt)}
-       where id = ${id} and ${stamp}
+       where id = ${id} and deleted_at is null and ${stamp}
       returning id, name, email, profile_photo_path
     ), auth_update as (
       update public."user"
@@ -428,7 +461,7 @@ function writeFieldsAndCredential(
         from business_user b
        where not exists (select 1 from credential_update)
       returning id
-    )
+    )${roles}
     select id from business_user
   `);
 }
@@ -438,7 +471,8 @@ export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promis
 
   const rows = await db
     .update(users)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    // a stamp an editor still holds is never reissued, so its save is stale (as after a save)
+    .set({ deletedAt: new Date(), updatedAt: nextStamp(users.updatedAt) })
     .where(and(eq(users.id, id), isNull(users.deletedAt)))
     .returning({ id: users.id });
 
@@ -456,7 +490,7 @@ export async function restoreUser(db: MasterDb, id: string, actor: Actor): Promi
 
   const rows = await db
     .update(users)
-    .set({ deletedAt: null, updatedAt: new Date() })
+    .set({ deletedAt: null, updatedAt: nextStamp(users.updatedAt) })
     .where(and(eq(users.id, id), isNotNull(users.deletedAt)))
     .returning({ id: users.id });
 

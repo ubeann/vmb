@@ -58,7 +58,7 @@ Two neighbouring decisions have their own records: the app-wide shortcut sheet (
    - Menu items carry an icon (muted, except the destructive item) and, on lists with keyboard rows (ADR-0052), their key.
    - A row action lifts on hover to the page colour with a hairline, so it stands out from the hovered row.
    - Delete always asks first.
-9. **The Trash.** Deleted records stay in the Trash for the audit trail; there is no permanent delete. The Trash says so in one line ("Deleted divisions stay here for the audit trail. Restore one to use it again."), counts "n deleted {plural}", and has its own empty state. Records with no Trash (the glossary's Trashed) are unaffected.
+9. **The Trash.** Deleted records stay in the Trash for the audit trail; there is no permanent delete. The Trash says so in one line ("Deleted divisions stay here for the audit trail. Restore one to use it again."), counts "n deleted {plural}", and has its own empty state. Deleting stamps `updatedAt` and `deletedAt` together, so the Trash shows one date column, Deleted, sorted on that stamp, and no Updated. Records with no Trash (the glossary's Trashed) are unaffected.
 10. **Paging.** The paging control hides when every row fits on one page (Q10). From 640px it is numbered with gaps (‹ 1 … 4 **5** 6 … 10 ›). Under 640px it is "‹ Previous · Page 5 of 10 · Next ›" under a centred count, both buttons the same width so the label sits in the middle.
 11. **The card answers to its own width** (container queries), not the window's, because the sidebar changes the card's width at the same screen size.
     - Under 42rem of card, the free-text column folds and its value rides under the name as a second line; Filter and View become icon buttons, their count and dot moving to a corner.

@@ -24,6 +24,9 @@
     },
     "//#format:check": {
       "inputs": ["$TURBO_DEFAULT$", "!migrations/**"]
+    },
+    "//#audit:signatures": {
+      "inputs": ["pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json"]
     }
   }
 }

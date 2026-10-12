@@ -1,5 +1,5 @@
 import { ApiErrorSchema, CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } from "@vmb/types";
-import { rateLimit, user } from "@vmb/db";
+import { account, rateLimit, user, verification } from "@vmb/db";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type TestDatabase } from "../../../packages/db/test/harness.js";
 
@@ -13,6 +13,8 @@ vi.setConfig({ hookTimeout: 30_000, testTimeout: 30_000 });
 // limits on it count in that database, per client IP (#251, ADR-0042).
 let database: TestDatabase;
 const backgroundTasks = vi.hoisted(() => [] as Promise<unknown>[]);
+// Ids of users whose business record is in the Trash (ADR-0055).
+const trashed = vi.hoisted(() => new Set<string>());
 const sendOtpEmailMock = vi.hoisted(() =>
   vi.fn(async (_env: unknown, _to: string, _otp: string) => {})
 );
@@ -27,7 +29,12 @@ vi.mock("@vmb/db", async (importOriginal) => ({
 }));
 
 vi.mock("./master.js", () => ({
-  masterStore: () => ({ getSignInEligibility: async () => ({ deletedAt: null, status: "active" }) })
+  masterStore: () => ({
+    getSignInEligibility: async (id: string) => ({
+      deletedAt: trashed.has(id) ? "2026-10-01T00:00:00.000Z" : null,
+      status: "active"
+    })
+  })
 }));
 
 vi.mock("./email.js", () => ({
@@ -103,6 +110,7 @@ beforeEach(async () => {
     }
   ]);
   backgroundTasks.length = 0;
+  trashed.clear();
   sendOtpEmailMock.mockReset();
   sendOtpEmailMock.mockImplementation(async () => {});
 });
@@ -517,4 +525,133 @@ describe("OTP expiry and redemption privacy (#271)", () => {
       expect(sendOtpEmailMock).toHaveBeenCalledOnce();
     }
   );
+});
+
+// A Trashed user is read-only (ADR-0055, #405): to every code path they are an
+// unknown email, so no email goes out and no credential is written.
+describe("a Trashed user", () => {
+  const trash = () => trashed.add("user-1");
+
+  it("is answered like an unknown email, with no email sent and no credential written", async () => {
+    trash();
+
+    const reply = await requestCode(REGISTERED, "192.0.2.210");
+
+    expect(reply.status).toBe(200);
+    expect(reply).toEqual(await requestCode(UNREGISTERED, "192.0.2.211"));
+    expect(sendOtpEmailMock).not.toHaveBeenCalled();
+    expect(await database.db.select().from(account)).toEqual([]);
+    // The unsent decoy an unknown email gets, and nothing a user could redeem.
+    expect(await database.db.select().from(verification)).toHaveLength(2);
+  });
+
+  it.each(["/forget-password/email-otp", "/email-otp/send-verification-otp"])(
+    "gets no email through the alternative request endpoint %s",
+    async (path) => {
+      trash();
+      await requestCode(REGISTERED, "192.0.2.212", path);
+      expect(sendOtpEmailMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("cannot set a credential with a code issued before the delete", async () => {
+    await requestCode(REGISTERED, "192.0.2.213");
+    const code = sentCode();
+    await requestCode(UNREGISTERED, "192.0.2.214");
+    trash();
+
+    const reset = await resetPassword(REGISTERED, code, "192.0.2.215");
+
+    expect(reset.status).toBe(400);
+    expect(JSON.parse(reset.body)).toMatchObject({ code: "INVALID_OTP" });
+    expect(reset).toEqual(await resetPassword(UNREGISTERED, code, "192.0.2.216"));
+    expect(await database.db.select().from(account)).toEqual([]);
+  });
+
+  it("cannot even check a code issued before the delete", async () => {
+    await requestCode(REGISTERED, "192.0.2.217");
+    const code = sentCode();
+    trash();
+
+    const check = await checkCode(REGISTERED, code, "192.0.2.218");
+
+    expect(check.status).toBe(400);
+    expect(JSON.parse(check.body)).toMatchObject({ code: "INVALID_OTP" });
+  });
+
+  it("spends the same attempt budget as an unknown email", async () => {
+    await requestCode(REGISTERED, "192.0.2.219");
+    await requestCode(UNREGISTERED, "192.0.2.220");
+    const code = sentCode();
+    trash();
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      // The right code, so only the Trash can make it fail.
+      const trashedReply = await resetPassword(REGISTERED, code, `192.0.2.${221 + attempt}`);
+      const unknown = await resetPassword(UNREGISTERED, wrongCode(), `192.0.2.${231 + attempt}`);
+      expect(trashedReply).toEqual(unknown);
+      expect(JSON.parse(trashedReply.body).code).toBe(
+        attempt === 3 ? "TOO_MANY_ATTEMPTS" : "INVALID_OTP"
+      );
+    }
+    expect(await database.db.select().from(account)).toEqual([]);
+  });
+
+  it.each([
+    ["/sign-in/email-otp", "sign-in"],
+    ["/email-otp/verify-email", "email-verification"]
+  ])("cannot redeem a pre-delete code at %s", async (path, type) => {
+    const post = (url: string, body: object, clientIp: string) =>
+      app.request(
+        `/api/auth${url}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: bindings.WEB_URL,
+            [CLIENT_IP_HEADER]: clientIp,
+            [CLIENT_IP_SECRET_HEADER]: bindings.CLIENT_IP_SECRET
+          },
+          body: JSON.stringify(body)
+        },
+        bindings
+      );
+    expect(
+      (await post("/email-otp/send-verification-otp", { email: REGISTERED, type }, "192.0.2.249"))
+        .status
+    ).toBe(200);
+    const code = sentCode();
+    trash();
+
+    const res = await post(path, { email: REGISTERED, otp: code }, "192.0.2.250");
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "INVALID_OTP" });
+  });
+
+  it("sees an expired code as expired, as the expiry test above shows for an unknown email", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await requestCode(REGISTERED, "192.0.2.245");
+    trash();
+    vi.setSystemTime(Date.now() + 300_001);
+
+    const reply = await resetPassword(REGISTERED, "000000", "192.0.2.247");
+
+    expect(JSON.parse(reply.body).code).toBe("OTP_EXPIRED");
+  });
+
+  it("activates and resets as usual once restored", async () => {
+    trash();
+    await requestCode(REGISTERED, "192.0.2.241");
+    expect(sendOtpEmailMock).not.toHaveBeenCalled();
+    trashed.delete("user-1");
+
+    await requestCode(REGISTERED, "192.0.2.242");
+    const code = sentCode();
+
+    expect(sendOtpEmailMock).toHaveBeenCalledOnce();
+    expect((await checkCode(REGISTERED, code, "192.0.2.243")).status).toBe(200);
+    expect((await resetPassword(REGISTERED, code, "192.0.2.244")).status).toBe(200);
+    expect(await database.db.select().from(account)).toHaveLength(1);
+  });
 });

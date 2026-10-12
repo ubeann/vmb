@@ -334,6 +334,25 @@ describe("master API: divisions", () => {
     expect(store.restoreDivision).toHaveBeenCalledWith(ID);
   });
 
+  it("maps deleting a division that still has roles to 409 DIVISION_IN_USE", async () => {
+    const store = fakeStore({
+      deleteDivision: vi.fn(async () => {
+        throw new ConflictError(
+          "3 roles belong to this division. Move them to another division or delete them first.",
+          { code: "DIVISION_IN_USE" }
+        );
+      })
+    });
+    const response = await appWith(store).request(`/divisions/${ID}`, { method: "DELETE" }, env);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      code: "DIVISION_IN_USE",
+      message:
+        "3 roles belong to this division. Move them to another division or delete them first."
+    });
+  });
+
   it("activates and deactivates by id through the status-only store call", async () => {
     const store = fakeStore();
 

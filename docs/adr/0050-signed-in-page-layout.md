@@ -73,6 +73,8 @@ Built by #348 (rules 1–3 and 6) and #349 (rules 4 and 5). How a record opens o
   - under 42rem, free text folds and rides under the identity as a second line;
   - under 32rem, rows fold to two lines, the identity over the utility values ("CBK · Updated 5 Jan 2026"), and the header row goes.
 
+  The kit has a kind per column for this: `utility` stays (actions), `meta` (codes, dates) shrinks to its content and folds into the second line under 32rem, `text` is the free text above, `identity` takes the card once rows fold. `ListCard` is the one `@container/list`; View learns the fold from the same 32rem line, so the header row, the rows and View's Sort by never disagree.
+
   The second line carries what folded, the most useful first. In the list kit this replaces ADR-0035 rule 5's horizontal scroll, which stays for tables outside the kit.
 
 - **Room on tablets (new).** Between 640 and 1023px, the page padding is 16px instead of 24px, and the sidebar starts as its icon rail. The rail is the default, not an override: a user's saved choice (the sidebar cookie) still wins. At 768px the list card grows from 456 to 656px, enough for a real table instead of two-line rows.

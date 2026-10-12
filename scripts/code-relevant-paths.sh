@@ -9,16 +9,17 @@
 #     on a push to `master` (issue #63). It uses the canonical list only: a
 #     workflow edit cannot change the deployed artifact, so it must not force a
 #     deploy.
-#   - `preview.yml`'s `Detect Code-Relevant Changes` job gates the preview on a
-#     pull request. It uses the canonical list plus `.github/workflows/**`: a
-#     workflow edit still has to be exercised by that PR's own preview run
-#     before it lands (ADR-0023).
+#   - `preview.yml`'s `Detect code-relevant changes` step, the first step of
+#     its `preview` job, gates the preview on a pull request. It uses the
+#     canonical list plus `.github/workflows/**`: a workflow edit still has to
+#     be exercised by that PR's own preview run before it lands (ADR-0023).
 #
 # `preview.yml` used to hold the canonical list in its `on.paths` trigger, with
 # `ci.yml` a hand-kept copy (issue #70). A workflow's `on.paths` cannot reference
 # a shared value, so the two could drift; the only way to make one source back
-# both is to give up the trigger filter and detect the change in a job — which
-# is what `preview.yml` now does.
+# both is to give up the trigger filter and detect the change inside the run —
+# which is what `preview.yml` now does (first as a job of its own, since #382 as
+# the first step of the `preview` job).
 #
 # `.mise.toml` stays canonical despite dev-only pins (e.g. `lefthook`) that
 # never change a build: the same file controls build-affecting pins (`node`,

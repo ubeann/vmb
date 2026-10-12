@@ -25,7 +25,7 @@ async function controls() {
   return {
     search: screen.getByRole("searchbox", { name: "Search" }).element(),
     filter: screen.getByRole("button", { name: "Filter" }).element(),
-    columns: screen.getByRole("button", { name: "Columns" }).element(),
+    view: screen.getByRole("button", { name: "View" }).element(),
     select: screen.getByLabelText("Rows per page").element(),
     email: screen.getByRole("textbox", { name: "Email" }).element(),
     division: screen.getByLabelText("Division").element()
@@ -35,11 +35,11 @@ async function controls() {
 // ADR-0035's 2026-10-11 amendment: one skin for outline buttons and the list kit's fields.
 describe("the control skin", () => {
   it("puts kit fields and outline buttons on the paper with the halfway edge, in light mode", async () => {
-    const { search, filter, columns, select } = await controls();
+    const { search, filter, view, select } = await controls();
     const edge = resolved("color-mix(in oklab, var(--input) 45%, var(--border))");
     const paper = resolved("var(--background)");
 
-    for (const control of [search, filter, columns, select]) {
+    for (const control of [search, filter, view, select]) {
       expect(style(control).borderTopColor).toBe(edge);
       expect(style(control).backgroundColor).toBe(paper);
     }
@@ -57,19 +57,19 @@ describe("the control skin", () => {
 
   it("keeps the dark look: the --input edge on a tint of it", async () => {
     document.documentElement.classList.add("dark");
-    const { search, filter, columns } = await controls();
+    const { search, filter, view } = await controls();
     const edge = resolved("var(--input)");
 
-    for (const control of [search, filter, columns]) {
+    for (const control of [search, filter, view]) {
       expect(style(control).borderTopColor).toBe(edge);
     }
     expect(style(filter).backgroundColor).toBe(style(search).backgroundColor);
   });
 
   it("rounds 32px controls by a quarter of their height", async () => {
-    const { search, filter, columns, select } = await controls();
+    const { search, filter, view, select } = await controls();
 
-    for (const control of [search, filter, columns, select]) {
+    for (const control of [search, filter, view, select]) {
       expect(control.getBoundingClientRect().height).toBe(32);
       expect(style(control).borderTopLeftRadius).toBe("8px");
     }
@@ -83,11 +83,11 @@ describe("the control skin", () => {
     expect(style(pill).borderTopLeftRadius).not.toBe("8px");
   });
 
-  it("keeps the button slot on a dropdown trigger, so touch pointers size it", async () => {
-    const { columns } = await controls();
+  it("keeps the button slot on a layer trigger, so touch pointers size it", async () => {
+    const { view } = await controls();
 
-    expect(columns.getAttribute("data-slot")).toBe("button");
-    expect(columns.getAttribute("aria-haspopup")).toBe("menu");
+    expect(view.getAttribute("data-slot")).toBe("button");
+    expect(view.getAttribute("aria-haspopup")).toBe("dialog");
   });
 });
 

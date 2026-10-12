@@ -70,6 +70,17 @@ export function canonicalListSearch<T extends z.ZodType>(
 }
 
 /**
+ * Whether a URL already has the query `canonicalListSearch` gave, compared as
+ * parsed. A client-side navigation reaches a server load with its query
+ * re-encoded (`status=active%2Cinactive`), so comparing the raw `search` with
+ * the canonical form, which keeps the comma, would redirect forever.
+ */
+export function isCanonicalListSearch(url: URL, canonical: string): boolean {
+  const current = queryString(url.searchParams);
+  return (current ? `?${current}` : "") === canonical;
+}
+
+/**
  * The same query, on another page, with empty values dropped. The caller
  * passes the result through `resolve()` — the type says it is a pathname this
  * app has, because the base is one of the list routes.
@@ -183,7 +194,8 @@ export function showingRange(list: { page: number; perPage: number; total: numbe
 /** What a list counts: one word for all numbers, or its singular and plural ("deleted division"). */
 export type CountNoun = string | { one: string; many: string };
 
-const nounFor = (noun: CountNoun, n: number) =>
+/** The noun in the form that agrees with `n`. */
+export const nounFor = (noun: CountNoun, n: number) =>
   typeof noun === "string" ? noun : n === 1 ? noun.one : noun.many;
 
 /**

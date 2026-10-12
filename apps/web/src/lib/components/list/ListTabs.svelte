@@ -2,34 +2,47 @@
   The All · Trash views on the card's top edge (#301, #363). Each tab is a link
   that sets or clears `trashed=only`, keeping the search and filters, and says
   how many rows it would show: the counts follow the search and filters
-  (ADR-0051 rule 2).
+  (ADR-0051 rule 2). A count is read with what it counts, and the Trash's is
+  "deleted divisions" so it isn't heard as the same thing as All's.
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
-  import { listHref, type MasterListPathname } from "$lib/master/list.js";
+  import { listHref, nounFor, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
 
   let {
     base,
     label,
     views,
-    countNoun,
+    countNouns,
     class: className = ""
   }: {
     base: MasterListPathname;
     label: string;
     /** Rows in each view; null when the list could not be loaded. */
     views: { all: number; trash: number } | null;
-    /** What the count counts, read after it by a screen reader: "divisions". */
-    countNoun: string;
+    /** What each count counts, read after it by a screen reader: "divisions" and "deleted divisions". */
+    countNouns: { all: CountNoun; trash: CountNoun };
     class?: string;
   } = $props();
 
   const inTrash = $derived(page.url.searchParams.get("trashed") === "only");
   const tabs = $derived([
-    { name: "All", count: views?.all ?? null, current: !inTrash, trashed: null },
-    { name: "Trash", count: views?.trash ?? null, current: inTrash, trashed: "only" }
+    {
+      name: "All",
+      count: views?.all ?? null,
+      noun: countNouns.all,
+      current: !inTrash,
+      trashed: null
+    },
+    {
+      name: "Trash",
+      count: views?.trash ?? null,
+      noun: countNouns.trash,
+      current: inTrash,
+      trashed: "only"
+    }
   ]);
 </script>
 
@@ -50,7 +63,7 @@
       {#if tab.count !== null}
         <span class="bg-muted text-muted-foreground rounded-full px-1.5 text-xs tabular-nums"
           >{tab.count}</span
-        ><span class="sr-only">{countNoun}</span>
+        ><span class="sr-only">{nounFor(tab.noun, tab.count)}</span>
       {/if}
     </a>
   {/each}

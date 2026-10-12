@@ -10,18 +10,21 @@ import {
 import {
   and,
   asc,
+  count,
   desc,
   eq,
+  exists,
   ilike,
   inArray,
   isNotNull,
   isNull,
+  not,
   or,
   sql,
   type AnyColumn,
   type SQL
 } from "drizzle-orm";
-import { divisions } from "../schema/master.js";
+import { divisions, roles } from "../schema/master.js";
 import {
   conflictFrom,
   nextStamp,
@@ -30,7 +33,7 @@ import {
   unchangedSince,
   type MasterDb
 } from "./db.js";
-import { NotFoundError, StaleRecordError } from "../errors.js";
+import { ConflictError, NotFoundError, StaleRecordError } from "../errors.js";
 
 const DIVISION_CONFLICTS = {
   master_divisions_name_unique: {
@@ -198,9 +201,11 @@ export async function createDivision(db: MasterDb, input: DivisionInput): Promis
 }
 
 /**
- * Save an edit, if the division is still as the editor loaded it: `input.updatedAt`
- * is compared inside the update, so nothing saved since can be overwritten. A
- * miss is a 409 when the division exists and a 404 when it does not.
+ * Save an edit, if the division is live and still as the editor loaded it:
+ * `deletedAt` and `input.updatedAt` are both checked inside the update, so
+ * neither a delete nor a save in between can be overwritten (a Trashed division
+ * is read-only until it is restored, ADR-0055). A miss is a 404 when the
+ * division is missing or Trashed, and a 409 when it is live but has changed.
  */
 export async function updateDivision(
   db: MasterDb,
@@ -217,7 +222,13 @@ export async function updateDivision(
         description: nullIfEmpty(fields.description),
         updatedAt: nextStamp(divisions.updatedAt)
       })
-      .where(and(eq(divisions.id, id), unchangedSince(divisions.updatedAt, updatedAt)))
+      .where(
+        and(
+          eq(divisions.id, id),
+          isNull(divisions.deletedAt),
+          unchangedSince(divisions.updatedAt, updatedAt)
+        )
+      )
       .returning();
     const row = rows[0];
     if (row) return toDivision(row);
@@ -225,10 +236,11 @@ export async function updateDivision(
     return conflictFrom(error, DIVISION_CONFLICTS);
   }
 
+  // a Trashed division is not stale, it is out of reach: reloading would not help
   const found = await db
     .select({ id: divisions.id })
     .from(divisions)
-    .where(eq(divisions.id, id))
+    .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
     .limit(1);
   if (!found[0]) throw new NotFoundError("Division not found.");
   throw new StaleRecordError();
@@ -238,8 +250,8 @@ export async function updateDivision(
  * Switch a live division on or off. It writes `is_active` and `updated_at` and
  * nothing else, so a row's Activate or Deactivate cannot overwrite a field
  * someone else is editing, as a whole-record update would. A Trashed division
- * is not switched: it comes back with Restore first. `updated_at` moves only
- * when the flag changes.
+ * is not switched: it comes back with Restore first (ADR-0055). `updated_at`
+ * moves only when the flag changes.
  */
 export async function setDivisionActive(
   db: MasterDb,
@@ -261,21 +273,67 @@ export async function setDivisionActive(
   return toDivision(row);
 }
 
+/**
+ * Move a live division to the Trash, unless a role still belongs to it: a
+ * Trashed division keeps its roles attached, and everyone holding them would
+ * keep every permission while the division dropped out of their `/me` (#406,
+ * ADR-0055). Roles do not soft-delete, so any role row counts. The refusal is
+ * in the update's own `where`, not a read ahead of it. One role committing in the instant
+ * between that statement's snapshot and its write can still be missed: Postgres lets a role's
+ * foreign-key lock and this update run side by side (ADR-0055).
+ * A miss is a 404 when the division is missing or already Trashed, and a 409
+ * `DIVISION_IN_USE` when it is live and has roles.
+ */
 export async function deleteDivision(db: MasterDb, id: string): Promise<void> {
   const rows = await db
     .update(divisions)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
+    // a stamp an editor still holds is never reissued, so its save is stale (as after a save)
+    .set({ deletedAt: new Date(), updatedAt: nextStamp(divisions.updatedAt) })
+    .where(
+      and(
+        eq(divisions.id, id),
+        isNull(divisions.deletedAt),
+        not(
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(roles)
+              .where(eq(roles.divisionId, divisions.id))
+          )
+        )
+      )
+    )
     .returning({ id: divisions.id });
 
-  if (!rows[0]) throw new NotFoundError("Division not found.");
+  if (rows[0]) return;
+
+  // only the refusal's wording comes from this read: the delete itself was decided above
+  const live = await db
+    .select({ roles: count(roles.id) })
+    .from(divisions)
+    .leftJoin(roles, eq(roles.divisionId, divisions.id))
+    .where(and(eq(divisions.id, id), isNull(divisions.deletedAt)))
+    .groupBy(divisions.id);
+  const held = live[0]?.roles;
+  if (held === undefined) throw new NotFoundError("Division not found.");
+  // the last role left between the delete and this read: nothing is refused now, so say to retry
+  if (held === 0) {
+    throw new ConflictError("This division changed while it was being deleted. Try again.");
+  }
+
+  throw new ConflictError(
+    held === 1
+      ? "1 role belongs to this division. Move it to another division or delete it first."
+      : `${held} roles belong to this division. Move them to another division or delete them first.`,
+    { code: "DIVISION_IN_USE" }
+  );
 }
 
 export async function restoreDivision(db: MasterDb, id: string): Promise<Division> {
   try {
     const rows = await db
       .update(divisions)
-      .set({ deletedAt: null, updatedAt: new Date() })
+      .set({ deletedAt: null, updatedAt: nextStamp(divisions.updatedAt) })
       .where(and(eq(divisions.id, id), isNotNull(divisions.deletedAt)))
       .returning();
 

@@ -280,7 +280,7 @@ describe("runRowAction", () => {
 
     expect(result).toMatchObject({
       status: 403,
-      data: { error: "System roles cannot be modified." }
+      data: { error: "System roles cannot be modified.", code: "SYSTEM_ROLE" }
     });
   });
 });

@@ -41,6 +41,23 @@ jobs:
     outputs:
       code_changed: ${{ steps.changes.outputs.code_changed }}
     steps:
+      # The real server for the `Real Postgres` step further down, started
+      # first so its image pull overlaps the checkout and the install instead
+      # of adding to them (ADR-0043). A `services:` container would start
+      # before the first step of every run; this one is started in the
+      # background, and only a run that reaches the suite waits for it. `docker
+      # run -d` still pulls in the foreground, so it is the pull that is
+      # backgrounded, with its output in a file: a background process holding
+      # the step's stdout would keep the step from finishing. The step takes no
+      # secrets, so Dependabot runs start it too (ADR-0020).
+      - name: Start Postgres in the background
+        env:
+          LOG: ${{ runner.temp }}/postgres-start.log
+        run: |
+          nohup docker run -d --name postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:18 \
+            >"$LOG" 2>&1 &
+
       - uses: actions/checkout@v7
         with:
           # `Detect code-relevant changes` diffs `github.event.before..HEAD`,
@@ -59,7 +76,7 @@ jobs:
       # pushed event's `before`, and the path list — the canonical
       # "code-relevant change" definition — lives in
       # `scripts/code-relevant-paths.sh`, the same module preview.yml's
-      # `Detect Code-Relevant Changes` job consumes (issue #83; see ADR-0019).
+      # `Detect code-relevant changes` step consumes (issue #83; see ADR-0019).
       # This gate passes no mode, so it takes the canonical list alone: a
       # workflow edit self-tests in that PR's Preview run but cannot change the
       # deployed artifact, so it must not force a deploy. `.github/actions/**`
@@ -179,9 +196,17 @@ jobs:
       # Every installed package must carry a valid npm registry signature, so a
       # tarball altered after publishing fails here (ADR-0047, #321). Known
       # advisories are not gated here: a new one would turn unrelated PRs red,
-      # so Dependabot alerts and security updates track those instead.
+      # so Dependabot alerts and security updates track those instead. It runs
+      # through turbo, hashed on the lockfile, the workspace file and the root
+      # `package.json`, so an unchanged lockfile replays the pass instead of
+      # spending 14 s of a billed minute (#383). A bump always changes the
+      # lockfile, so a Dependabot run still runs the check.
       - name: Registry signatures
-        run: pnpm audit signatures
+        run: pnpm turbo audit:signatures
+        env:
+          # Empty on a Dependabot run, where turbo falls back to the local cache.
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       # apps/web's component tests render .svelte files in a real browser
       # (vitest-browser-svelte + @vitest/browser-playwright). CI drives the
@@ -233,6 +258,71 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
+      # The database suite against a real server instead of embedded Postgres
+      # (issue #109): embedded Postgres is a re-implementation, so this is the
+      # check that catches the two disagreeing. It was a job of its own, but
+      # that job spent 25 s starting a service container and 26 s on a second
+      # setup to replay a cached result in under a second, so GitHub billed two
+      # minutes for 128 of 236 runs in a week. As steps here it costs only its
+      # own time (ADR-0043); the reasoning, and how to run this locally, live in
+      # `docs/migration/import-pipeline.md` rather than being repeated here.
+      #
+      # Like the lints below, `!cancelled()` reports it when an earlier step
+      # failed, so a PR that breaks a unit test and the real-server suite
+      # reports both; the `setup` guard skips it when the toolchain never
+      # installed. `pg_isready` runs over TCP: while the image initialises the
+      # data directory it answers on its unix socket only, and the suite has to
+      # reach the published port. On a timeout the start step's log and the
+      # container's own are printed, so a failed pull or a crashed server reads
+      # as one.
+      - name: Wait for Postgres and identify its image
+        id: postgres
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          LOG: ${{ runner.temp }}/postgres-start.log
+        run: |
+          deadline=$((SECONDS + 120))
+          until docker exec postgres pg_isready -q -h 127.0.0.1 -U postgres 2>/dev/null; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Postgres did not accept connections within 120 s."
+              cat "$LOG" || true
+              docker ps -a || true
+              docker logs postgres || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # The image ID, not the `postgres:18` tag: the tag stays the same
+          # across minor releases, the ID does not, so a new release re-runs the
+          # suite even when no code changed. A failed `docker inspect` fails the
+          # step rather than hashing an empty value that would replay forever.
+          image=$(docker inspect --format '{{.Image}}' postgres)
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      # Run through turbo so it replays from the cache when neither `@vmb/db`,
+      # its dependencies nor the server changed (ADR-0043). The hash covers
+      # `TEST_DATABASE_URL`, so it never shares an entry with the
+      # embedded-Postgres run of the same task above. No secrets beyond the
+      # turbo cache pair, which resolves empty on a Dependabot run: turbo then
+      # falls back to its local cache and runs the suite, so a bump that breaks
+      # it still turns the check red. The image tracks Node's embedded version
+      # and Neon's, which is where these migrations run in practice. The harness
+      # reads `TEST_DATABASE_URL` and gives each test a database of its own, so
+      # files stay parallel-safe.
+      #
+      # It also needs the wait step to have succeeded: with no server, or no
+      # image ID to hash, the run would fail twice or replay a result keyed on
+      # an empty value.
+      - name: Real Postgres
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && steps.postgres.outcome == 'success' }}
+        run: pnpm turbo test --filter=@vmb/db
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          TEST_DATABASE_IMAGE: ${{ steps.postgres.outputs.image }}
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
       # Workflow and script lints. They were a job of their own (issues #61,
       # #79), but that job ran for 14 s and GitHub bills every job rounded up
       # to a whole minute, so it cost a billed minute on every run (ADR-0043).
@@ -269,80 +359,18 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bash scripts/preview-identifiers.test.sh
 
-      # The ticket loop's two gates (docs/agents/ticket-loop.md): which tickets
-      # an unattended agent may build, and which PRs it may merge to `master`,
-      # which deploys. A wrong rule here ships to production unreviewed.
+      # The ticket loop's gates (docs/agents/ticket-loop.md): which tickets
+      # an unattended agent may build, in what order, and which PRs it may
+      # merge to `master`, which deploys. A wrong rule here ships to production
+      # unreviewed. The `master` ruleset's payload is checked beside them
+      # (ADR-0054).
       - name: Test ticket loop gates
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           bash scripts/ticket-lint.test.sh
+          bash scripts/frontier.test.sh
           bash scripts/merge-gate.test.sh
-
-  # The same database suite, against a real server instead of embedded Postgres
-  # (issue #109): embedded Postgres is a re-implementation, so this is the check
-  # that catches the two disagreeing. That job is the default and needs no
-  # service; the reasoning, and how to run this locally, live in
-  # `docs/migration/import-pipeline.md` rather than being repeated here.
-  #
-  # The suite runs through turbo so it replays from the remote cache when
-  # nothing it depends on changed (ADR-0043): run bare, it billed two minutes on
-  # every run although `@vmb/db` is unchanged on most of them. The hash already
-  # covers the package, its dependencies and `TEST_DATABASE_URL` (so it never
-  # shares an entry with `Verify`'s embedded-Postgres run of the same task); the
-  # server is added below as `TEST_DATABASE_IMAGE`, so a new `postgres:18`
-  # release re-runs the suite even when no code changed.
-  #
-  # No secrets beyond the turbo cache pair, and the service container is the
-  # whole environment. That keeps it runnable for Dependabot, whose runs receive
-  # no secrets (ADR-0020): the pair resolves empty there, turbo falls back to
-  # its local cache and runs the suite, so a bump that breaks it still turns
-  # this check red.
-  #
-  # The image tracks Node's embedded version and Neon's, which is where these
-  # migrations run in practice; a mismatch here would be a difference that
-  # matters. The harness reads `TEST_DATABASE_URL` and gives each test a database
-  # of its own, so files stay parallel-safe.
-  postgres:
-    name: Real Postgres
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        # Without a health check the first test can start before the server
-        # accepts connections, which reads as a flaky suite rather than a race.
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup
-
-      # The image ID, not the `postgres:18` tag: the tag stays the same across
-      # minor releases, the ID does not. A failed `docker inspect` fails the
-      # step rather than hashing an empty value that would replay forever.
-      - name: Identify the Postgres image
-        id: postgres-image
-        env:
-          CONTAINER: ${{ job.services.postgres.id }}
-        run: |
-          image=$(docker inspect --format '{{.Image}}' "$CONTAINER")
-          echo "id=$image" >> "$GITHUB_OUTPUT"
-
-      - name: Run the database suite against Postgres
-        env:
-          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
-          TEST_DATABASE_IMAGE: ${{ steps.postgres-image.outputs.id }}
-          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
-        run: pnpm turbo test --filter=@vmb/db
+          bash scripts/master-ruleset.test.sh
 
   deploy:
     name: Release

@@ -1266,3 +1266,472 @@ describe("edits over a newer save", () => {
     });
   });
 });
+
+describe("a Trashed record is read-only until restored (ADR-0055)", () => {
+  const ACTOR = { id: "00000000-0000-4000-8000-0000000000aa", permissions: [] };
+
+  const newUser = (overrides: Partial<UserCreateInput> = {}): UserCreateInput => ({
+    name: "Rina Wijaya",
+    email: "rina@vmblogistics.id",
+    phone: "+628111000001",
+    roleIds: [],
+    status: "active",
+    profilePhotoPath: "",
+    password: "password123",
+    passwordConfirmation: "password123",
+    ...overrides
+  });
+
+  const userEdit = (
+    loaded: { name: string; email: string; phone: string | null; updatedAt: string | null },
+    overrides: Partial<UserUpdateInput> = {}
+  ): UserUpdateInput => ({
+    name: loaded.name,
+    email: loaded.email,
+    phone: loaded.phone ?? "",
+    status: "active",
+    profilePhotoPath: "",
+    password: "",
+    passwordConfirmation: "",
+    updatedAt: loaded.updatedAt,
+    ...overrides
+  });
+
+  describe("divisions", () => {
+    it("refuses an edit, a switch and a second delete, and leaves the row as the delete left it", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const created = await store.createDivision(division());
+        await store.deleteDivision(created.id);
+        const trashed = await store.getDivision(created.id);
+        expect(trashed.deletedAt).not.toBeNull();
+
+        // a missing record to the writer: 404, never the 409 a live record that changed gets
+        const edits = [
+          editing(trashed, division({ name: "Renamed" })),
+          // a form opened before the delete, submitted after it
+          editing(created, division({ name: "Renamed" }))
+        ];
+        for (const edit of edits) {
+          await expect(store.updateDivision(created.id, edit)).rejects.toMatchObject({
+            code: "NOT_FOUND",
+            message: "Division not found."
+          });
+        }
+        for (const isActive of [true, false]) {
+          await expect(store.setDivisionActive(created.id, isActive)).rejects.toMatchObject({
+            code: "NOT_FOUND"
+          });
+        }
+        await expect(store.deleteDivision(created.id)).rejects.toMatchObject({
+          code: "NOT_FOUND"
+        });
+
+        // neither the deletion date nor "Updated" moved, and the row can still be read
+        await expect(store.getDivision(created.id)).resolves.toEqual(trashed);
+      });
+    });
+
+    it("settles a delete racing an edit, in either order, with the row deleted and never edited after", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+
+        // the edit lands first: it is kept, and the row ends up deleted
+        const first = await store.createDivision(division());
+        await store.updateDivision(first.id, editing(first, division({ name: "Edited first" })));
+        await store.deleteDivision(first.id);
+        await expect(store.getDivision(first.id)).resolves.toMatchObject({
+          name: "Edited first",
+          deletedAt: expect.any(String)
+        });
+
+        // the delete lands first: the edit is refused and changes nothing
+        const second = await store.createDivision(division({ name: "Second", code: "SND" }));
+        await store.deleteDivision(second.id);
+        await expect(
+          store.updateDivision(second.id, editing(second, division({ name: "Edited after" })))
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        await expect(store.getDivision(second.id)).resolves.toMatchObject({ name: "Second" });
+
+        // both in flight at once, either order: whichever the database runs first, the row ends
+        // up deleted, and it carries the edit only if the edit was the one accepted
+        for (const order of ["edit first", "delete first"] as const) {
+          const raced = await store.createDivision(
+            division({ name: `Raced ${order}`, code: order === "edit first" ? "RC1" : "RC2" })
+          );
+          const edit = () =>
+            store.updateDivision(raced.id, editing(raced, division({ name: "Edited" })));
+          const remove = () => store.deleteDivision(raced.id);
+          const results = await Promise.allSettled(
+            order === "edit first" ? [edit(), remove()] : [remove(), edit()]
+          );
+          const edited = results[order === "edit first" ? 0 : 1];
+          const after = await store.getDivision(raced.id);
+
+          expect(after.deletedAt).not.toBeNull();
+          expect(after.name).toBe(edited?.status === "fulfilled" ? "Edited" : `Raced ${order}`);
+          if (edited?.status === "rejected") {
+            expect(edited.reason).toMatchObject({ code: "NOT_FOUND" });
+          }
+        }
+      });
+    });
+
+    it("makes a form opened before a delete and restore stale, and a fresh one succeed", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const loaded = await store.createDivision(division());
+
+        await store.deleteDivision(loaded.id);
+        const restored = await store.restoreDivision(loaded.id);
+        expect(restored.updatedAt).not.toBe(loaded.updatedAt);
+
+        await expect(
+          store.updateDivision(loaded.id, editing(loaded, division({ name: "Stale" })))
+        ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
+        await expect(
+          store.updateDivision(loaded.id, editing(restored, division({ name: "Fresh" })))
+        ).resolves.toMatchObject({ name: "Fresh", deletedAt: null });
+      });
+    });
+
+    it("refuses to restore over a code reused meanwhile, naming the code, and keeps both rows as they were", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const first = await store.createDivision(division());
+        await store.deleteDivision(first.id);
+        const reuse = await store.createDivision(division({ name: "Operations Two" }));
+
+        await expect(store.restoreDivision(first.id)).rejects.toMatchObject({
+          code: "CONFLICT",
+          message: "A division with that code already exists.",
+          issues: [{ path: "code" }]
+        });
+        await expect(store.getDivision(first.id)).resolves.toMatchObject({
+          deletedAt: expect.any(String)
+        });
+        await expect(store.getDivision(reuse.id)).resolves.toEqual(reuse);
+
+        // once the code is free again, the restore goes through
+        await store.deleteDivision(reuse.id);
+        await expect(store.restoreDivision(first.id)).resolves.toMatchObject({ deletedAt: null });
+      });
+    });
+
+    it("keeps the roles of a division Trashed before the refusal, and their holders, and drops it from where they belong until restored", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const staff = await insertRole(client, "Staff", hub.id);
+        await client.exec(
+          `insert into master.role_permissions (role_id, permission_key) values ('${staff}', 'master-users.view_any')`
+        );
+        const rina = await store.createUser(newUser({ roleIds: [staff] }), {
+          ...ACTOR,
+          permissions: ["master-users.view_any"]
+        });
+
+        // a division Trashed before it was refused while it had roles (#406): its roles stay attached
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
+
+        // nothing cascades: the role stays scoped to the Trashed division and its holder keeps it
+        await expect(store.getRole(staff)).resolves.toMatchObject({ divisionId: hub.id });
+        await expect(store.getUser(rina.id)).resolves.toMatchObject({
+          roles: [{ id: staff, name: "Staff" }]
+        });
+        // and so are its permissions: a division scopes a role but grants nothing itself
+        await expect(store.getPermissions(rina.id)).resolves.toEqual(["master-users.view_any"]);
+        // but the division is no longer one the user belongs to
+        await expect(store.getAccess(rina.id)).resolves.toMatchObject({ divisions: [] });
+
+        await store.restoreDivision(hub.id);
+        await expect(store.getAccess(rina.id)).resolves.toMatchObject({
+          divisions: [{ id: hub.id }]
+        });
+      });
+    });
+  });
+
+  describe("deleting a division that still has roles (#406)", () => {
+    const refusal = (roles: number) => ({
+      code: "DIVISION_IN_USE",
+      message:
+        roles === 1
+          ? "1 role belongs to this division. Move it to another division or delete it first."
+          : `${roles} roles belong to this division. Move them to another division or delete them first.`
+    });
+
+    it("refuses while any role belongs to it, names the count and changes nothing", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const first = await insertRole(client, "Dispatcher", hub.id);
+
+        await expect(store.deleteDivision(hub.id)).rejects.toMatchObject(refusal(1));
+        await insertRole(client, "Driver", hub.id);
+        await expect(store.deleteDivision(hub.id)).rejects.toMatchObject(refusal(2));
+
+        // the row, its stamp and its roles are as they were
+        await expect(store.getDivision(hub.id)).resolves.toEqual(hub);
+        expect(
+          await count(
+            client,
+            `select count(*)::int as value from master.roles where division_id = '${hub.id}'`
+          )
+        ).toBe(2);
+
+        // roles do not soft-delete, so deleting them is what lets the division go
+        await client.exec(`delete from master.roles where division_id = '${hub.id}'`);
+        await expect(store.deleteDivision(hub.id)).resolves.toBeUndefined();
+        await expect(store.getDivision(hub.id)).resolves.toMatchObject({
+          deletedAt: expect.any(String)
+        });
+        expect(first).toBeTruthy();
+      });
+    });
+
+    it("lets one go once its roles are moved to another division, and ignores other divisions' roles", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const other = await store.createDivision(division({ name: "Other", code: "OTH" }));
+        const role = await insertRole(client, "Dispatcher", hub.id);
+
+        await expect(store.deleteDivision(other.id)).resolves.toBeUndefined();
+
+        await client.exec(`update master.roles set division_id = null where id = '${role}'`);
+        await expect(store.deleteDivision(hub.id)).resolves.toBeUndefined();
+      });
+    });
+
+    it("answers a missing or already Trashed division with 404, not the refusal", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        await expect(
+          store.deleteDivision("00000000-0000-4000-8000-000000000000")
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+        // a Trashed one that still has roles (Trashed before the rule): it is out of reach, not in use
+        await insertRole(client, "Dispatcher", hub.id);
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
+        await expect(store.deleteDivision(hub.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+      });
+    });
+
+    it("decides inside the delete: one statement, with no read ahead of it", async () => {
+      await withMigratedDb(async (db, client, statements) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        await insertRole(client, "Dispatcher", hub.id);
+        const free = await store.createDivision(division({ name: "Free", code: "FRE" }));
+
+        statements.length = 0;
+        await store.deleteDivision(free.id);
+        expect(statements).toHaveLength(1);
+        expect(statements[0]).toMatch(/^update "master"\."divisions"/);
+        expect(statements[0]).toMatch(/not exists \(select 1 from "master"\."roles"/);
+      });
+    });
+
+    it("settles a role added racing the delete, in either order: the role first refuses the delete", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const outcomes: string[] = [];
+
+        for (const order of ["role first", "delete first"] as const) {
+          const raced = await store.createDivision(
+            division({
+              name: `Raced ${order}`,
+              code: order === "role first" ? "RC1" : "RC2"
+            })
+          );
+          const add = () => insertRole(client, `Role ${order}`, raced.id);
+          const remove = () => store.deleteDivision(raced.id);
+          // both in flight at once, either order: whichever the database runs first, a division
+          // whose role is in before the delete ran is refused and left live
+          const [added, removed] =
+            order === "role first"
+              ? await Promise.allSettled([add(), remove()])
+              : (await Promise.allSettled([remove(), add()])).reverse();
+          const after = await store.getDivision(raced.id);
+
+          expect(added?.status).toBe("fulfilled");
+          if (removed?.status === "fulfilled") {
+            expect(after.deletedAt).not.toBeNull();
+          } else {
+            expect(removed?.reason).toMatchObject({ code: "DIVISION_IN_USE" });
+            expect(after.deletedAt).toBeNull();
+          }
+          outcomes.push(removed?.status ?? "none");
+        }
+        // sent first, the role is what the delete meets
+        expect(outcomes[0]).toBe("rejected");
+      });
+    });
+
+    it("still restores a Trashed division that has roles", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        await insertRole(client, "Dispatcher", hub.id);
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
+
+        await expect(store.restoreDivision(hub.id)).resolves.toMatchObject({
+          id: hub.id,
+          deletedAt: null
+        });
+      });
+    });
+  });
+
+  describe("users", () => {
+    it("refuses every kind of edit to a Trashed user and changes nothing: row, identity, credential, roles, sessions", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const staff = await insertRole(client, "Staff");
+        const other = await insertRole(client, "Other");
+        const created = await store.createUser(newUser({ roleIds: [staff] }), ACTOR);
+        await store.deleteUser(created.id, ACTOR);
+        const trashed = await store.getUser(created.id);
+        const row = `select name, email, status, updated_at, deleted_at from master.users where id = '${created.id}'`;
+        const before = await client.query(row);
+
+        const attempts: Array<[string, UserUpdateInput]> = [
+          ["a rename", userEdit(trashed, { name: "Rina Z." })],
+          // the form's stamp from before the delete is no reason to answer 409 either
+          ["a stale form", userEdit(created, { name: "Rina Z." })],
+          ["a status change", userEdit(trashed, { status: "suspended" })],
+          ["a role assignment", userEdit(trashed, { roleIds: [other] })],
+          ["a role removal", userEdit(trashed, { roleIds: [] })],
+          [
+            "a password reset",
+            userEdit(trashed, {
+              password: "secondpassword2",
+              passwordConfirmation: "secondpassword2"
+            })
+          ],
+          ["an email change", userEdit(trashed, { email: "rina.z@vmblogistics.id" })]
+        ];
+        for (const [what, attempt] of attempts) {
+          await expect(store.updateUser(created.id, attempt, ACTOR), what).rejects.toMatchObject({
+            code: "NOT_FOUND",
+            message: "User not found."
+          });
+        }
+
+        expect(await client.query(row)).toEqual(before);
+        await expect(store.getUser(created.id)).resolves.toEqual(trashed);
+        expect(
+          await scalar<string>(client, `select email from public."user" where id = '${created.id}'`)
+        ).toBe("rina@vmblogistics.id");
+        expect(
+          await scalar<string>(
+            client,
+            `select password from public.account where account_id = '${created.id}'`
+          )
+        ).toBe("hashed:password123");
+        expect(
+          await scalar<string>(
+            client,
+            `select role_id from master.user_roles where user_id = '${created.id}'`
+          )
+        ).toBe(staff);
+        expect(await count(client, `select count(*)::int as value from public.session`)).toBe(0);
+      });
+    });
+
+    it("settles a delete racing an edit in either order, with the user deleted and never edited after", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+
+        for (const order of ["edit first", "delete first"] as const) {
+          const raced = await store.createUser(
+            newUser({
+              name: `Raced ${order}`,
+              email: order === "edit first" ? "one@vmblogistics.id" : "two@vmblogistics.id"
+            }),
+            ACTOR
+          );
+          const edit = () => store.updateUser(raced.id, userEdit(raced, { name: "Edited" }), ACTOR);
+          const remove = () => store.deleteUser(raced.id, ACTOR);
+          const results = await Promise.allSettled(
+            order === "edit first" ? [edit(), remove()] : [remove(), edit()]
+          );
+          const edited = results[order === "edit first" ? 0 : 1];
+          const after = await store.getUser(raced.id);
+
+          expect(after.deletedAt).not.toBeNull();
+          expect(after.name).toBe(edited?.status === "fulfilled" ? "Edited" : `Raced ${order}`);
+          if (edited?.status === "rejected") {
+            expect(edited.reason).toMatchObject({ code: "NOT_FOUND" });
+          }
+        }
+      });
+    });
+
+    it("makes a form opened before a delete and restore stale, and a fresh one succeed", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const loaded = await store.createUser(newUser(), ACTOR);
+
+        await store.deleteUser(loaded.id, ACTOR);
+        const restored = await store.restoreUser(loaded.id, ACTOR);
+        expect(restored.updatedAt).not.toBe(loaded.updatedAt);
+
+        await expect(
+          store.updateUser(loaded.id, userEdit(loaded, { name: "Stale" }), ACTOR)
+        ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
+        await expect(
+          store.updateUser(loaded.id, userEdit(restored, { name: "Fresh" }), ACTOR)
+        ).resolves.toMatchObject({ name: "Fresh", deletedAt: null });
+      });
+    });
+
+    it("keeps a Trashed user's email, so a restore never meets a reused one", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const trashed = await store.createUser(newUser(), ACTOR);
+        await store.deleteUser(trashed.id, ACTOR);
+
+        await expect(
+          store.createUser(newUser({ name: "Someone else" }), ACTOR)
+        ).rejects.toMatchObject({ code: "CONFLICT", issues: [{ path: "email" }] });
+        await expect(store.restoreUser(trashed.id, ACTOR)).resolves.toMatchObject({
+          deletedAt: null
+        });
+      });
+    });
+
+    it("gives a Trashed user no session, no sign-in and no access, even to a session that outlived the delete", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const admin = await insertRole(client, "Admin");
+        await client.exec(
+          `insert into master.role_permissions (role_id, permission_key) values ('${admin}', 'master-users.view_any')`
+        );
+        const created = await store.createUser(newUser({ roleIds: [admin] }), {
+          ...ACTOR,
+          permissions: ["master-users.view_any"]
+        });
+        await expect(store.getPermissions(created.id)).resolves.toEqual(["master-users.view_any"]);
+
+        await store.deleteUser(created.id, { ...ACTOR, permissions: ["master-users.view_any"] });
+        // a session minted in the gap between the gate's read and the delete
+        await client.exec(
+          `insert into public.session (id, expires_at, token, created_at, updated_at, user_id)
+            values ('late', now() + interval '1 day', 'late-token', now(), now(), '${created.id}')`
+        );
+
+        await expect(store.getSignInEligibility(created.id)).resolves.toMatchObject({
+          deletedAt: expect.any(String)
+        });
+        await expect(store.getPermissions(created.id)).resolves.toEqual([]);
+        await expect(store.getAccess(created.id)).resolves.toEqual({
+          permissions: [],
+          divisions: []
+        });
+      });
+    });
+  });
+});

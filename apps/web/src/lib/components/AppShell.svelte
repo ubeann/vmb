@@ -12,7 +12,14 @@
   the user's menu, where search (#282) and notifications (#283) will join it, with no
   placeholder until they exist. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
-  without a flash. The footer strip (#218) closes the column below the panel.
+  without a flash. The footer strip (#218) closes the column below the panel. The one
+  shortcut sheet (ADR-0052) lives here, so `?` opens it on every signed-in page.
+
+  Room on tablets (ADR-0050): from 640 to 1023px the panel pads 16px, not 24, and
+  a sidebar nobody has toggled (`sidebarSaved` false: no cookie) starts as its icon
+  rail. The rail is the default, not an override: the first toggle saves the
+  user's own choice, and a saved one is never second-guessed. The default is
+  applied once the page is up, so the server-rendered page and its hydration agree.
 -->
 <script lang="ts">
   import { afterNavigate } from "$app/navigation";
@@ -21,30 +28,42 @@
   import AppBreadcrumbs from "$lib/components/AppBreadcrumbs.svelte";
   import AppSidebar from "$lib/components/AppSidebar.svelte";
   import ProfileMenu from "$lib/components/ProfileMenu.svelte";
+  import ShortcutsSheet from "$lib/components/ShortcutsSheet.svelte";
   import SidebarToggle from "$lib/components/SidebarToggle.svelte";
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { trailFor } from "$lib/breadcrumbs.js";
   import { isCurrent, NAV_GROUPS, visibleGroups } from "$lib/nav.js";
   import { NAV_ICONS } from "$lib/nav-icons.js";
-  import type { Snippet } from "svelte";
+  import { onMount, type Snippet } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
 
   let {
     user,
     division,
     sidebarOpen,
+    sidebarSaved,
     panel = $bindable(null),
     children
   }: {
     user: { id: string; name: string; email: string; image?: string | null };
     division: { name: string; iconName: string } | null;
     sidebarOpen: boolean;
+    /** Whether `sidebarOpen` is the user's own saved choice, rather than the default. */
+    sidebarSaved: boolean;
     /** The scrolling panel, for the layout's snapshot to keep its place across history. */
     panel?: HTMLElement | null;
     children: Snippet;
   } = $props();
 
   const groups = visibleGroups(NAV_GROUPS);
+
+  // The user's toggle, once there is one: it wins over the tablet default from then on.
+  let chosen = $state<boolean | null>(null);
+  const tablet = new MediaQuery("(min-width: 640px) and (max-width: 1023.98px)");
+  let mounted = $state(false);
+  onMount(() => (mounted = true));
+  const open = $derived(chosen ?? (sidebarSaved ? sidebarOpen : !(mounted && tablet.current)));
 
   const trail = $derived(trailFor(page.url.pathname, page.data.crumb, groups));
 
@@ -75,7 +94,8 @@
 <svelte:window bind:scrollY />
 
 <Sidebar.Provider
-  open={sidebarOpen}
+  {open}
+  onOpenChange={(next) => (chosen = next)}
   class="[--header-height:3.5rem] sm:[--header-height:4rem] md:[--header-height:4.5rem]"
 >
   <AppSidebar>
@@ -140,7 +160,7 @@
       bind:ref={panel}
       id="main-content"
       tabindex={-1}
-      class="bg-card dark:bg-background w-auto min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none sm:p-6 md:m-2 md:mt-0 md:ml-0 md:min-h-0 md:overflow-y-auto md:rounded-xl md:shadow-sm md:*:shrink-0"
+      class="bg-card dark:bg-background w-auto min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none md:m-2 md:mt-0 md:ml-0 md:min-h-0 md:overflow-y-auto md:rounded-xl md:shadow-sm md:*:shrink-0 lg:p-6"
     >
       {@render children()}
     </Sidebar.Inset>
@@ -152,3 +172,5 @@
     <SiteFooter class="max-w-none px-4 pt-2 pb-3 sm:px-3 sm:pl-2 lg:px-3 lg:pl-2" />
   </div>
 </Sidebar.Provider>
+
+<ShortcutsSheet />

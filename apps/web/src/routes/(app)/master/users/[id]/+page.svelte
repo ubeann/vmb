@@ -48,14 +48,15 @@
   <dd>{data.user.updatedAt ?? "—"}</dd>
 </dl>
 
-<p><a href={resolve("/(app)/master/users/[id]/edit", { id: data.user.id })}>Edit</a></p>
-
 {#if data.user.deletedAt}
+  <!-- read-only until restored (ADR-0055): Restore is the one thing to do -->
   <form method="POST" action="?/restore">
     <input type="hidden" name="id" value={data.user.id} />
     <button type="submit">Restore</button>
   </form>
 {:else}
+  <p><a href={resolve("/(app)/master/users/[id]/edit", { id: data.user.id })}>Edit</a></p>
+
   <form method="POST" action="?/delete">
     <input type="hidden" name="id" value={data.user.id} />
     <button type="submit">Delete</button>
