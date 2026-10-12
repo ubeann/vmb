@@ -124,6 +124,6 @@ export function withinReach(actor: Actor, targetId: string): SQL {
 }
 
 /** Whether the caller is changing their own user, whom the reach rule never refuses. */
-export function isSelf(actor: Actor, targetId: string): boolean {
+function isSelf(actor: Actor, targetId: string): boolean {
   return actor.id.toLowerCase() === targetId.toLowerCase();
 }
