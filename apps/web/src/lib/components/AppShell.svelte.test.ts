@@ -1035,7 +1035,7 @@ describe("AppShell", () => {
         ["/master/divisions/d-1", { label: "A division with a remarkably long name ".repeat(4) }],
         ["/master/divisions/new", undefined]
       ] as const) {
-        for (const width of [375, 744]) {
+        for (const width of [375, 744, 767]) {
           await browser.viewport(width, 800);
           mockPage.url = new URL(`http://localhost${path}`);
           mockPage.data = { crumb };
