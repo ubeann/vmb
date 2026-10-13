@@ -7,10 +7,10 @@
   column is at least the window's height, so the footer strip sits at the window's
   foot on a short page and after the panel on a long one. While the shell is on the
   page the root takes the frame's colour, so a bounce past either end on macOS or
-  iPadOS shows more frame. Below 48rem the sidebar becomes a sheet behind the bar's
-  menu button, and the bar keeps a line under it, since there is no panel edge to
-  part it from the page, and a shadow once the page has scrolled under it. The bar's slots, left
-  to right (ADR-0050): the menu button, the breadcrumb trail, then at the right edge
+  iPadOS shows more frame, and anything scrolled into view stops below the bar. Below
+  48rem the sidebar becomes a sheet behind the bar's menu button, and the bar keeps a
+  line under it, since there is no panel edge to part it from the page, and a shadow
+  once the page has scrolled under it. The bar's slots, left to right (ADR-0050): the menu button, the breadcrumb trail, then at the right edge
   the user's menu, where search (#282) and notifications (#283) will join it, with no
   placeholder until they exist. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
@@ -71,12 +71,14 @@
   // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);
 
-  // Another screen or another page of a list starts at the top. Refining a list in
-  // place (sort, filter, tab, search, page size) keeps the place, as their `noscroll`
-  // asks, and those already send the list back to page 1. Back and forward are
-  // SvelteKit's own: it keeps the window's scroll for each history entry.
+  // From 48rem another screen or another page of a list starts at the top, even from a
+  // `noscroll` refinement that sends the list back to page 1; one that keeps the page
+  // (sort, filter, tab, search, page size) keeps the place, as its `noscroll` asks.
+  // On a phone SvelteKit alone decides, as it always has. Back and forward are
+  // SvelteKit's own at every width: it keeps the window's scroll for each history entry.
+  const wide = new MediaQuery("(min-width: 48rem)");
   afterNavigate(({ type, from, to }) => {
-    if (type === "enter" || type === "popstate" || !from || !to) return;
+    if (!wide.current || type === "enter" || type === "popstate" || !from || !to) return;
     const samePage =
       from.url.pathname === to.url.pathname &&
       from.url.searchParams.get("page") === to.url.searchParams.get("page");
@@ -93,11 +95,7 @@
 
 <svelte:window bind:scrollY />
 
-<Sidebar.Provider
-  {open}
-  onOpenChange={(next) => (chosen = next)}
-  class="[--header-height:3.5rem] sm:[--header-height:4rem] md:[--header-height:4.5rem]"
->
+<Sidebar.Provider {open} onOpenChange={(next) => (chosen = next)}>
   <AppSidebar railDefault={!sidebarSaved && chosen === null}>
     <nav aria-label="Main" class="flex flex-col gap-2">
       {#each groups as group (group.label)}
@@ -176,8 +174,22 @@
 
 <style>
   /* A bounce past either end on macOS or iPadOS shows the canvas, which takes the body's
-     background unless the root has its own: the frame's makes it read as more frame. */
+     background unless the root has its own: the frame's makes it read as more frame. The
+     bar's height lives here, not on the wrapper, so the window's scroll padding can read it
+     and a row, the skip link's landing or a hash target stops below the sticky bar. */
   :global(html:has([data-slot="sidebar-wrapper"])) {
+    --header-height: 3.5rem;
     background-color: var(--sidebar);
+    scroll-padding-top: var(--header-height);
+  }
+  @media (min-width: 40rem) {
+    :global(html:has([data-slot="sidebar-wrapper"])) {
+      --header-height: 4rem;
+    }
+  }
+  @media (min-width: 48rem) {
+    :global(html:has([data-slot="sidebar-wrapper"])) {
+      --header-height: 4.5rem;
+    }
   }
 </style>

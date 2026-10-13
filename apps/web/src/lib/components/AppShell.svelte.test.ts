@@ -31,6 +31,7 @@ const { shortcuts } = await import("$lib/components/shortcuts.svelte.js");
 const { default: AppShell } = await import("./AppShell.svelte");
 
 const body = createRawSnippet(() => ({ render: () => "<h1>Page body</h1>" }));
+const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
 
 const user = { id: "u-1", name: "Siti Rahma", email: "siti@vmblogistics.id" };
 const division = { name: "Warehouse", iconName: "heroicon-o-building-storefront" };
@@ -48,6 +49,7 @@ const desktop = () => browser.viewport(1280, 800);
 const phone = () => browser.viewport(390, 844);
 
 afterEach(() => {
+  window.scrollTo(0, 0);
   shortcuts.open = false;
   shortcuts.singleKey = true;
   localStorage.clear();
@@ -435,7 +437,6 @@ describe("AppShell", () => {
 
   it("lifts the bar off the page on a phone once the page has scrolled under it", async () => {
     await phone();
-    const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
     const screen = await render(AppShell, props({ children: tall }));
     const bar = screen.getByRole("banner").element();
 
@@ -454,7 +455,6 @@ describe("AppShell", () => {
   // and the bar stays at the top while the panel slides under it.
   it("scrolls the window, not the panel, on desktop, with the bar held at the top", async () => {
     await desktop();
-    const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
     const screen = await render(AppShell, props({ children: tall }));
     const panel = document.querySelector("#main-content")!;
     const bar = screen.getByRole("banner").element();
@@ -468,7 +468,6 @@ describe("AppShell", () => {
     await expect.poll(() => window.scrollY).toBe(400);
     expect(bar.getBoundingClientRect().top).toBe(0);
     expect(panel.getBoundingClientRect().top).toBeLessThan(bar.getBoundingClientRect().bottom);
-    window.scrollTo(0, 0);
   });
 
   // A bounce past either end on macOS or iPadOS shows the root's background: the frame's.
@@ -495,7 +494,6 @@ describe("AppShell", () => {
 
   it("starts the window at the top for another screen or page, and keeps it otherwise", async () => {
     await desktop();
-    const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
     await render(AppShell, props({ children: tall }));
     const go = (type: string, from: string, to: string) =>
       navigated({
@@ -516,7 +514,41 @@ describe("AppShell", () => {
       go(type, from, to);
       expect(window.scrollY, `${type} ${from} -> ${to}`).toBe(top);
     }
-    window.scrollTo(0, 0);
+  });
+
+  // Phone navigation is SvelteKit's alone, as before: a `noScroll` refinement keeps its place.
+  it("leaves the window to SvelteKit on a phone", async () => {
+    await phone();
+    await render(AppShell, props({ children: tall }));
+
+    window.scrollTo(0, 300);
+    navigated({
+      type: "goto",
+      from: { url: new URL("/master/divisions?page=2", "http://localhost") },
+      to: { url: new URL("/master/divisions?q=fin", "http://localhost") }
+    });
+    expect(window.scrollY).toBe(300);
+  });
+
+  // The marked row (row-keys), the skip link's landing and a hash target stop below the bar.
+  it("keeps an element scrolled into view clear of the bar", async () => {
+    const marked = createRawSnippet(() => ({
+      render: () =>
+        '<div><div style="height: 1500px"></div><p id="marked">Row</p><div style="height: 3000px"></div></div>'
+    }));
+    for (const viewport of [desktop, phone]) {
+      await viewport();
+      const screen = await render(AppShell, props({ children: marked }));
+      const bar = screen.getByRole("banner").element();
+      const row = document.getElementById("marked")!;
+
+      window.scrollTo(0, 2500);
+      row.scrollIntoView({ block: "nearest" });
+      expect(row.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        bar.getBoundingClientRect().bottom - 1
+      );
+      screen.unmount();
+    }
   });
 
   it("centres the account button and the logo in the space above the panel", async () => {
@@ -571,8 +603,6 @@ describe("AppShell", () => {
       const footer = () => short.getByRole("contentinfo").element().getBoundingClientRect();
       expect(Math.abs(footer().bottom - window.innerHeight)).toBeLessThanOrEqual(1);
       short.unmount();
-
-      const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
       const long = await render(AppShell, props({ children: tall }));
       const strip = long.getByRole("contentinfo").element();
       expect(strip.getBoundingClientRect().top).toBeGreaterThan(window.innerHeight);
@@ -582,7 +612,6 @@ describe("AppShell", () => {
       expect(
         Math.abs(strip.getBoundingClientRect().bottom - window.innerHeight)
       ).toBeLessThanOrEqual(1);
-      window.scrollTo(0, 0);
     });
 
     it("gives its text 8px on the left and 12px on the right from tablet up", async () => {
