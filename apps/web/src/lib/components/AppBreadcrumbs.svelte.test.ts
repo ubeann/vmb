@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { page as browser } from "vitest/browser";
 
-// Isolated renders don't load the global stylesheet; the phone's hidden crumbs are styles.
+// Isolated renders don't load the global stylesheet; axe reads the colours it sees.
 import "../../app.css";
 
 import { axeViolations } from "$lib/a11y-support.js";
@@ -74,19 +74,6 @@ describe("AppBreadcrumbs", () => {
     expect(screen.container.querySelector("[aria-current='page']")?.textContent?.trim()).toBe(
       "Dashboard"
     );
-  });
-
-  it("keeps only the section on a phone, without overflowing it", async () => {
-    await browser.viewport(390, 844);
-    const screen = await render(AppBreadcrumbs, {
-      trail: trailFor("/master/divisions/d-1/edit", finance)
-    });
-
-    await expect.element(screen.getByRole("link", { name: "Divisions" })).toBeVisible();
-    await expect.element(screen.getByText("Master")).not.toBeVisible();
-    await expect.element(screen.getByText("Finance")).not.toBeVisible();
-    await expect.element(screen.getByText("Edit")).not.toBeVisible();
-    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 
   it("passes axe in light and dark", async () => {

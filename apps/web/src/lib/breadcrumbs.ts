@@ -16,8 +16,6 @@ export type Crumb = {
   href?: string;
   icon?: NavIcon;
   tile?: RecordCrumb["tile"];
-  // The one crumb a phone keeps: the screen's section.
-  section?: boolean;
   current?: boolean;
 };
 
@@ -30,7 +28,7 @@ export function trailFor(
     for (const item of group.items) {
       if (!isCurrent(pathname, item.href)) continue;
 
-      const section: Crumb = { label: item.label, icon: item.icon, section: true };
+      const section: Crumb = { label: item.label, icon: item.icon };
       // The dashboard is a screen of its own, not a member of its "Overview" group.
       if (item.href === "/") return [{ ...section, current: true }];
 

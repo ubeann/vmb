@@ -1029,18 +1029,47 @@ describe("AppShell", () => {
       await expect.element(trail.getByText("Dashboard")).toBeVisible();
     });
 
-    it("keeps the bar inside a phone, with a long record name truncated", async () => {
-      await phone();
+    it("holds the menu button and the user's menu only below md, on a list, a record and a form", async () => {
+      for (const [path, crumb] of [
+        ["/master/divisions", undefined],
+        ["/master/divisions/d-1", { label: "A division with a remarkably long name ".repeat(4) }],
+        ["/master/divisions/new", undefined]
+      ] as const) {
+        for (const width of [375, 744]) {
+          await browser.viewport(width, 800);
+          mockPage.url = new URL(`http://localhost${path}`);
+          mockPage.data = { crumb };
+          const screen = await render(AppShell, props());
+          const header = document.querySelector("header")!;
+
+          const shown = [...header.querySelectorAll<HTMLElement>("button, a, nav")].filter((el) =>
+            el.checkVisibility()
+          );
+          expect(shown.map((el) => el.getAttribute("aria-label"))).toEqual([
+            "Menu",
+            "Siti Rahma, Warehouse, account menu"
+          ]);
+          expect(header.querySelector("nav")!.checkVisibility()).toBe(false);
+          const x = (el: Element) => el.getBoundingClientRect();
+          expect(x(shown[1]!).right).toBeGreaterThan(x(header).right - 32);
+          expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+          expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
+          await screen.unmount();
+        }
+      }
+    });
+
+    it("shows the whole trail from md", async () => {
+      await browser.viewport(768, 800);
       mockPage.url = new URL("http://localhost/master/divisions/d-1/edit");
-      mockPage.data = { crumb: { label: "A division with a remarkably long name ".repeat(4) } };
+      mockPage.data = { crumb: { label: "Finance" } };
       const screen = await render(AppShell, props());
 
       const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
-      await expect.element(trail.getByRole("link", { name: "Divisions" })).toBeVisible();
-      await expect.element(trail.getByText("Edit")).not.toBeVisible();
-      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
-      const header = document.querySelector("header")!;
-      expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth);
+      await expect.element(trail).toBeVisible();
+      for (const label of ["Master", "Divisions", "Finance", "Edit"]) {
+        await expect.element(trail.getByText(label)).toBeVisible();
+      }
     });
 
     it("truncates a long record name on a desktop without pushing the user's menu away", async () => {
