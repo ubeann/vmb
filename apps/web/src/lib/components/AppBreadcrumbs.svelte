@@ -1,8 +1,8 @@
 <!--
   The trail in the top bar (#349, ADR-0050 rule 5): the group as plain text (it has no
   page of its own), then links, then the current page, which is marked and not a link.
-  Icons are decoration, since the label says it. Below `md` only the section's crumb
-  stays, truncated, so the bar never outgrows a phone.
+  Icons are decoration, since the label says it. The bar hides the whole trail below
+  `md` (ADR-0050 rule 5), so nothing here is styled for a phone.
 -->
 <script lang="ts">
   import type { Crumb } from "$lib/breadcrumbs.js";
@@ -32,9 +32,9 @@
   <Breadcrumb.List class="flex-nowrap gap-1.5 sm:gap-2">
     {#each trail as crumb, index (index)}
       {#if index > 0}
-        <Breadcrumb.Separator class="max-md:hidden" />
+        <Breadcrumb.Separator />
       {/if}
-      <Breadcrumb.Item class="min-w-0 gap-1.5 {crumb.section ? '' : 'max-md:hidden'}">
+      <Breadcrumb.Item class="min-w-0 gap-1.5">
         {#if crumb.current}
           <Breadcrumb.Page
             role={undefined}

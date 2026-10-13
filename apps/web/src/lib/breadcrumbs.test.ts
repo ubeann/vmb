@@ -49,18 +49,8 @@ describe("trailFor", () => {
     expect(trail.filter((crumb) => crumb.current)).toHaveLength(1);
   });
 
-  it("keeps the section crumb, and only it, for a phone", () => {
-    const trail = trailFor("/master/divisions/d-1/edit", finance);
-
-    expect(trail.filter((crumb) => crumb.section).map((crumb) => crumb.label)).toEqual([
-      "Divisions"
-    ]);
-  });
-
   it("shows the dashboard as a single crumb, not under its group", () => {
-    expect(trailFor("/")).toEqual([
-      { label: "Dashboard", icon: "dashboard", section: true, current: true }
-    ]);
+    expect(trailFor("/")).toEqual([{ label: "Dashboard", icon: "dashboard", current: true }]);
   });
 
   it("stops at the section when a record's page has no record, as on an error page", () => {

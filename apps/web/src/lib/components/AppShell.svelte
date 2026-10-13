@@ -10,7 +10,9 @@
   the page, and a shadow once the page has scrolled under it. The bar's slots, left
   to right (ADR-0050): the menu button, the breadcrumb trail, then at the right edge
   the user's menu, where search (#282) and notifications (#283) will join it, with no
-  placeholder until they exist. Sidebar state persists in the `sidebar_state`
+  placeholder until they exist. Below `md` the trail is hidden: the bar holds the menu
+  button and the user's menu only, and the way back is the browser's gesture or a
+  record page's own "Back to …" link. Sidebar state persists in the `sidebar_state`
   cookie, which the layout load reads back (`sidebarOpen`), so a reload keeps it
   without a flash. The footer strip (#218) closes the column below the panel. The one
   shortcut sheet (ADR-0052) lives here, so `?` opens it on every signed-in page.
@@ -143,7 +145,7 @@
       class="bg-sidebar text-sidebar-foreground max-md:border-sidebar-border sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 px-3 transition-shadow duration-(--duration-panel) ease-(--easing-standard) max-md:border-b max-md:data-[scrolled=true]:shadow-sm sm:px-4"
     >
       <SidebarToggle />
-      <AppBreadcrumbs {trail} />
+      <div class="min-w-0 max-md:hidden"><AppBreadcrumbs {trail} /></div>
       <div class="ml-auto shrink-0">
         <ProfileMenu {user} {division} />
       </div>
