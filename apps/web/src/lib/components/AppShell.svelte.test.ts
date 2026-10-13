@@ -450,26 +450,53 @@ describe("AppShell", () => {
     await expect.poll(() => bar.getAttribute("data-scrolled")).toBe("false");
   });
 
-  it("scrolls the panel, not the page, on desktop, so nothing slides under the bar", async () => {
+  // ADR-0050, 2026-10-13, "The footer strip": from 48rem the window scrolls, as on a phone,
+  // and the bar stays at the top while the panel slides under it.
+  it("scrolls the window, not the panel, on desktop, with the bar held at the top", async () => {
     await desktop();
     const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
     const screen = await render(AppShell, props({ children: tall }));
     const panel = document.querySelector("#main-content")!;
+    const bar = screen.getByRole("banner").element();
 
-    expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(window.innerHeight);
-    expect(panel.scrollHeight).toBeGreaterThan(panel.clientHeight);
-    expect(panel.getBoundingClientRect().bottom).toBeLessThanOrEqual(window.innerHeight);
+    expect(document.documentElement.scrollHeight).toBeGreaterThan(window.innerHeight);
+    // Its `overflow-x-auto` makes `overflow-y` compute to auto too, but with no height cap
+    // the panel grows with the page and has nothing to scroll.
+    expect(panel.scrollHeight).toBeLessThanOrEqual(panel.clientHeight);
 
-    panel.scrollTop = 200;
-    await expect.poll(() => panel.scrollTop).toBe(200);
-    expect(getComputedStyle(screen.getByRole("banner").element()).boxShadow).toBe("none");
+    window.scrollTo(0, 400);
+    await expect.poll(() => window.scrollY).toBe(400);
+    expect(bar.getBoundingClientRect().top).toBe(0);
+    expect(panel.getBoundingClientRect().top).toBeLessThan(bar.getBoundingClientRect().bottom);
+    window.scrollTo(0, 0);
   });
 
-  it("starts the panel at the top for another screen or page, and keeps it otherwise", async () => {
+  // A bounce past either end on macOS or iPadOS shows the root's background: the frame's.
+  it("paints the root in the frame's colour in both themes while the shell is on the page", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+    const painted = (token: string) => {
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = `var(${token})`;
+      document.body.append(probe);
+      const colour = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return colour;
+    };
+    const root = () => getComputedStyle(document.documentElement).backgroundColor;
+
+    expect(root()).toBe(painted("--sidebar"));
+    document.documentElement.classList.add("dark");
+    expect(root()).toBe(painted("--sidebar"));
+
+    screen.unmount();
+    expect(root()).not.toBe(painted("--sidebar"));
+  });
+
+  it("starts the window at the top for another screen or page, and keeps it otherwise", async () => {
     await desktop();
     const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
     await render(AppShell, props({ children: tall }));
-    const panel = document.querySelector("#main-content")!;
     const go = (type: string, from: string, to: string) =>
       navigated({
         type,
@@ -481,13 +508,15 @@ describe("AppShell", () => {
       ["link", "/master/divisions", "/master/divisions?sort=code", 300],
       ["goto", "/master/divisions", "/master/divisions?perPage=50", 300],
       ["popstate", "/master/roles", "/master/divisions", 300],
+      ["link", "/master/divisions", "/master/divisions#rows", 300],
       ["link", "/master/divisions", "/master/divisions?page=2", 0],
       ["link", "/master/divisions", "/master/roles", 0]
     ] as const) {
-      panel.scrollTop = 300;
+      window.scrollTo(0, 300);
       go(type, from, to);
-      expect(panel.scrollTop, `${type} ${from} -> ${to}`).toBe(top);
+      expect(window.scrollY, `${type} ${from} -> ${to}`).toBe(top);
     }
+    window.scrollTo(0, 0);
   });
 
   it("centres the account button and the logo in the space above the panel", async () => {
@@ -534,6 +563,26 @@ describe("AppShell", () => {
       expect(footer.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(
         panel.getBoundingClientRect().bottom
       );
+    });
+
+    it("sits at the window's foot on a short page, and after the panel on a long one", async () => {
+      await desktop();
+      const short = await render(AppShell, props());
+      const footer = () => short.getByRole("contentinfo").element().getBoundingClientRect();
+      expect(Math.abs(footer().bottom - window.innerHeight)).toBeLessThanOrEqual(1);
+      short.unmount();
+
+      const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
+      const long = await render(AppShell, props({ children: tall }));
+      const strip = long.getByRole("contentinfo").element();
+      expect(strip.getBoundingClientRect().top).toBeGreaterThan(window.innerHeight);
+      const end = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, end);
+      await expect.poll(() => window.scrollY).toBe(end);
+      expect(
+        Math.abs(strip.getBoundingClientRect().bottom - window.innerHeight)
+      ).toBeLessThanOrEqual(1);
+      window.scrollTo(0, 0);
     });
 
     it("gives its text 8px on the left and 12px on the right from tablet up", async () => {
