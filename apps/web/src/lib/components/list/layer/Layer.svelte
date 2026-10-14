@@ -39,7 +39,7 @@
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
   import XIcon from "@lucide/svelte/icons/x";
   import { Dialog } from "bits-ui";
-  import { tick, type Snippet } from "svelte";
+  import { tick, type Component, type Snippet } from "svelte";
   import { createAttachmentKey } from "svelte/attachments";
   import {
     BESIDE_OFFSET,
@@ -51,6 +51,7 @@
 
   let {
     label,
+    icon: Icon,
     stepTitle = () => label,
     pickerWidth = 560,
     inside = (step) => [step],
@@ -64,6 +65,8 @@
   }: {
     /** The top level's title, such as "Filters"; also the layer's accessible name. */
     label: string;
+    /** The icon of the button that opens the layer. The sheet and dialog show it before the top level's title; a step and the panel have none. */
+    icon?: Component<{ "aria-hidden"?: "true"; class?: string }>;
     /** A step's title, from its path; the last entry is the step shown. A layer without steps leaves it out. */
     stepTitle?: (path: readonly string[]) => string;
     /** The picker's width beside the panel, which decides whether it fits. */
@@ -409,6 +412,9 @@
       >
         <ChevronLeftIcon aria-hidden="true" class={modal ? "size-5" : undefined} />
       </Button>
+    {/if}
+    {#if modal && Icon && !path.length}
+      <Icon aria-hidden="true" class="text-muted-foreground mr-1.5 size-5 shrink-0" />
     {/if}
     {#if modal}
       <Dialog.Title

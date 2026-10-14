@@ -342,6 +342,41 @@ describe("the Filter layer's measures", () => {
   });
 });
 
+// the icon the sheet and dialog put before the top level's title
+const titleIcon = () => find("[data-layer-title]")!.previousElementSibling;
+
+describe("the title's icon", () => {
+  it("follows the button's in the sheet and dialog at the top level, and is gone from a step and the panel", async () => {
+    for (const width of [390, 560]) {
+      await browser.viewport(width, 844);
+      const modal = await toolbar();
+      await openPanel(modal);
+      const icon = titleIcon()!;
+      expect(icon.tagName.toLowerCase()).toBe("svg");
+      expect(icon.getAttribute("aria-hidden")).toBe("true");
+      expect(icon.classList.contains("lucide-list-filter")).toBe(true);
+      expect(icon.classList.contains("text-muted-foreground")).toBe(true);
+      const box = icon.getBoundingClientRect();
+      expect([Math.round(box.width), Math.round(box.height)]).toEqual([20, 20]);
+
+      // a step keeps its back arrow and no icon
+      row("Updated").click();
+      await expect.poll(() => find("[data-layer-title]")?.textContent?.trim()).toBe("Updated");
+      expect(titleIcon()).toBe(find("[data-layer-back]"));
+      expect(find("[data-layer-frame] svg.lucide-list-filter")).toBeNull();
+      await userEvent.keyboard("{Escape}");
+      await expect.poll(() => find("[data-layer-frame]")).toBeNull();
+      modal.unmount();
+    }
+
+    await browser.viewport(1440, 900);
+    const panel = await toolbar();
+    await openPanel(panel);
+    expect(layer().dataset.layerFrame).toBe("panel");
+    expect(titleIcon()).toBeNull();
+  });
+});
+
 describe("a date filter", () => {
   it("is a row showing its value, opening presets with their dates beside the panel", async () => {
     await browser.viewport(1440, 900);

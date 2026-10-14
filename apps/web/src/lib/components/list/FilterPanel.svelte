@@ -180,6 +180,7 @@
 <Layer
   bind:this={layer}
   label="Filters"
+  icon={ListFilterIcon}
   pickerWidth={PICKER_WIDTH}
   stepTitle={(path) =>
     path.at(-1) === rangeStep
