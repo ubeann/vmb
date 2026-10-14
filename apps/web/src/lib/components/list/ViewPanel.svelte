@@ -4,8 +4,9 @@
   page and, once the card is under 32rem and its rows fold to two lines, Sort
   by and Order instead of the columns. A choice applies at once and the panel
   stays open; a dot on the button says something differs from the default, and
-  Reset puts every part back. In the sheet and the dialog a footer "Done" closes
-  the layer, applying nothing (nothing in View changes the count); the panel
+  Reset puts every part back: a quiet link by the title on the panel, a ghost
+  button beside Done in the footer of the sheet and the dialog. That "Done"
+  closes the layer, applying nothing (nothing in View changes the count); the panel
   has no footer, since a click outside, Esc or the button closes it. The sort
   and page size live in the URL, the columns in the browser (`ColumnVisibility`).
 
@@ -124,7 +125,7 @@
   const heading = "text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium";
 </script>
 
-<Layer label="View" panelClass="w-64">
+<Layer label="View" icon={Settings2Icon} panelClass="w-64">
   {#snippet trigger({ props })}
     <Button {...props} data-slot="button" title="View" variant="outline" class={TOOL_BUTTON}>
       <Settings2Icon aria-hidden="true" data-icon="inline-start" /><span class={TOOL_LABEL}
@@ -138,8 +139,11 @@
 
   {#snippet headerAction()}
     {#if differs}
-      <button type="button" data-slot="layer-reset" class={LAYER_RESET} onclick={reset}
-        >Reset</button
+      <button
+        type="button"
+        data-slot="layer-reset"
+        class={cn(LAYER_RESET, "in-data-[layer-frame=modal]:hidden")}
+        onclick={reset}>Reset</button
       >
     {/if}
   {/snippet}
@@ -260,8 +264,16 @@
         </RadioGroup.Root>
       </section>
     </LayerBody>
-    <!-- the picks are already applied and can't change the count: this only closes the layer, so the sheet and dialog have it and the panel does not (ADR-0053 rule 4) -->
+    <!-- the picks are already applied and can't change the count: this only closes the layer, so the sheet and dialog have it and the panel does not (ADR-0053 rule 4); Reset sits beside it there -->
     <LayerFooter modalOnly>
+      {#if differs}
+        <Button
+          type="button"
+          variant="ghost"
+          class="in-data-[layer-frame=modal]:h-11"
+          onclick={reset}>Reset</Button
+        >
+      {/if}
       <LayerAction label="Done" icon={CheckIcon} onclick={layer.close} />
     </LayerFooter>
   {/snippet}

@@ -1084,6 +1084,62 @@ describe("divisions list", () => {
       .toBeChecked();
   });
 
+  it("puts Reset beside Done in the sheet and dialog, and by the title on the panel", async () => {
+    for (const width of [390, 560]) {
+      await browser.viewport(width, 844);
+      const modal = await render(Page, props("/master/divisions?perPage=50"));
+      goto.mockImplementation(() => new Promise(() => {}));
+      await modal.getByRole("button", { name: "View changed" }).click();
+      const reset = modal.getByRole("button", { name: "Reset" });
+      const done = modal.getByRole("button", { name: "Done" });
+      // one Reset, in the footer with Done, a ghost button before it and not up by the title
+      expect(reset.elements()).toHaveLength(1);
+      expect(reset.element().parentElement).toBe(done.element().parentElement);
+      expect(reset.element().getAttribute("data-slot")).toBe("button");
+      expect(reset.element().getBoundingClientRect().height).toBe(44);
+      expect(done.element().getBoundingClientRect().left).toBeGreaterThan(
+        reset.element().getBoundingClientRect().right
+      );
+      await reset.click();
+      expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
+        noScroll: true,
+        keepFocus: true
+      });
+      await userEvent.keyboard("{Escape}");
+      modal.unmount();
+    }
+
+    await browser.viewport(1280, 900);
+    const panel = await render(Page, props("/master/divisions?perPage=50"));
+    await panel.getByRole("button", { name: "View changed" }).click();
+    const link = panel.getByRole("button", { name: "Reset" }).element();
+    expect(link.getAttribute("data-slot")).toBe("layer-reset");
+    // the footer's Reset is hidden with its footer, so the link by the title is the one Reset
+    expect(link.closest("[data-layer-frame]")).toBe(
+      document.querySelector('[data-layer-frame="panel"]')
+    );
+    expect(link.parentElement).toBe(document.querySelector("[data-layer-title]")!.parentElement);
+  });
+
+  it("puts View's icon before its title in the sheet and dialog, and not on the panel", async () => {
+    for (const width of [390, 560]) {
+      await browser.viewport(width, 844);
+      const modal = await render(Page, props("/master/divisions"));
+      await modal.getByRole("button", { name: "View" }).click();
+      const icon = document.querySelector("[data-layer-title]")!.previousElementSibling!;
+      expect(icon.tagName.toLowerCase()).toBe("svg");
+      expect(icon.getAttribute("aria-hidden")).toBe("true");
+      expect(icon.classList.contains("lucide-settings-2")).toBe(true);
+      await userEvent.keyboard("{Escape}");
+      modal.unmount();
+    }
+
+    await browser.viewport(1280, 900);
+    const panel = await render(Page, props("/master/divisions"));
+    await panel.getByRole("button", { name: "View" }).click();
+    expect(document.querySelector("[data-layer-title]")!.previousElementSibling).toBeNull();
+  });
+
   it("has no dot and no Reset while View holds the defaults", async () => {
     const screen = await render(Page, props("/master/divisions"));
 
