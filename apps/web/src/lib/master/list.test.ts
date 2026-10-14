@@ -268,10 +268,19 @@ describe("countSummary", () => {
     );
   });
 
+  it("counts the rows of an unfiltered list that fits one page, rather than reading its range", () => {
+    expect(countSummary(list(1, 13), "divisions", null)).toBe("13 divisions");
+    expect(countSummary(list(1, 25), "divisions", null)).toBe("25 divisions");
+    expect(countSummary(list(1, 1), { one: "division", many: "divisions" }, null)).toBe(
+      "1 division"
+    );
+    expect(countSummary(list(1, 26), "divisions", null)).toBe("Showing 1–25 of 26");
+  });
+
   it("agrees the noun with its number, and names an unfiltered range when asked", () => {
     const trash = { one: "deleted division", many: "deleted divisions" };
 
-    expect(countSummary(list(1, 1), trash, null, true)).toBe("Showing 1–1 of 1 deleted division");
+    expect(countSummary(list(1, 1), trash, null, true)).toBe("1 deleted division");
     expect(countSummary(list(1, 60), trash, null, true)).toBe(
       "Showing 1–25 of 60 deleted divisions"
     );
