@@ -96,7 +96,7 @@ A hook that fails is a bug to fix, not a flag to reach for reflexively.
 
 ## Co-authoring AI-assisted work
 
-When a change was written or substantially drafted by an AI model, add a `Co-Authored-By` trailer naming the model's display name — not an internal model ID, and not the harness: `GPT-6.1 Sol <…>`, not `Codex <…>`, because the routing audit reads the name to tell which tier did the work. The model's address is the vendor's (`noreply@anthropic.com` for Claude, `noreply@openai.com` for GPT, `noreply@vmblogistics.id` for a provider with no documented address), and a second trailer credits the agents' GitHub account, which links the commit to a profile and earns contribution credit:
+When a change was written or substantially drafted by an AI model, add a `Co-Authored-By` trailer naming the model's display name — not an internal model ID, and not the harness: `Gemini 3.8 Flash <…>`, not `Antigravity <…>`, because the routing audit reads the name to tell which tier did the work. The model's address is the vendor's (`noreply@anthropic.com` for Claude, `noreply@openai.com` for GPT, `noreply@vmblogistics.id` for a provider with no documented address), and a second trailer credits the agents' GitHub account, which links the commit to a profile and earns contribution credit:
 
 ```
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
