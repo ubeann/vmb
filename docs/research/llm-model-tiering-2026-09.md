@@ -21,6 +21,12 @@ Claude Fable 5.1 gets a new `apex` tier now that the Claude plan is Max 5x, and 
 entered T3 Code's picker. See "October 2026 refresh" under Recommendation. Earlier content is
 unchanged; every new claim is dated 2026-10-11.
 
+**Updated 2026-10-14:** Codex and OpenCode left the routing (the owner stopped using both), and
+Gemini 3.1 Pro left the Antigravity picker, which now offers only Gemini 3.8 Flash. Routing is
+Claude for every tier with Gemini as the reviewer. See "Codex and OpenCode dropped" under
+Recommendation. Earlier content is unchanged; the OpenAI and OpenCode rows stay as a price
+reference. Every new claim is dated 2026-10-14.
+
 **Review by: 2026-12-24 (quarterly), or as soon as a provider is added to T3 Code's routing,
 whichever comes first.** Both platforms in the original table shipped new model waves inside the
 three weeks before this research, and the task brief that produced this file flagged quarterly
@@ -351,6 +357,25 @@ scope for benchmarks (Caveat 12).
 `Claude Sharing` (`~/.claude-sharing`), on different accounts with separate limits. The night loop
 runs on the personal one. Splitting nights and days across them is an owner decision; both profiles
 must carry the same plugins (`docs/agents/harnesses.md`).
+
+### Codex and OpenCode dropped (added 2026-10-14)
+
+`orchestrator_capabilities` on 2026-10-14 lists the Codex instance with no models and the
+constraints "Provider instance is disabled", "Provider executable is not installed" and "Codex is
+disabled in T3 Code settings". The owner no longer uses Codex, and decided the same day to stop
+using OpenCode (still enabled in T3 Code at that read; to be disabled). The adopted tier table in
+`docs/agents/model-routing.md` is therefore a single Claude column, and the OpenAI and OpenCode Go
+rows above are kept only as a price reference. `noreply@openai.com` stays in
+`scripts/ai-coauthors.txt` for the history that already carries it.
+
+The same read shows the Antigravity instance offering only Gemini 3.8 Flash (`-high`, `-medium`,
+`-low`); `gemini-pro-agent` and `gemini-3.1-pro-low` from the 2026-10-11 read are gone. The
+cross-provider review of a `complex` ticket, which 2026-10-11 routed to Codex with Gemini 3.1 Pro
+as first fallback, now goes to Gemini 3.8 Flash (High) through Antigravity, which has the repo's
+skills as copies, with a same-family session on the other Claude account as the only fallback.
+Gemini 3.8 Flash's Terminal-Bench 4.0 score (19.1%, 2026-09-27 table) is why it keeps review duty
+and no tier slot: the review buys a second vendor's reading of the spec, while the ticket's depth
+comes from Macroscope and the `frontier` writer.
 
 ### AI co-author addresses (added 2026-09-27)
 
