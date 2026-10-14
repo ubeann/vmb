@@ -1,6 +1,7 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 import type { AuthSession, AuthUser } from "$lib/auth.js";
 import type { RecordCrumb } from "$lib/breadcrumbs.js";
+import type { LayerEntry } from "$lib/components/list/layer/layer-route.svelte.js";
 
 declare global {
   // Injected at build time by CI (issue #23) so each per-PR web preview can
@@ -34,6 +35,10 @@ declare global {
       user: AuthUser | null;
       // A record's page names the record for the top bar's trail (#349).
       crumb?: RecordCrumb;
+    }
+    // A record opened in a layer over its list (#302): its page's URL and data.
+    interface PageState {
+      layer?: LayerEntry;
     }
     interface Platform {
       env: {

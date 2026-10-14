@@ -1,3 +1,4 @@
+<!-- A new Division as a full page (#302): the layer's form, for a link opened directly or no JavaScript. -->
 <script lang="ts">
   import Page from "$lib/components/Page.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
@@ -15,7 +16,12 @@
 <Page width="narrow" class="flex flex-col gap-4">
   <PageHeader title="New division" />
 
-  <DivisionForm form={data.form} submitLabel="Create division" />
-
-  <p><a href={resolve("/master/divisions")}>Back to divisions</a></p>
+  <div class="bg-card flex flex-col overflow-hidden rounded-xl border">
+    <DivisionForm
+      form={data.form}
+      submitLabel="Create division"
+      pendingLabel="Creating…"
+      cancelHref={resolve("/master/divisions")}
+    />
+  </div>
 </Page>

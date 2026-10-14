@@ -1,6 +1,13 @@
-import { DivisionListQuerySchema, type Division } from "@vmb/types";
+import {
+  DivisionListQuerySchema,
+  DivisionUpdateInputSchema,
+  DivisionInputSchema,
+  type Division
+} from "@vmb/types";
+import { superValidate } from "sveltekit-superforms/server";
+import { zod4 } from "sveltekit-superforms/adapters";
 import axe from "axe-core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page as browser, userEvent } from "vitest/browser";
 
 // Isolated renders don't load the global stylesheet; axe's colour reads need it.
@@ -8,22 +15,83 @@ import "../../../../app.css";
 
 import { axeViolations } from "$lib/a11y-support.js";
 import { shortcuts } from "$lib/components/shortcuts.svelte.js";
+import { divisionFormData } from "$lib/master/form-data.js";
+import { mockPage } from "$lib/mock-page.svelte.js";
 import type { PageData } from "./$types.js";
 
-const mockPage = { url: new URL("http://localhost/master/divisions") };
-vi.mock("$app/state", () => ({ page: mockPage, navigating: { to: null } }));
+vi.mock("$app/state", async () => ({
+  page: (await import("$lib/mock-page.svelte.js")).mockPage,
+  navigating: { to: null }
+}));
 
 const toast = { success: vi.fn(), error: vi.fn() };
 vi.mock("svelte-sonner", () => ({ toast }));
 const invalidateAll = vi.fn(async () => {});
 const goto = vi.fn(async () => {});
-vi.mock("$app/navigation", () => ({ goto, invalidateAll }));
+// SvelteKit's shallow routing, as far as the record layer uses it (#302): the
+// entries pushed over the list, which `history.go` moves through
+let entries: { url: URL; state: App.PageState }[] = [];
+let at = 0;
+function showEntry() {
+  mockPage.url = entries[at]!.url;
+  mockPage.state = entries[at]!.state;
+}
+// what each record page's load gives the layer
+let layerPermissions: string[] = [];
+async function loadLayer(href: string) {
+  const [, id, edit] = href.match(/^\/master\/divisions\/([^/?]+)(\/edit)?$/) ?? [];
+  if (id === "new") {
+    const form = await superValidate(zod4(DivisionInputSchema), { errors: false });
+    form.data.isActive = true;
+    return { type: "loaded" as const, status: 200, data: { form } };
+  }
+  const record = [division, inactive].find((d) => d.id === id);
+  if (!record) return { type: "loaded" as const, status: 404, data: {} };
+  const detail = { ...record, userCount: 12 };
+  if (edit) {
+    const form = await superValidate(divisionFormData(record), zod4(DivisionUpdateInputSchema));
+    return { type: "loaded" as const, status: 200, data: { division: detail, form } };
+  }
+  return {
+    type: "loaded" as const,
+    status: 200,
+    data: { division: detail, permissions: layerPermissions }
+  };
+}
+const preloadData = vi.fn(loadLayer);
+/** Leaves a record the row asked for unopened, for a test of what asks. */
+const holdLayer = () => preloadData.mockImplementation(() => new Promise(() => {}));
+const pushState = vi.fn((href: string, state: App.PageState) => {
+  entries.splice(at + 1, Infinity, { url: new URL(href, "http://localhost"), state });
+  at++;
+  showEntry();
+});
+const replaceState = vi.fn((href: string, state: App.PageState) => {
+  entries[at] = { url: new URL(href, "http://localhost"), state };
+  showEntry();
+});
+vi.mock("$app/navigation", () => ({
+  goto,
+  invalidateAll,
+  preloadData,
+  pushState,
+  replaceState,
+  beforeNavigate: () => {},
+  afterNavigate: () => {}
+}));
+beforeEach(() => {
+  vi.spyOn(history, "go").mockImplementation((delta = 0) => {
+    at += delta;
+    showEntry();
+  });
+});
 
 // The form action's answer, as `use:enhance` would hand it to the page.
 let deleteResult: { type: "success" | "failure"; status: number; data: Record<string, unknown> };
 // The real `deserialize` decodes through the running app's transport, which an
 // isolated render doesn't start, so action replies here carry plain JSON data.
 vi.mock("$app/forms", () => ({
+  applyAction: vi.fn(),
   deserialize: (text: string) => {
     const reply = JSON.parse(text);
     return { ...reply, data: JSON.parse(reply.data) };
@@ -89,6 +157,10 @@ function props(
   } = {}
 ) {
   mockPage.url = new URL(url, "http://localhost");
+  mockPage.state = {};
+  entries = [{ url: mockPage.url, state: {} }];
+  at = 0;
+  layerPermissions = overrides.permissions ?? ALL;
   const items = overrides.items ?? [division, inactive];
   return {
     data: {
@@ -121,6 +193,9 @@ afterEach(async () => {
   invalidateAll.mockClear();
   goto.mockReset();
   goto.mockImplementation(async () => {});
+  preloadData.mockClear();
+  preloadData.mockImplementation(loadLayer);
+  pushState.mockClear();
   await browser.viewport(414, 896);
 });
 
@@ -419,17 +494,18 @@ describe("divisions list", () => {
 
   it("ships with keyboard rows on (ADR-0052 rule 4): the mark, Enter, an action key, the sheet's sections and the hints in the row menu", async () => {
     const screen = await render(Page, props("/master/divisions"));
+    holdLayer();
     const marked = () => document.querySelector("tr[data-marked]")?.textContent ?? "";
 
     await userEvent.keyboard("{ArrowDown}");
     expect(marked()).toContain("Operations");
 
     await userEvent.keyboard("{Enter}");
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
-    goto.mockClear();
+    preloadData.mockClear();
     await userEvent.keyboard("e");
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}/edit`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}/edit`);
 
     expect(shortcuts.page.map((section) => section.title)).toEqual([
       "On the Divisions list",
@@ -546,33 +622,34 @@ describe("divisions list", () => {
   it("opens the record on a click anywhere on the row, but not from its own controls", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions"));
+    holdLayer();
 
     await expect
       .element(screen.getByRole("link", { name: "Operations" }))
       .toHaveAttribute("href", `/master/divisions/${division.id}`);
 
     await screen.getByRole("cell", { name: "OPS" }).click();
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
     // a selection made elsewhere on the page does not swallow the click
-    goto.mockClear();
+    preloadData.mockClear();
     const heading = screen.getByRole("heading", { name: "Divisions", level: 1 }).element();
     getSelection()?.selectAllChildren(heading);
     await screen.getByRole("cell", { name: "OPS" }).click();
     getSelection()?.removeAllRanges();
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
     // Cmd/Ctrl-click is the name link's, for a new tab: the row does not also navigate
-    goto.mockClear();
+    preloadData.mockClear();
     await userEvent.keyboard("{Meta>}");
     await screen.getByRole("cell", { name: "OPS" }).click({ modifiers: ["Meta"] });
     await userEvent.keyboard("{/Meta}");
-    expect(goto).not.toHaveBeenCalled();
+    expect(preloadData).not.toHaveBeenCalled();
 
-    goto.mockClear();
+    preloadData.mockClear();
     await screen.getByRole("button", { name: "Actions for Operations" }).click();
     await userEvent.keyboard("{Escape}");
-    expect(goto).not.toHaveBeenCalled();
+    expect(preloadData).not.toHaveBeenCalled();
   });
 
   it.each(["Filter", "View"])(
@@ -580,6 +657,7 @@ describe("divisions list", () => {
     async (button) => {
       await browser.viewport(1440, 900);
       const screen = await render(Page, props("/master/divisions"));
+      holdLayer();
 
       await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
       await expect
@@ -589,11 +667,11 @@ describe("divisions list", () => {
       // the click that closes the layer is only that
       await screen.getByRole("cell", { name: "OPS" }).click();
       await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
-      expect(goto).not.toHaveBeenCalled();
+      expect(preloadData).not.toHaveBeenCalled();
 
       // and the next one, with nothing open, opens the record as it always did
       await screen.getByRole("cell", { name: "OPS" }).click();
-      expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+      expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
     }
   );
 
@@ -602,6 +680,7 @@ describe("divisions list", () => {
     async (button) => {
       await browser.viewport(1024, 900);
       const screen = await render(Page, props("/master/divisions"));
+      holdLayer();
       await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
       await expect
         .element(document.querySelector<HTMLElement>('[data-layer-frame="panel"]'))
@@ -631,7 +710,7 @@ describe("divisions list", () => {
       code.dispatchEvent(new MouseEvent("click", { ...init, button: 0, detail: 1 }));
 
       await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
-      expect(goto).not.toHaveBeenCalled();
+      expect(preloadData).not.toHaveBeenCalled();
     }
   );
 
@@ -1497,13 +1576,14 @@ describe("divisions list", () => {
     it("opens the record from a folded row, the second line included, when no layer is open", async () => {
       await browser.viewport(414, 896);
       const screen = await render(Page, props("/master/divisions"));
+      holdLayer();
 
       const row = screen.getByRole("link", { name: "Operations" }).element().closest("tr")!;
       const second = [...row.querySelectorAll("td:first-child p")].find((line) =>
         line.checkVisibility()
       )!;
       await browser.elementLocator(second).click();
-      expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+      expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
     });
 
     it("has no sideways scroll at 1024, 768, 623 or 390, however long a name", async () => {
@@ -1723,5 +1803,271 @@ describe("list kit parity", () => {
     await userEvent.keyboard("{Enter}");
     await expect.element(screen.getByRole("menu")).toBeVisible();
     expect(getComputedStyle(screen.getByRole("menu").element()).outlineStyle).toBe("none");
+  });
+});
+
+describe("a Division in the layer over the list (#302)", () => {
+  const recordUrl = `/master/divisions/${division.id}`;
+  const layer = () => document.querySelector<HTMLElement>("[data-record-layer]");
+  const closed = () => expect.poll(layer).toBeNull();
+  /** Opens Operations in the layer, then its edit. */
+  async function openEdit(screen: Awaited<ReturnType<typeof render>>) {
+    await screen.getByRole("link", { name: "Operations" }).click();
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Edit" })
+      .click();
+    await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
+  }
+
+  it("opens a row in view mode at its URL, with its user count, and closes back to the list as it was", async () => {
+    await browser.viewport(1280, 900);
+    const listUrl = "/master/divisions?search=ops&status=active&sort=code&page=1&perPage=50";
+    const screen = await render(Page, props(listUrl));
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+
+    const dialog = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(dialog).toBeVisible();
+    expect(mockPage.url.pathname).toBe(recordUrl);
+    // rule 5: the title takes focus, not the first control
+    await expect.element(dialog.getByRole("heading", { name: "Operations" })).toHaveFocus();
+    await expect
+      .element(dialog.getByRole("link", { name: "12 users" }))
+      .toHaveAttribute("href", `/master/users?divisionId=${division.id}`);
+
+    // the list behind keeps its search and filters while the record's URL is up
+    await expect
+      .element(screen.getByRole("searchbox", { name: "Search divisions" }))
+      .toHaveValue("ops");
+    expect(
+      document.querySelector('a[aria-label="Remove filter Status: Active"]')?.getAttribute("href")
+    ).toBe("/master/divisions?search=ops&sort=code&perPage=50");
+
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await closed();
+    expect(`${mockPage.url.pathname}${mockPage.url.search}`).toBe(listUrl);
+    // focus goes back to the row that opened it
+    await expect.element(screen.getByRole("link", { name: "Operations" })).toHaveFocus();
+  });
+
+  it("opens from a plain click on the name, which stays a real link", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const name = screen.getByRole("link", { name: "Operations" });
+
+    await expect.element(name).toHaveAttribute("href", recordUrl);
+    await name.click();
+
+    await expect.element(screen.getByRole("dialog", { name: "Operations" })).toBeVisible();
+    expect(goto).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Escape}");
+    await closed();
+  });
+
+  it("switches the same layer to edit at /edit, and New opens an empty one at /new", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Edit" })
+      .click();
+
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    await expect.element(edit.getByRole("textbox", { name: "Name" })).toHaveValue("Operations");
+    expect(mockPage.url.pathname).toBe(`${recordUrl}/edit`);
+    expect(document.querySelectorAll("[data-record-layer]")).toHaveLength(1);
+
+    // nothing changed: Cancel closes it, straight back to the list
+    await edit.getByRole("button", { name: "Cancel" }).click();
+    await closed();
+    expect(mockPage.url.pathname).toBe("/master/divisions");
+
+    await screen.getByRole("link", { name: "New division" }).click();
+    const create = screen.getByRole("dialog", { name: "New division" });
+    await expect.element(create.getByRole("textbox", { name: "Name" })).toHaveValue("");
+    await expect.element(create.getByRole("switch", { name: "Active" })).toBeChecked();
+    expect(mockPage.url.pathname).toBe("/master/divisions/new");
+    await expect.element(create.getByRole("button", { name: "Create division" })).toBeVisible();
+  });
+
+  it("offers Edit only with master-divisions.update, and Delete… only with .delete", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(
+      Page,
+      props("/master/divisions", { permissions: ["master-divisions.view_any"] })
+    );
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(dialog.getByText("Fleet and day-to-day operations")).toBeVisible();
+    expect(dialog.getByRole("link", { name: "Edit" }).elements()).toHaveLength(0);
+    expect(dialog.getByRole("link", { name: "Delete…" }).elements()).toHaveLength(0);
+  });
+
+  it("asks before Esc throws away unsaved edits, and keeps them on Keep editing", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    const name = edit.getByRole("textbox", { name: "Name" });
+    await userEvent.type(name, " and Fleet");
+    await userEvent.keyboard("{Escape}");
+
+    await expect
+      .element(screen.getByRole("alertdialog", { name: "Discard changes?" }))
+      .toBeVisible();
+    await screen.getByRole("button", { name: "Keep editing" }).click();
+    await expect.element(name).toHaveValue("Operations and Fleet");
+    expect(layer()).not.toBeNull();
+
+    await edit.getByRole("button", { name: "Close" }).click();
+    await screen.getByRole("button", { name: "Discard" }).click();
+    await closed();
+    expect(mockPage.url.pathname).toBe("/master/divisions");
+  });
+
+  it("asks on Back out of unsaved edits, and stays on Keep editing", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await userEvent.type(name, " and Fleet");
+
+    // the browser's Back
+    history.go(-1);
+
+    await expect
+      .element(screen.getByRole("alertdialog", { name: "Discard changes?" }))
+      .toBeVisible();
+    await screen.getByRole("button", { name: "Keep editing" }).click();
+    await expect.poll(() => mockPage.url.pathname).toBe(`${recordUrl}/edit`);
+    await expect.element(name).toHaveValue("Operations and Fleet");
+  });
+
+  it("keeps the edits across 480px: the frame changing is no closing", async () => {
+    await browser.viewport(800, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await userEvent.type(name, " and Fleet");
+
+    await browser.viewport(375, 667);
+    await browser.viewport(800, 900);
+
+    await expect.element(name).toHaveValue("Operations and Fleet");
+    expect(screen.getByRole("alertdialog").elements()).toHaveLength(0);
+  });
+
+  it("fills the screen under 480px, and is the centred dialog from 480px", async () => {
+    await browser.viewport(375, 667);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    await expect.element(screen.getByRole("textbox", { name: "Name" })).toBeVisible();
+
+    // let the slide in finish before measuring
+    await new Promise((done) => setTimeout(done, 300));
+    const phone = layer()!.getBoundingClientRect();
+    expect([phone.left, phone.top, phone.width, phone.height]).toEqual([0, 0, 375, 667]);
+    // the footer holds the primary action at the bottom, 44px tall
+    const save = screen.getByRole("button", { name: "Save division" }).element();
+    expect(save.getBoundingClientRect().height).toBe(44);
+    expect(Math.round(save.getBoundingClientRect().bottom)).toBeLessThanOrEqual(667 - 16);
+    await expect.element(screen.getByRole("button", { name: "Close" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Close" }).element().getBoundingClientRect().height
+    ).toBe(44);
+
+    await browser.viewport(800, 900);
+    await new Promise((done) => setTimeout(done, 50));
+    const dialog = layer()!;
+    const box = dialog.getBoundingClientRect();
+    expect(box.width).toBeCloseTo(512, 0);
+    expect(Math.round(box.left + box.width / 2)).toBe(
+      Math.round(document.documentElement.clientWidth / 2)
+    );
+    // `rounded-2xl`, which the theme's 0.625rem radius makes 18px
+    expect(getComputedStyle(dialog).borderTopLeftRadius).toBe("18px");
+    expect(box.height).toBeLessThanOrEqual(Math.min(900 * 0.85, 704));
+  });
+
+  it("deletes from the layer only after asking, then closes it and offers Undo", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("cell", { name: "OPS" }).click();
+
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Delete…" })
+      .click();
+    const ask = screen.getByRole("dialog", { name: "Delete Operations?" });
+    await expect
+      .element(ask.getByText("It moves to the Trash. You can restore it from Trash."))
+      .toBeVisible();
+
+    deleteResult = { type: "success", status: 200, data: {} };
+    await ask.getByRole("button", { name: "Delete" }).click();
+
+    await closed();
+    expect(mockPage.url.pathname).toBe("/master/divisions");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Operations moved to Trash",
+      expect.objectContaining({ action: expect.objectContaining({ label: "Undo" }) })
+    );
+  });
+
+  it("restores a Trashed Division from the layer and shows it live", async () => {
+    await browser.viewport(1280, 900);
+    const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
+    const screen = await render(
+      Page,
+      props("/master/divisions?trashed=only", { items: [trashed] })
+    );
+    preloadData.mockImplementation(async () => ({
+      type: "loaded" as const,
+      status: 200,
+      data: {
+        division: {
+          ...trashed,
+          deletedAt: preloadData.mock.calls.length > 1 ? null : trashed.deletedAt,
+          userCount: 0
+        },
+        permissions: ALL
+      }
+    }));
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, JSON.stringify({ ok: true })));
+
+    await screen.getByRole("link", { name: "Operations" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(dialog.getByText("In the Trash. Restore it to change it.")).toBeVisible();
+    await expect.element(dialog.getByRole("link", { name: "No users" })).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Restore" }).click();
+
+    await expect.poll(() => toast.success.mock.calls[0]?.[0]).toBe("Operations restored");
+    expect(fetch.mock.calls[0]?.[0]).toBe("/master/divisions?/restore");
+    await expect.element(dialog.getByRole("link", { name: "Edit" })).toBeVisible();
+    expect(dialog.getByText("In the Trash. Restore it to change it.").elements()).toHaveLength(0);
+  });
+
+  it("has no axe violations in view and in edit", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "Operations" })).toBeVisible();
+    expect(await axeViolations(document.body)).toEqual([]);
+
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Edit" })
+      .click();
+    await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
+    expect(await axeViolations(document.body)).toEqual([]);
   });
 });

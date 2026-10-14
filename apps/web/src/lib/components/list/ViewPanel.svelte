@@ -17,7 +17,6 @@
 <script lang="ts" generics="Id extends string">
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -45,6 +44,10 @@
     type ListSort,
     type SortField
   } from "./view.js";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,

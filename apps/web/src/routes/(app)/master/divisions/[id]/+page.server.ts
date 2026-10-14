@@ -18,6 +18,8 @@ export const load: PageServerLoad = async (event) => {
   const division = access.value.value;
   return {
     division,
+    // without JavaScript, Delete… asks on the page itself before the form posts
+    confirmDelete: event.url.searchParams.has("delete"),
     crumb: {
       label: division.name,
       tile: { iconName: division.iconName, colorHex: division.colorHex }

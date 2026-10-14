@@ -9,7 +9,6 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import { Button } from "$lib/components/ui/button/index.js";
   import {
     countSummary,
@@ -21,6 +20,10 @@
   import { cn } from "$lib/utils.js";
   import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
   import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,

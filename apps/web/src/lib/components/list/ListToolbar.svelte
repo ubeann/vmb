@@ -13,7 +13,6 @@
   say what is filtered.
 -->
 <script lang="ts">
-  import { page } from "$app/state";
   import { nounFor, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
   import type { Snippet } from "svelte";
   import { readerToday } from "./dates.js";
@@ -21,6 +20,10 @@
   import FilterPanel from "./FilterPanel.svelte";
   import ListSearch from "./ListSearch.svelte";
   import ListTabs from "./ListTabs.svelte";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,

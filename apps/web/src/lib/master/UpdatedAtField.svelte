@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Notice from "$lib/components/Notice.svelte";
+
   let {
     value,
     error,
@@ -16,11 +18,13 @@
 <input type="hidden" name="updatedAt" value={value ?? ""} />
 
 {#if error?.length}
-  <p class="error" role="alert">
+  <Notice variant="destructive">
     Someone else changed this record since you opened it. Nothing was saved and your changes are
     kept here.
     <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the page passes a resolve()d path -->
-    <a href={reloadHref} data-sveltekit-reload>Reload</a>
+    <a href={reloadHref} data-sveltekit-reload class="font-medium underline underline-offset-2"
+      >Reload</a
+    >
     to see the latest, then save again.
-  </p>
+  </Notice>
 {/if}

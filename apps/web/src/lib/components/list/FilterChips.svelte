@@ -72,13 +72,16 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import { buttonVariants } from "$lib/components/ui/button/index.js";
   import { listHref, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { readerToday } from "./dates.js";
   import SearchIcon from "@lucide/svelte/icons/search";
   import XIcon from "@lucide/svelte/icons/x";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,

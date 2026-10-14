@@ -11,9 +11,12 @@ import type { PageData } from "./$types.js";
 // ADR-0051 rule 11 reads the card, not the window.
 const mockPage = {
   url: new URL("http://localhost/master/divisions"),
-  data: {} as Record<string, unknown>
+  data: {} as Record<string, unknown>,
+  state: {}
 };
 vi.mock("$app/paths", () => ({
+  assets: "",
+  base: "",
   resolve: (path: string, params: Record<string, string> = {}) =>
     Object.entries(params).reduce(
       (out, [key, value]) => out.replace(`[${key}]`, value),
@@ -22,12 +25,22 @@ vi.mock("$app/paths", () => ({
 }));
 vi.mock("$app/state", () => ({ page: mockPage, navigating: { to: null } }));
 const goto = vi.fn(async () => {});
+// a row asks for its record, which this test leaves unopened
+const preloadData = vi.fn(() => new Promise(() => {}));
 vi.mock("$app/navigation", () => ({
   goto,
   invalidateAll: vi.fn(async () => {}),
-  afterNavigate: () => {}
+  afterNavigate: () => {},
+  beforeNavigate: () => {},
+  preloadData,
+  pushState: vi.fn(),
+  replaceState: vi.fn()
 }));
-vi.mock("$app/forms", () => ({ deserialize: () => ({}), enhance: () => ({ destroy() {} }) }));
+vi.mock("$app/forms", () => ({
+  applyAction: vi.fn(),
+  deserialize: () => ({}),
+  enhance: () => ({ destroy() {} })
+}));
 vi.mock("svelte-sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { render } = await import("vitest-browser-svelte");
@@ -78,6 +91,7 @@ const props = (sidebarOpen: boolean, sidebarSaved: boolean) => {
 
 afterEach(() => {
   goto.mockClear();
+  preloadData.mockClear();
   document.cookie = "sidebar_state=; path=/; max-age=0";
 });
 
@@ -144,10 +158,10 @@ describe("the Divisions list in the shell", () => {
       second.dispatchEvent(new PointerEvent("pointerup", { ...down, buttons: 0 }));
       second.dispatchEvent(new MouseEvent("click", { ...init, button: 0, detail: 1 }));
       await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
-      expect(goto).not.toHaveBeenCalled();
+      expect(preloadData).not.toHaveBeenCalled();
 
       await userEvent.click(second);
-      expect(goto).toHaveBeenCalledWith(`/master/divisions/${long.id}`);
+      expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${long.id}`);
     }
   );
 

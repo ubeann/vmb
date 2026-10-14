@@ -9,10 +9,9 @@
   (ADR-0052 rule 4) are wired but off, as Divisions ships.
 -->
 <script lang="ts">
-  import { enhance } from "$app/forms";
-  import { goto, invalidateAll } from "$app/navigation";
+  import { invalidateAll } from "$app/navigation";
   import { resolve } from "$app/paths";
-  import { navigating, page } from "$app/state";
+  import { navigating } from "$app/state";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import KeyCap from "$lib/components/KeyCap.svelte";
   import Notice from "$lib/components/Notice.svelte";
@@ -21,6 +20,9 @@
   import RecordTime from "$lib/components/RecordTime.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import { ColumnVisibility } from "$lib/components/list/column-visibility.svelte.js";
+  import { LayerRoute } from "$lib/components/list/layer/layer-route.svelte.js";
+  import RecordLayer from "$lib/components/list/layer/RecordLayer.svelte";
+  import { listPage, provideListUrl } from "$lib/components/list/list-url.svelte.js";
   import { columnClass, TEXT_TRUNCATE } from "$lib/components/list/columns.js";
   import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
   import ListCard from "$lib/components/list/ListCard.svelte";
@@ -48,12 +50,20 @@
   import ViewPanel from "$lib/components/list/ViewPanel.svelte";
   import { DATE_ORDER, TEXT_ORDER, type SortField } from "$lib/components/list/view.js";
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
-  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
+  import DeleteDivisionDialog from "$lib/master/DeleteDivisionDialog.svelte";
+  import DivisionForm from "$lib/master/DivisionForm.svelte";
+  import DivisionView from "$lib/master/DivisionView.svelte";
   import { listHref } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
-  import { DivisionListQuerySchema, type Division, type PermissionKey } from "@vmb/types";
+  import {
+    DivisionListQuerySchema,
+    type Division,
+    type DivisionDetail,
+    type DivisionInput,
+    type PermissionKey
+  } from "@vmb/types";
   import Building2Icon from "@lucide/svelte/icons/building-2";
   import CalendarClockIcon from "@lucide/svelte/icons/calendar-clock";
   import CalendarPlusIcon from "@lucide/svelte/icons/calendar-plus";
@@ -67,10 +77,10 @@
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
   import SearchXIcon from "@lucide/svelte/icons/search-x";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
-  import type { SubmitFunction } from "@sveltejs/kit";
   import type { Component } from "svelte";
   import { onMount } from "svelte";
   import { toast } from "svelte-sonner";
+  import type { SuperValidated } from "sveltekit-superforms";
   import type { PageData } from "./$types.js";
 
   let { data }: { data: PageData } = $props();
@@ -81,6 +91,11 @@
 
   const base = "/master/divisions";
   const actionPath = resolve(base);
+
+  // a record opens in a layer over the list, at its own URL (#302); the list keeps its own
+  provideListUrl(actionPath);
+  const page = listPage();
+  const layer = new LayerRoute();
 
   const FILTERS: ListFilter[] = [
     {
@@ -136,15 +151,46 @@
   const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
 
   let confirmOpen = $state(false);
-  let target = $state<Division | null>(null);
-  let deleting = $state(false);
-  // why the API refused the delete, shown in the dialog beside the choice it blocks
-  let refusal = $state<string | null>(null);
+  let target = $state<Pick<Division, "id" | "name"> | null>(null);
+  // the layer asks in a dialog of its own, inside its focus trap
+  let confirmInLayer = $state(false);
 
-  function askDelete(division: Division) {
+  function askDelete(division: Pick<Division, "id" | "name">) {
     target = division;
-    refusal = null;
     confirmOpen = true;
+  }
+
+  const recordHref = (id: string) => resolve("/(app)/master/divisions/[id]", { id });
+  const editHref = (id: string) => resolve("/(app)/master/divisions/[id]/edit", { id });
+  const newHref = resolve("/master/divisions/new");
+
+  /** A plain click the layer takes; a modified one opens the link as the browser does. */
+  const plainClick = (event: MouseEvent) =>
+    event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
+  // what each of the layer's pages gets from its load
+  type ViewData = { division: DivisionDetail; permissions: string[] };
+  type FormFields = DivisionInput & { updatedAt?: string | null };
+  type EditData = { division: DivisionDetail; form: SuperValidated<FormFields> };
+  type NewData = { form: SuperValidated<FormFields> };
+
+  // the entry the layer last showed, kept while it animates out
+  let shown = $state.raw(layer.shown);
+  $effect.pre(() => {
+    if (layer.shown) shown = layer.shown;
+  });
+
+  const layerLabel = $derived.by(() => {
+    if (!shown) return "";
+    if (shown.kind === "new") return "New division";
+    const { division } = shown.data as ViewData;
+    return shown.kind === "edit" ? `Edit ${division.name}` : division.name;
+  });
+
+  function saved(kind: string, division: FormFields) {
+    layer.closeNow();
+    toast.success(kind === "new" ? `${division.name} created` : `${division.name} saved`);
+    void invalidateAll();
   }
 
   // row actions run one after another, so an Undo clicked while another request is in flight
@@ -156,7 +202,7 @@
     return next;
   };
 
-  const restore = (division: Division) =>
+  const restore = (division: Pick<Division, "id" | "name">) =>
     inOrder(async () => {
       const result = await postRowAction(`${actionPath}?/restore`, division.id);
       if (!result.ok) {
@@ -164,6 +210,8 @@
         return;
       }
       toast.success(`${division.name} restored`);
+      // the layer showing it in the Trash shows it live again
+      if (layer.shown?.kind === "view") await layer.refresh();
       await invalidateAll();
     });
 
@@ -231,7 +279,7 @@
         label: "Edit",
         icon: PencilIcon,
         edit: true,
-        run: () => void goto(resolve("/(app)/master/divisions/[id]/edit", { id: division.id }))
+        run: () => void layer.open(editHref(division.id), "edit", activeElement())
       });
       actions.push(
         division.isActive
@@ -267,7 +315,7 @@
   const rowKeys = new RowKeys<Division>({
     title: "Divisions",
     items: () => data.divisions?.items ?? [],
-    open: (division) => void goto(resolve("/(app)/master/divisions/[id]", { id: division.id })),
+    open: (division) => void layer.open(recordHref(division.id), "view", activeElement()),
     actions: (division) => rowActions(division).map(({ shortcut: key, run }) => ({ key, run })),
     help: [
       { keys: [KEYS.edit], what: "Edit", single: true },
@@ -289,37 +337,34 @@
     return parts;
   }
 
-  // a click anywhere on a row opens the record; the name stays a real link for a new tab (ADR-0051 rule 7)
+  const activeElement = () =>
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  // A click anywhere on a row opens the record in the layer; the name stays a
+  // real link for a new tab (ADR-0051 rule 7). Focus comes back to the name.
   function openRow(event: MouseEvent, division: Division) {
     if (!opensRecord(event)) return;
-    void goto(resolve("/(app)/master/divisions/[id]", { id: division.id }));
+    const row = event.currentTarget as HTMLElement;
+    void layer.open(recordHref(division.id), "view", row.querySelector("a"));
   }
 
-  const submitDelete: SubmitFunction = () => {
-    const division = target;
-    deleting = true;
-    refusal = null;
-    return async ({ result, update }) => {
-      deleting = false;
-      if (result.type === "failure") {
-        const error = String(result.data?.error ?? "Something went wrong. Please try again.");
-        // a division still in use stays in the dialog, where the way out is named
-        if (result.data?.code === "DIVISION_IN_USE") refusal = error;
-        else toast.error(error);
-        return;
-      }
-      confirmOpen = false;
-      if (result.type === "success" && division) {
-        toast.success(`${division.name} moved to Trash`, {
-          duration: 10_000,
-          action: can("master-divisions.restore")
-            ? { label: "Undo", onClick: () => restore(division) }
-            : undefined
-        });
-      }
-      await update();
-    };
-  };
+  /** The name, an Edit link or New, clicked plainly: its page opens in the layer. */
+  function openLink(event: MouseEvent, kind: string) {
+    if (!plainClick(event)) return;
+    event.preventDefault();
+    const link = event.currentTarget as HTMLAnchorElement;
+    void layer.open(link.pathname, kind, link);
+  }
+
+  function deleted(division: Pick<Division, "id" | "name">) {
+    if (layer.shown) layer.closeNow();
+    toast.success(`${division.name} moved to Trash`, {
+      duration: 10_000,
+      action: can("master-divisions.restore")
+        ? { label: "Undo", onClick: () => restore(division) }
+        : undefined
+    });
+  }
 </script>
 
 <svelte:head>
@@ -340,7 +385,7 @@
   <PageHeader title="Divisions" description="Organisational units that group stock and budgets.">
     {#snippet action()}
       {#if can("master-divisions.create")}
-        <Button href={resolve("/master/divisions/new")}>
+        <Button href={newHref} onclick={(event: MouseEvent) => openLink(event, "new")}>
           <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
         </Button>
       {/if}
@@ -437,7 +482,7 @@
             description="Divisions group warehouse items and expense budgets."
           >
             {#if can("master-divisions.create")}
-              <Button href={resolve("/master/divisions/new")}>
+              <Button href={newHref} onclick={(event: MouseEvent) => openLink(event, "new")}>
                 <PlusIcon aria-hidden="true" data-icon="inline-start" />New division
               </Button>
             {/if}
@@ -519,6 +564,7 @@
                       <div class="flex min-w-0 items-center gap-2.5">
                         <a
                           href={resolve("/(app)/master/divisions/[id]", { id: division.id })}
+                          onclick={(event) => openLink(event, "view")}
                           class={cn(
                             "truncate font-medium hover:underline",
                             !division.isActive && INACTIVE_NAME_CLASS
@@ -597,6 +643,7 @@
                     {#if only.edit}
                       <a
                         href={resolve("/(app)/master/divisions/[id]/edit", { id: division.id })}
+                        onclick={(event) => openLink(event, "edit")}
                         data-slot="button"
                         aria-label="{only.label.replace('…', '')} {division.name}"
                         class={cn(
@@ -648,6 +695,7 @@
                                   href={resolve("/(app)/master/divisions/[id]/edit", {
                                     id: division.id
                                   })}
+                                  onclick={(event) => openLink(event, "edit")}
                                   ><action.icon aria-hidden="true" />{action.label}{@render keyHint(
                                     action
                                   )}</a
@@ -689,32 +737,65 @@
   {/if}
 </Page>
 
-<Dialog.Root bind:open={confirmOpen}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>Delete {target?.name}?</Dialog.Title>
-      <Dialog.Description>It moves to the Trash. You can restore it from Trash.</Dialog.Description>
-    </Dialog.Header>
-    {#if refusal}
-      <Notice variant="destructive">
-        {refusal}
-        <a href={resolve("/master/roles")} class="font-medium underline underline-offset-2"
-          >Go to Roles</a
-        >
-      </Notice>
+<DeleteDivisionDialog
+  bind:open={confirmOpen}
+  {target}
+  action="{actionPath}?/delete"
+  ondeleted={deleted}
+/>
+
+<RecordLayer
+  open={layer.shown !== null}
+  label={layerLabel}
+  onclose={() => void layer.close()}
+  returnFocus={layer.returnFocus}
+>
+  {#snippet title()}
+    {#if shown?.kind === "view"}
+      {@const { division } = shown.data as ViewData}
+      <RecordTile iconName={division.iconName} colorHex={division.colorHex} />
+      <span class="truncate">{division.name}</span>
+    {:else}
+      <span class="truncate">{layerLabel}</span>
     {/if}
-    <form method="POST" action="?/delete" use:enhance={submitDelete}>
-      <input type="hidden" name="id" value={target?.id ?? ""} />
-      <Dialog.Footer>
-        <Dialog.Close>
-          {#snippet child({ props })}
-            <Button {...props} data-slot="button" variant="outline">Cancel</Button>
-          {/snippet}
-        </Dialog.Close>
-        <Button type="submit" variant="destructive" disabled={deleting}>
-          {deleting ? "Deleting…" : "Delete"}
-        </Button>
-      </Dialog.Footer>
-    </form>
-  </Dialog.Content>
-</Dialog.Root>
+  {/snippet}
+  {#if shown}
+    {#key shown.href}
+      {#if shown.kind === "view"}
+        {@const { division, permissions } = shown.data as ViewData}
+        <DivisionView
+          {division}
+          {permissions}
+          onedit={() => void layer.open(editHref(division.id), "edit")}
+          ondelete={() => (confirmInLayer = true)}
+          onrestore={() => void restore(division)}
+        />
+        <DeleteDivisionDialog
+          bind:open={confirmInLayer}
+          target={division}
+          action="{actionPath}?/delete"
+          ondeleted={deleted}
+        />
+      {:else if shown.kind === "edit"}
+        {@const { division, form } = shown.data as EditData}
+        <DivisionForm
+          {form}
+          action={editHref(division.id)}
+          reloadHref={editHref(division.id)}
+          oncancel={() => void layer.close()}
+          onsaved={(record) => saved("edit", record)}
+        />
+      {:else}
+        {@const { form } = shown.data as NewData}
+        <DivisionForm
+          {form}
+          action={newHref}
+          submitLabel="Create division"
+          pendingLabel="Creating…"
+          oncancel={() => void layer.close()}
+          onsaved={(record) => saved("new", record)}
+        />
+      {/if}
+    {/key}
+  {/if}
+</RecordLayer>

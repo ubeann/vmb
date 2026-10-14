@@ -7,9 +7,12 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import { listHref, nounFor, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,
