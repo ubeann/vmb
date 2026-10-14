@@ -19,6 +19,7 @@ colors:
   border: "oklch(0.888 0.005 90)"
   input: "oklch(0.64 0.037 274.3)"
   ring: "oklch(0.51 0.164 143.6)"
+  scrim: "oklch(0 0 0 / 0.4)"
   etching: "oklch(0.36 0.12 266)"
   brand-mark: "oklch(0.289 0.151 264.6)"
   background-dark: "oklch(0.19 0.064 271)"
@@ -38,6 +39,7 @@ colors:
   border-dark: "oklch(0.322 0.08 272.6)"
   input-dark: "oklch(0.501 0.076 274.2)"
   ring-dark: "oklch(0.75 0.165 146.3)"
+  scrim-dark: "oklch(0.2 0.08 268 / 0.45)"
   etching-dark: "oklch(0.63 0.095 272)"
   brand-mark-dark: "oklch(0.954 0.011 95.2)"
 typography:
@@ -75,7 +77,7 @@ An engraved plate: navy ink and the logo green on warm paper, with line-engraved
 
 ## Colors
 
-Semantic tokens from shadcn-svelte, filled with VMB's palette (ADR-0035, ADR-0036). Keys ending in `-dark` are the `.dark` values. ADR-0036 lists the measured contrast pairs. `etching` is the engraving ink and `brand-mark` the logo navy; art takes its colour from these, never from a literal.
+Semantic tokens from shadcn-svelte, filled with VMB's palette (ADR-0035, ADR-0036). Keys ending in `-dark` are the `.dark` values. ADR-0036 lists the measured contrast pairs. `etching` is the engraving ink and `brand-mark` the logo navy; art takes its colour from these, never from a literal. `scrim` is the backdrop behind every dialog and sheet, with no blur (ADR-0036, 2026-10-13).
 
 ## Typography
 

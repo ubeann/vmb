@@ -102,6 +102,8 @@
    * form fields keep the --input edge */
   --control-edge: color-mix(in oklab, var(--input) 45%, var(--border));
   --ring: oklch(0.51 0.164 143.6);
+  /* The backdrop behind every dialog and sheet (ADR-0036, 2026-10-13): black at 40%, no blur */
+  --scrim: oklch(0 0 0 / 0.4);
   /* Engraving ink: the logo navy (#041c74) eased toward paper so dense hatching reads as texture */
   --etching: oklch(0.36 0.12 266);
   /* The logo navy, #041c74, for the VMB mark's swoosh */
@@ -169,6 +171,8 @@
   /* Dark fields and outline buttons already shared the --input edge */
   --control-edge: var(--input);
   --ring: oklch(0.75 0.165 146.3);
+  /* The navy at 45%, which deepens the frame without adding a second colour */
+  --scrim: oklch(0.2 0.08 268 / 0.45);
   --etching: oklch(0.63 0.095 272);
   --brand-mark: oklch(0.954 0.011 95.2);
   --chart-1: oklch(0.87 0 0);
@@ -293,6 +297,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-scrim: var(--scrim);
   --color-input: var(--input);
   --color-control-edge: var(--control-edge);
   --color-border: var(--border);
@@ -458,18 +463,6 @@
     [data-slot="dropdown-menu-sub-trigger"]
   ):focus-visible {
     box-shadow: inset 0 0 0 2px var(--ring);
-  }
-
-  /* The sheet's scrim (the phone menu). The registry's is 10% black with a blur,
-   * which leaves the page behind it hard to read and the sheet with no depth.
-   * Half black and no blur keeps the page recognisable and lifts the sheet off
-   * it; a little more in dark mode, where the page is already dim. */
-  [data-slot="sheet-overlay"] {
-    background-color: oklch(0 0 0 / 0.5);
-    backdrop-filter: none;
-  }
-  .dark [data-slot="sheet-overlay"] {
-    background-color: oklch(0 0 0 / 0.6);
   }
 
   /* The sidebar's collapse slide (AppSidebar). The registry narrows every menu

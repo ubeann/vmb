@@ -307,7 +307,7 @@ describe("AppShell", () => {
 
     const scrim = getComputedStyle(document.querySelector("[data-slot='sheet-overlay']")!);
     expect(scrim.backdropFilter).toBe("none");
-    expect(Number(/\/ ([\d.]+)\)/.exec(scrim.backgroundColor)?.[1])).toBeGreaterThanOrEqual(0.5);
+    expect(Number(/\/ ([\d.]+)\)/.exec(scrim.backgroundColor)?.[1])).toBe(0.4);
   });
 
   describe("the phone menu", () => {
