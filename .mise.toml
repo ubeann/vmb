@@ -22,3 +22,4 @@ postinstall = '[ "$CI" = "true" ] || lefthook install'
 
 [env]
 _.path = ["./node_modules/.bin"]
+# throwaway: preview baseline for #436, closed unmerged
