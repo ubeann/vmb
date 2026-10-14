@@ -65,7 +65,7 @@
   {/if}
 
   <dl
-    class="[&_dt]:text-muted-foreground grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3"
+    class="[&_dt]:text-muted-foreground grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-6 gap-y-3 [&_dd]:m-0"
   >
     <dt>Code</dt>
     <dd class="font-mono">{division.code}</dd>
