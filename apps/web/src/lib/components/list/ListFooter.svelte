@@ -1,6 +1,7 @@
 <!--
-  The foot of a list (#301, #363, #366): "Showing x–y of n", or "n of m" once a
-  search or filter narrows the list (ADR-0051 rule 5), and the pages. The count
+  The foot of a list (#301, #363, #366): "Showing x–y of n", "n of m" once a
+  search or filter narrows the list (ADR-0051 rule 5), or just "13 divisions"
+  when an unfiltered list fits one page, and the pages. The count
   is a status region, so a screen reader hears the new range after a search,
   filter or page change. The page size is the View panel's. Paging hides when
   every row fits on one page; from 640px it is numbered with gaps, under it

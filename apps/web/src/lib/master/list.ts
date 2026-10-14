@@ -204,7 +204,9 @@ export const nounFor = (noun: CountNoun, n: number) =>
  * list that fits one page reads "3 of 12 divisions", and one that pages keeps
  * its range and says what it was cut from. The noun agrees with the number it
  * follows. `nameCount` makes an unfiltered range name what it counts ("Showing
- * 1–25 of 60 deleted divisions"), as the Trash does (rule 9).
+ * 1–25 of 60 deleted divisions"), as the Trash does (rule 9). With no search
+ * or filter, at least one row and every row on one page, it counts them
+ * instead of reading a range: "13 divisions", "1 deleted division".
  */
 export function countSummary(
   list: { page: number; perPage: number; total: number },
@@ -219,6 +221,8 @@ export function countSummary(
     return `${list.total} ${nounFor(noun, list.total)} in all, none on this page`;
   if (outOf !== null && range.from === 1 && range.to === list.total)
     return `${list.total} of ${outOf} ${nounFor(noun, outOf)}`;
+  if (outOf === null && range.from === 1 && range.to === list.total)
+    return `${list.total} ${nounFor(noun, list.total)}`;
   const showing = `Showing ${range.from}–${range.to} of ${list.total}`;
   if (outOf !== null) return `${showing} · ${outOf} ${nounFor(noun, outOf)} in all`;
   return nameCount ? `${showing} ${nounFor(noun, list.total)}` : showing;

@@ -722,7 +722,7 @@ describe("divisions list", () => {
         )
       )
       .toBeVisible();
-    await expect.element(screen.getByText("Showing 1–1 of 1 deleted division")).toBeVisible();
+    await expect.element(screen.getByText("1 deleted division")).toBeVisible();
     await expect
       .element(screen.getByText(/delete(?:d)? permanently|purge/i))
       .not.toBeInTheDocument();
@@ -1198,8 +1198,7 @@ describe("divisions list", () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions", { total: 2 }));
 
-    await expect.element(screen.getByText("2 divisions")).not.toBeInTheDocument();
-    await expect.element(screen.getByRole("status").getByText("Showing 1–2 of 2")).toBeVisible();
+    await expect.element(screen.getByRole("status").getByText("2 divisions")).toBeVisible();
     await expect.element(screen.getByRole("navigation", { name: "Pages" })).not.toBeInTheDocument();
     // the page size moved into View
     await expect.element(screen.getByText("Rows per page")).not.toBeInTheDocument();
