@@ -2,13 +2,15 @@
   The frame of every signed-in screen (#167): a sidebar down the left edge
   (`AppSidebar`: the logo, the navigation, the collapse button), a top bar over
   the page (the user's menu; the menu button on a phone), and the page in a
-  rounded panel. From 48rem up the shell fills the window and the panel scrolls
-  inside itself, so the page never slides under the bar and the sheet keeps all
-  four corners; nothing there needs a scrolled state. Below 48rem the sidebar
-  becomes a sheet behind the bar's menu button and the window scrolls as usual:
-  the bar keeps a line under it, since there is no panel edge to part it from
-  the page, and a shadow once the page has scrolled under it. The bar's slots, left
-  to right (ADR-0050): the menu button, the breadcrumb trail, then at the right edge
+  rounded panel. The window scrolls at every width (ADR-0050, 2026-10-13, "The
+  footer strip"): the bar stays at the top and the panel slides under it, and the
+  column is at least the window's height, so the footer strip sits at the window's
+  foot on a short page and after the panel on a long one. While the shell is on the
+  page the root takes the frame's colour, so a bounce past either end on macOS or
+  iPadOS shows more frame, and anything scrolled into view stops below the bar. Below
+  48rem the sidebar becomes a sheet behind the bar's menu button, and the bar keeps a
+  line under it, since there is no panel edge to part it from the page, and a shadow
+  once the page has scrolled under it. The bar's slots, left to right (ADR-0050): the menu button, the breadcrumb trail, then at the right edge
   the user's menu, where search (#282) and notifications (#283) will join it, with no
   placeholder until they exist. Below `md` the trail is hidden: the bar holds the menu
   button and the user's menu only, and the way back is the browser's gesture or a
@@ -47,7 +49,6 @@
     division,
     sidebarOpen,
     sidebarSaved,
-    panel = $bindable(null),
     children
   }: {
     user: { id: string; name: string; email: string; image?: string | null };
@@ -55,8 +56,6 @@
     sidebarOpen: boolean;
     /** Whether `sidebarOpen` is the user's own saved choice, rather than the default. */
     sidebarSaved: boolean;
-    /** The scrolling panel, for the layout's snapshot to keep its place across history. */
-    panel?: HTMLElement | null;
     children: Snippet;
   } = $props();
 
@@ -74,17 +73,18 @@
   // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);
 
-  // SvelteKit resets and restores the window's scroll, which never moves on desktop, so
-  // the panel needs the same: another screen or another page of a list starts at the
-  // top. Refining a list in place (sort, filter, tab, search, page size) keeps the
-  // place, as their `noscroll` asks, and those already send the list back to page 1.
-  // Back and forward are the layout's snapshot, so `popstate` is left alone.
+  // From 48rem another screen or another page of a list starts at the top, even from a
+  // `noscroll` refinement that sends the list back to page 1; one that keeps the page
+  // (sort, filter, tab, search, page size) keeps the place, as its `noscroll` asks.
+  // On a phone SvelteKit alone decides, as it always has. Back and forward are
+  // SvelteKit's own at every width: it keeps the window's scroll for each history entry.
+  const wide = new MediaQuery("(min-width: 48rem)");
   afterNavigate(({ type, from, to }) => {
-    if (!panel || type === "enter" || type === "popstate" || !from || !to) return;
+    if (!wide.current || type === "enter" || type === "popstate" || !from || !to) return;
     const samePage =
       from.url.pathname === to.url.pathname &&
       from.url.searchParams.get("page") === to.url.searchParams.get("page");
-    if (!samePage && !to.url.hash) panel.scrollTop = 0;
+    if (!samePage && !to.url.hash) window.scrollTo(0, 0);
   });
 </script>
 
@@ -97,11 +97,7 @@
 
 <svelte:window bind:scrollY />
 
-<Sidebar.Provider
-  {open}
-  onOpenChange={(next) => (chosen = next)}
-  class="[--header-height:3.5rem] sm:[--header-height:4rem] md:[--header-height:4.5rem]"
->
+<Sidebar.Provider {open} onOpenChange={(next) => (chosen = next)}>
   <AppSidebar railDefault={!sidebarSaved && chosen === null}>
     <nav aria-label="Main" class="flex flex-col gap-2">
       {#each groups as group (group.label)}
@@ -138,7 +134,7 @@
   </AppSidebar>
 
   <div
-    class="md:peer-folded:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-folded:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit) flex min-w-0 flex-1 flex-col md:h-svh"
+    class="md:peer-folded:[&>[data-slot=sidebar-inset]]:ml-2 md:peer-folded:[&>[data-slot=sidebar-inset]]:duration-(--duration-exit) flex min-h-svh min-w-0 flex-1 flex-col"
   >
     <header
       data-scrolled={scrollY > 0}
@@ -152,19 +148,18 @@
     </header>
 
     <!-- `w-auto` replaces the inset's `w-full`, which with the panel's margins would overflow.
-         The panel scrolls wide content itself on a phone, and from 48rem up tall content
-         too, between the bar and the footer; `*:shrink-0` keeps its column from squeezing
-         a child (one with `overflow-hidden` has no content floor) instead of scrolling.
+         The panel scrolls wide content itself; tall content scrolls the window.
+         `*:shrink-0` keeps its column from squeezing a child (one with `overflow-hidden`
+         has no content floor).
          A page caps and centres its own content with `Page` (ADR-0050), so the panel
          stays full width. In light mode the panel is a white sheet on the warm frame,
          so the page is two layers and its tables sit on the same white (ADR-0036,
          "Signed-in panel"); dark mode keeps the background, since its card is the
          sidebar's colour and would merge the panel into the frame. -->
     <Sidebar.Inset
-      bind:ref={panel}
       id="main-content"
       tabindex={-1}
-      class="bg-card dark:bg-background w-auto min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none md:m-2 md:mt-0 md:ml-0 md:min-h-0 md:overflow-y-auto md:rounded-xl md:shadow-sm md:*:shrink-0 lg:p-6"
+      class="bg-card dark:bg-background w-auto min-w-0 overflow-x-auto p-4 transition-[margin-left] duration-(--duration-panel) ease-(--easing-standard) outline-none md:m-2 md:mt-0 md:ml-0 md:rounded-xl md:shadow-sm md:*:shrink-0 lg:p-6"
     >
       {@render children()}
     </Sidebar.Inset>
@@ -178,3 +173,25 @@
 </Sidebar.Provider>
 
 <ShortcutsSheet />
+
+<style>
+  /* A bounce past either end on macOS or iPadOS shows the canvas, which takes the body's
+     background unless the root has its own: the frame's makes it read as more frame. The
+     bar's height lives here, not on the wrapper, so the window's scroll padding can read it
+     and a row, the skip link's landing or a hash target stops below the sticky bar. */
+  :global(html:has([data-slot="sidebar-wrapper"])) {
+    --header-height: 3.5rem;
+    background-color: var(--sidebar);
+    scroll-padding-top: var(--header-height);
+  }
+  @media (min-width: 40rem) {
+    :global(html:has([data-slot="sidebar-wrapper"])) {
+      --header-height: 4rem;
+    }
+  }
+  @media (min-width: 48rem) {
+    :global(html:has([data-slot="sidebar-wrapper"])) {
+      --header-height: 4.5rem;
+    }
+  }
+</style>
