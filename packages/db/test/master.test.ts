@@ -1,3 +1,4 @@
+import { UserListQuerySchema } from "@vmb/types";
 import type {
   DivisionInput,
   DivisionListRequest,
@@ -99,6 +100,84 @@ describe("divisions store", () => {
         editing(created, division({ name: "Operations HQ", isActive: false }))
       );
       expect(updated).toMatchObject({ id: created.id, name: "Operations HQ", isActive: false });
+    });
+  });
+
+  describe("user count (#446)", () => {
+    const ACTOR = { id: "00000000-0000-4000-8000-0000000000aa", permissions: [] };
+    const person = (n: number, roleIds: string[]): UserCreateInput => ({
+      name: `Person ${n}`,
+      email: `person${n}@vmblogistics.id`,
+      phone: "",
+      roleIds,
+      status: "active",
+      profilePhotoPath: "",
+      password: "password123",
+      passwordConfirmation: "password123"
+    });
+
+    it("is 0 for a division no role is scoped to", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const created = await store.createDivision(division());
+
+        await expect(store.getDivision(created.id)).resolves.toMatchObject({ userCount: 0 });
+      });
+    });
+
+    it("counts a user once however many of their roles are scoped to it", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const dispatcher = await insertRole(client, "Dispatcher", hub.id);
+        const driver = await insertRole(client, "Driver", hub.id);
+        await store.createUser(person(1, [dispatcher, driver]), ACTOR);
+
+        await expect(store.getDivision(hub.id)).resolves.toMatchObject({ userCount: 1 });
+      });
+    });
+
+    it("leaves out a trashed user and a role scoped to another division, and counts a trashed division", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const other = await store.createDivision(division({ name: "Finance", code: "FIN" }));
+        const dispatcher = await insertRole(client, "Dispatcher", hub.id);
+        const accountant = await insertRole(client, "Accountant", other.id);
+        await store.createUser(person(1, [dispatcher]), ACTOR);
+        const leaver = await store.createUser(person(2, [dispatcher]), ACTOR);
+        await store.createUser(person(3, [accountant]), ACTOR);
+        await store.deleteUser(leaver.id, ACTOR);
+
+        await expect(store.getDivision(hub.id)).resolves.toMatchObject({ userCount: 1 });
+        await expect(store.getDivision(other.id)).resolves.toMatchObject({ userCount: 1 });
+
+        // the API refuses to Trash a division with roles (#406), so stamp it directly
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
+        await expect(store.getDivision(hub.id)).resolves.toMatchObject({
+          userCount: 1,
+          deletedAt: expect.any(String)
+        });
+      });
+    });
+
+    it("equals the users list's total for the same division with its defaults", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const hub = await store.createDivision(division());
+        const dispatcher = await insertRole(client, "Dispatcher", hub.id);
+        const driver = await insertRole(client, "Driver", hub.id);
+        await store.createUser(person(1, [dispatcher, driver]), ACTOR);
+        await store.createUser(person(2, [driver]), ACTOR);
+        const leaver = await store.createUser(person(3, [dispatcher]), ACTOR);
+        await store.deleteUser(leaver.id, ACTOR);
+
+        const listed = await store.listUsers(UserListQuerySchema.parse({ divisionId: hub.id }));
+        const detail = await store.getDivision(hub.id);
+
+        expect(detail.userCount).toBe(2);
+        expect(detail.userCount).toBe(listed.total);
+      });
     });
   });
 
@@ -1010,7 +1089,7 @@ describe("edits over a newer save", () => {
         code: "STALE_RECORD",
         issues: [{ path: "updatedAt" }]
       });
-      await expect(store.getDivision(loaded.id)).resolves.toEqual(first);
+      await expect(store.getDivision(loaded.id)).resolves.toEqual({ ...first, userCount: 0 });
 
       // reloading and saving again goes through
       await expect(
@@ -1141,7 +1220,7 @@ describe("edits over a newer save", () => {
       expect(lost).toMatchObject({ reason: { code: "STALE_RECORD" } });
       const winner = results.find((result) => result.status === "fulfilled");
       await expect(store.getDivision(loaded.id)).resolves.toEqual(
-        winner?.status === "fulfilled" ? winner.value : undefined
+        winner?.status === "fulfilled" ? { ...winner.value, userCount: 0 } : undefined
       );
     });
   });
@@ -1414,7 +1493,7 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
         await expect(store.getDivision(first.id)).resolves.toMatchObject({
           deletedAt: expect.any(String)
         });
-        await expect(store.getDivision(reuse.id)).resolves.toEqual(reuse);
+        await expect(store.getDivision(reuse.id)).resolves.toEqual({ ...reuse, userCount: 0 });
 
         // once the code is free again, the restore goes through
         await store.deleteDivision(reuse.id);
@@ -1476,7 +1555,7 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
         await expect(store.deleteDivision(hub.id)).rejects.toMatchObject(refusal(2));
 
         // the row, its stamp and its roles are as they were
-        await expect(store.getDivision(hub.id)).resolves.toEqual(hub);
+        await expect(store.getDivision(hub.id)).resolves.toEqual({ ...hub, userCount: 0 });
         expect(
           await count(
             client,

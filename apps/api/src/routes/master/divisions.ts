@@ -1,4 +1,5 @@
 import {
+  DivisionDetailSchema,
   DivisionInputSchema,
   DivisionListRequestSchema,
   DivisionListResponseSchema,
@@ -27,7 +28,7 @@ export const divisionRoutes = new Hono<MasterEnv>()
   )
   .get("/:id", requirePermission("master-divisions.view"), async (c) => {
     const division = await c.get("store").getDivision(pathId(c));
-    return c.json(DivisionSchema.parse(division));
+    return c.json(DivisionDetailSchema.parse(division));
   })
   .patch(
     "/:id",

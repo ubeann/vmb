@@ -104,19 +104,25 @@ function toUser(row: UserRow): User {
   };
 }
 
+/**
+ * A user belongs to the divisions their roles are scoped to. The users list's
+ * `divisionId` filter and a division's `userCount` both read membership here,
+ * so the two cannot disagree.
+ */
+export function inDivision(divisionId: string): SQL {
+  return sql`exists (
+    select 1 from master.user_roles ur join master.roles r on r.id = ur.role_id
+     where ur.user_id = ${users.id} and r.division_id = ${divisionId}
+  )`;
+}
+
 function whereFor(query: UserListQuery) {
   const conditions: SQL[] = [];
 
   if (query.trashed === "exclude") conditions.push(isNull(users.deletedAt));
   if (query.trashed === "only") conditions.push(isNotNull(users.deletedAt));
   if (query.status !== "all") conditions.push(eq(users.status, query.status));
-  if (query.divisionId) {
-    // a user belongs to the divisions their roles are scoped to
-    conditions.push(sql`exists (
-      select 1 from master.user_roles ur join master.roles r on r.id = ur.role_id
-       where ur.user_id = ${users.id} and r.division_id = ${query.divisionId}
-    )`);
-  }
+  if (query.divisionId) conditions.push(inDivision(query.divisionId));
   if (query.search) {
     const pattern = `%${query.search}%`;
     const matches = or(
