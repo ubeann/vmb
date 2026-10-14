@@ -112,9 +112,18 @@ describe("master API client", () => {
     expect(JSON.parse(calls[0]?.body ?? "")).toEqual(input);
   });
 
+  it("reads a division with its user count", async () => {
+    const { client } = clientWith(() => json({ ...division, userCount: 3 }));
+
+    await expect(getDivision(client, ID)).resolves.toEqual({
+      ok: true,
+      value: { ...division, userCount: 3 }
+    });
+  });
+
   it("reads, updates, deletes and restores by id", async () => {
     const { client, calls } = clientWith((call) => {
-      if (call.method === "GET") return json(division);
+      if (call.method === "GET") return json({ ...division, userCount: 0 });
       if (call.method === "PATCH") return json({ ...division, name: "Operations HQ" });
       if (call.method === "DELETE") return new Response(null, { status: 204 });
       return json(division);

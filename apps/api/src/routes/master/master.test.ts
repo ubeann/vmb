@@ -78,7 +78,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     getPermissions: vi.fn(async () => allPermissionKeys()),
     getAccess: vi.fn(async () => ({ permissions: allPermissionKeys(), divisions: [] })),
     listDivisions: vi.fn(async () => EMPTY_DIVISIONS),
-    getDivision: vi.fn(async () => division),
+    getDivision: vi.fn(async () => ({ ...division, userCount: 0 })),
     createDivision: vi.fn(async () => division),
     updateDivision: vi.fn(async () => division),
     deleteDivision: vi.fn(async () => undefined),
@@ -302,6 +302,21 @@ describe("master API: divisions", () => {
       code: "MALFORMED_REQUEST",
       message: "The request body is not valid JSON."
     });
+  });
+
+  it("returns a division's user count on its detail and not on the list rows", async () => {
+    const store = fakeStore({
+      getDivision: vi.fn(async () => ({ ...division, userCount: 4 })),
+      listDivisions: vi.fn(async () => ({ ...EMPTY_DIVISIONS, items: [division], total: 1 }))
+    });
+
+    const detail = await appWith(store).request(`/divisions/${ID}`, {}, env);
+    expect(detail.status).toBe(200);
+    await expect(detail.json()).resolves.toMatchObject({ id: ID, userCount: 4 });
+
+    const list = await appWith(store).request("/divisions", {}, env);
+    const body = (await list.json()) as { items: object[] };
+    expect(body.items[0]).not.toHaveProperty("userCount");
   });
 
   it("reads, updates, deletes and restores by id", async () => {

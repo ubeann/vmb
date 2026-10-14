@@ -2,6 +2,7 @@ import {
   dateFilterRange,
   todayIn,
   type Division,
+  type DivisionDetail,
   type DivisionInput,
   type DivisionListRequest,
   type DivisionListResponse,
@@ -24,7 +25,7 @@ import {
   type AnyColumn,
   type SQL
 } from "drizzle-orm";
-import { divisions, roles } from "../schema/master.js";
+import { divisions, roles, users } from "../schema/master.js";
 import {
   conflictFrom,
   nextStamp,
@@ -33,6 +34,7 @@ import {
   unchangedSince,
   type MasterDb
 } from "./db.js";
+import { inDivision } from "./users.js";
 import { ConflictError, NotFoundError, StaleRecordError } from "../errors.js";
 
 const DIVISION_CONFLICTS = {
@@ -173,11 +175,22 @@ export async function listDivisions(
   };
 }
 
-export async function getDivision(db: MasterDb, id: string): Promise<Division> {
-  const rows = await db.select().from(divisions).where(eq(divisions.id, id)).limit(1);
+/**
+ * A division with its user count: the Users not in the Trash who hold a role
+ * scoped to it, each once however many such roles they hold. A Trashed
+ * division still counts, so its restore can say who it brings back.
+ */
+export async function getDivision(db: MasterDb, id: string): Promise<DivisionDetail> {
+  const [rows, members] = await Promise.all([
+    db.select().from(divisions).where(eq(divisions.id, id)).limit(1),
+    db
+      .select({ value: count() })
+      .from(users)
+      .where(and(isNull(users.deletedAt), inDivision(id)))
+  ]);
   const row = rows[0];
   if (!row) throw new NotFoundError("Division not found.");
-  return toDivision(row);
+  return { ...toDivision(row), userCount: members[0]?.value ?? 0 };
 }
 
 export async function createDivision(db: MasterDb, input: DivisionInput): Promise<Division> {

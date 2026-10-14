@@ -2,6 +2,7 @@ import type { ApiClient } from "$lib/api.js";
 import {
   ApiErrorSchema,
   isApiErrorCode,
+  DivisionDetailSchema,
   DivisionListResponseSchema,
   DivisionSchema,
   RoleListResponseSchema,
@@ -11,6 +12,7 @@ import {
   AccessSchema,
   type Access,
   type Division,
+  type DivisionDetail,
   type DivisionInput,
   type DivisionListRequest,
   type DivisionListResponse,
@@ -138,10 +140,10 @@ export function listDivisions(
     .then((response) => read(response, DivisionListResponseSchema));
 }
 
-export function getDivision(client: ApiClient, id: string): Promise<ApiResult<Division>> {
+export function getDivision(client: ApiClient, id: string): Promise<ApiResult<DivisionDetail>> {
   return client.api.master.divisions[":id"]
     .$get({ param: { id } })
-    .then((response) => read(response, DivisionSchema));
+    .then((response) => read(response, DivisionDetailSchema));
 }
 
 export function createDivision(

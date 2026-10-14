@@ -29,6 +29,17 @@ export const DivisionSchema = z.object({
 
 export type Division = z.infer<typeof DivisionSchema>;
 
+/**
+ * One division's detail: the record plus how many Users are in it, so a
+ * delete can say what it would affect (#446). A User is in a division when
+ * they hold a role scoped to it; Trashed Users are not counted.
+ */
+export const DivisionDetailSchema = DivisionSchema.extend({
+  userCount: z.number().int().min(0)
+});
+
+export type DivisionDetail = z.infer<typeof DivisionDetailSchema>;
+
 /** The 3–5 character business key the legacy form enforced (`DivisionResource.php:97-104`). */
 export const DivisionInputSchema = z.object({
   name: z

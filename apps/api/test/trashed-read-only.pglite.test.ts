@@ -193,7 +193,10 @@ describe("master API: a Trashed record is read-only", () => {
 
       expect(response.status).toBe(404);
       await expect(response.json()).resolves.toMatchObject(notFound("Deleted division not found."));
-      await expect(read(`/divisions/${division.id}`)).resolves.toEqual(division);
+      await expect(read(`/divisions/${division.id}`)).resolves.toEqual({
+        ...division,
+        userCount: 0
+      });
     });
 
     it("is refused a restore over a code reused meanwhile, naming the code", async () => {
