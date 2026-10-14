@@ -4,7 +4,7 @@ import {
   DivisionInputSchema,
   type Division
 } from "@vmb/types";
-import { superValidate } from "sveltekit-superforms/server";
+import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -2069,5 +2069,50 @@ describe("a Division in the layer over the list (#302)", () => {
       .click();
     await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
     expect(await axeViolations(document.body)).toEqual([]);
+  });
+  it("drops an open whose record arrives after a later one's", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    // Operations is slow to load; Retired, clicked after it, is not
+    let release = () => {};
+    preloadData.mockImplementationOnce(
+      (href: string) => new Promise((done) => (release = () => done(loadLayer(href) as never)))
+    );
+
+    await screen.getByRole("link", { name: "Operations" }).click();
+    await screen.getByRole("link", { name: "Retired" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "Retired" })).toBeVisible();
+    release();
+
+    await new Promise((done) => setTimeout(done, 50));
+    expect(pushState).toHaveBeenCalledTimes(1);
+    await expect.element(screen.getByRole("dialog", { name: "Retired" })).toBeVisible();
+  });
+
+  it("reloads a lost race's record in the layer, keeping the list", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions?search=ops"));
+    preloadData.mockImplementation(async (href: string) => {
+      const loaded = await loadLayer(href);
+      // the first edit load comes back from a save that lost the race
+      if (href.endsWith("/edit") && preloadData.mock.calls.length === 2) {
+        setError(
+          (loaded.data as { form: Parameters<typeof setError>[0] }).form,
+          "updatedAt",
+          "This record was changed by someone else since you opened it."
+        );
+      }
+      return loaded;
+    });
+    await openEdit(screen);
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    await expect.element(edit.getByRole("alert")).toBeVisible();
+
+    await edit.getByRole("link", { name: "Reload" }).click();
+
+    await expect.poll(() => preloadData.mock.calls.length).toBe(3);
+    await expect.element(edit.getByRole("alert")).not.toBeInTheDocument();
+    expect(mockPage.url.pathname).toBe(`${recordUrl}/edit`);
+    expect(goto).not.toHaveBeenCalled();
   });
 });

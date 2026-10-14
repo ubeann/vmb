@@ -38,6 +38,7 @@
     INACTIVE_TILE_CLASS,
     META_LINE,
     opensRecord,
+    plainClick,
     PINNED_BG_CLASS,
     ROW_ACTION_CLASS,
     ROW_CLASS,
@@ -55,13 +56,13 @@
   import DeleteDivisionDialog from "$lib/master/DeleteDivisionDialog.svelte";
   import DivisionForm from "$lib/master/DivisionForm.svelte";
   import DivisionView from "$lib/master/DivisionView.svelte";
+  import type { DivisionFormFields } from "$lib/master/form-data.js";
   import { listHref } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import {
     DivisionListQuerySchema,
     type Division,
     type DivisionDetail,
-    type DivisionInput,
     type PermissionKey
   } from "@vmb/types";
   import Building2Icon from "@lucide/svelte/icons/building-2";
@@ -95,7 +96,9 @@
   // a record opens in a layer over the list, at its own URL (#302); the list keeps its own
   provideListUrl(actionPath);
   const page = listPage();
-  const layer = new LayerRoute();
+  // the record's three pages, as the layer shows them
+  type LayerKind = "view" | "edit" | "new";
+  const layer = new LayerRoute<LayerKind>();
 
   const FILTERS: ListFilter[] = [
     {
@@ -164,15 +167,10 @@
   const editHref = (id: string) => resolve("/(app)/master/divisions/[id]/edit", { id });
   const newHref = resolve("/master/divisions/new");
 
-  /** A plain click the layer takes; a modified one opens the link as the browser does. */
-  const plainClick = (event: MouseEvent) =>
-    event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-
   // what each of the layer's pages gets from its load
   type ViewData = { division: DivisionDetail; permissions: string[] };
-  type FormFields = DivisionInput & { updatedAt?: string | null };
-  type EditData = { division: DivisionDetail; form: SuperValidated<FormFields> };
-  type NewData = { form: SuperValidated<FormFields> };
+  type EditData = { division: DivisionDetail; form: SuperValidated<DivisionFormFields> };
+  type NewData = { form: SuperValidated<DivisionFormFields> };
 
   // the entry the layer last showed, kept while it animates out
   let shown = $state.raw(layer.shown);
@@ -187,7 +185,7 @@
     return shown.kind === "edit" ? `Edit ${division.name}` : division.name;
   });
 
-  function saved(kind: string, division: FormFields) {
+  function saved(kind: LayerKind, division: DivisionFormFields) {
     layer.closeNow();
     toast.success(kind === "new" ? `${division.name} created` : `${division.name} saved`);
     void invalidateAll();
@@ -349,7 +347,7 @@
   }
 
   /** The name, an Edit link or New, clicked plainly: its page opens in the layer. */
-  function openLink(event: MouseEvent, kind: string) {
+  function openLink(event: MouseEvent, kind: LayerKind) {
     if (!plainClick(event)) return;
     event.preventDefault();
     const link = event.currentTarget as HTMLAnchorElement;
@@ -760,7 +758,8 @@
     {/if}
   {/snippet}
   {#if shown}
-    {#key shown.href}
+    <!-- a fresh load of the same page (a Restore, a conflict's Reload) starts its form afresh -->
+    {#key shown}
       {#if shown.kind === "view"}
         {@const { division, permissions } = shown.data as ViewData}
         <DivisionView
@@ -782,6 +781,7 @@
           {form}
           action={editHref(division.id)}
           reloadHref={editHref(division.id)}
+          onreload={() => void layer.refresh()}
           oncancel={() => void layer.close()}
           onsaved={(record) => saved("edit", record)}
         />

@@ -10,9 +10,10 @@
     `min(85svh, 44rem)` tall, over the `--scrim` backdrop.
 
   The frame changes by CSS alone, so a resize across 480px is no handover
-  and closes nothing; it doesn't glide between the two either (`duration-200`
-  times the enter and exit animations, and would time every property too). Focus starts on the title (rule 5) and goes back to
-  `returnFocus` on close. Esc, ×, and a click outside all ask `onclose`,
+  and closes nothing, nor glides between the two: the duration times the
+  enter and exit animations, and `transition-none` keeps it off every other
+  property. Focus starts on the title (rule 5) and goes back to `returnFocus`
+  on close. Esc, ×, and a click outside all ask `onclose`,
   which decides whether the layer may close (a form's "Discard changes?").
 -->
 <script lang="ts">
@@ -84,7 +85,7 @@
       style="--layer-height: {height}; --layer-top: {top}"
       class={cn(
         "bg-popover text-popover-foreground fixed inset-x-0 top-(--layer-top) z-50 flex h-(--layer-height) flex-col pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] text-sm outline-none",
-        "data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-10 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-10 transition-none duration-200",
+        "data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-10 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-10 transition-none duration-(--duration-panel)",
         "min-[480px]:ring-foreground/10 min-[480px]:data-open:slide-in-from-bottom-4 min-[480px]:data-closed:slide-out-to-bottom-4 min-[480px]:top-1/2 min-[480px]:right-auto min-[480px]:left-1/2 min-[480px]:h-auto min-[480px]:max-h-[min(85svh,44rem)] min-[480px]:w-[calc(100%-2rem)] min-[480px]:max-w-lg min-[480px]:-translate-x-1/2 min-[480px]:-translate-y-1/2 min-[480px]:rounded-2xl min-[480px]:px-0 min-[480px]:shadow-lg min-[480px]:ring-1"
       )}
       onOpenAutoFocus={(event: Event) => {

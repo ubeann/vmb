@@ -11,13 +11,11 @@
   import { Input } from "$lib/components/ui/input/index.js";
   import { Switch } from "$lib/components/ui/switch/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
+  import type { DivisionFormFields as Fields } from "./form-data.js";
   import UpdatedAtField from "./UpdatedAtField.svelte";
-  import { DivisionInputSchema, type DivisionInput } from "@vmb/types";
+  import { DivisionInputSchema } from "@vmb/types";
   import type { SuperValidated } from "sveltekit-superforms";
   import { zod4Client } from "sveltekit-superforms/adapters";
-
-  // an edit's form also carries the `updatedAt` it loaded
-  type Fields = DivisionInput & { updatedAt?: string | null };
 
   const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -27,6 +25,7 @@
     submitLabel = "Save division",
     pendingLabel = "Saving…",
     reloadHref,
+    onreload,
     cancelHref,
     oncancel,
     onsaved
@@ -38,6 +37,8 @@
     pendingLabel?: string;
     /** The edit page, which a conflict's Reload opens fresh. */
     reloadHref?: string;
+    /** In the layer: a conflict's Reload loads the record again there. */
+    onreload?: () => void;
     cancelHref?: string;
     oncancel?: () => void;
     /** In the layer: called once saved, in place of opening the record's page. */
@@ -57,7 +58,7 @@
 
 <RecordForm {superform} {guard} {action} {submitLabel} {pendingLabel} {cancelHref} {oncancel}>
   {#if reloadHref && $fields.updatedAt !== undefined}
-    <UpdatedAtField value={$fields.updatedAt} error={$errors.updatedAt} {reloadHref} />
+    <UpdatedAtField value={$fields.updatedAt} error={$errors.updatedAt} {reloadHref} {onreload} />
   {/if}
 
   <Form.Field form={superform} name="name">

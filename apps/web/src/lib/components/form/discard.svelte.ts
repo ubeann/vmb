@@ -5,9 +5,6 @@
 import { beforeNavigate, goto } from "$app/navigation";
 import { getContext, onMount, setContext } from "svelte";
 
-/** Resolves true when the form may go: nothing to lose, or the user chose to discard. */
-type Check = () => Promise<boolean>;
-
 const KEY = Symbol("close-checks");
 
 /**
@@ -15,16 +12,22 @@ const KEY = Symbol("close-checks");
  * unsaved edits. A layer that holds forms makes one with `provideCloseChecks`.
  */
 class CloseChecks {
-  #checks = new Set<Check>();
+  #guards = new Set<DiscardGuard>();
 
-  add(check: Check) {
-    this.#checks.add(check);
-    return () => void this.#checks.delete(check);
+  add(guard: DiscardGuard) {
+    this.#guards.add(guard);
+    return () => void this.#guards.delete(guard);
   }
 
-  /** Whether every form inside agrees to go, asking each in turn. */
+  /**
+   * Whether every form inside agrees to go, asking each in turn. Only once
+   * all have agreed is any let go, so a form that said Discard asks again if
+   * a later one kept the layer open.
+   */
   async allow() {
-    for (const check of this.#checks) if (!(await check())) return false;
+    const asked = [...this.#guards].filter((guard) => guard.needed);
+    for (const guard of asked) if (!(await guard.confirm())) return false;
+    for (const guard of asked) guard.release();
     return true;
   }
 }
@@ -51,7 +54,7 @@ export class DiscardGuard {
     return !this.#released && this.#dirty();
   }
 
-  /** Asks, if there is anything to lose. */
+  /** Asks, if there is anything to lose; the caller lets the form go with `release`. */
   confirm(): Promise<boolean> {
     if (!this.needed) return Promise.resolve(true);
     // a second ask while one is open answers the first as "keep editing"
@@ -65,11 +68,10 @@ export class DiscardGuard {
     const answer = this.#answer;
     this.#answer = null;
     this.asking = false;
-    if (discard) this.#released = true;
     answer?.(discard);
   }
 
-  /** The edits were saved: nothing is lost by leaving now. */
+  /** The edits were saved or discarded: nothing is lost by leaving now. */
   release() {
     this.#released = true;
   }
@@ -88,7 +90,7 @@ export function useDiscardGuard(dirty: () => boolean): DiscardGuard {
   const guard = new DiscardGuard(dirty);
   const layer = getContext<CloseChecks | undefined>(KEY);
 
-  onMount(() => layer?.add(() => guard.confirm()));
+  onMount(() => layer?.add(guard));
 
   beforeNavigate((navigation) => {
     if (!guard.needed) return;
@@ -99,6 +101,7 @@ export function useDiscardGuard(dirty: () => boolean): DiscardGuard {
     const delta = navigation.type === "popstate" ? navigation.delta : null;
     void guard.confirm().then((discard) => {
       if (!discard) return;
+      guard.release();
       if (delta) history.go(delta);
       // eslint-disable-next-line svelte/no-navigation-without-resolve -- the URL SvelteKit was already navigating to
       else void goto(to);

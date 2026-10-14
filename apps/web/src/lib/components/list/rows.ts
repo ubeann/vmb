@@ -56,11 +56,14 @@ export const INACTIVE_PILL_CLASS = "@max-lg/list:hidden";
 export const INACTIVE_TILE_CLASS = "@max-lg/list:opacity-55 @max-lg/list:grayscale";
 export const INACTIVE_NAME_CLASS = "@max-lg/list:text-muted-foreground";
 
+/** A plain primary click: a modified one is the browser's, for a new tab or window. */
+export const plainClick = (event: MouseEvent) =>
+  event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
 /** Whether a click on a row, rather than on something inside it, should open the record. */
 export function opensRecord(event: MouseEvent): boolean {
-  if (event.defaultPrevented || event.button !== 0) return false;
   // a modified click belongs to the name link, which the browser opens in a new tab or window
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+  if (event.defaultPrevented || !plainClick(event)) return false;
   if (!(event.target instanceof Element)) return false;
   if (event.target.closest("a, button, input, label, [role='menuitem']")) return false;
   // dragging across this row to copy a code is not a click on it; a selection elsewhere is

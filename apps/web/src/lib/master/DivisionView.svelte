@@ -16,6 +16,7 @@
   import Notice from "$lib/components/Notice.svelte";
   import RecordTime from "$lib/components/RecordTime.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
+  import { plainClick } from "$lib/components/list/rows.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { DivisionDetail, PermissionKey } from "@vmb/types";
   import PencilIcon from "@lucide/svelte/icons/pencil";
@@ -52,7 +53,7 @@
 
   /** A click the layer handles itself; a modified one opens the link as usual. */
   function intercept(event: MouseEvent, run: (() => void) | undefined) {
-    if (!run || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (!run || !plainClick(event)) return;
     event.preventDefault();
     run();
   }

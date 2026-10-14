@@ -11,12 +11,36 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import DeleteDivisionDialog from "$lib/master/DeleteDivisionDialog.svelte";
   import DivisionView from "$lib/master/DivisionView.svelte";
+  import { invalidateAll } from "$app/navigation";
+  import { postRowAction } from "$lib/components/list/row-action.js";
+  import type { Division } from "@vmb/types";
   import { toast } from "svelte-sonner";
   import type { PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: { error?: string; code?: string } | null } = $props();
 
   let confirmOpen = $state(false);
+
+  // as from the list: the toast offers Undo to whoever may restore
+  function deleted(division: Pick<Division, "id" | "name">) {
+    toast.success(`${division.name} moved to Trash`, {
+      duration: 10_000,
+      action: data.permissions.includes("master-divisions.restore")
+        ? {
+            label: "Undo",
+            onClick: async () => {
+              const result = await postRowAction(
+                `${resolve("/master/divisions")}?/restore`,
+                division.id
+              );
+              if (!result.ok) return void toast.error(result.error);
+              toast.success(`${division.name} restored`);
+              await invalidateAll();
+            }
+          }
+        : undefined
+    });
+  }
 
   const recordHref = $derived(resolve("/(app)/master/divisions/[id]", { id: data.division.id }));
   const askingDelete = $derived(
@@ -74,5 +98,5 @@
   bind:open={confirmOpen}
   target={data.division}
   action="?/delete"
-  ondeleted={(division) => toast.success(`${division.name} moved to Trash`)}
+  ondeleted={deleted}
 />
