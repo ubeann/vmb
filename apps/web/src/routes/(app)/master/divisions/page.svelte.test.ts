@@ -1865,6 +1865,23 @@ describe("a Division in the layer over the list (#302)", () => {
     await closed();
   });
 
+  it("closes the row menu when its Edit opens the layer, so the row is not left painted behind", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const trigger = screen.getByRole("button", { name: "Actions for Operations" });
+
+    await trigger.click();
+    await screen.getByRole("menuitem", { name: "Edit" }).click();
+
+    await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
+    await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull();
+    await expect.element(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.keyboard("{Escape}");
+    await closed();
+    await expect.element(trigger).toHaveFocus();
+  });
+
   it("switches the same layer to edit at /edit, and New opens an empty one at /new", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions"));

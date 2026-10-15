@@ -80,6 +80,7 @@
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import type { Component } from "svelte";
   import { onMount } from "svelte";
+  import { mergeProps } from "bits-ui";
   import { toast } from "svelte-sonner";
   import type { SuperValidated } from "sveltekit-superforms";
   import type { PageData } from "./$types.js";
@@ -687,13 +688,15 @@
                           {#if action.edit}
                             <DropdownMenu.Item>
                               {#snippet child({ props })}
+                                <!-- the menu's own click handler runs first, to select the item and close the menu -->
                                 <a
-                                  {...props}
+                                  {...mergeProps(props, {
+                                    onclick: (event: MouseEvent) => openLink(event, "edit")
+                                  })}
                                   aria-keyshortcuts={rowKeys.keys ? action.shortcut : undefined}
                                   href={resolve("/(app)/master/divisions/[id]/edit", {
                                     id: division.id
                                   })}
-                                  onclick={(event) => openLink(event, "edit")}
                                   ><action.icon aria-hidden="true" />{action.label}{@render keyHint(
                                     action
                                   )}</a
