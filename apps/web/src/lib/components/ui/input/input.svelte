@@ -7,13 +7,13 @@
   type Props = WithElementRef<
     Omit<HTMLInputAttributes, "type"> &
       ({ type: "file"; files?: FileList } | { type?: InputType; files?: undefined }) & {
-        /** "kit": a list-kit control, on the paper with the outline buttons' edge (ADR-0035,
-         * 2026-10-11). Forms keep the default: white with the 3:1 `--input` edge. */
+        /** "kit": a list-kit control, white with the outline buttons' lighter edge (ADR-0035,
+         * 2026-10-11 and 2026-10-15). Forms keep the default: white with the 3:1 `--input` edge. */
         variant?: "default" | "kit";
       }
   >;
 
-  const KIT_SKIN = "border-control-edge bg-background";
+  const KIT_SKIN = "border-control-edge bg-card";
 
   let {
     ref = $bindable(null),

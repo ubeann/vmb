@@ -324,7 +324,7 @@
                       autocomplete="off"
                       spellcheck={false}
                       placeholder="#2563EB"
-                      class="h-8 w-full pl-11 font-mono text-xs uppercase pointer-coarse:h-11"
+                      class="w-full pl-11 font-mono text-xs uppercase"
                     />
                   </div>
                 {/snippet}
@@ -345,7 +345,7 @@
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <!-- a light screen's card whatever the theme, so the dark theme shows it too; no edge, as it is not a button -->
               <span
-                class="flex h-8 items-center gap-2 rounded-md bg-white pr-2.5 pl-1 text-[0.8rem] text-neutral-600 pointer-coarse:h-11"
+                class="flex h-7 items-center gap-1.5 rounded-md bg-white pr-2.5 pl-0.5 text-[0.8rem] text-neutral-600 pointer-coarse:h-11"
               >
                 <RecordTile
                   light
@@ -359,7 +359,7 @@
                 type="button"
                 variant="outline"
                 size="sm"
-                class="h-8 pointer-coarse:h-11"
+                class="pointer-coarse:h-11"
                 onclick={() => ($fields.colorHex = shade)}
               >
                 <span aria-hidden="true" class="size-3 rounded-full" style:background={shade}

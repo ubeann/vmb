@@ -47,7 +47,7 @@
   const { enhance, message, submitting, delayed } = superform;
 
   // a phone's full-screen form fills its footer; from 480px, a dialog's buttons sit at the right
-  const CANCEL = "in-data-[layer-frame=modal]:h-11 min-[480px]:ml-auto";
+  const CANCEL = "min-[480px]:ml-auto";
 </script>
 
 <form method="POST" {action} use:enhance class="flex min-h-0 flex-1 flex-col">
@@ -66,7 +66,7 @@
       <Button variant="outline" class={CANCEL} href={cancelHref}>Cancel</Button>
     {/if}
     <SubmitButton
-      class="w-auto min-w-0 flex-1 min-[480px]:flex-none"
+      class="min-h-9 w-auto min-w-0 flex-1 rounded-(--control-radius) min-[480px]:flex-none pointer-coarse:min-h-11"
       pending={$submitting}
       slow={$delayed}
       icon={submitIcon}

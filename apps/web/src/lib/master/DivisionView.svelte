@@ -130,7 +130,7 @@
       <input type="hidden" name="id" value={division.id} />
       <Button
         type="submit"
-        class="ml-auto min-w-0 flex-1 in-data-[layer-frame=modal]:h-11 min-[480px]:flex-none"
+        class="ml-auto min-w-0 flex-1 min-[480px]:flex-none"
         onclick={(event) => intercept(event, onrestore)}
       >
         <RotateCcwIcon aria-hidden="true" data-icon="inline-start" />Restore
@@ -144,7 +144,7 @@
       <Button
         href="{recordHref}?delete"
         variant="ghost"
-        class="text-destructive hover:text-destructive in-data-[layer-frame=modal]:h-11"
+        class="text-destructive hover:text-destructive"
         onclick={(event: MouseEvent) => intercept(event, ondelete)}
       >
         <Trash2Icon aria-hidden="true" data-icon="inline-start" />Delete…
@@ -153,7 +153,7 @@
     {#if canEdit}
       <Button
         href={resolve("/(app)/master/divisions/[id]/edit", { id: division.id })}
-        class="ml-auto min-w-0 flex-1 in-data-[layer-frame=modal]:h-11 min-[480px]:flex-none"
+        class="ml-auto min-w-0 flex-1 min-[480px]:flex-none"
         onclick={(event: MouseEvent) => intercept(event, onedit)}
       >
         <PencilIcon aria-hidden="true" data-icon="inline-start" />Edit

@@ -270,12 +270,7 @@
     <!-- the picks are already applied and can't change the count: this only closes the layer, so the sheet and dialog have it and the panel does not (ADR-0053 rule 4); Reset sits beside it there -->
     <LayerFooter modalOnly>
       {#if differs}
-        <Button
-          type="button"
-          variant="ghost"
-          class="in-data-[layer-frame=modal]:h-11"
-          onclick={reset}>Reset</Button
-        >
+        <Button type="button" variant="ghost" onclick={reset}>Reset</Button>
       {/if}
       <LayerAction label="Done" icon={CheckIcon} onclick={layer.close} />
     </LayerFooter>

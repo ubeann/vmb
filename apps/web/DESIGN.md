@@ -17,7 +17,7 @@ colors:
   warning: "oklch(0.47 0.11 62)"
   destructive: "oklch(0.53 0.207 22.3)"
   border: "oklch(0.888 0.005 90)"
-  input: "oklch(0.64 0.037 274.3)"
+  input: "oklch(0.64 0.012 80)"
   ring: "oklch(0.51 0.164 143.6)"
   scrim: "oklch(0 0 0 / 0.4)"
   etching: "oklch(0.36 0.12 266)"
@@ -93,7 +93,7 @@ Depth is mostly flat: a white card on warm paper, a navy card on deep navy in da
 
 ## Shapes
 
-One radius, `--radius` (0.625rem), with the Tailwind steps derived from it in `app.css`. Controls round by a quarter of their height (`rounded-(--control-radius)`): 8px at 32px, 11px once touch pointers grow them to 44px, filter chips included; a card is one step rounder (`rounded-xl`, 14px) than what it holds, and popovers and menus keep their own (ADR-0035, 2026-10-11). In light mode, outline buttons and the list kit's fields (`Input` and the select trigger with `variant="kit"`) share one skin: the paper's fill and `--control-edge`, a mix of 45% `input` into `border` that the header leaves out because it is derived, not a value of its own. Form fields keep the white fill and the 3:1 `input` edge.
+One radius, `--radius` (0.625rem), with the Tailwind steps derived from it in `app.css`. A default control is 36px, a small one 28px, and touch pointers and the auth pages make them 44px. A control's corner is a fixed 8px at any of those heights (`rounded-(--control-radius)`), 6px on a small one with a fine pointer; a card is one step rounder (`rounded-xl`) than what it holds, and popovers and menus keep their own (ADR-0035, 2026-10-15). In light mode every field and outline button is white on its card with a soft shadow under it, and its edge is a warm neutral like the paper's: outline buttons and the list kit's fields (`Input` and the select trigger with `variant="kit"`) take `--control-edge`, a mix of 45% `input` into `border` that the header leaves out because it is derived, not a value of its own, and form fields the 3:1 `input` edge.
 
 ## Components
 

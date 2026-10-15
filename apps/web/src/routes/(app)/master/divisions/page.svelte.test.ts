@@ -1179,7 +1179,11 @@ describe("divisions list", () => {
       expect(reset.elements()).toHaveLength(1);
       expect(reset.element().parentElement).toBe(done.element().parentElement);
       expect(reset.element().getAttribute("data-slot")).toBe("button");
-      expect(reset.element().getBoundingClientRect().height).toBe(44);
+      // as tall as Done beside it: the default 36px with a mouse, 44px on touch
+      expect(reset.element().getBoundingClientRect().height).toBe(
+        done.element().getBoundingClientRect().height
+      );
+      expect(reset.element().getBoundingClientRect().height).toBe(36);
       expect(done.element().getBoundingClientRect().left).toBeGreaterThan(
         reset.element().getBoundingClientRect().right
       );
@@ -2015,9 +2019,9 @@ describe("a Division in the layer over the list (#302)", () => {
     await new Promise((done) => setTimeout(done, 300));
     const phone = layer()!.getBoundingClientRect();
     expect([phone.left, phone.top, phone.width, phone.height]).toEqual([0, 0, 375, 667]);
-    // the footer holds the primary action at the bottom, 44px tall
+    // the footer holds the primary action at the bottom, the default 36px with a mouse (44px on touch)
     const save = screen.getByRole("button", { name: "Save division" }).element();
-    expect(save.getBoundingClientRect().height).toBe(44);
+    expect(save.getBoundingClientRect().height).toBe(36);
     expect(Math.round(save.getBoundingClientRect().bottom)).toBeLessThanOrEqual(667 - 16);
     await expect.element(screen.getByRole("button", { name: "Close" })).toBeVisible();
     expect(

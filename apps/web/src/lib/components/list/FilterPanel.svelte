@@ -291,12 +291,7 @@
     <!-- only closes the layer: the sheet and dialog have it, the panel does not (ADR-0053 rule 4); Reset sits beside it there -->
     <LayerFooter modalOnly>
       {#if inUse > 0}
-        <Button
-          type="button"
-          variant="ghost"
-          class="in-data-[layer-frame=modal]:h-11"
-          onclick={reset}>Reset</Button
-        >
+        <Button type="button" variant="ghost" onclick={reset}>Reset</Button>
       {/if}
       <LayerAction
         label={shown === null ? "Done" : `Show ${shown} ${nounFor(noun, shown)}`}

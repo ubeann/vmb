@@ -34,14 +34,16 @@ async function controls() {
 
 // ADR-0035's 2026-10-11 amendment: one skin for outline buttons and the list kit's fields.
 describe("the control skin", () => {
-  it("puts kit fields and outline buttons on the paper with the halfway edge, in light mode", async () => {
+  it("puts kit fields and outline buttons on the card, white, with the halfway edge, in light mode", async () => {
     const { search, filter, view, select } = await controls();
     const edge = resolved("color-mix(in oklab, var(--input) 45%, var(--border))");
-    const paper = resolved("var(--background)");
+    const card = resolved("var(--card)");
 
     for (const control of [search, filter, view, select]) {
       expect(style(control).borderTopColor).toBe(edge);
-      expect(style(control).backgroundColor).toBe(paper);
+      expect(style(control).backgroundColor).toBe(card);
+      // a soft shadow under it, as a field on a white card has nothing else to stand on
+      expect(style(control).boxShadow).not.toBe("none");
     }
   });
 
@@ -66,11 +68,11 @@ describe("the control skin", () => {
     expect(style(filter).backgroundColor).toBe(style(search).backgroundColor);
   });
 
-  it("rounds 32px controls by a quarter of their height", async () => {
+  it("makes default controls 36px, with an 8px corner", async () => {
     const { search, filter, view, select } = await controls();
 
     for (const control of [search, filter, view, select]) {
-      expect(control.getBoundingClientRect().height).toBe(32);
+      expect(control.getBoundingClientRect().height).toBe(36);
       expect(style(control).borderTopLeftRadius).toBe("8px");
     }
   });

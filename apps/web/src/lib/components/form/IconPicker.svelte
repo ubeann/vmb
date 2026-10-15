@@ -44,8 +44,8 @@
     "shopping-cart",
     "settings"
   ];
-  // a tile's side (size-10, size-11 on touch) and the gap between tiles (gap-2)
-  const TILE = 40;
+  // a tile's side (size-9, as a field is tall; size-11 on touch) and the gap between tiles (gap-2)
+  const TILE = 36;
   const TOUCH_TILE = 44;
   const TILE_GAP = 8;
   // the gap between chips (gap-1.5), and the room kept round the line for focus rings (p-1)
@@ -286,7 +286,7 @@
     <!-- square tiles from the left, as the colour swatches sit -->
     <div
       bind:clientWidth={gridWidth}
-      class="grid grid-cols-[repeat(auto-fill,2.5rem)] gap-2 pointer-coarse:grid-cols-[repeat(auto-fill,2.75rem)]"
+      class="grid grid-cols-[repeat(auto-fill,2.25rem)] gap-2 pointer-coarse:grid-cols-[repeat(auto-fill,2.75rem)]"
     >
       {#if kept && !browsing}
         {@render option(kept, `Current icon (${kept})`, true)}
@@ -302,7 +302,7 @@
           data-slot="icon-more"
           aria-label="More icons"
           title="More icons"
-          class="border-border text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex size-10 items-center justify-center rounded-lg border border-dashed outline-none focus-visible:ring-2 pointer-coarse:size-11"
+          class="border-border text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex size-9 items-center justify-center rounded-lg border border-dashed outline-none focus-visible:ring-2 pointer-coarse:size-11"
           onclick={open}
         >
           <LayoutGridIcon aria-hidden="true" class="size-4" />
@@ -334,7 +334,7 @@
       class="peer sr-only"
     />
     <span
-      class="border-border text-muted-foreground hover:bg-muted peer-focus-visible:ring-ring flex size-10 items-center justify-center rounded-lg border peer-checked:border-(--swatch) peer-checked:bg-[color-mix(in_oklab,var(--swatch)_14%,transparent)] peer-checked:text-(--swatch) peer-focus-visible:ring-2 dark:peer-checked:text-[color-mix(in_oklab,var(--swatch)_50%,white)] pointer-coarse:size-11"
+      class="border-border text-muted-foreground hover:bg-muted peer-focus-visible:ring-ring flex size-9 items-center justify-center rounded-lg border peer-checked:border-(--swatch) peer-checked:bg-[color-mix(in_oklab,var(--swatch)_14%,transparent)] peer-checked:text-(--swatch) peer-focus-visible:ring-2 dark:peer-checked:text-[color-mix(in_oklab,var(--swatch)_50%,white)] pointer-coarse:size-11"
     >
       <HeroIcon {name} class="size-4" />
     </span>
