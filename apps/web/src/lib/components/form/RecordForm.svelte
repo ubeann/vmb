@@ -26,6 +26,7 @@
     submitIcon,
     cancelHref,
     oncancel,
+    discard,
     children
   }: {
     superform: SuperForm<T>;
@@ -40,11 +41,44 @@
     cancelHref?: string;
     /** What Cancel does in a layer: asks the layer to close. */
     oncancel?: () => void;
+    /**
+     * What "Discard changes?" names: the record's noun ("division"), its saved
+     * name on an edit, and what each field is called, so the dialog can say
+     * "Discard changes to Finance? You changed the name and code."
+     */
+    discard?: { noun: string; name?: string; fields: Partial<Record<keyof T & string, string>> };
     children: Snippet;
   } = $props();
 
   // svelte-ignore state_referenced_locally
-  const { enhance, message, submitting, delayed } = superform;
+  const { enhance, message, submitting, delayed, tainted, isTainted } = superform;
+
+  // the fields changed so far, as the dialog names them, in the form's order
+  const changed = $derived.by(() => {
+    void $tainted;
+    if (!discard) return [];
+    return Object.entries(discard.fields)
+      .filter(([field]) => isTainted(field as never))
+      .map(([, label]) => label as string);
+  });
+  const listed = (words: string[]) =>
+    words.length < 2 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+  const discardTitle = $derived(
+    !discard
+      ? undefined
+      : discard.name
+        ? `Discard changes to ${discard.name}?`
+        : `Discard this new ${discard.noun}?`
+  );
+  const discardDescription = $derived(
+    !discard
+      ? undefined
+      : !discard.name
+        ? "What you've entered won't be saved."
+        : changed.length
+          ? `You changed the ${listed(changed)}. ${changed.length === 1 ? "It hasn't" : "They haven't"} been saved.`
+          : "Your edits haven't been saved."
+  );
 
   // a phone's full-screen form fills its footer; from 480px, a dialog's buttons sit at the right
   const CANCEL = "min-[480px]:ml-auto";
@@ -75,4 +109,4 @@
   </LayerFooter>
 </form>
 
-<DiscardDialog {guard} />
+<DiscardDialog {guard} title={discardTitle} description={discardDescription} />

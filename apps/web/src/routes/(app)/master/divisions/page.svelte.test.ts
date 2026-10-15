@@ -826,9 +826,13 @@ describe("divisions list", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Delete Operations?" });
     await expect.element(dialog).toBeVisible();
-    await expect.element(dialog.getByText(/You can restore it from Trash\./)).toBeVisible();
+    await expect.element(dialog.getByText(/where you can restore it\./)).toBeVisible();
+    // the record itself, as its row shows it, so it is plain which one goes
+    await expect.element(dialog.getByText("OPS")).toBeVisible();
     await expect.element(dialog.getByRole("button", { name: "Delete" })).toBeVisible();
     await expect.element(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
+    // a confirmation is answered, not closed: no ×
+    expect(dialog.getByRole("button", { name: "Close" }).elements()).toHaveLength(0);
   });
 
   it("keeps the dialog open and says what to do when the Division still has roles", async () => {
@@ -1964,9 +1968,12 @@ describe("a Division in the layer over the list (#302)", () => {
     await userEvent.type(name, " and Fleet");
     await userEvent.keyboard("{Escape}");
 
+    // it names the record and what changed in it
+    const ask = screen.getByRole("alertdialog", { name: "Discard changes to Operations?" });
+    await expect.element(ask).toBeVisible();
     await expect
-      .element(screen.getByRole("alertdialog", { name: "Discard changes?" }))
-      .toBeVisible();
+      .element(ask)
+      .toHaveAccessibleDescription("You changed the name. It hasn't been saved.");
     await screen.getByRole("button", { name: "Keep editing" }).click();
     await expect.element(name).toHaveValue("Operations and Fleet");
     expect(layer()).not.toBeNull();
@@ -1988,7 +1995,7 @@ describe("a Division in the layer over the list (#302)", () => {
     history.go(-1);
 
     await expect
-      .element(screen.getByRole("alertdialog", { name: "Discard changes?" }))
+      .element(screen.getByRole("alertdialog", { name: "Discard changes to Operations?" }))
       .toBeVisible();
     await screen.getByRole("button", { name: "Keep editing" }).click();
     await expect.poll(() => mockPage.url.pathname).toBe(`${recordUrl}/edit`);
@@ -2148,7 +2155,7 @@ describe("a Division in the layer over the list (#302)", () => {
       .click();
     const ask = screen.getByRole("dialog", { name: "Delete Operations?" });
     await expect
-      .element(ask.getByText("It moves to the Trash. You can restore it from Trash."))
+      .element(ask.getByText("It moves to the Trash, where you can restore it."))
       .toBeVisible();
 
     deleteResult = { type: "success", status: 200, data: {} };

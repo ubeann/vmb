@@ -87,6 +87,9 @@
   // svelte-ignore state_referenced_locally
   let codeTyped = $state(Boolean(form.data.code));
   const FOLLOWS_NAME = "Filled from the name until you type your own";
+  // an edit's name as it was loaded, for "Discard changes to Finance?"; a new Division has none
+  // svelte-ignore state_referenced_locally
+  const savedName = reloadHref ? form.data.name : undefined;
   function nameTyped(name: string) {
     $fields.name = name;
     if (!codeTyped) $fields.code = suggestCode(name);
@@ -129,6 +132,18 @@
   {submitIcon}
   {cancelHref}
   {oncancel}
+  discard={{
+    noun: "division",
+    name: savedName,
+    fields: {
+      name: "name",
+      code: "code",
+      description: "description",
+      colorHex: "color",
+      iconName: "icon",
+      isActive: "status"
+    }
+  }}
 >
   {#if reloadHref && $fields.updatedAt !== undefined}
     <UpdatedAtField value={$fields.updatedAt} error={$errors.updatedAt} {reloadHref} {onreload} />

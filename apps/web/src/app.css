@@ -87,6 +87,14 @@
   --accent: oklch(0.93 0.005 90);
   --accent-foreground: oklch(0.247 0.094 267.7);
   --destructive: oklch(0.53 0.207 22.3);
+  /* The danger button (#302): the primary button's texture in red, for an answer that can't be
+   * undone (Discard, Delete). White on it: 5.6:1, 6.9:1 on hover */
+  --destructive-hover: oklch(0.48 0.19 22.3);
+  --destructive-foreground: oklch(0.985 0 0);
+  --destructive-sheen-top: oklch(1 0 0 / 0);
+  --destructive-sheen-bottom: oklch(0 0 0 / 0.14);
+  --destructive-highlight: oklch(1 0 0 / 0.24);
+  --destructive-edge: oklch(0.42 0.17 22.3);
   /* Status tones (StatusPill, ADR-0036 "Status tones"): text on a 12% wash of itself, 5:1 or more
    * on paper, white and the muted row hover. Success is a bluer green than --primary, so a
    * status never reads as a button */
@@ -162,6 +170,13 @@
   --accent: oklch(0.284 0.082 271.7);
   --accent-foreground: oklch(0.954 0.011 95.2);
   --destructive: oklch(0.712 0.181 22.8);
+  /* Dark text on the lighter red, as on the dark primary: 6.3:1, 7.1:1 on hover */
+  --destructive-hover: oklch(0.75 0.17 22.8);
+  --destructive-foreground: oklch(0.22 0.06 22);
+  --destructive-sheen-top: oklch(1 0 0 / 0.16);
+  --destructive-sheen-bottom: oklch(0 0 0 / 0.07);
+  --destructive-highlight: oklch(1 0 0 / 0.45);
+  --destructive-edge: oklch(0.58 0.17 22.8);
   --success: oklch(0.78 0.15 152);
   --warning: oklch(0.82 0.13 75);
   --border: oklch(0.322 0.08 272.6);
@@ -301,6 +316,7 @@
   --color-control-edge: var(--control-edge);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
@@ -446,6 +462,24 @@
   }
   [data-slot="button"].bg-primary:not(:focus-visible) {
     border-color: var(--primary-edge);
+  }
+
+  /* The danger button takes the same texture in red (#302) */
+  [data-slot="button"].bg-destructive:hover {
+    background-color: var(--destructive-hover);
+  }
+  [data-slot="button"].bg-destructive {
+    --tw-inset-shadow: inset 0 1px 0 0 var(--destructive-highlight);
+    background-image: linear-gradient(
+      var(--destructive-sheen-top),
+      var(--destructive-sheen-bottom)
+    );
+    box-shadow:
+      var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow),
+      var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  [data-slot="button"].bg-destructive:not(:focus-visible) {
+    border-color: var(--destructive-edge);
   }
 
   /* Fields and outline buttons sit a hair above the card (#302), as a light-mode control does in

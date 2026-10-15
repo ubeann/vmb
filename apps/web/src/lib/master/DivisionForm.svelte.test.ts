@@ -429,8 +429,10 @@ describe("DivisionForm's checks", () => {
     await userEvent.type(name, " and Fleet");
 
     await userEvent.click(close);
-    const ask = screen.getByRole("alertdialog", { name: "Discard changes?" });
+    // a form with no record behind it asks about the new one
+    const ask = screen.getByRole("alertdialog", { name: "Discard this new division?" });
     await expect.element(ask).toBeVisible();
+    await expect.element(ask).toHaveAccessibleDescription("What you've entered won't be saved.");
     // the safe answer has focus
     await expect.element(screen.getByRole("button", { name: "Keep editing" })).toHaveFocus();
     await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));

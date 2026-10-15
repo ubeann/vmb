@@ -156,11 +156,13 @@
   const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
 
   let confirmOpen = $state(false);
-  let target = $state<Pick<Division, "id" | "name"> | null>(null);
+  let target = $state<Pick<Division, "id" | "name" | "code" | "colorHex" | "iconName"> | null>(
+    null
+  );
   // the layer asks in a dialog of its own, inside its focus trap
   let confirmInLayer = $state(false);
 
-  function askDelete(division: Pick<Division, "id" | "name">) {
+  function askDelete(division: Pick<Division, "id" | "name" | "code" | "colorHex" | "iconName">) {
     target = division;
     confirmOpen = true;
   }
