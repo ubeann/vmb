@@ -1,5 +1,5 @@
 import { DivisionListQuerySchema, type Division } from "@vmb/types";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page as browser, userEvent } from "vitest/browser";
 
 // Isolated renders don't load the global stylesheet; every width rule is in it.
@@ -45,6 +45,7 @@ vi.mock("svelte-sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } })
 
 const { render } = await import("vitest-browser-svelte");
 const { default: Fixture } = await import("./shell-fixture.svelte");
+const { LayerRoute } = await import("$lib/components/list/layer/layer-route.svelte.js");
 
 const long: Division = {
   id: "d1000000-0000-4000-8000-000000000001",
@@ -88,6 +89,11 @@ const props = (sidebarOpen: boolean, sidebarSaved: boolean) => {
     } as unknown as PageData
   };
 };
+
+// a row's press preloads too, which would blur `preloadData` as the sign that a row opened
+beforeEach(() => {
+  vi.spyOn(LayerRoute.prototype, "preloadOn").mockReturnValue({} as never);
+});
 
 afterEach(() => {
   goto.mockClear();

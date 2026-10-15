@@ -84,6 +84,9 @@ beforeEach(() => {
     at += delta;
     showEntry();
   });
+  // a row's hover and press preload too, which would blur `preloadData` as the sign that
+  // a row opened; the test of that preload restores it
+  vi.spyOn(LayerRoute.prototype, "preloadOn").mockReturnValue({} as never);
 });
 
 // The form action's answer, as `use:enhance` would hand it to the page.
@@ -115,6 +118,7 @@ function actionReply(type: "success" | "failure", status: number, data: string) 
 
 const { render } = await import("vitest-browser-svelte");
 const { default: Page } = await import("./+page.svelte");
+const { LayerRoute } = await import("$lib/components/list/layer/layer-route.svelte.js");
 
 const division: Division = {
   id: "d1000000-0000-4000-8000-000000000001",
@@ -1880,6 +1884,28 @@ describe("a Division in the layer over the list (#302)", () => {
     await userEvent.keyboard("{Escape}");
     await closed();
     await expect.element(trigger).toHaveFocus();
+  });
+
+  it("starts loading a row's record as the pointer rests on it or presses it, and the click shares that load", async () => {
+    vi.mocked(LayerRoute.prototype.preloadOn).mockRestore();
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const code = screen.getByRole("cell", { name: "OPS" });
+
+    await userEvent.hover(code);
+    await expect.poll(() => preloadData.mock.calls).toEqual([[recordUrl]]);
+
+    // a press loads at once, for a finger that never hovers
+    preloadData.mockClear();
+    code
+      .element()
+      .dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", button: 0 })
+      );
+    expect(preloadData).toHaveBeenCalledWith(recordUrl);
+
+    await code.click();
+    await expect.element(screen.getByRole("dialog", { name: "Operations" })).toBeVisible();
   });
 
   it("switches the same layer to edit at /edit, and New opens an empty one at /new", async () => {

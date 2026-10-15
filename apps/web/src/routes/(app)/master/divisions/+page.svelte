@@ -543,6 +543,7 @@
               <Table.Row
                 class={ROW_CLASS}
                 onclick={(event) => openRow(event, division)}
+                {...layer.preloadOn(recordHref(division.id))}
                 {...rowKeys.row(division)}
               >
                 <Table.Cell

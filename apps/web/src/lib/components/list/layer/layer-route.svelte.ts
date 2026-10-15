@@ -20,6 +20,9 @@ export type LayerEntry<K extends string = string> = {
   data: Record<string, unknown>;
 };
 
+// how long the pointer rests on a row before its page starts loading
+const PRELOAD_REST_MS = 60;
+
 const same = (a: LayerEntry | null, b: LayerEntry | null) =>
   a?.href === b?.href && a?.depth === b?.depth;
 
@@ -36,6 +39,7 @@ export class LayerRoute<K extends string = string> {
   // the latest open and the latest history step, so an older one that resolves late is dropped
   #opening = 0;
   #following = 0;
+  #intent: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
     $effect(() => {
@@ -64,6 +68,29 @@ export class LayerRoute<K extends string = string> {
     }
     // eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller passes a resolve()d path
     pushState(href, { layer: { kind, href, depth: (from?.depth ?? 0) + 1, data: result.data } });
+  }
+
+  /**
+   * Pointer handlers for a row that opens `href`: its page starts loading once
+   * the pointer rests on the row, or at once on a press, so the click finds it
+   * loaded, as a link's hover preload does (`data-sveltekit-preload-data`).
+   * `open` asks for the same URL and shares that load rather than starting another.
+   */
+  preloadOn(href: string) {
+    const load = () => void preloadData(href).catch(() => undefined);
+    return {
+      onpointerenter: (event: PointerEvent) => {
+        if (event.pointerType !== "mouse") return;
+        clearTimeout(this.#intent);
+        // a pointer sweeping across the list passes rows without loading each one
+        this.#intent = setTimeout(load, PRELOAD_REST_MS);
+      },
+      onpointerleave: () => clearTimeout(this.#intent),
+      onpointerdown: (event: PointerEvent) => {
+        clearTimeout(this.#intent);
+        if (event.button === 0) load();
+      }
+    };
   }
 
   /** Loads what the layer shows again, as after a Restore from it. */
