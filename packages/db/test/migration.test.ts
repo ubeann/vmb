@@ -1059,6 +1059,8 @@ describe("the Lucide icon names", () => {
     });
     // the interface glyphs no record would mean, and nothing a record would
     expect(unchanged).toEqual(expect.arrayContaining(["arrow-left", "chevron-down", "x-mark"]));
+    // a negated variant would be contradicted by its plain icon
+    expect(unchanged).toEqual(expect.arrayContaining(["lock-open", "bell-slash", "user-minus"]));
     expect(unchanged).not.toContain("truck");
     expect(unchanged.length).toBeLessThan(HEROICONS.length / 2);
   });
@@ -1080,6 +1082,19 @@ describe("the Lucide icon names", () => {
     expect(await icon("user")).toBe("user");
     expect(await icon("user-group")).toBe("users");
     expect(await icon("rocket-launch")).toBe("rocket");
+  });
+
+  it("gives a name a department would pick its nearest catalogue icon", async () => {
+    const icon = async (name: string) => {
+      const index = HEROICONS.indexOf(name as (typeof HEROICONS)[number]);
+      return iconOf("master.divisions", `code = 'H${index}'`);
+    };
+    expect(await icon("exclamation-triangle")).toBe("siren");
+    expect(await icon("power")).toBe("zap");
+    expect(await icon("trash")).toBe("recycle");
+    expect(await icon("arrows-right-left")).toBe("route");
+    expect(await icon("list-bullet")).toBe("clipboard-list");
+    expect(await icon("question-mark-circle")).toBe("life-buoy");
   });
 
   it("reads the name whatever its variant, and leaves a name that is not one alone", async () => {
