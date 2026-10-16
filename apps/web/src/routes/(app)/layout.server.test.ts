@@ -18,7 +18,7 @@ vi.mock("$lib/master/api.js", () => ({
 
 const { load } = await import("./+layout.server.js");
 
-const division = { id: "d-1", name: "Warehouse", iconName: "heroicon-o-building-storefront" };
+const division = { id: "d-1", name: "Warehouse", iconName: "store" };
 
 const event = (user: { id: string } | null = { id: "u-1" }, sidebarState?: string) =>
   ({
@@ -64,7 +64,7 @@ describe("the app shell layout", () => {
 
   it("hands the shell the user's division and permissions", async () => {
     await expect(load(event())).resolves.toEqual({
-      division: { name: "Warehouse", iconName: "heroicon-o-building-storefront" },
+      division: { name: "Warehouse", iconName: "store" },
       permissions: ["master-users.view_any"],
       sidebarOpen: true,
       sidebarSaved: false

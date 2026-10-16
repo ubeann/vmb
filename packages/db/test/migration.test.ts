@@ -3,7 +3,17 @@ import { readdirSync, readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { rateLimit } from "../src/schema/index.js";
 import type { SqlClient } from "../src/sql-client.js";
-import { count, createDatabase, rejects, scalar, type TestDatabase } from "./harness.js";
+import { ICON_NAMES } from "@vmb/types";
+import { HEROICONS } from "./fixtures/heroicons.js";
+import {
+  count,
+  createDatabase,
+  migrationsFolder,
+  rejects,
+  scalar,
+  truncatedChain,
+  type TestDatabase
+} from "./harness.js";
 
 const LEGACY_SCHEMAS = "'master','warehouse','trucking','expense'";
 
@@ -991,5 +1001,133 @@ describe("the rate-limit table", () => {
               ('rl-3', '203.0.113.2|/sign-in/email', 1, 0)`,
       /rate_limit_key_unique/
     );
+  });
+});
+
+describe("the Lucide icon names", () => {
+  // #176: 0032 rewrites the Heroicons names the legacy picker stored to the
+  // catalogue's Lucide names, over rows that were there before it ran.
+  let database: TestDatabase;
+  let client: SqlClient;
+  const catalogue = new Set<string>(ICON_NAMES);
+  const variants = ["o", "s", "m", "c"];
+  // one division per Heroicons name, its variant prefix varied
+  const legacy = HEROICONS.map((name, index) => `heroicon-${variants[index % 4]}-${name}`);
+
+  const iconOf = (table: string, where: string) =>
+    scalar<string>(client, `select icon_name as value from ${table} where ${where}`);
+
+  beforeAll(async () => {
+    database = await createDatabase();
+    client = database.client;
+    const { entries } = JSON.parse(
+      readFileSync(`${migrationsFolder}/meta/_journal.json`, "utf8")
+    ) as { entries: { tag: string }[] };
+    const before = entries.findIndex((entry) => entry.tag === "0032_lucide_icon_names");
+    await database.migrate(await truncatedChain(before));
+
+    const rows = [...legacy, "heroicon-s-truck", "heroicon-c-truck", "not-a-heroicon", "wallet"];
+    await client.exec(
+      `insert into master.divisions (name, code, icon_name) values ${rows
+        .map((icon, index) => `('Division ${index}', 'H${index}', '${icon}')`)
+        .join(", ")}`
+    );
+    await client.exec(
+      `insert into master.roles (name, icon_name) values ('Finance', 'heroicon-o-banknotes');
+       insert into warehouse.items (division_id, name, code, icon_name)
+         select id, 'Pallet', 'IT-1', 'heroicon-s-cube' from master.divisions where code = 'H0'`
+    );
+
+    await database.migrate();
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it("rewrites a legacy name to a catalogue icon, or leaves it as it was", async () => {
+    const rows = await client.query<{ code: string; icon_name: string }>(
+      "select code, icon_name from master.divisions where code ~ '^H[0-9]+$'"
+    );
+    const stored = new Map(rows.map((row) => [row.code, row.icon_name]));
+
+    const unchanged = HEROICONS.filter((name, index) => {
+      const icon = stored.get(`H${index}`)!;
+      if (icon === legacy[index]) return true;
+      expect(catalogue).toContain(icon);
+      return false;
+    });
+    // the interface glyphs no record would mean, and nothing a record would
+    expect(unchanged).toEqual(expect.arrayContaining(["arrow-left", "chevron-down", "x-mark"]));
+    // a negated variant would be contradicted by its plain icon
+    expect(unchanged).toEqual(expect.arrayContaining(["lock-open", "bell-slash", "user-minus"]));
+    expect(unchanged).not.toContain("truck");
+    expect(unchanged.length).toBeLessThan(HEROICONS.length / 2);
+  });
+
+  it("gives the legacy seeders' icons the glyphs they drew before", async () => {
+    const icon = async (name: string) => {
+      const index = HEROICONS.indexOf(name as (typeof HEROICONS)[number]);
+      return iconOf("master.divisions", `code = 'H${index}'`);
+    };
+    expect(await icon("truck")).toBe("truck");
+    expect(await icon("cog")).toBe("cog");
+    expect(await icon("cog-6-tooth")).toBe("settings");
+    expect(await icon("banknotes")).toBe("banknote");
+    expect(await icon("briefcase")).toBe("briefcase");
+    expect(await icon("building-office-2")).toBe("building-2");
+    expect(await icon("code-bracket")).toBe("code");
+    expect(await icon("currency-dollar")).toBe("circle-dollar-sign");
+    expect(await icon("shield-check")).toBe("shield-check");
+    expect(await icon("user")).toBe("user");
+    expect(await icon("user-group")).toBe("users");
+    expect(await icon("rocket-launch")).toBe("rocket");
+  });
+
+  it("gives a name a department would pick its nearest catalogue icon", async () => {
+    const icon = async (name: string) => {
+      const index = HEROICONS.indexOf(name as (typeof HEROICONS)[number]);
+      return iconOf("master.divisions", `code = 'H${index}'`);
+    };
+    expect(await icon("exclamation-triangle")).toBe("siren");
+    expect(await icon("power")).toBe("zap");
+    expect(await icon("trash")).toBe("recycle");
+    expect(await icon("arrows-right-left")).toBe("route");
+    expect(await icon("list-bullet")).toBe("clipboard-list");
+    expect(await icon("question-mark-circle")).toBe("life-buoy");
+  });
+
+  it("reads the name whatever its variant, and leaves a name that is not one alone", async () => {
+    const rows = HEROICONS.length;
+    expect(await iconOf("master.divisions", `code = 'H${rows}'`)).toBe("truck");
+    expect(await iconOf("master.divisions", `code = 'H${rows + 1}'`)).toBe("truck");
+    expect(await iconOf("master.divisions", `code = 'H${rows + 2}'`)).toBe("not-a-heroicon");
+    expect(await iconOf("master.divisions", `code = 'H${rows + 3}'`)).toBe("wallet");
+  });
+
+  it("rewrites roles and items too", async () => {
+    expect(await iconOf("master.roles", "name = 'Finance'")).toBe("banknote");
+    expect(await iconOf("warehouse.items", "code = 'IT-1'")).toBe("box");
+  });
+
+  it("gives a new row a catalogue icon", async () => {
+    await client.exec(
+      `insert into master.divisions (name, code) values ('Fresh', 'NEW');
+       insert into master.roles (name) values ('Fresh');
+       insert into warehouse.items (division_id, name, code)
+         select id, 'Fresh', 'IT-NEW' from master.divisions where code = 'NEW'`
+    );
+    expect(await iconOf("master.divisions", "code = 'NEW'")).toBe("rocket");
+    expect(await iconOf("master.roles", "name = 'Fresh'")).toBe("rocket");
+    expect(await iconOf("warehouse.items", "code = 'IT-NEW'")).toBe("box");
+  });
+
+  it("leaves no temporary table behind", async () => {
+    expect(
+      await count(
+        client,
+        "select count(*)::int as value from pg_class where relname = 'heroicon_lucide'"
+      )
+    ).toBe(0);
   });
 });

@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import HeroIcon from "$lib/components/HeroIcon.svelte";
+  import RecordIcon from "$lib/components/RecordIcon.svelte";
   import * as Card from "$lib/components/ui/card/index.js";
   import { pageTitle } from "$lib/page-meta.js";
   import ArrowRight from "@lucide/svelte/icons/arrow-right";
@@ -68,7 +68,7 @@
         <p class={captionClass}>Division</p>
         <div class="flex min-w-0 items-center gap-2 text-lg font-medium">
           {#if data.division}
-            <HeroIcon name={data.division.iconName} class="size-5 shrink-0" />
+            <RecordIcon name={data.division.iconName} class="size-5 shrink-0" />
             <span class="truncate">{data.division.name}</span>
           {:else}
             <span class="text-muted-foreground">No division</span>

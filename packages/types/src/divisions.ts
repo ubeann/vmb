@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { IconNameSchema } from "./icons.js";
 import { checkboxSchema, optionalText, updatedAtSchema } from "./inputs.js";
 import {
   DateFilterSchema,
@@ -59,12 +60,7 @@ export const DivisionInputSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex value such as #2563EB.")
     .default("#000000"),
-  iconName: z
-    .string()
-    .trim()
-    .min(1, "Icon is required.")
-    .max(255)
-    .default("heroicon-o-rocket-launch"),
+  iconName: IconNameSchema.default("rocket"),
   isActive: checkboxSchema
 });
 

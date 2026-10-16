@@ -120,7 +120,7 @@ const divisions = table(
       code: "OPS",
       description: "Fleet, trips and day-to-day operations",
       color_hex: "#2563EB",
-      icon_name: "heroicon-o-cog-6-tooth",
+      icon_name: "settings",
       is_active: true,
       ...softStamps(1)
     },
@@ -130,7 +130,7 @@ const divisions = table(
       code: "FIN",
       description: "Budgets, invoices and payment settlement",
       color_hex: "#16A34A",
-      icon_name: "heroicon-o-banknotes",
+      icon_name: "banknote",
       is_active: true,
       ...softStamps(2)
     },
@@ -140,7 +140,7 @@ const divisions = table(
       code: "HRD",
       description: "People, payroll and administration",
       color_hex: "#DB2777",
-      icon_name: "heroicon-o-user-group",
+      icon_name: "users",
       is_active: true,
       ...softStamps(3)
     },
@@ -150,7 +150,7 @@ const divisions = table(
       code: "ITD",
       description: "Systems, devices and internal support",
       color_hex: "#7C3AED",
-      icon_name: "heroicon-o-computer-desktop",
+      icon_name: "monitor",
       is_active: true,
       ...softStamps(4)
     },
@@ -160,7 +160,7 @@ const divisions = table(
       code: "WHS",
       description: "Stock, procurement and requisitions",
       color_hex: "#EA580C",
-      icon_name: "heroicon-o-cube",
+      icon_name: "box",
       is_active: true,
       ...softStamps(5)
     },
@@ -170,7 +170,7 @@ const divisions = table(
       code: "TRK",
       description: "Container haulage and route execution",
       color_hex: "#0891B2",
-      icon_name: "heroicon-o-truck",
+      icon_name: "truck",
       is_active: true,
       ...softStamps(6)
     },
@@ -180,7 +180,7 @@ const divisions = table(
       code: "PRC",
       description: "Vendor selection and purchasing",
       color_hex: "#CA8A04",
-      icon_name: "heroicon-o-shopping-cart",
+      icon_name: "shopping-cart",
       is_active: true,
       ...softStamps(7)
     },
@@ -190,7 +190,7 @@ const divisions = table(
       code: "LGL",
       description: "Contracts, permits and compliance",
       color_hex: "#4B5563",
-      icon_name: "heroicon-o-scale",
+      icon_name: "scale",
       is_active: true,
       ...softStamps(8)
     },
@@ -200,7 +200,7 @@ const divisions = table(
       code: "HSE",
       description: "Workplace safety and environmental controls",
       color_hex: "#DC2626",
-      icon_name: "heroicon-o-shield-check",
+      icon_name: "shield-check",
       is_active: true,
       ...softStamps(9)
     },
@@ -210,7 +210,7 @@ const divisions = table(
       code: "QAS",
       description: "Service quality and audit follow-up",
       color_hex: "#0D9488",
-      icon_name: "heroicon-o-clipboard-document-check",
+      icon_name: "clipboard-check",
       is_active: true,
       ...softStamps(10)
     },
@@ -220,7 +220,7 @@ const divisions = table(
       code: "MKT",
       description: "Client relations and market development",
       color_hex: "#9333EA",
-      icon_name: "heroicon-o-megaphone",
+      icon_name: "megaphone",
       is_active: true,
       ...softStamps(11)
     },
@@ -230,7 +230,7 @@ const divisions = table(
       code: "GAD",
       description: "Facilities, vehicles and office support",
       color_hex: "#64748B",
-      icon_name: "heroicon-o-building-office",
+      icon_name: "building",
       is_active: true,
       ...softStamps(12)
     }
@@ -277,7 +277,7 @@ const roles = table(
       is_active: true,
       is_system: true,
       color_hex: "#3182CE",
-      icon_name: "heroicon-o-shield-check",
+      icon_name: "shield-check",
       description: "Full access to all system features, configurations, and settings.",
       division_id: null,
       ...stamps(1)
@@ -288,7 +288,7 @@ const roles = table(
       is_active: true,
       is_system: false,
       color_hex: "#48BB78",
-      icon_name: "heroicon-o-banknotes",
+      icon_name: "banknote",
       description: "Responsible for financial planning, budget management, and fiscal oversight.",
       division_id: fixtureId(ID_GROUPS.division, 2),
       ...stamps(2)
@@ -299,7 +299,7 @@ const roles = table(
       is_active: true,
       is_system: false,
       color_hex: "#ED8936",
-      icon_name: "heroicon-o-building-office-2",
+      icon_name: "building-2",
       description:
         "Ensures operational efficiency, oversees workflows, and manages division activities.",
       division_id: null,
@@ -311,7 +311,7 @@ const roles = table(
       is_active: true,
       is_system: false,
       color_hex: "#805AD5",
-      icon_name: "heroicon-o-user",
+      icon_name: "user",
       description: "Supports daily operations, office management, and administrative functions.",
       division_id: null,
       ...stamps(4)

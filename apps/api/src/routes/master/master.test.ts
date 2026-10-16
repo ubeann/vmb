@@ -36,7 +36,7 @@ const division: Division = {
   code: "OPS",
   description: "",
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true,
   createdAt: STAMP,
   updatedAt: STAMP,
@@ -49,7 +49,7 @@ const role: Role = {
   isActive: true,
   isSystem: false,
   colorHex: "#805AD5",
-  iconName: "heroicon-o-user",
+  iconName: "user",
   description: "",
   divisionId: null,
   createdAt: STAMP,
@@ -153,7 +153,7 @@ const divisionBody = {
   code: "OPS",
   description: "",
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true
 };
 
@@ -291,7 +291,7 @@ describe("master API: divisions", () => {
       code: "OPS",
       description: "",
       colorHex: "#2563EB",
-      iconName: "heroicon-o-cog-6-tooth",
+      iconName: "settings",
       isActive: true
     });
   });
@@ -549,7 +549,7 @@ describe("master API: roles", () => {
       name: "Staff",
       description: "",
       colorHex: "#805AD5",
-      iconName: "heroicon-o-user",
+      iconName: "user",
       isActive: "on"
     };
 
@@ -560,7 +560,7 @@ describe("master API: roles", () => {
       name: "Staff",
       description: "",
       colorHex: "#805AD5",
-      iconName: "heroicon-o-user",
+      iconName: "user",
       isActive: true
     });
 
@@ -956,7 +956,7 @@ describe("master API: edits over a newer save", () => {
         code: "OPS",
         description: "",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: true
       }
     },
@@ -968,7 +968,7 @@ describe("master API: edits over a newer save", () => {
         name: "Staff",
         description: "",
         colorHex: "#805AD5",
-        iconName: "heroicon-o-user",
+        iconName: "user",
         isActive: true
       }
     },

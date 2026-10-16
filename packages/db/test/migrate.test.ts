@@ -1,10 +1,9 @@
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { SqlClient } from "../src/sql-client.js";
 import { applyMigrations } from "../src/migration/apply.js";
-import { createDatabase, migrationsFolder } from "./harness.js";
+import { createDatabase, migrationsFolder, truncatedChain } from "./harness.js";
 
 type JournalRow = { hash: string; created_at: string };
 type Journal = { entries: { tag: string; when: number }[] };
@@ -59,20 +58,6 @@ async function shape(client: SqlClient): Promise<string[]> {
      order by 1`
   );
   return rows.map((row) => row.name);
-}
-
-/** The first `count` migrations only, as an earlier run that stopped part-way saw them. */
-async function truncatedChain(count: number): Promise<string> {
-  const folder = await mkdtemp(path.join(tmpdir(), "vmb-chain-"));
-  const { entries } = await chain();
-  const first = entries.slice(0, count);
-
-  await mkdir(path.join(folder, "meta"), { recursive: true });
-  await writeFile(path.join(folder, "meta", "_journal.json"), JSON.stringify({ entries: first }));
-  for (const entry of first) {
-    await copyFile(`${migrationsFolder}/${entry.tag}.sql`, `${folder}/${entry.tag}.sql`);
-  }
-  return folder;
 }
 
 describe("applyMigrations", () => {

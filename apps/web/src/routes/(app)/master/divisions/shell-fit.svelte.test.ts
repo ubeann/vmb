@@ -54,7 +54,7 @@ const long: Division = {
   description:
     "Accounts payable and receivable, payroll, tax filings, month-end close, board reporting and audit support",
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true,
   createdAt: "2026-01-05T01:00:00.000Z",
   updatedAt: "2026-10-05T03:04:00.000Z",

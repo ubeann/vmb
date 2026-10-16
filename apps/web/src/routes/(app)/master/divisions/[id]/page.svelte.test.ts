@@ -20,7 +20,7 @@ const division: DivisionDetail = {
   code: "OPS",
   description: null,
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true,
   createdAt: STAMP,
   updatedAt: STAMP,

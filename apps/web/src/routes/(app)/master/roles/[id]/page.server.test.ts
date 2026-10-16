@@ -37,7 +37,7 @@ const role = {
   id: "r-1",
   name: "Staff",
   isSystem: false,
-  iconName: "heroicon-o-user",
+  iconName: "user",
   colorHex: "#805AD5"
 };
 
@@ -60,7 +60,7 @@ beforeEach(() => {
 describe("a role's pages name it for the top bar's trail", () => {
   const crumb = {
     label: "Staff",
-    tile: { iconName: "heroicon-o-user", colorHex: "#805AD5" }
+    tile: { iconName: "user", colorHex: "#805AD5" }
   };
 
   it("on the view page, with its name and icon tile", async () => {

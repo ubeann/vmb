@@ -225,6 +225,13 @@
       "when": 1791276467568,
       "tag": "0031_permission_catalogue",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792160918577,
+      "tag": "0032_lucide_icon_names",
+      "breakpoints": true
     }
   ]
 }

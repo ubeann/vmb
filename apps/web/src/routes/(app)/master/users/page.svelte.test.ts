@@ -102,7 +102,7 @@ const division = (id: string, name: string): Division => ({
   code: name.slice(0, 3).toUpperCase(),
   description: null,
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true,
   createdAt: "2026-01-05T01:00:00.000Z",
   updatedAt: "2026-01-05T01:00:00.000Z",

@@ -34,7 +34,7 @@ const body = createRawSnippet(() => ({ render: () => "<h1>Page body</h1>" }));
 const tall = createRawSnippet(() => ({ render: () => '<div style="height: 3000px"></div>' }));
 
 const user = { id: "u-1", name: "Siti Rahma", email: "siti@vmblogistics.id" };
-const division = { name: "Warehouse", iconName: "heroicon-o-building-storefront" };
+const division = { name: "Warehouse", iconName: "store" };
 
 const props = (overrides: Record<string, unknown> = {}) => ({
   user,
@@ -1079,7 +1079,7 @@ describe("AppShell", () => {
       await desktop();
       mockPage.url = new URL("http://localhost/master/divisions/d-1");
       mockPage.data = {
-        crumb: { label: "Finance", tile: { iconName: "heroicon-o-banknotes", colorHex: "#0f766e" } }
+        crumb: { label: "Finance", tile: { iconName: "banknote", colorHex: "#0f766e" } }
       };
       const screen = await render(AppShell, props());
 

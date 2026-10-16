@@ -9,7 +9,7 @@
   import { contrastWithWhite, darkerShade, HARD_TO_SEE_BELOW } from "$lib/components/form/color.js";
   import FormSection from "$lib/components/form/FormSection.svelte";
   import IconPicker from "$lib/components/form/IconPicker.svelte";
-  import { iconLabel } from "$lib/components/hero-icons.js";
+  import { iconLabel } from "$lib/components/icons/stored.js";
   import RecordTile from "$lib/components/list/RecordTile.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import { Button } from "$lib/components/ui/button/index.js";

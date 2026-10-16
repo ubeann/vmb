@@ -60,16 +60,17 @@ The snapshot must still contain the excluded tables; the pipeline ignores their 
 
 The report is the product. It carries per-table row counts, a checksum per table over the business keys that exist, an FK-integrity count, and two lists — `errors` and `warnings`. The operator signal is `errors: 0, warnings: 0`.
 
-| Finding         | Level   | Meaning                                                            |
-| --------------- | ------- | ------------------------------------------------------------------ |
-| `row-count`     | error   | the database holds a different number of rows than the snapshot    |
-| `checksum`      | error   | a table's business keys differ from the snapshot's                 |
-| `fk-integrity`  | error   | a row names a parent that does not exist                           |
-| `row-shape`     | error   | a snapshot row has the wrong number of values for its column list  |
-| `business-key`  | error   | a configured business key names a column the snapshot lacks        |
-| `instant`       | error   | a timestamp is not the instant its wall-clock named                |
-| `unknown-table` | warning | the snapshot holds a table the manifest neither ports nor excludes |
-| `pipeline`      | error   | the run failed before verification (a statement was rejected, say) |
+| Finding         | Level   | Meaning                                                                         |
+| --------------- | ------- | ------------------------------------------------------------------------------- |
+| `row-count`     | error   | the database holds a different number of rows than the snapshot                 |
+| `checksum`      | error   | a table's business keys differ from the snapshot's                              |
+| `fk-integrity`  | error   | a row names a parent that does not exist                                        |
+| `row-shape`     | error   | a snapshot row has the wrong number of values for its column list               |
+| `business-key`  | error   | a configured business key names a column the snapshot lacks                     |
+| `instant`       | error   | a timestamp is not the instant its wall-clock named                             |
+| `unknown-table` | warning | the snapshot holds a table the manifest neither ports nor excludes              |
+| `icon-name`     | warning | a row's icon is a legacy name migration `0032` had no catalogue icon for (#176) |
+| `pipeline`      | error   | the run failed before verification (a statement was rejected, say)              |
 
 The checksum is computed over the business keys listed in `src/import/verify.ts` — from the snapshot's rows and from the database's, by the same code, so it compares data rather than two spellings of one query. Row order is not part of what it proves.
 

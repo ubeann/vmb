@@ -1,5 +1,5 @@
 <script lang="ts">
-  import HeroIcon from "$lib/components/HeroIcon.svelte";
+  import RecordIcon from "$lib/components/RecordIcon.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -53,31 +53,31 @@
   ] as const;
 
   const DIVISIONS = [
-    { code: "OPS", name: "Operations", icon: "heroicon-o-cog-6-tooth", members: 14, active: true },
-    { code: "FIN", name: "Finance", icon: "heroicon-o-banknotes", members: 6, active: true },
-    { code: "TRK", name: "Trucking", icon: "heroicon-o-truck", members: 128, active: true },
-    { code: "WHS", name: "Warehouse", icon: "heroicon-o-cube", members: 42, active: false }
+    { code: "OPS", name: "Operations", icon: "settings", members: 14, active: true },
+    { code: "FIN", name: "Finance", icon: "banknote", members: 6, active: true },
+    { code: "TRK", name: "Trucking", icon: "truck", members: 128, active: true },
+    { code: "WHS", name: "Warehouse", icon: "warehouse", members: 42, active: false }
   ];
 
+  // a record's stored icon: catalogue names, and one from before the catalogue (#176)
   const ICON_NAMES = [
-    "heroicon-o-banknotes",
-    "heroicon-o-building-office",
-    "heroicon-o-building-office-2",
-    "heroicon-o-clipboard-document-check",
-    "heroicon-o-cog",
-    "heroicon-o-cog-6-tooth",
-    "heroicon-o-computer-desktop",
-    "heroicon-o-cube",
-    "heroicon-o-home",
-    "heroicon-o-megaphone",
-    "heroicon-o-rocket-launch",
-    "heroicon-o-scale",
-    "heroicon-o-shield-check",
-    "heroicon-o-shopping-cart",
-    "heroicon-o-truck",
-    "heroicon-o-user",
-    "heroicon-o-user-group",
-    "heroicon-o-academic-cap"
+    "banknote",
+    "building",
+    "building-2",
+    "clipboard-check",
+    "settings",
+    "monitor",
+    "box",
+    "house",
+    "megaphone",
+    "rocket",
+    "scale",
+    "shield-check",
+    "shopping-cart",
+    "truck",
+    "user",
+    "users",
+    "heroicon-o-arrow-left"
   ];
 </script>
 
@@ -245,7 +245,7 @@
               <Table.Cell class="font-mono">{division.code}</Table.Cell>
               <Table.Cell>
                 <span class="inline-flex items-center gap-2">
-                  <HeroIcon name={division.icon} class="text-muted-foreground size-4" />
+                  <RecordIcon name={division.icon} class="text-muted-foreground size-4" />
                   {division.name}
                 </span>
               </Table.Cell>
@@ -340,12 +340,12 @@
     {@render section(
       "icons",
       "Division and role icons",
-      "Stored Heroicons names drawn as Lucide glyphs; unmapped names fall back."
+      "Stored Lucide names from the icon catalogue; a name outside it falls back."
     )}
     <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
       {#each ICON_NAMES as name (name)}
         <li class="flex items-center gap-2 rounded-md border p-2 text-xs">
-          <HeroIcon {name} class="text-primary size-5 shrink-0" />
+          <RecordIcon {name} class="text-primary size-5 shrink-0" />
           <span class="truncate font-mono">{name}</span>
         </li>
       {/each}

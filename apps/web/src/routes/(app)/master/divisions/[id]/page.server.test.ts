@@ -36,7 +36,7 @@ const create = await import("../new/+page.server.js");
 const division = {
   id: "d-1",
   name: "Finance",
-  iconName: "heroicon-o-banknotes",
+  iconName: "banknote",
   colorHex: "#0f766e"
 };
 
@@ -59,7 +59,7 @@ beforeEach(() => {
 describe("a division's pages name it for the top bar's trail", () => {
   const crumb = {
     label: "Finance",
-    tile: { iconName: "heroicon-o-banknotes", colorHex: "#0f766e" }
+    tile: { iconName: "banknote", colorHex: "#0f766e" }
   };
 
   it("on the view page, with its name and icon tile", async () => {

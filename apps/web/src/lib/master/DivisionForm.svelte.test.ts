@@ -1,4 +1,4 @@
-import { DivisionInputSchema, DivisionUpdateInputSchema } from "@vmb/types";
+import { DivisionInputSchema, DivisionUpdateInputSchema, type IconName } from "@vmb/types";
 import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it, vi } from "vitest";
@@ -55,7 +55,7 @@ describe("DivisionForm", () => {
         code: "OPS",
         description: "Fleet and day-to-day operations",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: false
       },
       zod4(DivisionInputSchema)
@@ -104,7 +104,7 @@ describe("DivisionForm", () => {
 
   it("does not rewrite a saved code when the name changes", async () => {
     const form = await superValidate(
-      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "heroicon-o-banknotes" },
+      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "banknote" },
       zod4(DivisionInputSchema)
     );
     const screen = await render(DivisionForm, { form });
@@ -115,7 +115,7 @@ describe("DivisionForm", () => {
 
   it("sets the hex from a swatch, and a typed hex picks its swatch", async () => {
     const form = await superValidate(
-      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "heroicon-o-banknotes" },
+      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "banknote" },
       zod4(DivisionInputSchema)
     );
     const screen = await render(DivisionForm, { form });
@@ -153,7 +153,7 @@ describe("DivisionForm", () => {
 
   it("opens a custom picker under the swatches that sets the hex, by keys as well", async () => {
     const form = await superValidate(
-      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "heroicon-o-banknotes" },
+      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "banknote" },
       zod4(DivisionInputSchema)
     );
     const screen = await render(DivisionForm, { form });
@@ -189,7 +189,7 @@ describe("DivisionForm", () => {
 
   it("says when a colour is too pale to see on a light tile, and still lets it be saved", async () => {
     const form = await superValidate(
-      { name: "Finance", code: "FIN", colorHex: "#CA8A04", iconName: "heroicon-o-banknotes" },
+      { name: "Finance", code: "FIN", colorHex: "#CA8A04", iconName: "banknote" },
       zod4(DivisionInputSchema)
     );
     const screen = await render(DivisionForm, { form });
@@ -210,24 +210,31 @@ describe("DivisionForm", () => {
     await expect.poll(() => screen.getByText(note).elements()).toHaveLength(0);
   });
 
-  it("keeps a stored icon the picker doesn't offer as its own choice, until another is picked", async () => {
+  it("keeps a stored icon outside the catalogue as its own choice, and asks for another", async () => {
+    // a legacy name migration 0032 had no icon for (#176), loaded as the edit page loads it
     const form = await superValidate(
-      { name: "Legacy", code: "LEG", colorHex: "#16A34A", iconName: "heroicon-o-beaker" },
+      {
+        name: "Legacy",
+        code: "LEG",
+        colorHex: "#16A34A",
+        iconName: "heroicon-o-arrow-left" as IconName
+      },
       zod4(DivisionInputSchema)
     );
     const screen = await render(DivisionForm, { form });
 
-    const kept = screen.getByRole("radio", { name: "Current icon (heroicon-o-beaker)" });
+    const kept = screen.getByRole("radio", { name: "Current icon (heroicon-o-arrow-left)" });
     await expect.element(kept).toBeChecked();
+    await expect.element(screen.getByText("Pick an icon from the list.")).toBeVisible();
     await userEvent.click(screen.getByRole("radio", { name: "Truck" }));
     await expect.element(screen.getByRole("radio", { name: "Truck" })).toBeChecked();
-    // a pick stores the Lucide name (#176)
-    expect(new FormData(document.querySelector("form")!).get("iconName")).toBe("truck");
+    // a pick posts the Lucide name (#176) in the radio after the hidden field, the value Superforms reads
+    expect(new FormData(document.querySelector("form")!).getAll("iconName").at(-1)).toBe("truck");
   });
 
   it("posts a swatch or an icon picked without JavaScript, as the server reads the form", async () => {
     const form = await superValidate(
-      { name: "Finance", code: "FIN", colorHex: "#123456", iconName: "heroicon-o-banknotes" },
+      { name: "Finance", code: "FIN", colorHex: "#123456", iconName: "banknote" },
       zod4(DivisionInputSchema)
     );
     const screen = await render(DivisionForm, { form });
@@ -235,9 +242,9 @@ describe("DivisionForm", () => {
     const posted = (field: string) =>
       new FormData(document.querySelector("form")!).getAll(field).at(-1);
 
-    // as loaded: a custom colour no swatch shows, and a legacy icon name, unchanged
+    // as loaded: a custom colour no swatch shows, and the stored icon, unchanged
     expect(posted("colorHex")).toBe("#123456");
-    expect(posted("iconName")).toBe("heroicon-o-banknotes");
+    expect(posted("iconName")).toBe("banknote");
 
     // checked as a browser checks a radio with no script to hear it
     const check = (name: string) => {
@@ -251,7 +258,6 @@ describe("DivisionForm", () => {
     other.checked = true;
     expect(posted("colorHex")).toBe("#0D9488");
     expect(posted("iconName")).toBe(other.value);
-    expect(other.value).not.toMatch(/^heroicon-/);
   });
 
   it("suggests icons from the name as it is typed", async () => {
@@ -276,7 +282,7 @@ describe("DivisionForm", () => {
 
   it("opens the catalogue in the form, by group or by a search that knows synonyms", async () => {
     const form = await superValidate(
-      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "heroicon-o-banknotes" },
+      { name: "Finance", code: "FIN", colorHex: "#16A34A", iconName: "banknote" },
       zod4(DivisionInputSchema)
     );
     const screen = await render(DivisionForm, { form });
@@ -284,7 +290,7 @@ describe("DivisionForm", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "More icons" }));
     await expect.element(search).toHaveFocus();
-    // a legacy name shows as its Lucide icon, chosen
+    // the stored icon shows chosen
     await expect.element(screen.getByRole("radio", { name: "Banknotes" })).toBeChecked();
 
     await userEvent.click(screen.getByRole("button", { name: "Logistics" }));
@@ -296,7 +302,7 @@ describe("DivisionForm", () => {
     await userEvent.type(search, "money");
     await expect.element(screen.getByRole("radio", { name: "Coins" })).toBeVisible();
     await userEvent.click(screen.getByRole("radio", { name: "Wallet" }));
-    expect(new FormData(document.querySelector("form")!).get("iconName")).toBe("wallet");
+    expect(new FormData(document.querySelector("form")!).getAll("iconName").at(-1)).toBe("wallet");
 
     await userEvent.clear(search);
     await userEvent.type(search, "zzz");
@@ -324,7 +330,7 @@ describe("DivisionForm on an edit", () => {
     code: "OPS",
     description: "",
     colorHex: "#2563EB",
-    iconName: "heroicon-o-cog-6-tooth",
+    iconName: "settings" as const,
     isActive: true
   };
 
@@ -388,7 +394,7 @@ describe("DivisionForm's checks", () => {
     code: "OPS",
     description: "",
     colorHex: "#2563EB",
-    iconName: "heroicon-o-cog-6-tooth",
+    iconName: "settings" as const,
     isActive: true
   };
 
@@ -482,7 +488,7 @@ describe("DivisionForm in the layer", () => {
         code: "OPS",
         description: "",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: true
       },
       zod4(DivisionInputSchema)

@@ -114,7 +114,7 @@ const staff: Role = {
   isActive: true,
   isSystem: false,
   colorHex: "#805AD5",
-  iconName: "heroicon-o-user",
+  iconName: "user",
   description: "Supports daily operations",
   divisionId: null,
   createdAt: "2026-01-05T01:00:00.000Z",

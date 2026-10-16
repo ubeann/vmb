@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import HeroIcon from "$lib/components/HeroIcon.svelte";
+  import RecordIcon from "$lib/components/RecordIcon.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import UserAvatar from "$lib/components/UserAvatar.svelte";
@@ -72,7 +72,7 @@
     <div class="flex items-center gap-3 px-1 py-1.5">
       <span class="bg-muted flex size-10 shrink-0 items-center justify-center rounded-lg">
         {#if division}
-          <HeroIcon name={division.iconName} class="size-5" />
+          <RecordIcon name={division.iconName} class="size-5" />
         {/if}
       </span>
       <div class="grid min-w-0 leading-tight">

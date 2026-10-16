@@ -60,7 +60,7 @@ describe("master API: the divisions list on Postgres", () => {
     const insert = (code: string, name: string, active: boolean, stamp: string, deleted = false) =>
       pglite.exec(
         `insert into master.divisions (name, code, color_hex, icon_name, is_active, created_at, updated_at, deleted_at)
-          values ('${name}', '${code}', '#000000', 'heroicon-o-home', ${active}, '${stamp}', '${stamp}', ${deleted ? `'${stamp}'` : "null"})`
+          values ('${name}', '${code}', '#000000', 'house', ${active}, '${stamp}', '${stamp}', ${deleted ? `'${stamp}'` : "null"})`
       );
     // Jakarta is UTC+7: the first two are 31 December and 1 January there, the same day in UTC
     await insert("OPS", "Ops Year End", true, "2025-12-31T16:30:00Z");

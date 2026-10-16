@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import type { Crumb } from "$lib/breadcrumbs.js";
-  import HeroIcon from "$lib/components/HeroIcon.svelte";
+  import RecordIcon from "$lib/components/RecordIcon.svelte";
   import * as Breadcrumb from "$lib/components/ui/breadcrumb/index.js";
   import { NAV_ICONS } from "$lib/nav-icons.js";
 
@@ -22,7 +22,7 @@
       class="flex size-6 shrink-0 items-center justify-center rounded-md text-white"
       style:background-color={crumb.tile.colorHex}
     >
-      <HeroIcon name={crumb.tile.iconName} class="size-4" />
+      <RecordIcon name={crumb.tile.iconName} class="size-4" />
     </span>
   {/if}
   <span class="truncate">{crumb.label}</span>

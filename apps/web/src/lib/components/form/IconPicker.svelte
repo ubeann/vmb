@@ -15,8 +15,8 @@
   after it, wins.
 -->
 <script lang="ts">
-  import HeroIcon from "$lib/components/HeroIcon.svelte";
-  import { resolveIcon } from "$lib/components/hero-icons.js";
+  import RecordIcon from "$lib/components/RecordIcon.svelte";
+  import { resolveIcon } from "$lib/components/icons/stored.js";
   import {
     CATALOG,
     CATEGORIES,
@@ -64,7 +64,7 @@
     suggestFor = "",
     color
   }: {
-    /** The stored name: a catalogue Lucide name, or a legacy Heroicons one. */
+    /** The stored name: a catalogue Lucide name, or one from before the catalogue (#176). */
     value: string;
     onpick: (name: string) => void;
     /** The form field the radios post as. */
@@ -96,7 +96,8 @@
   });
 
   const selected = $derived(resolveIcon(value));
-  // a stored icon the catalogue can't draw stays chosen, as its own option, until another is
+  // a stored name outside the catalogue stays chosen, as its own option, until another is;
+  // the form refuses to save it, so the person is asked to pick one
   const kept = $derived(selected ? null : value);
   const suggested = $derived(suggestIcons(suggestFor));
 
@@ -329,12 +330,12 @@
 
 {#snippet option(name: string, label: string, checked: boolean)}
   <!-- relative, so the hidden radio sits on its icon: focus scrolls to it, not to the card's top;
-       the chosen tile posts the name as stored, so a legacy one saves unchanged until another is picked -->
+       each tile posts its name, so a pick saves without JavaScript too -->
   <label data-slot="icon-option" class="relative cursor-pointer" title={label}>
     <input
       type="radio"
       name={field ?? `${id}-icon`}
-      value={name === selected ? value : name}
+      value={name}
       {checked}
       onchange={() => onpick(name)}
       aria-label={label}
@@ -343,7 +344,7 @@
     <span
       class="border-border text-muted-foreground hover:bg-muted peer-focus-visible:ring-ring flex size-9 items-center justify-center rounded-lg border peer-checked:border-(--swatch) peer-checked:bg-[color-mix(in_oklab,var(--swatch)_14%,transparent)] peer-checked:text-(--swatch) peer-focus-visible:ring-2 dark:peer-checked:text-[color-mix(in_oklab,var(--swatch)_50%,white)] pointer-coarse:size-11"
     >
-      <HeroIcon {name} class="size-4" />
+      <RecordIcon {name} class="size-4" />
     </span>
   </label>
 {/snippet}

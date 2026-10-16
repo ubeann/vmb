@@ -14,7 +14,7 @@ const { default: AppBreadcrumbs } = await import("./AppBreadcrumbs.svelte");
 
 const finance = {
   label: "Finance",
-  tile: { iconName: "heroicon-o-banknotes", colorHex: "#0f766e" }
+  tile: { iconName: "banknote", colorHex: "#0f766e" }
 };
 
 describe("AppBreadcrumbs", () => {
