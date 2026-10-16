@@ -1,7 +1,8 @@
+import { ICON_NAMES } from "@vmb/types";
 import { describe, expect, it } from "vitest";
-import { iconLabel, resolveIcon } from "../hero-icons.js";
 import { CATALOG, CATEGORIES, searchIcons, suggestIcons } from "./catalog.js";
 import { GLYPHS } from "./glyphs.js";
+import { iconLabel, resolveIcon } from "./stored.js";
 
 const names = (icons: { name: string }[]) => icons.map((icon) => icon.name);
 
@@ -10,6 +11,10 @@ describe("the icon catalogue", () => {
     expect(new Set(names(CATALOG)).size).toBe(CATALOG.length);
     for (const icon of CATALOG) expect(GLYPHS[icon.name]).toBeDefined();
     expect(CATEGORIES.every((category) => category.icons.length > 0)).toBe(true);
+  });
+
+  it("offers exactly the names a stored icon validates against", () => {
+    expect(names(CATALOG).toSorted()).toEqual([...ICON_NAMES].toSorted());
   });
 
   it("finds icons by name, label, keyword and group, every word a beginning", () => {
@@ -39,17 +44,16 @@ describe("the icon catalogue", () => {
 });
 
 describe("resolveIcon and iconLabel", () => {
-  it("draws a stored Lucide name as it is and a legacy Heroicons one through its map", () => {
+  it("draws a catalogue name as it is, and nothing for one outside the catalogue", () => {
     expect(resolveIcon("wallet")).toBe("wallet");
-    expect(resolveIcon("heroicon-o-truck")).toBe("truck");
-    expect(resolveIcon("heroicon-o-currency-dollar")).toBe("circle-dollar-sign");
-    expect(resolveIcon("heroicon-o-beaker")).toBeNull();
+    expect(resolveIcon("heroicon-o-truck")).toBeNull();
     expect(resolveIcon("not-an-icon")).toBeNull();
+    expect(resolveIcon("")).toBeNull();
   });
 
   it("names an icon as the picker does, else by what is stored", () => {
-    expect(iconLabel("heroicon-o-banknotes")).toBe("Banknotes");
+    expect(iconLabel("banknote")).toBe("Banknotes");
     expect(iconLabel("forklift")).toBe("Forklift");
-    expect(iconLabel("heroicon-o-beaker")).toBe("heroicon-o-beaker");
+    expect(iconLabel("heroicon-o-arrow-left")).toBe("heroicon-o-arrow-left");
   });
 });

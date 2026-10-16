@@ -13,7 +13,7 @@
   import LayerCard from "$lib/components/list/layer/LayerCard.svelte";
   import LayerFooter from "$lib/components/list/layer/LayerFooter.svelte";
   import RecordTile from "$lib/components/list/RecordTile.svelte";
-  import { iconLabel } from "$lib/components/hero-icons.js";
+  import { iconLabel } from "$lib/components/icons/stored.js";
   import Notice from "$lib/components/Notice.svelte";
   import FormSection from "$lib/components/form/FormSection.svelte";
   import RecordTime from "$lib/components/RecordTime.svelte";

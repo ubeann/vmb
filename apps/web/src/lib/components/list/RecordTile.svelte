@@ -4,7 +4,7 @@
   glyph lightens so both stay readable on the card.
 -->
 <script lang="ts">
-  import HeroIcon from "$lib/components/HeroIcon.svelte";
+  import RecordIcon from "$lib/components/RecordIcon.svelte";
   import { cn } from "$lib/utils.js";
 
   let {
@@ -31,5 +31,5 @@
   )}
   style:--tile={colorHex}
 >
-  <HeroIcon name={iconName} class="size-4" />
+  <RecordIcon name={iconName} class="size-4" />
 </span>
