@@ -10,7 +10,7 @@ vi.mock("$lib/api-access.js", () => ({
     withApiClientMock(event, run)
 }));
 
-const { createMasterFormAction, runRowAction } = await import("./form-action.js");
+const { createMasterFormAction, runBulkAction, runRowAction } = await import("./form-action.js");
 
 function fakeEvent(fields: Record<string, string> = {}, url = "http://localhost/master/divisions") {
   const form = new FormData();
@@ -281,6 +281,78 @@ describe("runRowAction", () => {
     expect(result).toMatchObject({
       status: 403,
       data: { error: "System roles cannot be modified.", code: "SYSTEM_ROLE" }
+    });
+  });
+});
+
+describe("runBulkAction", () => {
+  const run = vi.fn();
+  const A = "d1000000-0000-4000-8000-000000000001";
+  const B = "d1000000-0000-4000-8000-000000000002";
+
+  function bulkEvent(fields: { action?: string; ids?: string[] }) {
+    const form = new FormData();
+    if (fields.action) form.set("action", fields.action);
+    for (const id of fields.ids ?? []) form.append("ids", id);
+    return {
+      request: new Request("http://localhost/master/divisions", { method: "POST", body: form }),
+      url: new URL("http://localhost/master/divisions"),
+      platform: undefined,
+      fetch: () => {
+        throw new Error("unexpected fetch");
+      }
+    } as never;
+  }
+
+  beforeEach(() => {
+    run.mockReset();
+    withApiClientMock.mockImplementation(
+      async (_event: unknown, fn: (client: unknown) => Promise<unknown>) => ({
+        ok: true,
+        value: await fn({})
+      })
+    );
+  });
+
+  it("fails without reaching the API when no row, or an unknown action, was sent", async () => {
+    expect(
+      await runBulkAction(bulkEvent({ action: "delete" }), { logLabel: "t", run })
+    ).toMatchObject({ status: 400 });
+    expect(
+      await runBulkAction(bulkEvent({ action: "destroy", ids: [A] }), { logLabel: "t", run })
+    ).toMatchObject({ status: 400 });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("runs the action with every submitted id and answers the ids it changed", async () => {
+    run.mockResolvedValue({ ok: true, value: { ids: [A, B] } });
+
+    await expect(
+      runBulkAction(bulkEvent({ action: "delete", ids: [A, B] }), { logLabel: "t", run })
+    ).resolves.toEqual({ ok: true, ids: [A, B] });
+    expect(run).toHaveBeenCalledWith({}, { action: "delete", ids: [A, B] });
+  });
+
+  it("maps a refusal to its status, with the API's copy and code", async () => {
+    run.mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "DIVISION_IN_USE",
+      error: "1 of the 2 selected divisions still has roles: “Busy” (1 role).",
+      issues: []
+    });
+
+    const result = await runBulkAction(bulkEvent({ action: "delete", ids: [A, B] }), {
+      logLabel: "t",
+      run
+    });
+
+    expect(result).toMatchObject({
+      status: 409,
+      data: {
+        error: "1 of the 2 selected divisions still has roles: “Busy” (1 role).",
+        code: "DIVISION_IN_USE"
+      }
     });
   });
 });

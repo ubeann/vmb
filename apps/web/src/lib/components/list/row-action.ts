@@ -1,4 +1,5 @@
 import { deserialize } from "$app/forms";
+import type { BulkRequest } from "@vmb/types";
 
 const GENERIC = "Something went wrong. Please try again.";
 
@@ -16,7 +17,28 @@ export async function postRowAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const body = new FormData();
   body.set("id", id);
+  return post(action, body);
+}
 
+/**
+ * Post a list's bulk action (`/master/divisions?/bulk`) outside a form, as the
+ * toast's Undo does (#305): the same `action` and `ids` the bulk form carries.
+ * It answers as `postRowAction` does, with the API's own copy on a refusal.
+ */
+export function postBulkAction(
+  action: `${string}?/${string}`,
+  request: BulkRequest
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const body = new FormData();
+  body.set("action", request.action);
+  for (const id of request.ids) body.append("ids", id);
+  return post(action, body);
+}
+
+async function post(
+  action: `${string}?/${string}`,
+  body: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
   let result;
   try {
     const response = await fetch(action, {

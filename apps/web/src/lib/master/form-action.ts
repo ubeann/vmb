@@ -1,5 +1,6 @@
 import type { ApiClient } from "$lib/api.js";
 import { withApiClient } from "$lib/api-access.js";
+import { BulkRequestSchema, type BulkRequest, type BulkResponse } from "@vmb/types";
 import { fail, redirect, type RequestEvent } from "@sveltejs/kit";
 import type { ErrorStatus, FormPathLeavesWithErrors, Infer } from "sveltekit-superforms";
 import { message, setError, superValidate } from "sveltekit-superforms/server";
@@ -86,4 +87,43 @@ export async function runRowAction(
   }
 
   return config.onSuccess ? config.onSuccess() : { ok: true };
+}
+
+/**
+ * The list page's bulk action (#305): the form carries `action` (delete or
+ * restore) and one `ids` field per chosen row. The API takes them all or none,
+ * so a refusal lands on the page as `form.error` and its `code`, as a row
+ * action's does, and a success answers with the ids it changed.
+ */
+export async function runBulkAction(
+  event: RequestEvent,
+  config: {
+    logLabel: string;
+    run: (client: ApiClient, request: BulkRequest) => Promise<ApiResult<BulkResponse>>;
+  }
+) {
+  const data = await event.request.formData();
+  const request = BulkRequestSchema.safeParse({
+    action: data.get("action"),
+    ids: data.getAll("ids")
+  });
+  if (!request.success) {
+    return fail(400, { error: request.error.issues[0]?.message ?? "Choose records first." });
+  }
+
+  const access = await withApiClient(event, (client) => config.run(client, request.data));
+
+  if (!access.ok) {
+    console.error(`${config.logLabel}: request to API failed`, access.error);
+    return fail(500, { error: "Something went wrong. Please try again." });
+  }
+
+  if (!access.value.ok) {
+    return fail(access.value.status as ErrorStatus, {
+      error: access.value.error,
+      code: access.value.code
+    });
+  }
+
+  return { ok: true, ids: access.value.value.ids };
 }

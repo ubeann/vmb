@@ -1,4 +1,6 @@
 import type {
+  BulkRequest,
+  BulkResponse,
   User,
   UserCreateInput,
   UserListRequest,
@@ -43,7 +45,7 @@ import {
   type MasterDb,
   type OpenTransaction
 } from "./db.js";
-import { NotFoundError, StaleRecordError } from "../errors.js";
+import { DomainError, ForbiddenError, NotFoundError, StaleRecordError } from "../errors.js";
 
 // A user's columns plus whether Better Auth has verified the email: the
 // identity owns verification (ADR-0032), so it is read from there rather than
@@ -623,6 +625,11 @@ export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promis
 }
 
 export async function restoreUser(db: MasterDb, id: string, actor: Actor): Promise<User> {
+  await writeRestore(db, id, actor);
+  return getUser(db, id);
+}
+
+async function writeRestore(db: MasterDb, id: string, actor: Actor): Promise<void> {
   await assertCanManageUser(db, actor, id);
 
   const rows = await db
@@ -632,5 +639,73 @@ export async function restoreUser(db: MasterDb, id: string, actor: Actor): Promi
     .returning({ id: users.id });
 
   if (!rows[0]) throw new NotFoundError("Deleted user not found.");
-  return getUser(db, id);
+}
+
+/**
+ * Delete or restore several users as one: all of them or none, in one
+ * transaction (#305). Each runs the single action's own rules, in order, and
+ * every refusal is gathered before the batch fails, so the reply names all the
+ * users out of the caller's reach rather than the first. The rollback undoes
+ * the users and the sessions already ended.
+ */
+export async function bulkUsers(
+  options: UserStoreOptions,
+  request: BulkRequest,
+  actor: Actor
+): Promise<BulkResponse> {
+  const ids = uniqueIds(request.ids);
+
+  return options.transaction(async (tx) => {
+    const refused: { id: string; error: DomainError }[] = [];
+    for (const id of ids) {
+      try {
+        if (request.action === "delete") await deleteUser(tx, id, actor);
+        else await writeRestore(tx, id, actor);
+      } catch (error) {
+        if (!(error instanceof DomainError)) throw error;
+        refused.push({ id, error });
+      }
+    }
+
+    if (refused.length > 0) throw await refusalFor(tx, refused, request.action);
+    return { ids };
+  });
+}
+
+/** One error for a batch that failed: the reach refusal names its users, the rest speak for the batch. */
+async function refusalFor(
+  db: MasterDb,
+  refused: { id: string; error: DomainError }[],
+  action: BulkRequest["action"]
+): Promise<DomainError> {
+  const escalated = refused.filter(({ error }) => error instanceof ForbiddenError);
+  if (escalated.length > 0) {
+    const named = await db
+      .select({ name: users.name })
+      .from(users)
+      .where(
+        inArray(
+          users.id,
+          escalated.map(({ id }) => id)
+        )
+      );
+    const names = named
+      .map((row) => `“${row.name}”`)
+      .sort((a, b) => a.localeCompare(b))
+      .join(", ");
+    return new ForbiddenError(
+      "PERMISSION_ESCALATION",
+      `You cannot change ${escalated.length === 1 ? "a user who holds" : "users who hold"} permissions you do not have: ${names}. Nothing was changed.`
+    );
+  }
+
+  if (refused.some(({ error }) => error instanceof NotFoundError)) {
+    return new NotFoundError(
+      action === "delete"
+        ? "Some of the selected users are gone or already in the Trash. Reload the list and try again."
+        : "Some of the selected users are gone or no longer in the Trash. Reload the list and try again."
+    );
+  }
+
+  return refused[0]!.error;
 }

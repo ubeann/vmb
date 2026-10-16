@@ -209,3 +209,23 @@ export const TimeZoneSchema = z
     { message: "Use an IANA time zone such as Asia/Jakarta." }
   )
   .default(DEFAULT_TIME_ZONE);
+
+/** Most records one bulk action takes: a page at its largest (#305). */
+export const BULK_MAX = 100;
+
+/**
+ * A bulk action on a list's records: delete or restore the `ids`, all or none
+ * (#305). The ids come from one page of a list, so a request may repeat an
+ * id and never names more than a page holds.
+ */
+export const BulkRequestSchema = z.object({
+  action: z.enum(["delete", "restore"]),
+  ids: z.array(z.uuid()).min(1, "Choose at least one record.").max(BULK_MAX)
+});
+
+export type BulkRequest = z.infer<typeof BulkRequestSchema>;
+
+/** The records a bulk action changed, once each, for the Undo that follows it. */
+export const BulkResponseSchema = z.object({ ids: z.array(z.uuid()) });
+
+export type BulkResponse = z.infer<typeof BulkResponseSchema>;

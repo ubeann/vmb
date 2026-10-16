@@ -2036,3 +2036,221 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
     });
   });
 });
+
+describe("bulk delete and restore (#305)", () => {
+  const CALLER = { id: "00000000-0000-4000-8000-0000000000aa", permissions: [] as string[] };
+
+  const newUser = (n: number): UserCreateInput => ({
+    name: `User ${n}`,
+    email: `user${n}@vmblogistics.id`,
+    phone: "+628111000001",
+    roleIds: [],
+    status: "active",
+    profilePhotoPath: "",
+    password: "password123",
+    passwordConfirmation: "password123"
+  });
+
+  const deletedAt = (client: SqlClient, table: string, id: string) =>
+    scalar<string | null>(client, `select deleted_at from master.${table} where id = '${id}'`);
+
+  describe("divisions", () => {
+    it("deletes every named division in one go and answers their ids", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const first = await store.createDivision(division({ name: "Alpha", code: "ALP" }));
+        const second = await store.createDivision(division({ name: "Beta", code: "BET" }));
+        const kept = await store.createDivision(division({ name: "Gamma", code: "GAM" }));
+
+        const done = await store.bulkDivisions({
+          action: "delete",
+          ids: [first.id, second.id, first.id.toUpperCase()]
+        });
+
+        expect([...done.ids].sort()).toEqual([first.id, second.id].sort());
+        expect(await deletedAt(client, "divisions", first.id)).not.toBeNull();
+        expect(await deletedAt(client, "divisions", second.id)).not.toBeNull();
+        expect(await deletedAt(client, "divisions", kept.id)).toBeNull();
+      });
+    });
+
+    it("restores them, which is the Undo of a delete", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const first = await store.createDivision(division({ name: "Alpha", code: "ALP" }));
+        const second = await store.createDivision(division({ name: "Beta", code: "BET" }));
+        const ids = [first.id, second.id];
+        await store.bulkDivisions({ action: "delete", ids });
+
+        await expect(store.bulkDivisions({ action: "restore", ids })).resolves.toEqual({
+          ids: expect.arrayContaining(ids)
+        });
+        expect(await deletedAt(client, "divisions", first.id)).toBeNull();
+        expect(await deletedAt(client, "divisions", second.id)).toBeNull();
+      });
+    });
+
+    it("refuses the whole batch when a division still has roles, naming each one with its roles, and deletes none", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const free = await store.createDivision(division({ name: "Free", code: "FRE" }));
+        const busy = await store.createDivision(division({ name: "Busy", code: "BSY" }));
+        const busier = await store.createDivision(division({ name: "Busier", code: "BSR" }));
+        await insertRole(client, "Dispatcher", busy.id);
+        await insertRole(client, "Driver", busier.id);
+        await insertRole(client, "Loader", busier.id);
+
+        await expect(
+          store.bulkDivisions({ action: "delete", ids: [free.id, busy.id, busier.id] })
+        ).rejects.toMatchObject({
+          code: "DIVISION_IN_USE",
+          message:
+            "2 of the 3 selected divisions still have roles: “Busier” (2 roles), “Busy” (1 role). Move those roles to another division or delete them, then try again. Nothing was deleted."
+        });
+
+        expect(await deletedAt(client, "divisions", free.id)).toBeNull();
+        expect(await deletedAt(client, "divisions", busy.id)).toBeNull();
+      });
+    });
+
+    it("refuses the whole batch when one division is gone or already in the Trash", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const live = await store.createDivision(division({ name: "Live", code: "LIV" }));
+        const trashed = await store.createDivision(division({ name: "Old", code: "OLD" }));
+        await store.deleteDivision(trashed.id);
+
+        await expect(
+          store.bulkDivisions({ action: "delete", ids: [live.id, trashed.id] })
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        await expect(
+          store.bulkDivisions({
+            action: "delete",
+            ids: [live.id, "00000000-0000-4000-8000-000000000000"]
+          })
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        // a restore of one that is not in the Trash
+        await expect(
+          store.bulkDivisions({ action: "restore", ids: [live.id, trashed.id] })
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+        expect(await deletedAt(client, "divisions", live.id)).toBeNull();
+        expect(await deletedAt(client, "divisions", trashed.id)).not.toBeNull();
+      });
+    });
+
+    it("refuses a restore over a name taken meanwhile and restores none of the batch", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const first = await store.createDivision(division({ name: "Alpha", code: "ALP" }));
+        const second = await store.createDivision(division({ name: "Beta", code: "BET" }));
+        await store.bulkDivisions({ action: "delete", ids: [first.id, second.id] });
+        await store.createDivision(division({ name: "Beta", code: "BE2" }));
+
+        await expect(
+          store.bulkDivisions({ action: "restore", ids: [first.id, second.id] })
+        ).rejects.toMatchObject({
+          code: "CONFLICT",
+          message: "A division with that name already exists."
+        });
+
+        expect(await deletedAt(client, "divisions", first.id)).not.toBeNull();
+        expect(await deletedAt(client, "divisions", second.id)).not.toBeNull();
+      });
+    });
+  });
+
+  describe("users", () => {
+    it("deletes every named user, ends their sessions and answers their ids", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const first = await store.createUser(newUser(1), CALLER);
+        const second = await store.createUser(newUser(2), CALLER);
+        const kept = await store.createUser(newUser(3), CALLER);
+        await client.exec(
+          `insert into public.session (id, expires_at, token, created_at, updated_at, user_id)
+            values ('s1', now() + interval '1 day', 'token-1', now(), now(), '${first.id}'),
+                   ('s2', now() + interval '1 day', 'token-2', now(), now(), '${kept.id}')`
+        );
+
+        const done = await store.bulkUsers(
+          { action: "delete", ids: [first.id, second.id] },
+          CALLER
+        );
+
+        expect([...done.ids].sort()).toEqual([first.id, second.id].sort());
+        expect(await deletedAt(client, "users", first.id)).not.toBeNull();
+        expect(await deletedAt(client, "users", second.id)).not.toBeNull();
+        expect(await deletedAt(client, "users", kept.id)).toBeNull();
+        // only the deleted user's session went
+        expect(await count(client, `select count(*)::int as value from public.session`)).toBe(1);
+      });
+    });
+
+    it("restores them, which is the Undo of a delete", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const first = await store.createUser(newUser(1), CALLER);
+        const second = await store.createUser(newUser(2), CALLER);
+        const ids = [first.id, second.id];
+        await store.bulkUsers({ action: "delete", ids }, CALLER);
+
+        await store.bulkUsers({ action: "restore", ids }, CALLER);
+
+        expect(await deletedAt(client, "users", first.id)).toBeNull();
+        expect(await deletedAt(client, "users", second.id)).toBeNull();
+      });
+    });
+
+    it("refuses the whole batch when one user is out of the caller's reach, naming them, and deletes none", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const admin = await insertRole(client, "Admin");
+        await client.exec(
+          `insert into master.role_permissions (role_id, permission_key) values ('${admin}', 'master-users.view_any')`
+        );
+        const plain = await store.createUser(newUser(1), CALLER);
+        const boss = await store.createUser(
+          { ...newUser(2), roleIds: [admin] },
+          { ...CALLER, permissions: ["master-users.view_any"] }
+        );
+
+        await expect(
+          store.bulkUsers({ action: "delete", ids: [plain.id, boss.id] }, CALLER)
+        ).rejects.toMatchObject({
+          code: "PERMISSION_ESCALATION",
+          message:
+            "You cannot change a user who holds permissions you do not have: “User 2”. Nothing was changed."
+        });
+
+        expect(await deletedAt(client, "users", plain.id)).toBeNull();
+        expect(await deletedAt(client, "users", boss.id)).toBeNull();
+      });
+    });
+
+    it("refuses the whole batch when one user is gone, in the Trash for a delete, or live for a restore", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const live = await store.createUser(newUser(1), CALLER);
+        const trashed = await store.createUser(newUser(2), CALLER);
+        await store.deleteUser(trashed.id, CALLER);
+
+        await expect(
+          store.bulkUsers({ action: "delete", ids: [live.id, trashed.id] }, CALLER)
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        await expect(
+          store.bulkUsers(
+            { action: "delete", ids: [live.id, "00000000-0000-4000-8000-000000000000"] },
+            CALLER
+          )
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        await expect(
+          store.bulkUsers({ action: "restore", ids: [live.id, trashed.id] }, CALLER)
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+        expect(await deletedAt(client, "users", live.id)).toBeNull();
+        expect(await deletedAt(client, "users", trashed.id)).not.toBeNull();
+      });
+    });
+  });
+});

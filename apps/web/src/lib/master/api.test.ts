@@ -2,6 +2,8 @@ import { DivisionListRequestSchema, RoleListRequestSchema } from "@vmb/types";
 import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "../api.js";
 import {
+  bulkDivisions,
+  bulkUsers,
   createDivision,
   deleteDivision,
   getDivision,
@@ -306,6 +308,50 @@ describe("master API client", () => {
     await expect(getRole(client, ID)).resolves.toMatchObject({
       ok: true,
       value: { divisionName: "Hub" }
+    });
+  });
+});
+
+describe("master API client: bulk actions (#305)", () => {
+  const OTHER = "d1000000-0000-4000-8000-000000000002";
+
+  it("posts a bulk delete of divisions and reads the ids it changed", async () => {
+    const { client, calls } = clientWith(() => json({ ids: [ID, OTHER] }));
+
+    await expect(bulkDivisions(client, { action: "delete", ids: [ID, OTHER] })).resolves.toEqual({
+      ok: true,
+      value: { ids: [ID, OTHER] }
+    });
+
+    expect(calls).toEqual([
+      {
+        path: "/api/master/divisions/bulk",
+        method: "POST",
+        body: JSON.stringify({ action: "delete", ids: [ID, OTHER] })
+      }
+    ]);
+  });
+
+  it("posts a bulk restore of users", async () => {
+    const { client, calls } = clientWith(() => json({ ids: [ID] }));
+
+    await expect(bulkUsers(client, { action: "restore", ids: [ID] })).resolves.toMatchObject({
+      ok: true
+    });
+
+    expect(calls[0]).toMatchObject({ path: "/api/master/users/bulk", method: "POST" });
+  });
+
+  it("hands back the refusal's own copy, which names the divisions in use", async () => {
+    const message = "1 of the 2 selected divisions still has roles: “Busy” (1 role).";
+    const { client } = clientWith(() => json({ code: "DIVISION_IN_USE", message }, 409));
+
+    await expect(bulkDivisions(client, { action: "delete", ids: [ID, OTHER] })).resolves.toEqual({
+      ok: false,
+      status: 409,
+      code: "DIVISION_IN_USE",
+      error: message,
+      issues: []
     });
   });
 });

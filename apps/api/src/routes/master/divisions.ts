@@ -1,4 +1,6 @@
 import {
+  BulkRequestSchema,
+  BulkResponseSchema,
   DivisionDetailSchema,
   DivisionInputSchema,
   DivisionListRequestSchema,
@@ -7,7 +9,7 @@ import {
   DivisionUpdateInputSchema
 } from "@vmb/types";
 import { Hono } from "hono";
-import { requirePermission } from "./permission.js";
+import { assertPermission, requirePermission } from "./permission.js";
 import { jsonBody, pathId, queryParams } from "../../http.js";
 import type { MasterEnv } from "./env.js";
 
@@ -26,6 +28,16 @@ export const divisionRoutes = new Hono<MasterEnv>()
       return c.json(DivisionSchema.parse(division), 201);
     }
   )
+  // delete or restore several at once, all or none (#305); the action names the permission
+  .post("/bulk", jsonBody(BulkRequestSchema), async (c) => {
+    const request = c.req.valid("json");
+    await assertPermission(
+      c,
+      request.action === "delete" ? "master-divisions.delete" : "master-divisions.restore"
+    );
+    const done = await c.get("store").bulkDivisions(request);
+    return c.json(BulkResponseSchema.parse(done));
+  })
   .get("/:id", requirePermission("master-divisions.view"), async (c) => {
     const division = await c.get("store").getDivision(pathId(c));
     return c.json(DivisionDetailSchema.parse(division));

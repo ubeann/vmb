@@ -23,6 +23,8 @@ const ROUTES = [
   ["PATCH", "/divisions/:id", "master-divisions.update"],
   ["DELETE", "/divisions/:id", "master-divisions.delete"],
   ["POST", "/divisions/:id/restore", "master-divisions.restore"],
+  // a bulk action demands the key of its action: the table sends a delete, the test below a restore
+  ["POST", "/divisions/bulk", "master-divisions.delete"],
   ["POST", "/divisions/:id/activate", "master-divisions.update"],
   ["POST", "/divisions/:id/deactivate", "master-divisions.update"],
   ["GET", "/roles", "master-roles.view_any"],
@@ -35,7 +37,8 @@ const ROUTES = [
   ["GET", "/users/:id", "master-users.view"],
   ["PATCH", "/users/:id", "master-users.update"],
   ["DELETE", "/users/:id", "master-users.delete"],
-  ["POST", "/users/:id/restore", "master-users.restore"]
+  ["POST", "/users/:id/restore", "master-users.restore"],
+  ["POST", "/users/bulk", "master-users.delete"]
 ] as const;
 
 const concrete = (path: string) => path.replace(":id", ID);
@@ -65,19 +68,25 @@ function appFor(permissions: string[]) {
   return { app, getPermissions };
 }
 
-function request(method: string) {
+function request(method: string, path = "") {
   return {
     method,
     headers: { "content-type": "application/json" },
-    // an empty body fails validation with a 400: past the permission check, short of the store
-    body: method === "GET" || method === "DELETE" ? undefined : "{}"
+    body:
+      method === "GET" || method === "DELETE"
+        ? undefined
+        : path.endsWith("/bulk")
+          ? // a bulk action's key is read from its body, so the body has to be a real one
+            JSON.stringify({ action: "delete", ids: [ID] })
+          : // an empty body fails validation with a 400: past the permission check, short of the store
+            "{}"
   };
 }
 
 describe("master API permissions", () => {
   it.each(ROUTES)("%s %s needs %s", async (method, path, key) => {
     const without = appFor(allPermissionKeys().filter((candidate) => candidate !== key));
-    const refused = await without.app.request(concrete(path), request(method), env);
+    const refused = await without.app.request(concrete(path), request(method, path), env);
 
     expect(refused.status).toBe(403);
     await expect(refused.json()).resolves.toEqual({
@@ -87,10 +96,29 @@ describe("master API permissions", () => {
     expect(without.getPermissions).toHaveBeenCalledWith("caller");
 
     const only = appFor([key]);
-    const allowed = await only.app.request(concrete(path), request(method), env);
+    const allowed = await only.app.request(concrete(path), request(method, path), env);
 
     // 400 for a body route (validation), anything but 403 otherwise
     expect(allowed.status).not.toBe(403);
+  });
+
+  it.each([
+    ["/divisions/bulk", "master-divisions.restore"],
+    ["/users/bulk", "master-users.restore"]
+  ])("POST %s restoring needs %s, not the delete key", async (path, key) => {
+    const body = JSON.stringify({ action: "restore", ids: [ID] });
+    const post = { method: "POST", headers: { "content-type": "application/json" }, body };
+
+    const deleteKey = key.replace("restore", "delete");
+    const without = appFor(allPermissionKeys().filter((candidate) => candidate !== key));
+    expect((await without.app.request(path, post, env)).status).toBe(403);
+
+    // holding the delete key alone is not enough to restore
+    const other = appFor([deleteKey]);
+    expect((await other.app.request(path, post, env)).status).toBe(403);
+
+    const only = appFor([key]);
+    expect((await only.app.request(path, post, env)).status).not.toBe(403);
   });
 
   it("refuses a caller with no roles at all", async () => {

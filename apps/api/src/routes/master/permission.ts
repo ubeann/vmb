@@ -18,18 +18,26 @@ import type { MasterEnv } from "./env.js";
  */
 export function requirePermission(key: PermissionKey) {
   return createMiddleware<MasterEnv>(async (c, next) => {
-    let permissions = c.get("permissions");
-    if (permissions === undefined) {
-      permissions = await c.get("store").getPermissions(c.get("userId"));
-      c.set("permissions", permissions);
-    }
-
-    if (!permissions.includes(key)) {
-      throw new HttpError(403, "FORBIDDEN", "You do not have permission to do that.");
-    }
-
+    await assertPermission(c, key);
     await next();
   });
+}
+
+/**
+ * `requirePermission` for a route whose key is known only from its body, as a
+ * bulk action's is: call it once the body is read. It reads and keeps the
+ * caller's permissions the same way.
+ */
+export async function assertPermission(c: Context<MasterEnv>, key: PermissionKey) {
+  let permissions = c.get("permissions");
+  if (permissions === undefined) {
+    permissions = await c.get("store").getPermissions(c.get("userId"));
+    c.set("permissions", permissions);
+  }
+
+  if (!permissions.includes(key)) {
+    throw new HttpError(403, "FORBIDDEN", "You do not have permission to do that.");
+  }
 }
 
 /** The caller, with the permissions `requirePermission` read for this request. */

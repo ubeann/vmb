@@ -1,11 +1,12 @@
 import { withApiClient } from "$lib/api-access.js";
 import {
+  bulkDivisions,
   deleteDivision,
   listDivisions,
   restoreDivision,
   setDivisionActive
 } from "$lib/master/api.js";
-import { runRowAction } from "$lib/master/form-action.js";
+import { runBulkAction, runRowAction } from "$lib/master/form-action.js";
 import { canonicalListSearch, isCanonicalListSearch, parseListQuery } from "$lib/master/list.js";
 import { DEFAULT_TIME_ZONE, DivisionListQuerySchema, resolveDateFilter, todayIn } from "@vmb/types";
 import { error, redirect } from "@sveltejs/kit";
@@ -69,6 +70,11 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions: Actions = {
+  bulk: (event) =>
+    runBulkAction(event, {
+      logLabel: "division bulk",
+      run: (client, request) => bulkDivisions(client, request)
+    }),
   delete: (event) =>
     runRowAction(event, {
       logLabel: "division delete",

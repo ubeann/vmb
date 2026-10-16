@@ -1750,7 +1750,7 @@ describe("list kit parity", () => {
 
     await browser.viewport(660, 900);
     const band = await render(Page, props("/master/divisions", { items }));
-    const head = band.getByRole("columnheader", { name: /^Name/ }).element();
+    const head = band.getByRole("columnheader", { name: /Name, sort/ }).element();
     const cell = document.querySelector("tbody td")!;
     for (const element of [head, cell]) {
       const style = getComputedStyle(element);
@@ -1768,7 +1768,7 @@ describe("list kit parity", () => {
     await browser.viewport(1280, 900);
     const wide = await render(Page, props("/master/divisions", { items }));
     expect(
-      getComputedStyle(wide.getByRole("columnheader", { name: /^Name/ }).element()).maxWidth
+      getComputedStyle(wide.getByRole("columnheader", { name: /Name, sort/ }).element()).maxWidth
     ).toBe("none");
   });
 
@@ -2280,5 +2280,366 @@ describe("a Division in the layer over the list (#302)", () => {
     await expect.element(edit.getByRole("alert")).not.toBeInTheDocument();
     expect(mockPage.url.pathname).toBe(`${recordUrl}/edit`);
     expect(goto).not.toHaveBeenCalled();
+  });
+});
+
+describe("selecting divisions for a bulk action (#305)", () => {
+  // the bar's own count; the footer says "2 divisions" in a status of its own
+  const bulkCount = (screen: Awaited<ReturnType<typeof render>>) =>
+    screen.getByRole("region", { name: "Bulk actions for divisions" }).getByRole("status");
+
+  const trashedRows = [
+    { ...division, deletedAt: "2026-10-06T01:00:00.000Z" },
+    { ...inactive, deletedAt: "2026-10-06T02:00:00.000Z" }
+  ];
+
+  it("puts a checkbox in each row's name cell and one in the header, and no bar until a row is chosen", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await expect
+      .element(screen.getByRole("checkbox", { name: "Select Operations" }))
+      .not.toBeChecked();
+    await expect.element(screen.getByRole("checkbox", { name: "Select Retired" })).toBeVisible();
+    await expect
+      .element(screen.getByRole("checkbox", { name: "Select all 2 on this page" }))
+      .not.toBeChecked();
+    expect(
+      screen.getByRole("region", { name: "Bulk actions for divisions" }).elements()
+    ).toHaveLength(0);
+    // the checkbox shares the identity cell with the tile and the name, not a column of its own
+    const cell = screen
+      .getByRole("checkbox", { name: "Select Operations" })
+      .element()
+      .closest("td")!;
+    expect(cell.querySelector("[data-slot=record-tile]")).not.toBeNull();
+    expect(cell.querySelector("a")?.textContent).toContain("Operations");
+    expect(screen.getByRole("columnheader").elements()).toHaveLength(5);
+  });
+
+  it("swaps the toolbar for '2 selected · Delete… · Clear' at the toolbar's height, and back on Clear", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const toolbarHeight = screen
+      .getByRole("search")
+      .element()
+      .closest("div[class*='border-b']")!
+      .parentElement!.getBoundingClientRect().height;
+
+    await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+    await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
+    await screen.getByRole("checkbox", { name: "Select Retired" }).click();
+
+    const bar = screen.getByRole("region", { name: "Bulk actions for divisions" });
+    await expect.element(bar.getByRole("status")).toHaveTextContent("2 selected");
+    await expect.element(bar.getByRole("button", { name: "Delete…" })).toBeVisible();
+    await expect.element(bar.getByRole("button", { name: "Clear" })).toBeVisible();
+    expect(bar.getByRole("button", { name: "Restore" }).elements()).toHaveLength(0);
+    // the toolbar is gone, and the bar is no taller than it was
+    expect(screen.getByRole("searchbox").elements()).toHaveLength(0);
+    expect(bar.element().getBoundingClientRect().height).toBeLessThanOrEqual(toolbarHeight);
+    expect(
+      screen
+        .getByRole("row", { name: /Operations/ })
+        .element()
+        .hasAttribute("data-selected")
+    ).toBe(true);
+
+    await bar.getByRole("button", { name: "Clear" }).click();
+    await expect.element(screen.getByRole("searchbox")).toBeVisible();
+    await expect
+      .element(screen.getByRole("checkbox", { name: "Select Operations" }))
+      .not.toBeChecked();
+    // focus lands on the header checkbox, since the button that had it is gone
+    await expect
+      .element(screen.getByRole("checkbox", { name: "Select all 2 on this page" }))
+      .toHaveFocus();
+  });
+
+  it("selects the current page from the header, and shows the header as mixed for part of it", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions", { total: 60 }));
+    const header = screen.getByRole("checkbox", { name: "Select all 2 on this page" });
+
+    await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+    await expect.element(header).toHaveAttribute("aria-checked", "mixed");
+
+    await header.click();
+    await expect.element(header).toBeChecked();
+    // the page's two rows, not the 60 the list holds
+    await expect.element(bulkCount(screen)).toHaveTextContent("2 selected");
+
+    await header.click();
+    await expect.element(header).not.toBeChecked();
+    expect(
+      screen.getByRole("region", { name: "Bulk actions for divisions" }).elements()
+    ).toHaveLength(0);
+  });
+
+  it("toggles a row from the keyboard", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    screen.getByRole("checkbox", { name: "Select Operations" }).element().focus();
+    await userEvent.keyboard(" ");
+
+    await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
+    // choosing a row does not open it
+    expect(pushState).not.toHaveBeenCalled();
+    expect(preloadData).not.toHaveBeenCalledWith(expect.stringMatching(/divisions\/d1/));
+  });
+
+  it("clears the selection when the filters, the sort or the page change", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+    await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
+
+    for (const search of ["?status=active", "?sort=code&dir=desc", "?page=2"]) {
+      mockPage.url = new URL(`/master/divisions${search}`, "http://localhost");
+      await expect
+        .element(screen.getByRole("region", { name: "Bulk actions for divisions" }))
+        .not.toBeInTheDocument();
+      await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+      await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
+    }
+  });
+
+  it("keeps the selection when the rows reload, and drops a row that is gone", async () => {
+    await browser.viewport(1280, 900);
+    const first = props("/master/divisions");
+    const screen = await render(Page, first);
+    await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+    await screen.getByRole("checkbox", { name: "Select Retired" }).click();
+
+    await screen.rerender({
+      data: {
+        ...first.data,
+        divisions: { ...first.data.divisions!, items: [division], total: 1 }
+      } as PageData
+    });
+
+    await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
+  });
+
+  it("is not offered to a caller who may not delete, or in the Trash to one who may not restore", async () => {
+    await browser.viewport(1280, 900);
+    const noDelete = await render(
+      Page,
+      props("/master/divisions", { permissions: ALL.filter((key) => !key.endsWith(".delete")) })
+    );
+    expect(noDelete.getByRole("checkbox").elements()).toHaveLength(0);
+    await noDelete.unmount();
+
+    const noRestore = await render(
+      Page,
+      props("/master/divisions?trashed=only", {
+        items: trashedRows,
+        permissions: ALL.filter((key) => !key.endsWith(".restore"))
+      })
+    );
+    expect(noRestore.getByRole("checkbox").elements()).toHaveLength(0);
+    await noRestore.unmount();
+
+    // delete without restore: the All tab selects, and its Undo is left out
+    const deleteOnly = await render(
+      Page,
+      props("/master/divisions", { permissions: ALL.filter((key) => !key.endsWith(".restore")) })
+    );
+    await deleteOnly.getByRole("checkbox", { name: "Select Operations" }).click();
+    await deleteOnly.getByRole("button", { name: "Delete…" }).click();
+    deleteResult = { type: "success", status: 200, data: { ok: true } };
+    await deleteOnly.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("1 division moved to Trash", {
+        duration: 10_000,
+        action: undefined
+      })
+    );
+  });
+
+  it("asks naming the count, then offers an Undo that restores the same rows", async () => {
+    await browser.viewport(1280, 900);
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+    await screen.getByRole("button", { name: "Delete…" }).click();
+
+    const dialog = screen.getByRole("dialog", { name: "Delete 2 divisions?" });
+    await expect
+      .element(dialog.getByText(/They move to the Trash, where you can restore them\./))
+      .toBeVisible();
+    // a confirmation is answered, not closed: no ×
+    expect(dialog.getByRole("button", { name: "Close" }).elements()).toHaveLength(0);
+    const form = dialog.element().querySelector("form")!;
+    expect(new FormData(form).get("action")).toBe("delete");
+    expect(new FormData(form).getAll("ids")).toEqual([division.id, inactive.id]);
+
+    deleteResult = { type: "success", status: 200, data: { ok: true } };
+    await dialog.getByRole("button", { name: "Delete" }).click();
+
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "2 divisions moved to Trash",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Undo" }) })
+      )
+    );
+    // the selection is spent
+    expect(
+      screen.getByRole("region", { name: "Bulk actions for divisions" }).elements()
+    ).toHaveLength(0);
+
+    const [, options] = toast.success.mock.calls[0] as [string, { action: { onClick(): void } }];
+    options.action.onClick();
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 divisions restored"));
+    expect(fetch).toHaveBeenCalledWith(
+      "/master/divisions?/bulk",
+      expect.objectContaining({ method: "POST" })
+    );
+    const body = fetch.mock.calls[0]?.[1]?.body as FormData;
+    expect(body.get("action")).toBe("restore");
+    expect(body.getAll("ids")).toEqual([division.id, inactive.id]);
+    expect(invalidateAll).toHaveBeenCalled();
+  });
+
+  it("says 'it' for a single row and keeps its title in the singular", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select Retired" }).click();
+    await screen.getByRole("button", { name: "Delete…" }).click();
+
+    const dialog = screen.getByRole("dialog", { name: "Delete 1 division?" });
+    await expect
+      .element(dialog.getByText("It moves to the Trash, where you can restore it."))
+      .toBeVisible();
+  });
+
+  it("keeps the dialog open when divisions still have roles, naming them, and deletes none", async () => {
+    await browser.viewport(1280, 900);
+    const message =
+      "2 of the 2 selected divisions still have roles: “Operations” (3 roles), “Retired” (1 role). Move those roles to another division or delete them, then try again. Nothing was deleted.";
+    deleteResult = {
+      type: "failure",
+      status: 409,
+      data: { error: message, code: "DIVISION_IN_USE" }
+    };
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+    await screen.getByRole("button", { name: "Delete…" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Delete 2 divisions?" });
+    await dialog.getByRole("button", { name: "Delete" }).click();
+
+    await expect.element(dialog.getByRole("alert")).toBeVisible();
+    expect(dialog.getByRole("alert").element().textContent).toContain(message);
+    await expect
+      .element(dialog.getByRole("link", { name: "Go to Roles" }))
+      .toHaveAttribute("href", "/master/roles");
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    // the selection is still there to change
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect.element(bulkCount(screen)).toHaveTextContent("2 selected");
+  });
+
+  it("toasts a bulk delete that failed for another reason", async () => {
+    await browser.viewport(1280, 900);
+    deleteResult = { type: "failure", status: 500, data: { error: "Something went wrong." } };
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+    await screen.getByRole("button", { name: "Delete…" }).click();
+    await screen.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Something went wrong."));
+    expect(screen.getByRole("alert").elements()).toHaveLength(0);
+  });
+
+  it("offers Restore, not Delete, in the Trash, and restores the chosen rows in one request", async () => {
+    await browser.viewport(1280, 900);
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    const screen = await render(
+      Page,
+      props("/master/divisions?trashed=only", { items: trashedRows })
+    );
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+
+    const bar = screen.getByRole("region", { name: "Bulk actions for divisions" });
+    expect(bar.getByRole("button", { name: "Delete…" }).elements()).toHaveLength(0);
+    await bar.getByRole("button", { name: "Restore" }).click();
+
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 divisions restored"));
+    const body = fetch.mock.calls[0]?.[1]?.body as FormData;
+    expect(body.get("action")).toBe("restore");
+    expect(body.getAll("ids")).toEqual([division.id, inactive.id]);
+    expect(
+      screen.getByRole("region", { name: "Bulk actions for divisions" }).elements()
+    ).toHaveLength(0);
+    expect(invalidateAll).toHaveBeenCalled();
+  });
+
+  it("says why a bulk restore was refused and keeps the selection", async () => {
+    await browser.viewport(1280, 900);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      actionReply(
+        "failure",
+        409,
+        JSON.stringify({ error: "A division with that name already exists.", code: "CONFLICT" })
+      )
+    );
+    const screen = await render(
+      Page,
+      props("/master/divisions?trashed=only", { items: trashedRows })
+    );
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+    await screen.getByRole("button", { name: "Restore" }).click();
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("A division with that name already exists.")
+    );
+    await expect.element(bulkCount(screen)).toHaveTextContent("2 selected");
+  });
+
+  it("has no axe violations with rows chosen and the bar showing", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+
+    await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("selects the page from a strip on a phone, where the header row is gone, and returns focus to it", async () => {
+    await browser.viewport(375, 667);
+    const screen = await render(Page, props("/master/divisions"));
+    const all = screen.getByRole("checkbox", { name: "Select all 2 on this page" });
+
+    await all.click();
+    await expect.element(bulkCount(screen)).toHaveTextContent("2 selected");
+    await screen
+      .getByRole("region", { name: "Bulk actions for divisions" })
+      .getByRole("button", { name: "Clear" })
+      .click();
+
+    await expect.element(all).toHaveFocus();
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(375);
+  });
+
+  it("fits the checkbox before the tile in a two-line row on a phone, without a sideways scroll", async () => {
+    await browser.viewport(375, 667);
+    const screen = await render(Page, props("/master/divisions"));
+    const box = screen.getByRole("checkbox", { name: "Select Operations" });
+    await box.click();
+
+    const rect = box.element().getBoundingClientRect();
+    const tile = screen
+      .getByRole("row", { name: /Operations/ })
+      .element()
+      .querySelector("[data-slot=record-tile]")!;
+    expect(rect.right).toBeLessThanOrEqual(tile.getBoundingClientRect().left);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(375);
+    await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
   });
 });

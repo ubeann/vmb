@@ -1,5 +1,7 @@
 import type {
   Access,
+  BulkRequest,
+  BulkResponse,
   Division,
   DivisionDetail,
   DivisionInput,
@@ -20,6 +22,7 @@ import type {
 } from "@vmb/types";
 import type { MasterDb } from "./db.js";
 import {
+  bulkDivisions,
   createDivision,
   deleteDivision,
   getDivision,
@@ -32,6 +35,7 @@ import { getAccess, getPermissions } from "./access.js";
 import type { Actor } from "./guards.js";
 import { createRole, deleteRole, getRole, listRoles, updateRole } from "./roles.js";
 import {
+  bulkUsers,
   createUser,
   deleteUser,
   getSignInEligibility,
@@ -63,6 +67,8 @@ export type MasterStore = {
   deleteDivision(id: string): Promise<void>;
   restoreDivision(id: string): Promise<Division>;
   setDivisionActive(id: string, isActive: boolean): Promise<Division>;
+  /** Delete or restore several divisions, all or none (#305). */
+  bulkDivisions(request: BulkRequest): Promise<BulkResponse>;
 
   listRoles(query: RoleListRequest): Promise<RoleListResponse>;
   getRole(id: string): Promise<RoleDetail>;
@@ -77,6 +83,8 @@ export type MasterStore = {
   updateUser(id: string, input: UserUpdateInput, actor: Actor): Promise<User>;
   deleteUser(id: string, actor: Actor): Promise<void>;
   restoreUser(id: string, actor: Actor): Promise<User>;
+  /** Delete or restore several users, all or none (#305). */
+  bulkUsers(request: BulkRequest, actor: Actor): Promise<BulkResponse>;
 };
 
 export function createMasterStore(db: MasterDb, options: UserStoreOptions): MasterStore {
@@ -91,6 +99,7 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     deleteDivision: (id) => deleteDivision(db, id),
     restoreDivision: (id) => restoreDivision(db, id),
     setDivisionActive: (id, isActive) => setDivisionActive(db, id, isActive),
+    bulkDivisions: (request) => bulkDivisions(options, request),
 
     listRoles: (query) => listRoles(db, query),
     getRole: (id) => getRole(db, id),
@@ -104,6 +113,7 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     createUser: (input, actor) => createUser(db, options, input, actor),
     updateUser: (id, input, actor) => updateUser(db, options, id, input, actor),
     deleteUser: (id, actor) => deleteUser(db, id, actor),
-    restoreUser: (id, actor) => restoreUser(db, id, actor)
+    restoreUser: (id, actor) => restoreUser(db, id, actor),
+    bulkUsers: (request, actor) => bulkUsers(options, request, actor)
   };
 }

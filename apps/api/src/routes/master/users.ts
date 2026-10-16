@@ -1,4 +1,6 @@
 import {
+  BulkRequestSchema,
+  BulkResponseSchema,
   PASSWORD_BREACHED_CODE,
   PASSWORD_BREACHED_MESSAGE,
   UserCreateInputSchema,
@@ -8,7 +10,7 @@ import {
   UserUpdateInputSchema
 } from "@vmb/types";
 import { Hono, type Context } from "hono";
-import { actor, requirePermission } from "./permission.js";
+import { actor, assertPermission, requirePermission } from "./permission.js";
 import { HttpError, jsonBody, pathId, queryParams } from "../../http.js";
 import type { MasterEnv } from "./env.js";
 
@@ -39,6 +41,16 @@ export const userRoutes = new Hono<MasterEnv>()
       return c.json(UserSchema.parse(user), 201);
     }
   )
+  // delete or restore several at once, all or none (#305); the action names the permission
+  .post("/bulk", jsonBody(BulkRequestSchema), async (c) => {
+    const request = c.req.valid("json");
+    await assertPermission(
+      c,
+      request.action === "delete" ? "master-users.delete" : "master-users.restore"
+    );
+    const done = await c.get("store").bulkUsers(request, actor(c));
+    return c.json(BulkResponseSchema.parse(done));
+  })
   .get("/:id", requirePermission("master-users.view"), async (c) => {
     const user = await c.get("store").getUser(pathId(c));
     return c.json(UserSchema.parse(user));

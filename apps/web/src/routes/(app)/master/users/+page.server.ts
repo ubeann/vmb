@@ -1,6 +1,6 @@
 import { withApiClient } from "$lib/api-access.js";
-import { deleteUser, listUsers, restoreUser } from "$lib/master/api.js";
-import { runRowAction } from "$lib/master/form-action.js";
+import { bulkUsers, deleteUser, listUsers, restoreUser } from "$lib/master/api.js";
+import { runBulkAction, runRowAction } from "$lib/master/form-action.js";
 import { canonicalListSearch, isCanonicalListSearch, parseListQuery } from "$lib/master/list.js";
 import { loadDivisionOptions } from "$lib/master/loads.js";
 import { DEFAULT_TIME_ZONE, UserListQuerySchema, resolveDateFilter, todayIn } from "@vmb/types";
@@ -70,6 +70,11 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions: Actions = {
+  bulk: (event) =>
+    runBulkAction(event, {
+      logLabel: "user bulk",
+      run: (client, request) => bulkUsers(client, request)
+    }),
   delete: (event) =>
     runRowAction(event, {
       logLabel: "user delete",
