@@ -1,6 +1,7 @@
 import {
+  RoleDetailSchema,
   RoleInputSchema,
-  RoleListQuerySchema,
+  RoleListRequestSchema,
   RoleListResponseSchema,
   RoleSchema,
   RoleUpdateInputSchema
@@ -12,7 +13,7 @@ import type { MasterEnv } from "./env.js";
 
 export const roleRoutes = new Hono<MasterEnv>()
   .get("/", requirePermission("master-roles.view_any"), async (c) => {
-    const query = queryParams(c, RoleListQuerySchema);
+    const query = queryParams(c, RoleListRequestSchema);
     const page = await c.get("store").listRoles(query);
     return c.json(RoleListResponseSchema.parse(page));
   })
@@ -22,7 +23,7 @@ export const roleRoutes = new Hono<MasterEnv>()
   })
   .get("/:id", requirePermission("master-roles.view"), async (c) => {
     const role = await c.get("store").getRole(pathId(c));
-    return c.json(RoleSchema.parse(role));
+    return c.json(RoleDetailSchema.parse(role));
   })
   .patch(
     "/:id",

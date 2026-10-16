@@ -7,8 +7,9 @@ import type {
   DivisionListResponse,
   DivisionUpdateInput,
   Role,
+  RoleDetail,
   RoleInput,
-  RoleListQuery,
+  RoleListRequest,
   RoleListResponse,
   RoleUpdateInput,
   User,
@@ -63,8 +64,8 @@ export type MasterStore = {
   restoreDivision(id: string): Promise<Division>;
   setDivisionActive(id: string, isActive: boolean): Promise<Division>;
 
-  listRoles(query: RoleListQuery): Promise<RoleListResponse>;
-  getRole(id: string): Promise<Role>;
+  listRoles(query: RoleListRequest): Promise<RoleListResponse>;
+  getRole(id: string): Promise<RoleDetail>;
   createRole(input: RoleInput): Promise<Role>;
   updateRole(id: string, input: RoleUpdateInput): Promise<Role>;
   deleteRole(id: string): Promise<void>;

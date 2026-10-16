@@ -3,6 +3,7 @@ import type {
   DivisionInput,
   DivisionListRequest,
   RoleInput,
+  RoleListRequest,
   UserCreateInput,
   UserUpdateInput
 } from "@vmb/types";
@@ -38,6 +39,16 @@ const editing = <T extends object>(loaded: { updatedAt: string | null }, fields:
 const listQuery = (overrides: Partial<DivisionListRequest> = {}): DivisionListRequest => ({
   status: [],
   trashed: "exclude",
+  sort: "name",
+  dir: "asc",
+  page: 1,
+  perPage: 10,
+  tz: "Asia/Jakarta",
+  ...overrides
+});
+
+const roleListQuery = (overrides: Partial<RoleListRequest> = {}): RoleListRequest => ({
+  status: [],
   sort: "name",
   dir: "asc",
   page: 1,
@@ -494,24 +505,95 @@ describe("roles store", () => {
       await store.createRole(role({ name: "Manager" }));
       await store.createRole(role({ name: "Admin", description: "Everything" }));
 
-      const list = await store.listRoles({
-        active: "all",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const list = await store.listRoles(roleListQuery());
       expect(list.items.map((item) => item.name)).toEqual(["Admin", "Manager", "Staff"]);
 
-      const search = await store.listRoles({
-        search: "every",
-        active: "all",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const search = await store.listRoles(roleListQuery({ search: "every" }));
       expect(search.items.map((item) => item.name)).toEqual(["Admin"]);
+    });
+  });
+
+  it("filters by status and counts each status option under the search and other filters", async () => {
+    await withMigratedDb(async (db) => {
+      const store = storeFor(db);
+      await store.createRole(role({ name: "Staff" }));
+      await store.createRole(role({ name: "Auditor", isActive: false }));
+      await store.createRole(role({ name: "Admin", description: "Staff access", isActive: false }));
+
+      const inactive = await store.listRoles(roleListQuery({ status: ["inactive"] }));
+      expect(inactive.items.map((item) => item.name)).toEqual(["Admin", "Auditor"]);
+      expect(inactive.total).toBe(2);
+      // the counts ignore the status filter itself, so each option says what choosing it gives
+      expect(inactive.facets.status).toEqual({ active: 1, inactive: 2 });
+
+      const either = await store.listRoles(roleListQuery({ status: ["active", "inactive"] }));
+      expect(either.total).toBe(3);
+
+      const searched = await store.listRoles(roleListQuery({ search: "staff" }));
+      expect(searched.items.map((item) => item.name)).toEqual(["Admin", "Staff"]);
+      expect(searched.facets.status).toEqual({ active: 1, inactive: 1 });
+
+      const page = await store.listRoles(roleListQuery({ page: 2, perPage: 2 }));
+      expect(page.items.map((item) => item.name)).toEqual(["Staff"]);
+      expect(page.total).toBe(3);
+    });
+  });
+
+  it("filters by the days a role was updated or created, in the reader's zone", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      const old = await store.createRole(role({ name: "Old" }));
+      await store.createRole(role({ name: "Fresh" }));
+      await client.exec(
+        `update master.roles set updated_at = '2025-03-31T17:30:00Z', created_at = '2025-01-02T00:00:00Z' where id = '${old.id}'`
+      );
+
+      // 2025-03-31T17:30Z is already 1 April in Jakarta
+      const april = await store.listRoles(roleListQuery({ updated: "2025-04-01..2025-04-01" }));
+      expect(april.items.map((item) => item.name)).toEqual(["Old"]);
+      const march = await store.listRoles(roleListQuery({ updated: "2025-03-01..2025-03-31" }));
+      expect(march.items).toEqual([]);
+      const created = await store.listRoles(roleListQuery({ created: "2025-01-01..2025-01-31" }));
+      expect(created.items.map((item) => item.name)).toEqual(["Old"]);
+    });
+  });
+
+  it("sorts by name, creation and update", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      const b = await store.createRole(role({ name: "B" }));
+      const a = await store.createRole(role({ name: "A" }));
+      await client.exec(
+        `update master.roles set created_at = '2025-01-01T00:00:00Z', updated_at = '2025-06-01T00:00:00Z' where id = '${b.id}'`
+      );
+      await client.exec(
+        `update master.roles set created_at = '2025-02-01T00:00:00Z', updated_at = '2025-05-01T00:00:00Z' where id = '${a.id}'`
+      );
+      const names = async (overrides: Partial<RoleListRequest>) =>
+        (await store.listRoles(roleListQuery(overrides))).items.map((item) => item.name);
+
+      expect(await names({ sort: "name", dir: "desc" })).toEqual(["B", "A"]);
+      expect(await names({ sort: "createdAt" })).toEqual(["B", "A"]);
+      expect(await names({ sort: "updatedAt" })).toEqual(["A", "B"]);
+      expect(await names({ sort: "updatedAt", dir: "desc" })).toEqual(["B", "A"]);
+    });
+  });
+
+  it("names a role's division in its detail, and none for a role in every division", async () => {
+    await withMigratedDb(async (db, client) => {
+      const store = storeFor(db);
+      await insertDivision(client, "11111111-1111-4111-8111-111111111111", "Hub", "HUB");
+      const scoped = await insertRole(client, "Dispatcher", "11111111-1111-4111-8111-111111111111");
+      const everywhere = await store.createRole(role({ name: "Auditor" }));
+
+      await expect(store.getRole(scoped)).resolves.toMatchObject({
+        divisionId: "11111111-1111-4111-8111-111111111111",
+        divisionName: "Hub"
+      });
+      await expect(store.getRole(everywhere.id)).resolves.toMatchObject({
+        divisionId: null,
+        divisionName: null
+      });
     });
   });
 
@@ -1234,7 +1316,7 @@ describe("edits over a newer save", () => {
       await expect(
         store.updateRole(loaded.id, editing(loaded, role({ name: "Junior" })))
       ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
-      await expect(store.getRole(loaded.id)).resolves.toEqual(first);
+      await expect(store.getRole(loaded.id)).resolves.toEqual({ ...first, divisionName: null });
 
       await expect(store.updateRole(missing, editing(loaded, role()))).rejects.toMatchObject({
         code: "NOT_FOUND"

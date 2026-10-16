@@ -15,7 +15,13 @@ export const load: PageServerLoad = async (event) => {
     error(pageErrorStatus(access.value.status), access.value.error);
   }
 
-  return { role: access.value.value, crumb: { label: access.value.value.name } };
+  const role = access.value.value;
+  return {
+    role,
+    // without JavaScript, Delete… asks on the page itself before the form posts
+    confirmDelete: event.url.searchParams.has("delete"),
+    crumb: { label: role.name, tile: { iconName: role.iconName, colorHex: role.colorHex } }
+  };
 };
 
 export const actions: Actions = {

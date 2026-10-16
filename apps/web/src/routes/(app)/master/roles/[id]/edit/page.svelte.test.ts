@@ -1,4 +1,4 @@
-import { RoleUpdateInputSchema, type Role } from "@vmb/types";
+import { RoleUpdateInputSchema, type RoleDetail } from "@vmb/types";
 import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
@@ -9,7 +9,7 @@ const { default: Page } = await import("./+page.svelte");
 
 const STAMP = "2026-10-05T03:04:00.123Z";
 const ID = "d1000000-0000-4000-8000-000000000001";
-const role: Role = {
+const role: RoleDetail = {
   id: ID,
   name: "Staff",
   isActive: true,
@@ -18,6 +18,7 @@ const role: Role = {
   iconName: "heroicon-o-user",
   description: null,
   divisionId: null,
+  divisionName: null,
   createdAt: STAMP,
   updatedAt: STAMP
 };
@@ -61,6 +62,6 @@ describe("the role edit page", () => {
     await expect
       .element(screen.getByRole("link", { name: "Reload" }))
       .toHaveAttribute("href", "/master/roles/d1000000-0000-4000-8000-000000000001/edit");
-    await expect.element(screen.getByRole("textbox", { name: "Role name" })).toHaveValue("My edit");
+    await expect.element(screen.getByRole("textbox", { name: "Name" })).toHaveValue("My edit");
   });
 });

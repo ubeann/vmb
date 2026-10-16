@@ -1,74 +1,173 @@
+<!--
+  A Role's create or edit form (#303), in the layer over the list and on the
+  full page alike. The fields check the shared schema's rules as they are
+  typed, and the server checks the same ones. A System Role never reaches it:
+  the API refuses to edit one.
+-->
 <script lang="ts">
+  import FormSection from "$lib/components/form/FormSection.svelte";
+  import RecordForm from "$lib/components/form/RecordForm.svelte";
+  import { useRecordForm } from "$lib/components/form/record-form.js";
+  import RecordTile from "$lib/components/list/RecordTile.svelte";
+  import * as Form from "$lib/components/ui/form/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
+  import { Switch } from "$lib/components/ui/switch/index.js";
+  import { Textarea } from "$lib/components/ui/textarea/index.js";
+  import { cn } from "$lib/utils.js";
+  import CheckIcon from "@lucide/svelte/icons/check";
+  import type { Component } from "svelte";
+  import AppearanceFields from "./AppearanceFields.svelte";
+  import { pickedColor, PENDING_COLOR, type RoleDraft } from "./appearance.js";
+  import type { RoleFormFields as Fields } from "./form-data.js";
   import UpdatedAtField from "./UpdatedAtField.svelte";
-  import { RoleInputSchema, type RoleInput } from "@vmb/types";
-  import { superForm, type SuperValidated } from "sveltekit-superforms";
+  import { RoleInputSchema } from "@vmb/types";
+  import type { SuperValidated } from "sveltekit-superforms";
   import { zod4Client } from "sveltekit-superforms/adapters";
-
-  // an edit's form also carries the `updatedAt` it loaded
-  type Fields = RoleInput & { updatedAt?: string | null };
 
   let {
     form,
+    action,
     submitLabel = "Save role",
-    reloadHref
-  }: { form: SuperValidated<Fields>; submitLabel?: string; reloadHref?: string } = $props();
+    pendingLabel = "Saving…",
+    submitIcon = CheckIcon,
+    reloadHref,
+    onreload,
+    cancelHref,
+    oncancel,
+    onsaved,
+    ondraft
+  }: {
+    form: SuperValidated<Fields>;
+    /** The route that saves it, when the form sits in the layer over the list. */
+    action?: string;
+    submitLabel?: string;
+    pendingLabel?: string;
+    /** A check to save; New passes a plus, as on the button that opened it. */
+    submitIcon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
+    /** The edit page, which a conflict's Reload opens fresh. */
+    reloadHref?: string;
+    /** In the layer: a conflict's Reload loads the record again there. */
+    onreload?: () => void;
+    cancelHref?: string;
+    oncancel?: () => void;
+    /** In the layer: called once saved, in place of opening the record's page. */
+    onsaved?: (saved: Fields) => void;
+    /**
+     * In the layer: what the form holds as it changes, for the layer's header to
+     * show live in place of the form's own preview.
+     */
+    ondraft?: (draft: RoleDraft) => void;
+  } = $props();
 
   // svelte-ignore state_referenced_locally
-  const {
-    form: fields,
-    errors,
-    enhance,
-    submitting
-  } = superForm(form, {
-    validators: zod4Client(RoleInputSchema)
+  const { superform, guard } = useRecordForm(form, {
+    validators: zod4Client(RoleInputSchema),
+    onsaved: (saved) => onsaved?.(saved)
   });
+  const { form: fields, errors, tainted, isTainted } = superform;
+
+  const picked = $derived(pickedColor($fields.colorHex));
+  // an edit's name as it was loaded, for "Discard changes to Staff?"; a new Role has none
+  // svelte-ignore state_referenced_locally
+  const savedName = reloadHref ? form.data.name : undefined;
+
+  $effect(() => {
+    ondraft?.({
+      name: $fields.name,
+      colorHex: picked ?? PENDING_COLOR,
+      iconName: $fields.iconName,
+      dirty: isTainted($tainted)
+    });
+  });
+
+  // hints sit close under their field, a step smaller than its label
+  const HINT = "text-xs";
 </script>
 
-<form method="POST" use:enhance>
+{#snippet preview(color: string)}
+  <div class="bg-muted/50 flex items-center gap-3 rounded-lg px-3 py-2.5" aria-hidden="true">
+    <RecordTile iconName={$fields.iconName} colorHex={color} class="size-9" />
+    <span class={cn("truncate font-medium", !$fields.name && "text-muted-foreground")}
+      >{$fields.name || "Role name"}</span
+    >
+    <span class="text-muted-foreground ml-auto text-xs">Preview</span>
+  </div>
+{/snippet}
+
+<RecordForm
+  {superform}
+  {guard}
+  {action}
+  {submitLabel}
+  {pendingLabel}
+  {submitIcon}
+  {cancelHref}
+  {oncancel}
+  discard={{
+    noun: "role",
+    name: savedName,
+    fields: {
+      name: "name",
+      description: "description",
+      colorHex: "color",
+      iconName: "icon",
+      isActive: "status"
+    }
+  }}
+>
   {#if reloadHref && $fields.updatedAt !== undefined}
-    <UpdatedAtField value={$fields.updatedAt} error={$errors.updatedAt} {reloadHref} />
+    <UpdatedAtField value={$fields.updatedAt} error={$errors.updatedAt} {reloadHref} {onreload} />
   {/if}
 
-  <fieldset>
-    <legend>Basic information</legend>
+  <FormSection title="Details" hint="What people call it, and what it is for.">
+    <Form.Field form={superform} name="name" class="space-y-1.5">
+      <Form.Control>
+        {#snippet children({ props })}
+          <Form.Label>Name</Form.Label>
+          <Input {...props} bind:value={$fields.name} maxlength={255} autocomplete="off" />
+        {/snippet}
+      </Form.Control>
+      <Form.FieldErrors class={HINT} />
+    </Form.Field>
 
-    <label>
-      <span>Role name</span>
-      <input name="name" bind:value={$fields.name} maxlength="255" required />
-      {#if $errors.name}<span class="error">{$errors.name[0]}</span>{/if}
-    </label>
+    <Form.Field form={superform} name="description" class="space-y-1.5">
+      <Form.Control>
+        {#snippet children({ props })}
+          <Form.Label
+            >Description <span class="text-muted-foreground font-normal">(optional)</span
+            ></Form.Label
+          >
+          <Textarea
+            {...props}
+            bind:value={$fields.description}
+            maxlength={255}
+            rows={2}
+            placeholder="Such as who holds it and what it lets them do"
+          />
+        {/snippet}
+      </Form.Control>
+      <Form.FieldErrors class={HINT} />
+    </Form.Field>
+  </FormSection>
 
-    <label>
-      <span>Description</span>
-      <textarea name="description" bind:value={$fields.description} maxlength="255" rows="3"
-      ></textarea>
-      {#if $errors.description}<span class="error">{$errors.description[0]}</span>{/if}
-    </label>
-  </fieldset>
+  <AppearanceFields {superform} preview={ondraft ? undefined : preview} />
 
-  <fieldset>
-    <legend>Visual settings</legend>
-
-    <label>
-      <span>Theme color</span>
-      <input type="color" name="colorHex" bind:value={$fields.colorHex} required />
-      {#if $errors.colorHex}<span class="error">{$errors.colorHex[0]}</span>{/if}
-    </label>
-
-    <label>
-      <span>Icon name</span>
-      <input name="iconName" bind:value={$fields.iconName} maxlength="255" required />
-      {#if $errors.iconName}<span class="error">{$errors.iconName[0]}</span>{/if}
-    </label>
-  </fieldset>
-
-  <fieldset>
-    <legend>Status</legend>
-    <label>
-      <input type="checkbox" name="isActive" bind:checked={$fields.isActive} />
-      <span>Active</span>
-    </label>
-  </fieldset>
-
-  <button type="submit" disabled={$submitting}>{submitLabel}</button>
-</form>
+  <FormSection>
+    <Form.Field form={superform} name="isActive" class="space-y-1">
+      <Form.Control>
+        {#snippet children({ props })}
+          <div class="flex min-h-8 items-center justify-between gap-4 pointer-coarse:min-h-11">
+            <div class="flex flex-col gap-1">
+              <Form.Label>Active</Form.Label>
+              <Form.Description class={HINT}
+                >An inactive role stays in the list, marked Inactive.</Form.Description
+              >
+            </div>
+            <Switch {...props} bind:checked={$fields.isActive} />
+          </div>
+        {/snippet}
+      </Form.Control>
+      <Form.FieldErrors class={HINT} />
+    </Form.Field>
+  </FormSection>
+</RecordForm>

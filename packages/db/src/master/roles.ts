@@ -1,12 +1,21 @@
-import type { Role, RoleInput, RoleListQuery, RoleListResponse, RoleUpdateInput } from "@vmb/types";
-import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
-import { roles, userRoles } from "../schema/master.js";
+import type {
+  Role,
+  RoleDetail,
+  RoleInput,
+  RoleListRequest,
+  RoleListResponse,
+  RoleUpdateInput
+} from "@vmb/types";
+import { and, asc, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { divisions, roles, userRoles } from "../schema/master.js";
 import {
   conflictFrom,
+  countWhere,
   nextStamp,
   nullIfEmpty,
   toIso,
   unchangedSince,
+  withinDays,
   type MasterDb
 } from "./db.js";
 import { ConflictError, ForbiddenError, NotFoundError, StaleRecordError } from "../errors.js";
@@ -18,6 +27,7 @@ type RoleRow = typeof roles.$inferSelect;
 
 const SORT_COLUMNS = {
   name: roles.name,
+  createdAt: roles.createdAt,
   updatedAt: roles.updatedAt
 } as const;
 
@@ -40,22 +50,40 @@ function toRole(row: RoleRow): Role {
   };
 }
 
-function whereFor(query: RoleListQuery) {
+/** The search and every filter but the status, which the counts vary. */
+function sharedConditions(query: RoleListRequest): SQL[] {
   const conditions: SQL[] = [];
 
-  if (query.active === "active") conditions.push(eq(roles.isActive, true));
-  if (query.active === "inactive") conditions.push(eq(roles.isActive, false));
   if (query.search) {
     const pattern = `%${query.search}%`;
     const matches = or(ilike(roles.name, pattern), ilike(roles.description, pattern));
     if (matches) conditions.push(matches);
   }
+  const updated = withinDays(roles.updatedAt, query.updated, query.tz);
+  if (updated) conditions.push(updated);
+  const created = withinDays(roles.createdAt, query.created, query.tz);
+  if (created) conditions.push(created);
 
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return conditions;
 }
 
-export async function listRoles(db: MasterDb, query: RoleListQuery): Promise<RoleListResponse> {
-  const where = whereFor(query);
+/** None chosen is any; both chosen is any too, but stays a condition the counts can share. */
+function statusCondition(status: RoleListRequest["status"]): SQL | undefined {
+  if (status.length === 0) return undefined;
+  return inArray(
+    roles.isActive,
+    status.map((value) => value === "active")
+  );
+}
+
+/**
+ * A page of the list, with how many rows each Status option would give under
+ * the search and the other filters (ADR-0051 rule 4), from one aggregate over
+ * the rows the shared conditions match.
+ */
+export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<RoleListResponse> {
+  const shared = sharedConditions(query);
+  const status = statusCondition(query.status);
   const column = SORT_COLUMNS[query.sort];
   const order = query.dir === "asc" ? asc(column) : desc(column);
 
@@ -63,26 +91,41 @@ export async function listRoles(db: MasterDb, query: RoleListQuery): Promise<Rol
     db
       .select()
       .from(roles)
-      .where(where)
-      .orderBy(order, asc(roles.name))
+      .where(and(...shared, status))
+      .orderBy(order, asc(roles.name), asc(roles.id))
       .limit(query.perPage)
       .offset((query.page - 1) * query.perPage),
-    db.select({ value: count() }).from(roles).where(where)
+    db
+      .select({
+        total: countWhere(status),
+        active: countWhere(eq(roles.isActive, true)),
+        inactive: countWhere(eq(roles.isActive, false))
+      })
+      .from(roles)
+      .where(and(...shared))
   ]);
+  const counts = totals[0] ?? { total: 0, active: 0, inactive: 0 };
 
   return {
     items: rows.map(toRole),
-    total: totals[0]?.value ?? 0,
+    total: counts.total,
     page: query.page,
-    perPage: query.perPage
+    perPage: query.perPage,
+    facets: { status: { active: counts.active, inactive: counts.inactive } }
   };
 }
 
-export async function getRole(db: MasterDb, id: string): Promise<Role> {
-  const rows = await db.select().from(roles).where(eq(roles.id, id)).limit(1);
+/** A role with the name of its Division, for the view; none means it applies in every Division. */
+export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
+  const rows = await db
+    .select({ role: roles, divisionName: divisions.name })
+    .from(roles)
+    .leftJoin(divisions, eq(divisions.id, roles.divisionId))
+    .where(eq(roles.id, id))
+    .limit(1);
   const row = rows[0];
   if (!row) throw new NotFoundError("Role not found.");
-  return toRole(row);
+  return { ...toRole(row.role), divisionName: row.divisionName };
 }
 
 export async function createRole(db: MasterDb, input: RoleInput): Promise<Role> {

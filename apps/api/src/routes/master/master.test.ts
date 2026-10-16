@@ -49,6 +49,14 @@ const role: Role = {
   updatedAt: STAMP
 };
 
+const EMPTY_ROLES: RoleListResponse = {
+  items: [],
+  total: 0,
+  page: 1,
+  perPage: 10,
+  facets: { status: { active: 0, inactive: 0 } }
+};
+
 const user: User = {
   id: ID,
   name: "Rina Wijaya",
@@ -84,8 +92,8 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     deleteDivision: vi.fn(async () => undefined),
     restoreDivision: vi.fn(async () => division),
     setDivisionActive: vi.fn(async () => division),
-    listRoles: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
-    getRole: vi.fn(async () => role),
+    listRoles: vi.fn(async () => EMPTY_ROLES),
+    getRole: vi.fn(async () => ({ ...role, divisionName: null })),
     createRole: vi.fn(async () => role),
     updateRole: vi.fn(async () => role),
     deleteRole: vi.fn(async () => undefined),
@@ -454,21 +462,68 @@ describe("master API: divisions", () => {
 describe("master API: roles", () => {
   it("lists with the role query schema defaults", async () => {
     const store = fakeStore({
-      listRoles: vi.fn(
-        async () => ({ items: [role], total: 1, page: 1, perPage: 10 }) as RoleListResponse
-      )
+      listRoles: vi.fn(async () => ({ ...EMPTY_ROLES, items: [role], total: 1 }))
     });
 
     await appWith(store).request("/roles", {}, env);
 
     expect(store.listRoles).toHaveBeenCalledWith({
       search: undefined,
-      active: "all",
+      status: [],
+      updated: undefined,
+      created: undefined,
       sort: "name",
       dir: "asc",
       page: 1,
-      perPage: 25
+      perPage: 25,
+      tz: "Asia/Jakarta"
     });
+  });
+
+  it("passes the status and date filters on, and answers with the status counts", async () => {
+    const store = fakeStore({
+      listRoles: vi.fn(async () => ({
+        ...EMPTY_ROLES,
+        items: [role],
+        total: 1,
+        facets: { status: { active: 4, inactive: 1 } }
+      }))
+    });
+
+    const response = await appWith(store).request(
+      "/roles?status=inactive&updated=week&created=2025-01-01..2025-01-31&sort=createdAt&dir=desc&tz=Asia/Makassar",
+      {},
+      env
+    );
+
+    expect(store.listRoles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ["inactive"],
+        updated: "week",
+        created: "2025-01-01..2025-01-31",
+        sort: "createdAt",
+        dir: "desc",
+        tz: "Asia/Makassar"
+      })
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      facets: { status: { active: 4, inactive: 1 } }
+    });
+  });
+
+  it("refuses the retired access-level sort and the old active filter's values", async () => {
+    const response = await appWith(fakeStore()).request("/roles?sort=level", {}, env);
+    expect(response.status).toBe(400);
+  });
+
+  it("answers a role's detail with its division's name", async () => {
+    const store = fakeStore({
+      getRole: vi.fn(async () => ({ ...role, divisionName: "Hub" }))
+    });
+
+    const response = await appWith(store).request(`/roles/${ID}`, {}, env);
+
+    await expect(response.json()).resolves.toMatchObject({ id: ID, divisionName: "Hub" });
   });
 
   it("creates, updates and deletes", async () => {
