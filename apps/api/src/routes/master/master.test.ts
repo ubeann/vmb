@@ -5,11 +5,18 @@ import type {
   Role,
   RoleListResponse,
   User,
+  UserListRequest,
   UserListResponse
 } from "@vmb/types";
 import { allPermissionKeys } from "@vmb/types";
 import { Hono } from "hono";
-import { ConflictError, ForbiddenError, NotFoundError, StaleRecordError } from "@vmb/db";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  RuleBrokenError,
+  StaleRecordError
+} from "@vmb/db";
 import type { MasterStore } from "@vmb/db";
 import { describe, expect, it, vi } from "vitest";
 import type { Bindings } from "../../bindings.js";
@@ -62,6 +69,7 @@ const user: User = {
   name: "Rina Wijaya",
   status: "active",
   roles: [],
+  divisions: [],
   phone: "+628111000001",
   email: "rina@vmblogistics.id",
   emailVerified: false,
@@ -69,6 +77,15 @@ const user: User = {
   createdAt: STAMP,
   updatedAt: STAMP,
   deletedAt: null
+};
+
+const EMPTY_USERS: UserListResponse = {
+  items: [],
+  total: 0,
+  page: 1,
+  perPage: 10,
+  views: { all: 0, trash: 0 },
+  facets: { status: { active: 0, inactive: 0, suspended: 0 }, division: {} }
 };
 
 const EMPTY_DIVISIONS: DivisionListResponse = {
@@ -97,7 +114,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     createRole: vi.fn(async () => role),
     updateRole: vi.fn(async () => role),
     deleteRole: vi.fn(async () => undefined),
-    listUsers: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 })),
+    listUsers: vi.fn(async () => EMPTY_USERS),
     getUser: vi.fn(async () => user),
     getSignInEligibility: vi.fn(async () => ({ deletedAt: null, status: "active" as const })),
     createUser: vi.fn(async () => user),
@@ -800,18 +817,100 @@ describe("master API: users", () => {
     );
   });
 
-  it("lists with a division filter", async () => {
+  it("lists with the kit's defaults", async () => {
+    const store = fakeStore();
+
+    await appWith(store).request("/users", {}, env);
+
+    expect(store.listUsers).toHaveBeenCalledWith({
+      search: undefined,
+      status: [],
+      division: [],
+      updated: undefined,
+      created: undefined,
+      trashed: "exclude",
+      sort: "name",
+      dir: "asc",
+      page: 1,
+      perPage: 25,
+      tz: "Asia/Jakarta"
+    } satisfies UserListRequest);
+  });
+
+  it("takes several statuses and divisions, date filters and the reader's zone", async () => {
     const store = fakeStore({
-      listUsers: vi.fn(
-        async () => ({ items: [user], total: 1, page: 1, perPage: 10 }) as UserListResponse
-      )
+      listUsers: vi.fn(async () => ({
+        ...EMPTY_USERS,
+        items: [user],
+        total: 1,
+        views: { all: 4, trash: 1 },
+        facets: {
+          status: { active: 2, inactive: 0, suspended: 2 },
+          division: { [OTHER_ID]: 3 }
+        }
+      }))
     });
 
-    await appWith(store).request(`/users?divisionId=${OTHER_ID}&status=suspended`, {}, env);
+    const response = await appWith(store).request(
+      `/users?division=${OTHER_ID},${ID}&status=suspended,active&updated=week&created=2025-01-01..2025-01-31&tz=UTC`,
+      {},
+      env
+    );
 
     expect(store.listUsers).toHaveBeenCalledWith(
-      expect.objectContaining({ divisionId: OTHER_ID, status: "suspended" })
+      expect.objectContaining({
+        division: [OTHER_ID, ID],
+        status: ["active", "suspended"],
+        updated: "week",
+        created: "2025-01-01..2025-01-31",
+        tz: "UTC"
+      })
     );
+    await expect(response.json()).resolves.toMatchObject({
+      views: { all: 4, trash: 1 },
+      facets: { status: { suspended: 2 }, division: { [OTHER_ID]: 3 } }
+    });
+  });
+
+  it.each([
+    ["an unknown status", "status=active,archived", "status.1"],
+    ["a division that is not an id", `division=${ID},nope`, "division.1"]
+  ])("rejects %s with the issue list", async (_name, search, path) => {
+    const store = fakeStore();
+    const response = await appWith(store).request(`/users?${search}`, {}, env);
+    const body = (await response.json()) as { code: string; issues: { path: string }[] };
+
+    expect(response.status).toBe(400);
+    expect(body.issues.map((issue) => issue.path)).toEqual([path]);
+    expect(store.listUsers).not.toHaveBeenCalled();
+  });
+
+  it("answers 400 VALIDATION_FAILED on roleIds when a chosen role's division is Inactive", async () => {
+    const message =
+      "The role “Hub staff” is scoped to an Inactive Division and cannot be given to a user.";
+    const store = fakeStore({
+      createUser: vi.fn(async () => {
+        throw new RuleBrokenError(message, "roleIds");
+      }),
+      updateUser: vi.fn(async () => {
+        throw new RuleBrokenError(message, "roleIds");
+      })
+    });
+
+    const created = await appWith(store).request("/users", json("POST", body), env);
+    expect(created.status).toBe(400);
+    await expect(created.json()).resolves.toEqual({
+      code: "VALIDATION_FAILED",
+      message,
+      issues: [{ path: "roleIds", message }]
+    });
+
+    const updated = await appWith(store).request(
+      `/users/${ID}`,
+      json("PATCH", { ...body, updatedAt: STAMP }),
+      env
+    );
+    expect(updated.status).toBe(400);
   });
 
   it("deletes and restores", async () => {

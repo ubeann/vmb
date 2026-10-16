@@ -16,6 +16,8 @@ export function useRecordForm<T extends Record<string, unknown>>(
     validators: ClientValidationAdapter<Partial<T>, Record<string, unknown>>;
     /** Called with what was saved, in place of following the redirect. */
     onsaved?: (saved: T) => void;
+    /** Asked before a save is sent; answering false keeps the form as it is (a save that needs a "sure?"). */
+    beforeSubmit?: (data: T) => boolean | Promise<boolean>;
   }
 ): { superform: ReturnType<typeof superForm<T>>; guard: DiscardGuard } {
   const superform = superForm(data, {
@@ -29,6 +31,9 @@ export function useRecordForm<T extends Record<string, unknown>>(
         typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
           ? "instant"
           : "smooth"
+    },
+    onSubmit: async ({ cancel }) => {
+      if (options.beforeSubmit && !(await options.beforeSubmit(get(superform.form)))) cancel();
     },
     onResult: ({ result, cancel }) => {
       if (result.type !== "redirect") return;

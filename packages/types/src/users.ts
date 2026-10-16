@@ -2,12 +2,18 @@ import { z } from "zod";
 import { indonesianPhoneSchema, optionalText, updatedAtSchema } from "./inputs.js";
 import { PASSWORD_CONTEXT_MESSAGE, passwordContainsContext, passwordSchema } from "./password.js";
 import {
+  DateFilterSchema,
   PageSchema,
   PerPageSchema,
   SearchSchema,
   SortDirectionSchema,
+  TimeZoneSchema,
   TrashedSchema,
-  listResponse
+  ViewCountsSchema,
+  listResponse,
+  optionCounts,
+  splitListParam,
+  valueFilter
 } from "./list.js";
 
 export const USER_STATUSES = ["active", "inactive", "suspended"] as const;
@@ -27,6 +33,8 @@ export const UserSchema = z.object({
   name: z.string(),
   status: UserStatusSchema,
   roles: z.array(z.object({ id: z.uuid(), name: z.string() })),
+  // the divisions those roles are scoped to, once each (a user has no division of their own)
+  divisions: z.array(z.object({ id: z.uuid(), name: z.string() })),
   phone: z.string().nullable(),
   email: z.string(),
   emailVerified: z.boolean(),
@@ -102,15 +110,32 @@ export type UserUpdateInput = z.infer<typeof UserUpdateInputSchema>;
 
 export const UserSortSchema = z.enum(["name", "email", "createdAt", "updatedAt"]).default("name");
 
+/**
+ * The Division filter's parameter: the divisions chosen, as ids, each once, in
+ * the order the URL gave them (`division=a,b`, ADR-0051 rule 4). An id that is
+ * not a uuid fails at its own index, so `parseListQuery` can drop that value
+ * and keep the others.
+ */
+export const DivisionFilterSchema = z
+  .string()
+  .transform(splitListParam)
+  .pipe(z.array(z.uuid()))
+  .transform((ids) => [...new Set(ids.map((id) => id.toLowerCase()))])
+  .default([]);
+
+/**
+ * The Users list's state, as its URL carries it (#304, ADR-0051 rule 4):
+ * `status` and `division` take several values (`status=active,suspended`),
+ * and `updated` and `created` a preset (`today`, `week`, `month`) or an
+ * inclusive `YYYY-MM-DD..YYYY-MM-DD` range. A user is in a division when they
+ * hold a role scoped to it.
+ */
 export const UserListQuerySchema = z.object({
   search: SearchSchema,
-  status: z.enum(["all", ...USER_STATUSES]).default("all"),
-  divisionId: z
-    .string()
-    .trim()
-    .optional()
-    .transform((value) => (value ? value : undefined))
-    .pipe(z.uuid().optional()),
+  status: valueFilter(USER_STATUSES),
+  division: DivisionFilterSchema,
+  updated: DateFilterSchema,
+  created: DateFilterSchema,
   trashed: TrashedSchema,
   sort: UserSortSchema,
   dir: SortDirectionSchema,
@@ -120,6 +145,27 @@ export const UserListQuerySchema = z.object({
 
 export type UserListQuery = z.infer<typeof UserListQuerySchema>;
 
-export const UserListResponseSchema = listResponse(UserSchema);
+/**
+ * What `GET /api/master/users` takes: the list's state plus the reader's time
+ * zone, which decides where each day of a date filter starts and ends (as for
+ * Divisions).
+ */
+export const UserListRequestSchema = UserListQuerySchema.extend({ tz: TimeZoneSchema });
+
+export type UserListRequest = z.infer<typeof UserListRequestSchema>;
+
+/**
+ * A page of users, with the counts the list kit shows beside its controls:
+ * each view's rows (the All and Trash tabs), and each Status and Division
+ * option's rows in the current view. Every count keeps the search and the
+ * other filters; a Division with no user in it has no entry.
+ */
+export const UserListResponseSchema = listResponse(UserSchema).extend({
+  views: ViewCountsSchema,
+  facets: z.object({
+    status: optionCounts(USER_STATUSES),
+    division: z.record(z.uuid(), z.number().int().min(0))
+  })
+});
 
 export type UserListResponse = z.infer<typeof UserListResponseSchema>;

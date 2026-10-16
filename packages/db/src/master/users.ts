@@ -1,7 +1,7 @@
 import type {
   User,
   UserCreateInput,
-  UserListQuery,
+  UserListRequest,
   UserListResponse,
   UserStatus,
   UserUpdateInput
@@ -9,11 +9,11 @@ import type {
 import {
   and,
   asc,
-  count,
   desc,
   eq,
   getTableColumns,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   or,
@@ -21,7 +21,7 @@ import {
   type SQL
 } from "drizzle-orm";
 import { session as authSession, user as authUser } from "../schema/auth.js";
-import { users } from "../schema/master.js";
+import { roles, userRoles, users } from "../schema/master.js";
 import {
   assertCanChangeRoles,
   assertCanManageUser,
@@ -33,11 +33,13 @@ import {
 } from "./guards.js";
 import {
   conflictFrom,
+  countWhere,
   nextStamp,
   nullIfEmpty,
   rowsOf,
   toIso,
   unchangedSince,
+  withinDays,
   type MasterDb,
   type OpenTransaction
 } from "./db.js";
@@ -54,12 +56,22 @@ const userColumns = {
     select json_agg(json_build_object('id', r.id, 'name', r.name) order by r.name)
       from master.user_roles ur join master.roles r on r.id = ur.role_id
      where ur.user_id = ${users.id}
+  ), '[]'::json)`,
+  // the divisions those roles are scoped to, once each
+  divisions: sql<Array<{ id: string; name: string }>>`coalesce((
+    select json_agg(json_build_object('id', d.id, 'name', d.name) order by d.name)
+      from master.divisions d
+     where d.id in (
+       select r.division_id from master.user_roles ur join master.roles r on r.id = ur.role_id
+        where ur.user_id = ${users.id} and r.division_id is not null
+     )
   ), '[]'::json)`
 };
 
 type UserRow = typeof users.$inferSelect & {
   emailVerified: boolean;
   roles: Array<{ id: string; name: string }>;
+  divisions: Array<{ id: string; name: string }>;
 };
 
 function selectUsers(db: MasterDb) {
@@ -94,6 +106,7 @@ function toUser(row: UserRow): User {
     name: row.name,
     status: row.status as UserStatus,
     roles: row.roles,
+    divisions: row.divisions,
     phone: row.phone,
     email: row.email,
     emailVerified: row.emailVerified,
@@ -106,7 +119,7 @@ function toUser(row: UserRow): User {
 
 /**
  * A user belongs to the divisions their roles are scoped to. The users list's
- * `divisionId` filter and a division's `userCount` both read membership here,
+ * `division` filter and a division's `userCount` both read membership here,
  * so the two cannot disagree.
  */
 export function inDivision(divisionId: string): SQL {
@@ -116,13 +129,10 @@ export function inDivision(divisionId: string): SQL {
   )`;
 }
 
-function whereFor(query: UserListQuery) {
+/** The search and every filter but the view, status and division, which the counts vary. */
+function sharedConditions(query: UserListRequest): SQL[] {
   const conditions: SQL[] = [];
 
-  if (query.trashed === "exclude") conditions.push(isNull(users.deletedAt));
-  if (query.trashed === "only") conditions.push(isNotNull(users.deletedAt));
-  if (query.status !== "all") conditions.push(eq(users.status, query.status));
-  if (query.divisionId) conditions.push(inDivision(query.divisionId));
   if (query.search) {
     const pattern = `%${query.search}%`;
     const matches = or(
@@ -132,29 +142,92 @@ function whereFor(query: UserListQuery) {
     );
     if (matches) conditions.push(matches);
   }
+  const updated = withinDays(users.updatedAt, query.updated, query.tz);
+  if (updated) conditions.push(updated);
+  const created = withinDays(users.createdAt, query.created, query.tz);
+  if (created) conditions.push(created);
 
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return conditions;
 }
 
-export async function listUsers(db: MasterDb, query: UserListQuery): Promise<UserListResponse> {
-  const where = whereFor(query);
+function viewCondition(trashed: UserListRequest["trashed"]): SQL | undefined {
+  if (trashed === "exclude") return isNull(users.deletedAt);
+  if (trashed === "only") return isNotNull(users.deletedAt);
+  return undefined;
+}
+
+/** None chosen is any. */
+function statusCondition(status: UserListRequest["status"]): SQL | undefined {
+  return status.length === 0 ? undefined : inArray(users.status, status);
+}
+
+/** A user in any of the divisions chosen; none chosen is any. */
+function divisionCondition(division: UserListRequest["division"]): SQL | undefined {
+  return division.length === 0 ? undefined : or(...division.map(inDivision));
+}
+
+/**
+ * A page of the list, with the counts the list kit shows: each view's rows,
+ * each Status option's rows in the current view, and how many users each
+ * Division would give (ADR-0051 rules 2 and 4). Every count keeps the search
+ * and the other filters, and leaves out the filter it is the options of. The
+ * counts come from one aggregate over the rows the shared conditions match,
+ * and one grouped read for the divisions.
+ */
+export async function listUsers(db: MasterDb, query: UserListRequest): Promise<UserListResponse> {
+  const shared = sharedConditions(query);
+  const view = viewCondition(query.trashed);
+  const status = statusCondition(query.status);
+  const division = divisionCondition(query.division);
   const column = SORT_COLUMNS[query.sort];
   const order = query.dir === "asc" ? asc(column) : desc(column);
 
-  const [rows, totals] = await Promise.all([
+  const [rows, totals, divisionCounts] = await Promise.all([
     selectUsers(db)
-      .where(where)
+      .where(and(...shared, view, status, division))
       .orderBy(order, asc(users.id))
       .limit(query.perPage)
       .offset((query.page - 1) * query.perPage),
-    db.select({ value: count() }).from(users).where(where)
+    db
+      .select({
+        total: countWhere(view, status, division),
+        all: countWhere(isNull(users.deletedAt), status, division),
+        trash: countWhere(isNotNull(users.deletedAt), status, division),
+        active: countWhere(view, division, eq(users.status, "active")),
+        inactive: countWhere(view, division, eq(users.status, "inactive")),
+        suspended: countWhere(view, division, eq(users.status, "suspended"))
+      })
+      .from(users)
+      .where(and(...shared)),
+    db
+      .select({ divisionId: roles.divisionId, value: sql<number>`count(distinct ${users.id})` })
+      .from(users)
+      .innerJoin(userRoles, eq(userRoles.userId, users.id))
+      .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(and(...shared, view, status, isNotNull(roles.divisionId)))
+      .groupBy(roles.divisionId)
   ]);
+  const counts = totals[0] ?? { total: 0, all: 0, trash: 0, active: 0, inactive: 0, suspended: 0 };
+
+  const byDivision: Record<string, number> = {};
+  for (const row of divisionCounts) {
+    if (row.divisionId) byDivision[row.divisionId] = Number(row.value);
+  }
 
   return {
     items: rows.map(toUser),
-    total: totals[0]?.value ?? 0,
+    total: counts.total,
     page: query.page,
-    perPage: query.perPage
+    perPage: query.perPage,
+    views: { all: counts.all, trash: counts.trash },
+    facets: {
+      status: {
+        active: counts.active,
+        inactive: counts.inactive,
+        suspended: counts.suspended
+      },
+      division: byDivision
+    }
   };
 }
 
@@ -204,7 +277,7 @@ export async function createUser(
   actor: Actor
 ): Promise<User> {
   const roleIds = uniqueIds(input.roleIds);
-  await assertCanChangeRoles(db, actor.permissions, roleIds);
+  await assertCanChangeRoles(db, actor.permissions, roleIds, roleIds);
 
   const id = crypto.randomUUID();
   const passwordHash = await options.hashPassword(input.password);
@@ -332,7 +405,8 @@ export async function updateUser(
         const before = await currentRoleIds(tx, id);
         const added = next.filter((role) => !before.includes(role));
         const removed = before.filter((role) => !next.includes(role));
-        await assertCanChangeRoles(tx, actor.permissions, [...added, ...removed]);
+        // a role the user already holds stays, whatever its Division became
+        await assertCanChangeRoles(tx, actor.permissions, [...added, ...removed], added);
 
         // the row lock above already holds the target's roles still
         await writeUser(
