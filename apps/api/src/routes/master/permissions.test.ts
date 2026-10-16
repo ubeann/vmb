@@ -107,7 +107,14 @@ describe("master API permissions", () => {
     const getPermissions = vi.fn(async () => [...granted]);
     const store = {
       getPermissions,
-      listUsers: vi.fn(async () => ({ items: [], total: 0, page: 1, perPage: 10 }))
+      listUsers: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        page: 1,
+        perPage: 10,
+        views: { all: 0, trash: 0 },
+        facets: { status: { active: 0, inactive: 0, suspended: 0 }, division: {} }
+      }))
     } as unknown as MasterStore;
     const app = withErrorReplies(
       new Hono<{ Variables: { userId: string } }>()
@@ -143,6 +150,7 @@ describe("master API permissions", () => {
       name: "Rina Wijaya",
       status: "active",
       roles: [],
+      divisions: [],
       phone: "+628111000001",
       email: "rina@vmblogistics.id",
       emailVerified: false,

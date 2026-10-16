@@ -67,3 +67,16 @@ export class ForbiddenError extends DomainError {
     super(message);
   }
 }
+
+/**
+ * The change breaks a rule of the domain that no single field's shape can
+ * say, such as giving a user a role of an Inactive Division. It names the
+ * field it is about in `issues`, so a form shows the message there.
+ */
+export class RuleBrokenError extends DomainError {
+  readonly code = "VALIDATION_FAILED";
+
+  constructor(message: string, path: string) {
+    super(message, [{ path, message }]);
+  }
+}

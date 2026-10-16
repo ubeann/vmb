@@ -2,7 +2,7 @@ import {
   PASSWORD_BREACHED_CODE,
   PASSWORD_BREACHED_MESSAGE,
   UserCreateInputSchema,
-  UserListQuerySchema,
+  UserListRequestSchema,
   UserListResponseSchema,
   UserSchema,
   UserUpdateInputSchema
@@ -24,7 +24,7 @@ async function refuseBreachedPassword(c: Context<MasterEnv>, password: string) {
 
 export const userRoutes = new Hono<MasterEnv>()
   .get("/", requirePermission("master-users.view_any"), async (c) => {
-    const query = queryParams(c, UserListQuerySchema);
+    const query = queryParams(c, UserListRequestSchema);
     const page = await c.get("store").listUsers(query);
     return c.json(UserListResponseSchema.parse(page));
   })

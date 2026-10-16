@@ -3,6 +3,7 @@ import {
   DomainError,
   ForbiddenError,
   NotFoundError,
+  RuleBrokenError,
   StaleRecordError
 } from "@vmb/db";
 import { ApiErrorSchema, type ApiError, type ApiErrorCode } from "@vmb/types";
@@ -31,6 +32,7 @@ function statusOf(error: DomainError): ContentfulStatusCode {
   if (error instanceof NotFoundError) return 404;
   if (error instanceof ConflictError || error instanceof StaleRecordError) return 409;
   if (error instanceof ForbiddenError) return 403;
+  if (error instanceof RuleBrokenError) return 400;
   return 500;
 }
 
