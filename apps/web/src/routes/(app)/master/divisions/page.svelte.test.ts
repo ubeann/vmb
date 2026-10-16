@@ -1899,6 +1899,11 @@ describe("a Division in the layer over the list (#302)", () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions"));
     const code = screen.getByRole("cell", { name: "OPS" });
+    // the pointer may still rest where an earlier test left it, over a row that would load its
+    // own record: it starts on the title, and only what follows counts
+    await userEvent.hover(screen.getByRole("heading", { name: "Divisions", level: 1 }));
+    await new Promise((done) => setTimeout(done, 120));
+    preloadData.mockClear();
 
     await userEvent.hover(code);
     await expect.poll(() => preloadData.mock.calls).toEqual([[recordUrl]]);
