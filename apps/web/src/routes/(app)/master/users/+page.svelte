@@ -133,7 +133,7 @@
     { id: "name", label: "Name", hideable: false },
     { id: "division", label: "Division" },
     { id: "roles", label: "Roles" },
-    { id: "verified", label: "Email" },
+    { id: "verified", label: "Verified" },
     { id: "updatedAt", label: "Updated", hidden: true },
     { id: "createdAt", label: "Created", hidden: true }
   ]);
@@ -459,7 +459,7 @@
                 <Table.Head scope="col" class={columnClass("text")}>Roles</Table.Head>
               {/if}
               {#if columns.visible("verified")}
-                <Table.Head scope="col" class={columnClass("meta")}>Email</Table.Head>
+                <Table.Head scope="col" class={columnClass("meta")}>Verified</Table.Head>
               {/if}
               <!-- deleting stamps updatedAt too, so the Trash has one date: Deleted, sorted on that stamp -->
               {#if inTrash || columns.visible("updatedAt")}

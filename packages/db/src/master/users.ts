@@ -119,7 +119,7 @@ function toUser(row: UserRow): User {
 
 /**
  * A user belongs to the divisions their roles are scoped to. The users list's
- * `divisionId` filter and a division's `userCount` both read membership here,
+ * `division` filter and a division's `userCount` both read membership here,
  * so the two cannot disagree.
  */
 export function inDivision(divisionId: string): SQL {
@@ -163,14 +163,7 @@ function statusCondition(status: UserListRequest["status"]): SQL | undefined {
 
 /** A user in any of the divisions chosen; none chosen is any. */
 function divisionCondition(division: UserListRequest["division"]): SQL | undefined {
-  if (division.length === 0) return undefined;
-  return sql`exists (
-    select 1 from master.user_roles ur join master.roles r on r.id = ur.role_id
-     where ur.user_id = ${users.id} and r.division_id in (${sql.join(
-       division.map((id) => sql`${id}::uuid`),
-       sql`, `
-     )})
-  )`;
+  return division.length === 0 ? undefined : or(...division.map(inDivision));
 }
 
 /**

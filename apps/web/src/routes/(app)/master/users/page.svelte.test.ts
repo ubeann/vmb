@@ -202,7 +202,7 @@ describe("users list", () => {
       .element(screen.getByRole("columnheader", { name: /Name/ }))
       .toHaveAttribute("aria-sort", "ascending");
     await expect.element(table.getByRole("columnheader", { name: "Division" })).toBeVisible();
-    await expect.element(table.getByRole("columnheader", { name: "Email" })).toBeVisible();
+    await expect.element(table.getByRole("columnheader", { name: "Verified" })).toBeVisible();
     await expect.element(table.getByRole("cell", { name: "Finance" }).first()).toBeVisible();
     await expect.element(table.getByText("Verified", { exact: true }).first()).toBeVisible();
     await expect.element(table.getByText("Not verified").first()).toBeVisible();
