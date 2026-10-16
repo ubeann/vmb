@@ -1,6 +1,8 @@
 <!--
   A layer's footer (ADR-0053 rule 4): its main action fills the row
-  (LayerAction), and any other button is at least 80px wide.
+  (LayerAction), and any other button is at least 80px wide. A record
+  layer's footer fills the row only under 480px, and from there keeps its
+  buttons' own widths at the right (ADR-0053's 2026-10-16 amendment).
 
   `modalOnly` is for a footer whose action only closes the layer ("Show 12
   divisions", "Done"): it shows in the sheet and the dialog, where nothing
@@ -25,6 +27,7 @@
 </script>
 
 <div
+  data-slot="layer-footer"
   class={cn(
     "border-border flex shrink-0 items-center gap-2 border-t p-3 pb-[max(--spacing(3),env(safe-area-inset-bottom))] in-data-[layer-frame=modal]:p-4 in-data-[layer-frame=modal]:pb-[max(--spacing(4),env(safe-area-inset-bottom))] [&_[data-slot=button]]:min-w-20",
     modalOnly && "in-data-[layer-frame=panel]:hidden",

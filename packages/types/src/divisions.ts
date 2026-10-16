@@ -50,8 +50,10 @@ export const DivisionInputSchema = z.object({
   code: z
     .string()
     .trim()
-    .min(3, "Code must be at least 3 characters.")
-    .max(5, "Code must be at most 5 characters."),
+    // an empty code says only that it is required, not also that it is short
+    .min(1, { error: "Code is required.", abort: true })
+    .min(3, "Code must be 3 to 5 characters.")
+    .max(5, "Code must be 3 to 5 characters."),
   description: optionalText(1000),
   colorHex: z
     .string()

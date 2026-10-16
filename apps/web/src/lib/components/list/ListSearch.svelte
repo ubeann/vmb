@@ -16,7 +16,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import { shortcuts, useShortcuts } from "$lib/components/shortcuts.svelte.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { listHref, type MasterListPathname } from "$lib/master/list.js";
@@ -25,6 +24,10 @@
   import ListIcon from "@lucide/svelte/icons/list";
   import XIcon from "@lucide/svelte/icons/x";
   import { onDestroy, untrack } from "svelte";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,

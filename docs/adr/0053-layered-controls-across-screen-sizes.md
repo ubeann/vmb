@@ -55,3 +55,17 @@ Built by the list-kit revision ticket, as the kit's layer component; #302's reco
 - **The backdrop (new).** Behind a sheet or dialog, every dialog in the app and not only the layers, the page is dimmed with no blur: black at 40% in light mode, the navy at 45% in dark (`--scrim`, ADR-0036's 2026-10-13 amendment). The registry's 10% black over a 4px blur barely parted the white sheet from a light page.
   - Tried: a frosted glass sheet over a clear backdrop. Behind small muted text the list keeps moving, so the text's contrast varies; a 40px blur over a sliding sheet is heavy for mid-range phones; and glass isn't the etched navy-and-green look.
   - Tried: the navy in light mode too. It tinted the warm page blue, where black only dims it.
+
+**Amendment (2026-10-14): a form fills the screen under 480px.** From #302, the Divisions record layer; owner decision on that ticket.
+
+- **Rule 1, for a layer that holds a record** (its view, create or edit). Under 480px it fills the screen: a header with the title and ×, the content scrolling between it and a footer that holds the primary action, clear of the safe-area insets and of the on-screen keyboard (the frame follows the visual viewport, so the footer rides above the keys). From 480px it is rule 1's centred dialog, `rounded-2xl` and at most `min(85svh, 44rem)` tall, over the `--scrim` backdrop, and up to 32rem wide (`max-w-lg`, 1rem off each edge) where a filter's is 26rem: a form's fields and its footer's two buttons need the room. Filter, View and any other layer keep the bottom sheet. Built as `RecordLayer`.
+  - Why: a form needs the height, and a footer that stays put above the keyboard. A sheet at 85% leaves a strip of the list above it that a tap closes, and its height jumps as the keyboard opens. A filter is short, and closing it loses nothing.
+  - Tried: the bottom sheet for forms, as rule 1 had it.
+- **Rules 6 and 7, for a record layer.** It has no panel frame, so it has no handover: crossing 480px changes the CSS alone, and closes and forgets nothing. A closing (Esc, ×, a click outside, Cancel, the browser's Back) asks "Discard changes?" first when a form in it has unsaved edits; the frame changing never asks.
+- **Focus (rule 5).** The record layer's title takes focus on open, in view, edit and new alike, so a phone's keyboard doesn't open over a form the user hasn't touched; closing returns focus to the row or button that opened it.
+
+**Amendment (2026-10-16, #302): a record layer's footer from 480px.** From polishing the Division layer against Cloudflare's dashboard (Kumo); owner decision on that ticket.
+
+- **Rule 4, for a record layer** (its view, create or edit). Under 480px the main action fills the footer, as rule 4 has it. From 480px, in the centred dialog, the footer's buttons keep their own width and sit at the right, the main action last: Cancel then "Create division", or Edit alone. A button that removes the record (Delete…) is a ghost at the left, away from the main action. The footer has no line above it: the form's card ends the fields. Filter, View and other layers keep rule 4 as it is.
+  - Why: a 32rem dialog's footer filled by one green button is a banner as wide as the form, louder than the fields it saves, and Cancel beside it was squeezed to its minimum. At the right, the main action is where a dialog's is on desktop, and a phone, where the thumb reaches across, still gets the full-width target.
+  - Tried: the full-width main action from 480px. It read as a call to action rather than the end of a form.

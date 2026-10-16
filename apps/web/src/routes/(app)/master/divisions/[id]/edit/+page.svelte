@@ -1,3 +1,4 @@
+<!-- A Division's edit as a full page (#302): the layer's form, for a link opened directly or no JavaScript. -->
 <script lang="ts">
   import Page from "$lib/components/Page.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
@@ -9,18 +10,17 @@
 </script>
 
 <svelte:head>
-  <title>Edit division — VMB</title>
+  <title>Edit {data.division.name} — VMB</title>
 </svelte:head>
 
 <Page width="narrow" class="flex flex-col gap-4">
-  <PageHeader title="Edit division" />
+  <PageHeader title="Edit division" description={data.division.name} />
 
-  <DivisionForm
-    form={data.form}
-    reloadHref={resolve("/(app)/master/divisions/[id]/edit", { id: data.division.id })}
-  />
-
-  <p>
-    <a href={resolve("/(app)/master/divisions/[id]", { id: data.division.id })}>Back to division</a>
-  </p>
+  <div class="bg-background flex flex-col overflow-hidden rounded-xl border pt-3">
+    <DivisionForm
+      form={data.form}
+      reloadHref={resolve("/(app)/master/divisions/[id]/edit", { id: data.division.id })}
+      cancelHref={resolve("/(app)/master/divisions/[id]", { id: data.division.id })}
+    />
+  </div>
 </Page>

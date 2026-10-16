@@ -48,7 +48,8 @@
   type="submit"
   {variant}
   class={cn(
-    "min-h-11 w-full aria-disabled:pointer-events-auto aria-disabled:opacity-100",
+    // 44px on every pointer, as the auth pages' fields are, and cornered as they are
+    "min-h-11 w-full rounded-(--touch-radius) aria-disabled:pointer-events-auto aria-disabled:opacity-100",
     className
   )}
   {disabled}

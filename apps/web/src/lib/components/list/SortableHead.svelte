@@ -5,13 +5,16 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import * as Table from "$lib/components/ui/table/index.js";
   import { sortState, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import ArrowDownIcon from "@lucide/svelte/icons/arrow-down";
   import ArrowUpIcon from "@lucide/svelte/icons/arrow-up";
   import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,

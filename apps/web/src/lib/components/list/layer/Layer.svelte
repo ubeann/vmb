@@ -23,9 +23,10 @@
 </script>
 
 <!--
-  The list kit's layer (ADR-0053): the Filter and View panels and #302's record
-  modal sit in it. One content, three frames: a bottom sheet under 480px, a
-  centred dialog from 480 to 639px, the panel by its button from 640px. Steps
+  The list kit's layer (ADR-0053): the Filter and View panels sit in it; a
+  record's view and form sit in RecordLayer, its modal frame without a panel.
+  One content, three frames: a bottom sheet under 480px, a centred dialog
+  from 480 to 639px, the panel by its button from 640px. Steps
   replace the content in a sheet or dialog, and open beside the panel where the
   picker fits. The layer follows the screen across 640px and the room line,
   keeping its step, once the window has stopped resizing; a closing (outside

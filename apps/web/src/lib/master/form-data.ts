@@ -1,4 +1,7 @@
-import type { Division, Role, User } from "@vmb/types";
+import type { Division, DivisionInput, Role, User } from "@vmb/types";
+
+/** A Division's form: the shared input, and on an edit the `updatedAt` it loaded. */
+export type DivisionFormFields = DivisionInput & { updatedAt?: string | null };
 
 /**
  * A stored record always has its text columns; the forms work in the empty

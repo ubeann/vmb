@@ -7,9 +7,12 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
   import { listHref, nounFor, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
+  import { listPage } from "./list-url.svelte.js";
+
+  // the list's URL, which a record layer over it leaves in place (#302)
+  const page = listPage();
 
   let {
     base,
@@ -46,14 +49,16 @@
   ]);
 </script>
 
-<nav aria-label={label} class={cn("-mb-px flex items-center gap-4 self-stretch", className)}>
+<!-- the tabs fill the toolbar row's height, whatever its controls make it, so each underline
+     sits on the row's bottom border (-mb-px) rather than above it -->
+<nav aria-label={label} class={cn("-mb-px flex items-stretch gap-4 self-stretch", className)}>
   {#each tabs as tab (tab.name)}
     <a
       href={resolve(listHref(base, page.url.searchParams, { trashed: tab.trashed }))}
       aria-current={tab.current ? "page" : undefined}
       data-sveltekit-noscroll
       class={cn(
-        "focus-visible:ring-ring inline-flex h-12 items-center gap-1.5 border-b-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none",
+        "focus-visible:ring-ring inline-flex min-h-12 items-center gap-1.5 border-b-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none",
         tab.current
           ? "border-foreground text-foreground"
           : "text-muted-foreground hover:text-foreground border-transparent"

@@ -2,6 +2,7 @@ import { withApiClient } from "$lib/api-access.js";
 import { getDivision, updateDivision, pageErrorStatus } from "$lib/master/api.js";
 import { divisionFormData } from "$lib/master/form-data.js";
 import { createMasterFormAction } from "$lib/master/form-action.js";
+import { requirePermission } from "$lib/master/permissions.js";
 import { DivisionUpdateInputSchema } from "@vmb/types";
 import { error } from "@sveltejs/kit";
 import { superValidate } from "sveltekit-superforms/server";
@@ -9,6 +10,7 @@ import { zod4 } from "sveltekit-superforms/adapters";
 import type { Actions, PageServerLoad } from "./$types.js";
 
 export const load: PageServerLoad = async (event) => {
+  await requirePermission(event, "master-divisions.update");
   const access = await withApiClient(event, (client) => getDivision(client, event.params.id));
 
   if (!access.ok) {

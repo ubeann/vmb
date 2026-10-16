@@ -87,14 +87,24 @@
   --accent: oklch(0.93 0.005 90);
   --accent-foreground: oklch(0.247 0.094 267.7);
   --destructive: oklch(0.53 0.207 22.3);
+  /* The danger button (#302): the primary button's texture in red, for an answer that can't be
+   * undone (Discard, Delete). White on it: 5.6:1, 6.9:1 on hover */
+  --destructive-hover: oklch(0.48 0.19 22.3);
+  --destructive-foreground: oklch(0.985 0 0);
+  --destructive-sheen-top: oklch(1 0 0 / 0);
+  --destructive-sheen-bottom: oklch(0 0 0 / 0.14);
+  --destructive-highlight: oklch(1 0 0 / 0.24);
+  --destructive-edge: oklch(0.42 0.17 22.3);
   /* Status tones (StatusPill, ADR-0036 "Status tones"): text on a 12% wash of itself, 5:1 or more
    * on paper, white and the muted row hover. Success is a bluer green than --primary, so a
    * status never reads as a button */
   --success: oklch(0.45 0.12 152);
   --warning: oklch(0.47 0.11 62);
   --border: oklch(0.888 0.005 90);
-  /* 3:1 on paper and white: the strong field boundary, now the dark end of --control-edge */
-  --input: oklch(0.64 0.037 274.3);
+  /* 3:1 on paper and white: the strong field boundary, now the dark end of --control-edge. A warm
+   * neutral, as the paper and its borders are (#302): the logo navy's blue-grey here read as a
+   * cool line on warm paper. Same lightness, so the same contrast: 3.37:1 on white, 3.17:1 on paper */
+  --input: oklch(0.64 0.012 80);
   /* One skin for outline buttons and list-kit fields (ADR-0035, 2026-10-11): an edge about
    * halfway between --input and --border (45% --input, the prototype's mix the ADR measured),
    * 2.03:1 against the card and 1.91:1 against the paper. Under 3:1, so a kit field (`Input` and
@@ -104,6 +114,8 @@
   --ring: oklch(0.51 0.164 143.6);
   /* The backdrop behind every dialog and sheet (ADR-0036, 2026-10-13): black at 40%, no blur */
   --scrim: oklch(0 0 0 / 0.4);
+  /* The shade at a layer card's edge while its content scrolls on past it (#302) */
+  --scroll-shadow: oklch(0 0 0 / 0.08);
   /* Engraving ink: the logo navy (#041c74) eased toward paper so dense hatching reads as texture */
   --etching: oklch(0.36 0.12 266);
   /* The logo navy, #041c74, for the VMB mark's swoosh */
@@ -114,13 +126,14 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  /* A control's corner is a quarter of its height (ADR-0035, 2026-10-11): 8px on the registry's
-   * 32px controls, 11px on 44px ones. `rounded-(--control-radius)` on buttons, fields, select
-   * triggers and filter chips grows with them on touch pointers (the rule in the base layer);
-   * `rounded-(--touch-radius)` is for a control 44px tall on every pointer, such as the auth
-   * fields. Written as variables, not theme steps, so `cn` merges them with other `rounded-*` */
-  --control-radius: calc(2rem / 4);
-  --touch-radius: calc(2.75rem / 4);
+  /* A control's corner is 8px at any height (#302, after Cloudflare's Kumo): a crisp corner on
+   * the 36px default and on 44px touch and auth controls alike, and 6px on a small (28px) one
+   * (the base layer). `rounded-(--control-radius)` on buttons, fields, select triggers and
+   * filter chips; `rounded-(--touch-radius)` on a control 44px tall on every pointer, such as
+   * the auth fields, now the same corner. Written as variables, not theme steps, so `cn` merges
+   * them with other `rounded-*` */
+  --control-radius: 0.5rem;
+  --touch-radius: 0.5rem;
   --sidebar: oklch(0.965 0.009 88.6);
   --sidebar-foreground: oklch(0.247 0.094 267.7);
   --sidebar-primary: oklch(0.51 0.164 143.6);
@@ -131,13 +144,6 @@
   --sidebar-accent-foreground: oklch(0.247 0.094 267.7);
   --sidebar-border: oklch(0.888 0.014 93);
   --sidebar-ring: oklch(0.51 0.164 143.6);
-}
-
-/* Touch pointers grow controls to 44px (the base layer), so their corners grow with them */
-@media (pointer: coarse) {
-  :root {
-    --control-radius: var(--touch-radius);
-  }
 }
 
 .dark {
@@ -164,6 +170,13 @@
   --accent: oklch(0.284 0.082 271.7);
   --accent-foreground: oklch(0.954 0.011 95.2);
   --destructive: oklch(0.712 0.181 22.8);
+  /* Dark text on the lighter red, as on the dark primary: 6.3:1, 7.1:1 on hover */
+  --destructive-hover: oklch(0.75 0.17 22.8);
+  --destructive-foreground: oklch(0.22 0.06 22);
+  --destructive-sheen-top: oklch(1 0 0 / 0.16);
+  --destructive-sheen-bottom: oklch(0 0 0 / 0.07);
+  --destructive-highlight: oklch(1 0 0 / 0.45);
+  --destructive-edge: oklch(0.58 0.17 22.8);
   --success: oklch(0.78 0.15 152);
   --warning: oklch(0.82 0.13 75);
   --border: oklch(0.322 0.08 272.6);
@@ -173,6 +186,7 @@
   --ring: oklch(0.75 0.165 146.3);
   /* The navy at 45%, which deepens the frame without adding a second colour */
   --scrim: oklch(0.2 0.08 268 / 0.45);
+  --scroll-shadow: oklch(0 0 0 / 0.35);
   --etching: oklch(0.63 0.095 272);
   --brand-mark: oklch(0.954 0.011 95.2);
   --chart-1: oklch(0.87 0 0);
@@ -302,6 +316,7 @@
   --color-control-edge: var(--control-edge);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
@@ -374,6 +389,31 @@
    * popover, dropdown or dialog trigger rendered as `Button` replaces its slot with the
    * primitive's own, so it passes `data-slot="button"` after the primitive's props to stay
    * matched here (`trigger-slot.test.ts`). */
+  /* A default control is 36px (#302): the registry's 32px default, raised by a minimum height so
+   * its small (28px) and large sizes keep theirs. Fields, toolbar and footer buttons share it,
+   * so a form no longer ends in buttons a size larger than its fields. Touch pointers raise
+   * every control to 44px below, which comes later and so wins. */
+  :where(
+    [data-slot="button"]:is(.h-8, .size-8),
+    [data-slot="input"].h-8,
+    [data-slot="select-trigger"][data-size="default"]
+  ) {
+    min-height: 2.25rem;
+  }
+  :where([data-slot="button"].size-8) {
+    min-width: 2.25rem;
+  }
+  /* A small control's corner is 6px, where 8px would round a 28px button towards a pill; on a
+   * touch pointer it grows to 44px and takes the 8px corner */
+  @media not (pointer: coarse) {
+    :where(
+      [data-slot="button"]:is(.h-6, .h-7, .size-6, .size-7),
+      [data-slot="select-trigger"][data-size="sm"]
+    ) {
+      --control-radius: 0.375rem;
+    }
+  }
+
   @media (pointer: coarse) {
     :where(
       [data-slot="button"],
@@ -422,6 +462,58 @@
   }
   [data-slot="button"].bg-primary:not(:focus-visible) {
     border-color: var(--primary-edge);
+  }
+
+  /* The danger button takes the same texture in red (#302) */
+  [data-slot="button"].bg-destructive:hover {
+    background-color: var(--destructive-hover);
+  }
+  [data-slot="button"].bg-destructive {
+    --tw-inset-shadow: inset 0 1px 0 0 var(--destructive-highlight);
+    background-image: linear-gradient(
+      var(--destructive-sheen-top),
+      var(--destructive-sheen-bottom)
+    );
+    box-shadow:
+      var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow),
+      var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  [data-slot="button"].bg-destructive:not(:focus-visible) {
+    border-color: var(--destructive-edge);
+  }
+
+  /* Fields and outline buttons sit a hair above the card (#302), as a light-mode control does in
+   * Cloudflare's dashboard: a white fill on a white card reads as an object by this and its edge,
+   * where dark mode's lighter fill does it alone. In Tailwind's shadow slot, so a focus or error
+   * ring composes with it rather than replacing it. */
+  :where(
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot="select-trigger"],
+    [data-slot="button"].border-control-edge
+  ) {
+    --tw-shadow: 0 1px 2px 0 oklch(0.3 0.02 80 / 0.06);
+    box-shadow:
+      var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow),
+      var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  /* A form's fieldset fits its form (#302). A fieldset is at least as wide as its widest line by
+   * default, so a row that never wraps (the icon picker's groups) would push the whole group,
+   * and the card, past the layer's edge. */
+  [data-slot="form-fieldset"] {
+    min-inline-size: 0;
+  }
+
+  /* A layer card's scrolling content (#302): a shade at its top or bottom edge while there is
+   * more to scroll that way. The shades stay put at the edges; a cover in the card's colour
+   * rides with the content and hides each one at its own end (Lea Verou's scrolling shadows). */
+  [data-slot="layer-card-body"] {
+    background:
+      linear-gradient(var(--card) 50%, transparent) top / 100% 1.5rem no-repeat local,
+      linear-gradient(transparent, var(--card) 50%) bottom / 100% 1.5rem no-repeat local,
+      linear-gradient(var(--scroll-shadow), transparent) top / 100% 0.625rem no-repeat scroll,
+      linear-gradient(transparent, var(--scroll-shadow)) bottom / 100% 0.625rem no-repeat scroll;
   }
 
   /* The registry's focus ring is the ring colour at half strength, which reads

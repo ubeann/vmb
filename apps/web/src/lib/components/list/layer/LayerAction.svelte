@@ -29,7 +29,7 @@
 
 <Button
   data-layer-action
-  class={cn("min-w-0 flex-1 tabular-nums in-data-[layer-frame=modal]:h-11", className)}
+  class={cn("min-w-0 flex-1 tabular-nums", className)}
   title={full}
   {disabled}
   {onclick}

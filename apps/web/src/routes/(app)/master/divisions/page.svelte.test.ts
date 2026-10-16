@@ -1,6 +1,13 @@
-import { DivisionListQuerySchema, type Division } from "@vmb/types";
+import {
+  DivisionListQuerySchema,
+  DivisionUpdateInputSchema,
+  DivisionInputSchema,
+  type Division
+} from "@vmb/types";
+import { setError, superValidate } from "sveltekit-superforms/server";
+import { zod4 } from "sveltekit-superforms/adapters";
 import axe from "axe-core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page as browser, userEvent } from "vitest/browser";
 
 // Isolated renders don't load the global stylesheet; axe's colour reads need it.
@@ -8,22 +15,86 @@ import "../../../../app.css";
 
 import { axeViolations } from "$lib/a11y-support.js";
 import { shortcuts } from "$lib/components/shortcuts.svelte.js";
+import { divisionFormData } from "$lib/master/form-data.js";
+import { mockPage } from "$lib/mock-page.svelte.js";
 import type { PageData } from "./$types.js";
 
-const mockPage = { url: new URL("http://localhost/master/divisions") };
-vi.mock("$app/state", () => ({ page: mockPage, navigating: { to: null } }));
+vi.mock("$app/state", async () => ({
+  page: (await import("$lib/mock-page.svelte.js")).mockPage,
+  navigating: { to: null }
+}));
 
 const toast = { success: vi.fn(), error: vi.fn() };
 vi.mock("svelte-sonner", () => ({ toast }));
 const invalidateAll = vi.fn(async () => {});
 const goto = vi.fn(async () => {});
-vi.mock("$app/navigation", () => ({ goto, invalidateAll }));
+// SvelteKit's shallow routing, as far as the record layer uses it (#302): the
+// entries pushed over the list, which `history.go` moves through
+let entries: { url: URL; state: App.PageState }[] = [];
+let at = 0;
+function showEntry() {
+  mockPage.url = entries[at]!.url;
+  mockPage.state = entries[at]!.state;
+}
+// what each record page's load gives the layer
+let layerPermissions: string[] = [];
+async function loadLayer(href: string) {
+  const [, id, edit] = href.match(/^\/master\/divisions\/([^/?]+)(\/edit)?$/) ?? [];
+  if (id === "new") {
+    const form = await superValidate(zod4(DivisionInputSchema), { errors: false });
+    form.data.isActive = true;
+    return { type: "loaded" as const, status: 200, data: { form } };
+  }
+  const record = [division, inactive].find((d) => d.id === id);
+  if (!record) return { type: "loaded" as const, status: 404, data: {} };
+  const detail = { ...record, userCount: 12 };
+  if (edit) {
+    const form = await superValidate(divisionFormData(record), zod4(DivisionUpdateInputSchema));
+    return { type: "loaded" as const, status: 200, data: { division: detail, form } };
+  }
+  return {
+    type: "loaded" as const,
+    status: 200,
+    data: { division: detail, permissions: layerPermissions }
+  };
+}
+const preloadData = vi.fn(loadLayer);
+/** Leaves a record the row asked for unopened, for a test of what asks. */
+const holdLayer = () => preloadData.mockImplementation(() => new Promise(() => {}));
+const pushState = vi.fn((href: string, state: App.PageState) => {
+  entries.splice(at + 1, Infinity, { url: new URL(href, "http://localhost"), state });
+  at++;
+  showEntry();
+});
+const replaceState = vi.fn((href: string, state: App.PageState) => {
+  entries[at] = { url: new URL(href, "http://localhost"), state };
+  showEntry();
+});
+vi.mock("$app/navigation", () => ({
+  goto,
+  invalidateAll,
+  preloadData,
+  pushState,
+  replaceState,
+  beforeNavigate: () => {},
+  afterNavigate: () => {}
+}));
+beforeEach(() => {
+  vi.spyOn(history, "go").mockImplementation((delta = 0) => {
+    at += delta;
+    showEntry();
+  });
+  // a row's hover and press preload too, which would blur `preloadData` as the sign that
+  // a row opened; the test of that preload restores it
+  vi.spyOn(LayerRoute.prototype, "preloadOn").mockReturnValue({} as never);
+});
 
 // The form action's answer, as `use:enhance` would hand it to the page.
 let deleteResult: { type: "success" | "failure"; status: number; data: Record<string, unknown> };
 // The real `deserialize` decodes through the running app's transport, which an
 // isolated render doesn't start, so action replies here carry plain JSON data.
 vi.mock("$app/forms", () => ({
+  applyAction: vi.fn(),
   deserialize: (text: string) => {
     const reply = JSON.parse(text);
     return { ...reply, data: JSON.parse(reply.data) };
@@ -47,6 +118,7 @@ function actionReply(type: "success" | "failure", status: number, data: string) 
 
 const { render } = await import("vitest-browser-svelte");
 const { default: Page } = await import("./+page.svelte");
+const { LayerRoute } = await import("$lib/components/list/layer/layer-route.svelte.js");
 
 const division: Division = {
   id: "d1000000-0000-4000-8000-000000000001",
@@ -89,6 +161,10 @@ function props(
   } = {}
 ) {
   mockPage.url = new URL(url, "http://localhost");
+  mockPage.state = {};
+  entries = [{ url: mockPage.url, state: {} }];
+  at = 0;
+  layerPermissions = overrides.permissions ?? ALL;
   const items = overrides.items ?? [division, inactive];
   return {
     data: {
@@ -121,6 +197,9 @@ afterEach(async () => {
   invalidateAll.mockClear();
   goto.mockReset();
   goto.mockImplementation(async () => {});
+  preloadData.mockClear();
+  preloadData.mockImplementation(loadLayer);
+  pushState.mockClear();
   await browser.viewport(414, 896);
 });
 
@@ -419,17 +498,18 @@ describe("divisions list", () => {
 
   it("ships with keyboard rows on (ADR-0052 rule 4): the mark, Enter, an action key, the sheet's sections and the hints in the row menu", async () => {
     const screen = await render(Page, props("/master/divisions"));
+    holdLayer();
     const marked = () => document.querySelector("tr[data-marked]")?.textContent ?? "";
 
     await userEvent.keyboard("{ArrowDown}");
     expect(marked()).toContain("Operations");
 
     await userEvent.keyboard("{Enter}");
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
-    goto.mockClear();
+    preloadData.mockClear();
     await userEvent.keyboard("e");
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}/edit`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}/edit`);
 
     expect(shortcuts.page.map((section) => section.title)).toEqual([
       "On the Divisions list",
@@ -546,33 +626,34 @@ describe("divisions list", () => {
   it("opens the record on a click anywhere on the row, but not from its own controls", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/divisions"));
+    holdLayer();
 
     await expect
       .element(screen.getByRole("link", { name: "Operations" }))
       .toHaveAttribute("href", `/master/divisions/${division.id}`);
 
     await screen.getByRole("cell", { name: "OPS" }).click();
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
     // a selection made elsewhere on the page does not swallow the click
-    goto.mockClear();
+    preloadData.mockClear();
     const heading = screen.getByRole("heading", { name: "Divisions", level: 1 }).element();
     getSelection()?.selectAllChildren(heading);
     await screen.getByRole("cell", { name: "OPS" }).click();
     getSelection()?.removeAllRanges();
-    expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+    expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
 
     // Cmd/Ctrl-click is the name link's, for a new tab: the row does not also navigate
-    goto.mockClear();
+    preloadData.mockClear();
     await userEvent.keyboard("{Meta>}");
     await screen.getByRole("cell", { name: "OPS" }).click({ modifiers: ["Meta"] });
     await userEvent.keyboard("{/Meta}");
-    expect(goto).not.toHaveBeenCalled();
+    expect(preloadData).not.toHaveBeenCalled();
 
-    goto.mockClear();
+    preloadData.mockClear();
     await screen.getByRole("button", { name: "Actions for Operations" }).click();
     await userEvent.keyboard("{Escape}");
-    expect(goto).not.toHaveBeenCalled();
+    expect(preloadData).not.toHaveBeenCalled();
   });
 
   it.each(["Filter", "View"])(
@@ -580,6 +661,7 @@ describe("divisions list", () => {
     async (button) => {
       await browser.viewport(1440, 900);
       const screen = await render(Page, props("/master/divisions"));
+      holdLayer();
 
       await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
       await expect
@@ -589,11 +671,11 @@ describe("divisions list", () => {
       // the click that closes the layer is only that
       await screen.getByRole("cell", { name: "OPS" }).click();
       await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
-      expect(goto).not.toHaveBeenCalled();
+      expect(preloadData).not.toHaveBeenCalled();
 
       // and the next one, with nothing open, opens the record as it always did
       await screen.getByRole("cell", { name: "OPS" }).click();
-      expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+      expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
     }
   );
 
@@ -602,6 +684,7 @@ describe("divisions list", () => {
     async (button) => {
       await browser.viewport(1024, 900);
       const screen = await render(Page, props("/master/divisions"));
+      holdLayer();
       await screen.getByRole("button", { name: new RegExp(`^${button}`) }).click();
       await expect
         .element(document.querySelector<HTMLElement>('[data-layer-frame="panel"]'))
@@ -631,7 +714,7 @@ describe("divisions list", () => {
       code.dispatchEvent(new MouseEvent("click", { ...init, button: 0, detail: 1 }));
 
       await expect.poll(() => document.querySelector("[data-layer-frame]")).toBeNull();
-      expect(goto).not.toHaveBeenCalled();
+      expect(preloadData).not.toHaveBeenCalled();
     }
   );
 
@@ -743,9 +826,13 @@ describe("divisions list", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Delete Operations?" });
     await expect.element(dialog).toBeVisible();
-    await expect.element(dialog.getByText(/You can restore it from Trash\./)).toBeVisible();
+    await expect.element(dialog.getByText(/where you can restore it\./)).toBeVisible();
+    // the record itself, as its row shows it, so it is plain which one goes
+    await expect.element(dialog.getByText("OPS")).toBeVisible();
     await expect.element(dialog.getByRole("button", { name: "Delete" })).toBeVisible();
     await expect.element(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
+    // a confirmation is answered, not closed: no ×
+    expect(dialog.getByRole("button", { name: "Close" }).elements()).toHaveLength(0);
   });
 
   it("keeps the dialog open and says what to do when the Division still has roles", async () => {
@@ -1096,7 +1183,11 @@ describe("divisions list", () => {
       expect(reset.elements()).toHaveLength(1);
       expect(reset.element().parentElement).toBe(done.element().parentElement);
       expect(reset.element().getAttribute("data-slot")).toBe("button");
-      expect(reset.element().getBoundingClientRect().height).toBe(44);
+      // as tall as Done beside it: the default 36px with a mouse, 44px on touch
+      expect(reset.element().getBoundingClientRect().height).toBe(
+        done.element().getBoundingClientRect().height
+      );
+      expect(reset.element().getBoundingClientRect().height).toBe(36);
       expect(done.element().getBoundingClientRect().left).toBeGreaterThan(
         reset.element().getBoundingClientRect().right
       );
@@ -1497,13 +1588,14 @@ describe("divisions list", () => {
     it("opens the record from a folded row, the second line included, when no layer is open", async () => {
       await browser.viewport(414, 896);
       const screen = await render(Page, props("/master/divisions"));
+      holdLayer();
 
       const row = screen.getByRole("link", { name: "Operations" }).element().closest("tr")!;
       const second = [...row.querySelectorAll("td:first-child p")].find((line) =>
         line.checkVisibility()
       )!;
       await browser.elementLocator(second).click();
-      expect(goto).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
+      expect(preloadData).toHaveBeenCalledWith(`/master/divisions/${division.id}`);
     });
 
     it("has no sideways scroll at 1024, 768, 623 or 390, however long a name", async () => {
@@ -1723,5 +1815,470 @@ describe("list kit parity", () => {
     await userEvent.keyboard("{Enter}");
     await expect.element(screen.getByRole("menu")).toBeVisible();
     expect(getComputedStyle(screen.getByRole("menu").element()).outlineStyle).toBe("none");
+  });
+});
+
+describe("a Division in the layer over the list (#302)", () => {
+  const recordUrl = `/master/divisions/${division.id}`;
+  const layer = () => document.querySelector<HTMLElement>("[data-record-layer]");
+  const closed = () => expect.poll(layer).toBeNull();
+  /** Opens Operations in the layer, then its edit. */
+  async function openEdit(screen: Awaited<ReturnType<typeof render>>) {
+    await screen.getByRole("link", { name: "Operations" }).click();
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Edit" })
+      .click();
+    await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
+  }
+
+  it("opens a row in view mode at its URL, with its user count, and closes back to the list as it was", async () => {
+    await browser.viewport(1280, 900);
+    const listUrl = "/master/divisions?search=ops&status=active&sort=code&page=1&perPage=50";
+    const screen = await render(Page, props(listUrl));
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+
+    const dialog = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(dialog).toBeVisible();
+    expect(mockPage.url.pathname).toBe(recordUrl);
+    // rule 5: the title takes focus, not the first control
+    await expect.element(dialog.getByRole("heading", { name: "Operations" })).toHaveFocus();
+    await expect
+      .element(dialog.getByRole("link", { name: "12 users" }))
+      .toHaveAttribute("href", `/master/users?divisionId=${division.id}`);
+
+    // the list behind keeps its search and filters while the record's URL is up
+    await expect
+      .element(screen.getByRole("searchbox", { name: "Search divisions" }))
+      .toHaveValue("ops");
+    expect(
+      document.querySelector('a[aria-label="Remove filter Status: Active"]')?.getAttribute("href")
+    ).toBe("/master/divisions?search=ops&sort=code&perPage=50");
+
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await closed();
+    expect(`${mockPage.url.pathname}${mockPage.url.search}`).toBe(listUrl);
+    // focus goes back to the row that opened it
+    await expect.element(screen.getByRole("link", { name: "Operations" })).toHaveFocus();
+  });
+
+  it("opens from a plain click on the name, which stays a real link", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const name = screen.getByRole("link", { name: "Operations" });
+
+    await expect.element(name).toHaveAttribute("href", recordUrl);
+    await name.click();
+
+    await expect.element(screen.getByRole("dialog", { name: "Operations" })).toBeVisible();
+    expect(goto).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Escape}");
+    await closed();
+  });
+
+  it("closes the row menu when its Edit opens the layer, so the row is not left painted behind", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const trigger = screen.getByRole("button", { name: "Actions for Operations" });
+
+    await trigger.click();
+    await screen.getByRole("menuitem", { name: "Edit" }).click();
+
+    await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
+    await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull();
+    await expect.element(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.keyboard("{Escape}");
+    await closed();
+    await expect.element(trigger).toHaveFocus();
+  });
+
+  it("starts loading a row's record as the pointer rests on it or presses it, and the click shares that load", async () => {
+    vi.mocked(LayerRoute.prototype.preloadOn).mockRestore();
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const code = screen.getByRole("cell", { name: "OPS" });
+    // the pointer may still rest where an earlier test left it, over a row that would load its
+    // own record: it starts on the title, and only what follows counts
+    await userEvent.hover(screen.getByRole("heading", { name: "Divisions", level: 1 }));
+    await new Promise((done) => setTimeout(done, 120));
+    preloadData.mockClear();
+
+    await userEvent.hover(code);
+    await expect.poll(() => preloadData.mock.calls).toEqual([[recordUrl]]);
+
+    // a press loads at once, for a finger that never hovers
+    preloadData.mockClear();
+    code
+      .element()
+      .dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", button: 0 })
+      );
+    expect(preloadData).toHaveBeenCalledWith(recordUrl);
+
+    await code.click();
+    await expect.element(screen.getByRole("dialog", { name: "Operations" })).toBeVisible();
+  });
+
+  it("switches the same layer to edit at /edit, and New opens an empty one at /new", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Edit" })
+      .click();
+
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    await expect.element(edit.getByRole("textbox", { name: "Name" })).toHaveValue("Operations");
+    expect(mockPage.url.pathname).toBe(`${recordUrl}/edit`);
+    expect(document.querySelectorAll("[data-record-layer]")).toHaveLength(1);
+
+    // nothing changed: Cancel closes it, straight back to the list
+    await edit.getByRole("button", { name: "Cancel" }).click();
+    await closed();
+    expect(mockPage.url.pathname).toBe("/master/divisions");
+
+    await screen.getByRole("link", { name: "New division" }).click();
+    const create = screen.getByRole("dialog", { name: "New division" });
+    await expect.element(create.getByRole("textbox", { name: "Name" })).toHaveValue("");
+    await expect.element(create.getByRole("switch", { name: "Active" })).toBeChecked();
+    expect(mockPage.url.pathname).toBe("/master/divisions/new");
+    await expect.element(create.getByRole("button", { name: "Create division" })).toBeVisible();
+  });
+
+  it("offers Edit only with master-divisions.update, and Delete… only with .delete", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(
+      Page,
+      props("/master/divisions", { permissions: ["master-divisions.view_any"] })
+    );
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(dialog.getByText(/Fleet and day-to-day operations/)).toBeVisible();
+    expect(dialog.getByRole("link", { name: "Edit" }).elements()).toHaveLength(0);
+    expect(dialog.getByRole("link", { name: "Delete…" }).elements()).toHaveLength(0);
+  });
+
+  it("asks before Esc throws away unsaved edits, and keeps them on Keep editing", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    const name = edit.getByRole("textbox", { name: "Name" });
+    await userEvent.type(name, " and Fleet");
+    await userEvent.keyboard("{Escape}");
+
+    // it names the record and what changed in it
+    const ask = screen.getByRole("alertdialog", { name: "Discard changes to Operations?" });
+    await expect.element(ask).toBeVisible();
+    await expect
+      .element(ask)
+      .toHaveAccessibleDescription("You changed the name. It hasn't been saved.");
+    await screen.getByRole("button", { name: "Keep editing" }).click();
+    await expect.element(name).toHaveValue("Operations and Fleet");
+    expect(layer()).not.toBeNull();
+
+    await edit.getByRole("button", { name: "Close" }).click();
+    await screen.getByRole("button", { name: "Discard" }).click();
+    await closed();
+    expect(mockPage.url.pathname).toBe("/master/divisions");
+  });
+
+  it("asks on Back out of unsaved edits, and stays on Keep editing", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await userEvent.type(name, " and Fleet");
+
+    // the browser's Back
+    history.go(-1);
+
+    await expect
+      .element(screen.getByRole("alertdialog", { name: "Discard changes to Operations?" }))
+      .toBeVisible();
+    await screen.getByRole("button", { name: "Keep editing" }).click();
+    await expect.poll(() => mockPage.url.pathname).toBe(`${recordUrl}/edit`);
+    await expect.element(name).toHaveValue("Operations and Fleet");
+  });
+
+  it("keeps the edits across 480px: the frame changing is no closing", async () => {
+    await browser.viewport(800, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    const name = screen.getByRole("textbox", { name: "Name" });
+    await userEvent.type(name, " and Fleet");
+
+    await browser.viewport(375, 667);
+    await browser.viewport(800, 900);
+
+    await expect.element(name).toHaveValue("Operations and Fleet");
+    expect(screen.getByRole("alertdialog").elements()).toHaveLength(0);
+  });
+
+  it("fills the screen under 480px, and is the centred dialog from 480px", async () => {
+    await browser.viewport(375, 667);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    await expect.element(screen.getByRole("textbox", { name: "Name" })).toBeVisible();
+
+    // let the slide in finish before measuring
+    await new Promise((done) => setTimeout(done, 300));
+    const phone = layer()!.getBoundingClientRect();
+    expect([phone.left, phone.top, phone.width, phone.height]).toEqual([0, 0, 375, 667]);
+    // the footer holds the primary action at the bottom, the default 36px with a mouse (44px on touch)
+    const save = screen.getByRole("button", { name: "Save division" }).element();
+    expect(save.getBoundingClientRect().height).toBe(36);
+    expect(Math.round(save.getBoundingClientRect().bottom)).toBeLessThanOrEqual(667 - 16);
+    await expect.element(screen.getByRole("button", { name: "Close" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Close" }).element().getBoundingClientRect().height
+    ).toBe(44);
+
+    await browser.viewport(800, 900);
+    await new Promise((done) => setTimeout(done, 50));
+    const dialog = layer()!;
+    const box = dialog.getBoundingClientRect();
+    expect(box.width).toBeCloseTo(512, 0);
+    expect(Math.round(box.left + box.width / 2)).toBe(
+      Math.round(document.documentElement.clientWidth / 2)
+    );
+    // `rounded-2xl`, which the theme's 0.625rem radius makes 18px
+    expect(getComputedStyle(dialog).borderTopLeftRadius).toBe("18px");
+    expect(box.height).toBeLessThanOrEqual(Math.min(900 * 0.85, 704));
+  });
+
+  it("heads the layer with the record's tile, its code and status, and marks edit and new on the tile", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const header = () => layer()!.querySelector<HTMLElement>("[data-slot=layer-header]")!;
+    const tile = () => header().querySelector<HTMLElement>("[data-slot=record-tile]")!;
+    const badge = () =>
+      header().querySelector<HTMLElement>("[data-slot=layer-badge]")?.dataset.badge;
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    const view = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(view).toHaveAccessibleDescription("OPS · Active");
+    expect(tile().style.getPropertyValue("--tile")).toBe("#2563EB");
+    expect(badge()).toBeUndefined();
+
+    await view.getByRole("link", { name: "Edit" }).click();
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    await expect.element(edit).toHaveAccessibleDescription("No changes yet · OPS");
+    expect(badge()).toBe("edit");
+    // the tile and the line under the title follow the form as it is edited
+    // the swatch's dot lies over its hidden radio
+    (edit.getByRole("radio", { name: "Green" }).element() as HTMLInputElement).click();
+    await expect.element(edit).toHaveAccessibleDescription("Unsaved changes · OPS");
+    expect(tile().style.getPropertyValue("--tile")).toBe("#16A34A");
+
+    await edit.getByRole("button", { name: "Cancel" }).click();
+    await screen.getByRole("button", { name: "Discard" }).click();
+    await closed();
+
+    await screen.getByRole("link", { name: "New division" }).click();
+    const create = screen.getByRole("dialog", { name: "New division" });
+    await expect.element(create).toHaveAccessibleDescription("Not saved yet");
+    expect(badge()).toBe("new");
+    await userEvent.type(create.getByRole("textbox", { name: "Name" }), "Finance");
+    await expect.element(create).toHaveAccessibleDescription(/^Not saved yet\s·\sFIN$/);
+  });
+
+  it("holds the content on a card that scrolls between the header and the footer", async () => {
+    await browser.viewport(800, 520);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+
+    const body = layer()!.querySelector<HTMLElement>("[data-slot=layer-card-body]")!;
+    const card = layer()!.querySelector<HTMLElement>("[data-slot=layer-card]")!;
+    const footer = layer()!.querySelector<HTMLElement>("[data-slot=layer-footer]")!;
+    const title = screen.getByRole("heading", { name: "Edit Operations" }).element();
+    // the fields are on the card; the header and the footer's buttons are on the ground around it
+    expect(card.contains(screen.getByRole("textbox", { name: "Name" }).element())).toBe(true);
+    expect(card.contains(footer)).toBe(false);
+    expect(card.contains(title)).toBe(false);
+    expect(card.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      footer.getBoundingClientRect().top
+    );
+
+    // the form is taller than the dialog: the card's body scrolls, the header and footer stay put
+    expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
+    const before = [title, footer].map((part) => part.getBoundingClientRect().top);
+    body.scrollTop = body.scrollHeight;
+    await new Promise((done) => setTimeout(done, 50));
+    expect(body.scrollTop).toBeGreaterThan(0);
+    expect([title, footer].map((part) => part.getBoundingClientRect().top)).toEqual(before);
+  });
+
+  it("fills the footer with its main action under 480px, and from 480px sets its buttons at the right", async () => {
+    await browser.viewport(375, 667);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    const footer = () =>
+      layer()!.querySelector<HTMLElement>("[data-slot=layer-footer]")!.getBoundingClientRect();
+    const box = (name: string) =>
+      screen.getByRole("button", { name }).element().getBoundingClientRect();
+    await new Promise((done) => setTimeout(done, 300));
+
+    // a phone: Cancel at the left, the main action filling the rest
+    expect(Math.round(box("Cancel").left)).toBe(Math.round(footer().left + 16));
+    expect(Math.round(box("Save division").right)).toBe(Math.round(footer().right - 16));
+    expect(box("Save division").width).toBeGreaterThan(box("Cancel").width * 2);
+
+    // the dialog: both keep their own width, the main action last at the right
+    await browser.viewport(800, 900);
+    await new Promise((done) => setTimeout(done, 50));
+    expect(Math.round(box("Save division").right)).toBe(Math.round(footer().right - 16));
+    expect(Math.round(box("Save division").left - box("Cancel").right)).toBe(8);
+    expect(box("Cancel").left).toBeGreaterThan(footer().left + 100);
+
+    // the view: Delete… apart at the left, Edit at the right
+    await screen.getByRole("button", { name: "Cancel" }).click();
+    await closed();
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    const view = screen.getByRole("dialog", { name: "Operations" });
+    const link = (name: string) =>
+      view.getByRole("link", { name }).element().getBoundingClientRect();
+    await expect.element(view.getByRole("link", { name: "Edit" })).toBeVisible();
+    expect(Math.round(link("Delete…").left)).toBe(Math.round(footer().left + 16));
+    expect(Math.round(link("Edit").right)).toBe(Math.round(footer().right - 16));
+  });
+
+  it("deletes from the layer only after asking, then closes it and offers Undo", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("cell", { name: "OPS" }).click();
+
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Delete…" })
+      .click();
+    const ask = screen.getByRole("dialog", { name: "Delete Operations?" });
+    await expect
+      .element(ask.getByText("It moves to the Trash, where you can restore it."))
+      .toBeVisible();
+
+    deleteResult = { type: "success", status: 200, data: {} };
+    await ask.getByRole("button", { name: "Delete" }).click();
+
+    await closed();
+    expect(mockPage.url.pathname).toBe("/master/divisions");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Operations moved to Trash",
+      expect.objectContaining({ action: expect.objectContaining({ label: "Undo" }) })
+    );
+  });
+
+  it("restores a Trashed Division from the layer and shows it live", async () => {
+    await browser.viewport(1280, 900);
+    const trashed = { ...division, deletedAt: "2026-10-06T01:00:00.000Z" };
+    const screen = await render(
+      Page,
+      props("/master/divisions?trashed=only", { items: [trashed] })
+    );
+    preloadData.mockImplementation(async () => ({
+      type: "loaded" as const,
+      status: 200,
+      data: {
+        division: {
+          ...trashed,
+          deletedAt: preloadData.mock.calls.length > 1 ? null : trashed.deletedAt,
+          userCount: 0
+        },
+        permissions: ALL
+      }
+    }));
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, JSON.stringify({ ok: true })));
+
+    await screen.getByRole("link", { name: "Operations" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(dialog.getByText("In the Trash. Restore it to change it.")).toBeVisible();
+    await expect.element(dialog.getByRole("link", { name: "No users" })).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Restore" }).click();
+
+    await expect.poll(() => toast.success.mock.calls[0]?.[0]).toBe("Operations restored");
+    expect(fetch.mock.calls[0]?.[0]).toBe("/master/divisions?/restore");
+    await expect.element(dialog.getByRole("link", { name: "Edit" })).toBeVisible();
+    expect(dialog.getByText("In the Trash. Restore it to change it.").elements()).toHaveLength(0);
+  });
+
+  it("has no axe violations in view and in edit", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "Operations" })).toBeVisible();
+    // contrast is measured once the layer has faded in: mid-fade its text is fainter than it ends
+    await Promise.all(
+      layer()!
+        .getAnimations()
+        .map((animation) => animation.finished)
+    );
+    expect(await axeViolations(document.body)).toEqual([]);
+
+    await screen
+      .getByRole("dialog", { name: "Operations" })
+      .getByRole("link", { name: "Edit" })
+      .click();
+    await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
+    await Promise.all(
+      layer()!
+        .getAnimations()
+        .map((animation) => animation.finished)
+    );
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+  it("drops an open whose record arrives after a later one's", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    // Operations is slow to load; Retired, clicked after it, is not
+    let release = () => {};
+    preloadData.mockImplementationOnce(
+      (href: string) => new Promise((done) => (release = () => done(loadLayer(href) as never)))
+    );
+
+    await screen.getByRole("link", { name: "Operations" }).click();
+    await screen.getByRole("link", { name: "Retired" }).click();
+    await expect.element(screen.getByRole("dialog", { name: "Retired" })).toBeVisible();
+    release();
+
+    await new Promise((done) => setTimeout(done, 50));
+    expect(pushState).toHaveBeenCalledTimes(1);
+    await expect.element(screen.getByRole("dialog", { name: "Retired" })).toBeVisible();
+  });
+
+  it("reloads a lost race's record in the layer, keeping the list", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions?search=ops"));
+    preloadData.mockImplementation(async (href: string) => {
+      const loaded = await loadLayer(href);
+      // the first edit load comes back from a save that lost the race
+      if (href.endsWith("/edit") && preloadData.mock.calls.length === 2) {
+        setError(
+          (loaded.data as { form: Parameters<typeof setError>[0] }).form,
+          "updatedAt",
+          "This record was changed by someone else since you opened it."
+        );
+      }
+      return loaded;
+    });
+    await openEdit(screen);
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    await expect.element(edit.getByRole("alert")).toBeVisible();
+
+    await edit.getByRole("link", { name: "Reload" }).click();
+
+    await expect.poll(() => preloadData.mock.calls.length).toBe(3);
+    await expect.element(edit.getByRole("alert")).not.toBeInTheDocument();
+    expect(mockPage.url.pathname).toBe(`${recordUrl}/edit`);
+    expect(goto).not.toHaveBeenCalled();
   });
 });

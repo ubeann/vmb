@@ -24,11 +24,14 @@ vi.mock("$lib/master/form-action.js", () => ({
 vi.mock("$lib/master/form-data.js", () => ({
   divisionFormData: (division: unknown) => division
 }));
-vi.mock("sveltekit-superforms/server", () => ({ superValidate: async () => ({}) }));
+vi.mock("$lib/master/permissions.js", () => import("../../../../../lib/master/permissions.js"));
+vi.mock("$lib/master/appearance.js", () => import("../../../../../lib/master/appearance.js"));
+vi.mock("sveltekit-superforms/server", () => ({ superValidate: async () => ({ data: {} }) }));
 vi.mock("sveltekit-superforms/adapters", () => ({ zod4: (schema: unknown) => schema }));
 
 const view = await import("./+page.server.js");
 const edit = await import("./edit/+page.server.js");
+const create = await import("../new/+page.server.js");
 
 const division = {
   id: "d-1",
@@ -37,7 +40,16 @@ const division = {
   colorHex: "#0f766e"
 };
 
-const event = { params: { id: "d-1" } } as never;
+const ALL = ["master-divisions.view_any", "master-divisions.create", "master-divisions.update"];
+
+const eventFor = (permissions = ALL, url = "http://localhost/master/divisions/d-1") =>
+  ({
+    params: { id: "d-1" },
+    url: new URL(url),
+    parent: async () => ({ permissions })
+  }) as never;
+
+const event = eventFor();
 
 beforeEach(() => {
   getDivisionMock.mockReset();
@@ -78,5 +90,35 @@ describe("a division's edit route", () => {
     getDivisionMock.mockResolvedValue({ ok: true, value: trashed });
 
     await expect(view.load(event)).resolves.toMatchObject({ division: trashed });
+  });
+});
+
+describe("a division's pages answer as the API does without the permission", () => {
+  it("refuses the edit page without master-divisions.update", async () => {
+    await expect(edit.load(eventFor(["master-divisions.view_any"]))).rejects.toMatchObject({
+      status: 403,
+      body: { message: "You do not have permission to do that." }
+    });
+    expect(getDivisionMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses the new page without master-divisions.create", async () => {
+    await expect(create.load(eventFor(["master-divisions.view_any"]))).rejects.toMatchObject({
+      status: 403
+    });
+  });
+
+  it("opens the new page with master-divisions.create, active and blue by default", async () => {
+    await expect(create.load(eventFor())).resolves.toMatchObject({
+      form: { data: { isActive: true, colorHex: "#2563EB" } }
+    });
+  });
+});
+
+describe("a division's view page without JavaScript", () => {
+  it("asks before a delete when the URL says so", async () => {
+    const asking = eventFor(ALL, "http://localhost/master/divisions/d-1?delete");
+    await expect(view.load(asking)).resolves.toMatchObject({ confirmDelete: true });
+    await expect(view.load(event)).resolves.toMatchObject({ confirmDelete: false });
   });
 });
