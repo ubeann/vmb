@@ -2216,6 +2216,12 @@ describe("a Division in the layer over the list (#302)", () => {
 
     await screen.getByRole("cell", { name: "OPS" }).click();
     await expect.element(screen.getByRole("dialog", { name: "Operations" })).toBeVisible();
+    // contrast is measured once the layer has faded in: mid-fade its text is fainter than it ends
+    await Promise.all(
+      layer()!
+        .getAnimations()
+        .map((animation) => animation.finished)
+    );
     expect(await axeViolations(document.body)).toEqual([]);
 
     await screen
@@ -2223,6 +2229,11 @@ describe("a Division in the layer over the list (#302)", () => {
       .getByRole("link", { name: "Edit" })
       .click();
     await expect.element(screen.getByRole("dialog", { name: "Edit Operations" })).toBeVisible();
+    await Promise.all(
+      layer()!
+        .getAnimations()
+        .map((animation) => animation.finished)
+    );
     expect(await axeViolations(document.body)).toEqual([]);
   });
   it("drops an open whose record arrives after a later one's", async () => {
