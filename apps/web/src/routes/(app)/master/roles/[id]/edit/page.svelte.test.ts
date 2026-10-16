@@ -15,7 +15,7 @@ const role: RoleDetail = {
   isActive: true,
   isSystem: false,
   colorHex: "#805AD5",
-  iconName: "heroicon-o-user",
+  iconName: "user",
   description: null,
   divisionId: null,
   divisionName: null,
@@ -30,7 +30,7 @@ async function pageData(overrides: Record<string, unknown> = {}) {
         name: "Staff",
         description: "",
         colorHex: "#805AD5",
-        iconName: "heroicon-o-user",
+        iconName: "user",
         isActive: true,
         updatedAt: STAMP
       },

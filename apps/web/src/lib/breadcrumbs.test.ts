@@ -4,7 +4,7 @@ import type { NavGroup } from "./nav.js";
 
 const finance = {
   label: "Finance",
-  tile: { iconName: "heroicon-o-banknotes", colorHex: "#0f766e" }
+  tile: { iconName: "banknote", colorHex: "#0f766e" }
 };
 
 const labels = (trail: ReturnType<typeof trailFor>) => trail.map((crumb) => crumb.label);

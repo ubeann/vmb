@@ -15,7 +15,7 @@ const division: Division = {
   code: "OPS",
   description: null,
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true,
   createdAt: STAMP,
   updatedAt: STAMP,
@@ -30,7 +30,7 @@ async function pageData(overrides: Record<string, unknown> = {}) {
         code: "OPS",
         description: "",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: true,
         updatedAt: STAMP
       },

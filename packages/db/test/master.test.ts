@@ -25,7 +25,7 @@ const division = (overrides: Partial<DivisionInput> = {}): DivisionInput => ({
   code: "OPS",
   description: "Fleet and day-to-day operations",
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true,
   ...overrides
 });
@@ -61,7 +61,7 @@ const role = (overrides: Partial<RoleInput> = {}): RoleInput => ({
   name: "Staff",
   description: "Supports daily operations",
   colorHex: "#805AD5",
-  iconName: "heroicon-o-user",
+  iconName: "user",
   isActive: true,
   ...overrides
 });
@@ -74,7 +74,7 @@ async function insertDivision(
 ): Promise<void> {
   await client.exec(
     `insert into master.divisions (id, name, code, color_hex, icon_name, is_active, created_at, updated_at)
-      values ('${id}', '${name}', '${code}', '#000000', 'heroicon-o-home', true, now(), now())`
+      values ('${id}', '${name}', '${code}', '#000000', 'house', true, now(), now())`
   );
 }
 
@@ -389,7 +389,7 @@ describe("divisions store", () => {
         code: "OPS",
         description: "Fleet and day-to-day operations",
         colorHex: "#112233",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: false,
         deletedAt: null
       });

@@ -12,7 +12,7 @@ const { default: Page } = await import("./+page.svelte");
 
 const health = { status: "ok", db: "connected", timestamp: "2026-01-01T00:00:00.000Z" };
 const user = { id: "u-1", name: "Siti Rahma", email: "siti@vmblogistics.id" };
-const division = { name: "Warehouse", iconName: "heroicon-o-building-storefront" };
+const division = { name: "Warehouse", iconName: "store" };
 
 const data = (overrides: Record<string, unknown> = {}) => ({
   user,

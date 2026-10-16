@@ -46,7 +46,7 @@ describe("RoleForm", () => {
         name: "Manager Division",
         description: "Oversees division activities",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-building-office-2",
+        iconName: "building-2",
         isActive: false
       },
       zod4(RoleInputSchema)
@@ -92,7 +92,7 @@ describe("RoleForm on an edit", () => {
     name: "Staff",
     description: "",
     colorHex: "#805AD5",
-    iconName: "heroicon-o-user",
+    iconName: "user" as const,
     isActive: true
   };
 
@@ -149,7 +149,7 @@ describe("RoleForm's checks", () => {
     name: "Staff",
     description: "",
     colorHex: "#805AD5",
-    iconName: "heroicon-o-user",
+    iconName: "user" as const,
     isActive: true
   };
 
@@ -209,7 +209,7 @@ describe("RoleForm in the layer", () => {
         name: "Staff",
         description: "",
         colorHex: "#805AD5",
-        iconName: "heroicon-o-user",
+        iconName: "user",
         isActive: true
       },
       zod4(RoleInputSchema)

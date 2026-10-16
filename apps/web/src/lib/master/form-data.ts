@@ -1,4 +1,4 @@
-import type { Division, DivisionInput, Role, RoleInput, User } from "@vmb/types";
+import type { Division, DivisionInput, IconName, Role, RoleInput, User } from "@vmb/types";
 
 /** A Role's form: the shared input, and on an edit the `updatedAt` it loaded. */
 export type RoleFormFields = RoleInput & { updatedAt?: string | null };
@@ -11,7 +11,8 @@ export type DivisionFormFields = DivisionInput & { updatedAt?: string | null };
  * string. These map a record into the shape the shared input schema parses,
  * so an edit form loads the values the admin edits, not the storage shape.
  * `updatedAt` rides along as the stamp the save is checked against, so it is
- * the exact string the API served.
+ * the exact string the API served. A stored icon outside the catalogue (#176)
+ * loads as it is, so the form shows it and asks for another.
  */
 export function divisionFormData(division: Division) {
   return {
@@ -19,7 +20,7 @@ export function divisionFormData(division: Division) {
     code: division.code,
     description: division.description ?? "",
     colorHex: division.colorHex,
-    iconName: division.iconName,
+    iconName: division.iconName as IconName,
     isActive: division.isActive,
     updatedAt: division.updatedAt
   };
@@ -30,7 +31,7 @@ export function roleFormData(role: Role) {
     name: role.name,
     description: role.description ?? "",
     colorHex: role.colorHex,
-    iconName: role.iconName,
+    iconName: role.iconName as IconName,
     isActive: role.isActive,
     updatedAt: role.updatedAt
   };

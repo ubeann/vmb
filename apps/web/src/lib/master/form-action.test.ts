@@ -31,7 +31,7 @@ const submitted = {
   code: "OPS",
   description: "",
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: "on"
 };
 
@@ -80,7 +80,7 @@ describe("createMasterFormAction", () => {
         code: "OPS",
         description: "",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: true
       },
       expect.anything()
@@ -93,7 +93,7 @@ describe("createMasterFormAction", () => {
       code: "OPS",
       description: "",
       colorHex: "#2563EB",
-      iconName: "heroicon-o-cog-6-tooth"
+      iconName: "settings"
     };
     submit.mockResolvedValue({ ok: true, value: { id: "d1000000-0000-4000-8000-000000000001" } });
 

@@ -3,10 +3,10 @@
 // name finds it by. Lucide has some 1,800; a department needs a few dozen
 // that fit it, and each one offered is one more in the bundle.
 
-// the type alone: the catalogue reads on a server or in a unit test without drawing anything
-import type { GLYPHS } from "./glyphs.js";
+// the names are the shared list a stored icon validates against; this adds what the picker shows
+import type { IconName } from "@vmb/types";
 
-export type IconName = keyof typeof GLYPHS;
+export type { IconName };
 
 export type CatalogIcon = {
   name: IconName;

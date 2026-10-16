@@ -22,7 +22,7 @@ const division = {
   code: "OPS",
   description: null,
   colorHex: "#2563EB",
-  iconName: "heroicon-o-cog-6-tooth",
+  iconName: "settings",
   isActive: true,
   createdAt: STAMP,
   updatedAt: STAMP,
@@ -101,7 +101,7 @@ describe("master API client", () => {
       code: "OPS",
       description: "",
       colorHex: "#2563EB",
-      iconName: "heroicon-o-cog-6-tooth",
+      iconName: "settings" as const,
       isActive: true
     };
 
@@ -136,7 +136,7 @@ describe("master API client", () => {
       code: "OPS",
       description: "",
       colorHex: "#2563EB",
-      iconName: "heroicon-o-cog-6-tooth",
+      iconName: "settings",
       isActive: true,
       updatedAt: STAMP
     });
@@ -162,7 +162,7 @@ describe("master API client", () => {
       code: "OPS",
       description: "",
       colorHex: "#2563EB",
-      iconName: "heroicon-o-cog-6-tooth",
+      iconName: "settings",
       isActive: true,
       updatedAt: STAMP
     });
@@ -294,7 +294,7 @@ describe("master API client", () => {
         isActive: true,
         isSystem: false,
         colorHex: "#2563EB",
-        iconName: "heroicon-o-user",
+        iconName: "user",
         description: null,
         divisionId: ID,
         divisionName: "Hub",

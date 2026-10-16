@@ -1,6 +1,7 @@
 // Generated alongside catalog.ts: one import per icon the catalogue offers, so a
 // stored Lucide name draws without loading the whole set (ADR-0035 rule 3).
 
+import type { IconName } from "@vmb/types";
 import AccessibilityIcon from "@lucide/svelte/icons/accessibility";
 import AnchorIcon from "@lucide/svelte/icons/anchor";
 import ArchiveIcon from "@lucide/svelte/icons/archive";
@@ -324,4 +325,4 @@ export const GLYPHS = {
   wifi: WifiIcon,
   wrench: WrenchIcon,
   zap: ZapIcon
-} as const;
+} as const satisfies Record<IconName | "shapes", typeof ShapesIcon>;

@@ -68,7 +68,7 @@ describe("master API: a Trashed record is read-only", () => {
       code: `DV${serial}`,
       description: "",
       colorHex: "#2563EB",
-      iconName: "heroicon-o-cog-6-tooth",
+      iconName: "settings",
       isActive: true
     });
     await store.deleteDivision(created.id);
@@ -98,7 +98,7 @@ describe("master API: a Trashed record is read-only", () => {
     code: division.code,
     description: "",
     colorHex: "#2563EB",
-    iconName: "heroicon-o-cog-6-tooth",
+    iconName: "settings",
     isActive: true,
     updatedAt: division.updatedAt
   });
@@ -185,7 +185,7 @@ describe("master API: a Trashed record is read-only", () => {
         code: "LIVE",
         description: "",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: true
       });
 
@@ -206,7 +206,7 @@ describe("master API: a Trashed record is read-only", () => {
         code: division.code,
         description: "",
         colorHex: "#2563EB",
-        iconName: "heroicon-o-cog-6-tooth",
+        iconName: "settings",
         isActive: true
       });
 
@@ -236,7 +236,7 @@ describe("master API: a Trashed record is read-only", () => {
           name: `Staff ${serial}`,
           description: "",
           colorHex: "#805AD5",
-          iconName: "heroicon-o-user",
+          iconName: "user",
           isActive: true
         });
         Object.assign(overrides, { roleIds: [staff.id] });
