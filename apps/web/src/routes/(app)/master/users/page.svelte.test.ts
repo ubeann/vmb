@@ -573,6 +573,10 @@ describe("users list", () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/users"));
     await screen.getByRole("button", { name: "Actions for Rina Wijaya" }).click();
+    await expect.element(screen.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    // axe reads colours, which are blended until the menu's entrance animation has finished
+    const menu = screen.getByRole("menu").element();
+    await Promise.all(menu.getAnimations({ subtree: true }).map((animation) => animation.finished));
     expect(await axeViolations(document.body)).toEqual([]);
     await userEvent.keyboard("{Escape}");
     screen.unmount();
