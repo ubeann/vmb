@@ -424,6 +424,13 @@
     border-color: var(--primary-edge);
   }
 
+  /* A form's fieldset fits its form (#302). A fieldset is at least as wide as its widest line by
+   * default, so a row that never wraps (the icon picker's groups) would push the whole group,
+   * and the card, past the layer's edge. */
+  [data-slot="form-fieldset"] {
+    min-inline-size: 0;
+  }
+
   /* The registry's focus ring is the ring colour at half strength, which reads
    * 2.2:1 on paper (3.0:1 in dark), under WCAG 2.2's 3:1 for the state
    * indicator (#208). Fields, the select, the checkbox and buttons take it at

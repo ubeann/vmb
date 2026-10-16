@@ -20,6 +20,16 @@ export function useRecordForm<T extends Record<string, unknown>>(
 ): { superform: ReturnType<typeof superForm<T>>; guard: DiscardGuard } {
   const superform = superForm(data, {
     validators: options.validators,
+    // Superforms' own scroll asks only whether the field is on screen, so in a
+    // layer it leaves one scrolled out of the card's view; this one scrolls the
+    // card too, and brings the label above the field into view with it
+    scrollToError: {
+      block: "center",
+      behavior:
+        typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth"
+    },
     onResult: ({ result, cancel }) => {
       if (result.type !== "redirect") return;
       // saved: leaving loses nothing now

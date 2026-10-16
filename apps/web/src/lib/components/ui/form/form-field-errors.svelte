@@ -1,6 +1,7 @@
 <script lang="ts">
   import * as FormPrimitive from "formsnap";
   import { cn, type WithoutChild } from "$lib/utils.js";
+  import FieldError from "./form-field-error.svelte";
 
   let {
     ref = $bindable(null),
@@ -23,7 +24,7 @@
       {@render childrenProp({ errors, errorProps })}
     {:else}
       {#each errors as error (error)}
-        <div {...errorProps} class={cn(errorClasses)}>{error}</div>
+        <FieldError {...errorProps} class={cn(errorClasses)}>{error}</FieldError>
       {/each}
     {/if}
   {/snippet}
