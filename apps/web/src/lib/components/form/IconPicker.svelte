@@ -9,7 +9,10 @@
   fit, then "+N more", which opens the rest onto more lines.
 
   The icons are radios in one group, so the arrow keys move between them.
-  They post nothing: the form's own field does, as the picker reports a pick.
+  They post as the form's field (`name`), so a pick saves without
+  JavaScript too; the form keeps a hidden field of that name before the
+  picker for a stored name no tile shows, and the checked tile, coming
+  after it, wins.
 -->
 <script lang="ts">
   import HeroIcon from "$lib/components/HeroIcon.svelte";
@@ -57,12 +60,15 @@
   let {
     value,
     onpick,
+    name: field,
     suggestFor = "",
     color
   }: {
     /** The stored name: a catalogue Lucide name, or a legacy Heroicons one. */
     value: string;
     onpick: (name: string) => void;
+    /** The form field the radios post as. */
+    name?: string;
     /** The record's name, which the suggestions are for. */
     suggestFor?: string;
     /** The record's colour, which the chosen icon takes. */
@@ -322,12 +328,13 @@
 </div>
 
 {#snippet option(name: string, label: string, checked: boolean)}
-  <!-- relative, so the hidden radio sits on its icon: focus scrolls to it, not to the card's top -->
+  <!-- relative, so the hidden radio sits on its icon: focus scrolls to it, not to the card's top;
+       the chosen tile posts the name as stored, so a legacy one saves unchanged until another is picked -->
   <label data-slot="icon-option" class="relative cursor-pointer" title={label}>
     <input
       type="radio"
-      name="{id}-icon"
-      value={name}
+      name={field ?? `${id}-icon`}
+      value={name === selected ? value : name}
       {checked}
       onchange={() => onpick(name)}
       aria-label={label}

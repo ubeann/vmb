@@ -266,6 +266,11 @@
           >· {swatch?.label ?? (picked || $fields.colorHex || "None")}</span
         ></Form.Legend
       >
+      <!-- with the picker closed, the colour as it stands: a custom one no swatch shows; a checked
+           swatch, posted after it, wins -->
+      {#if !panelOpen}
+        <input type="hidden" name="colorHex" value={$fields.colorHex} />
+      {/if}
       <!-- the swatches, then the custom one last, as the icons end in More: thirteen cells that
            make one line of the card's width, and on a phone two that keep their columns -->
       <div
@@ -277,10 +282,10 @@
             class="relative flex size-8 cursor-pointer items-center justify-center pointer-coarse:size-11"
             title={option.label}
           >
-            <!-- not sent: the hex field is what the form posts -->
+            <!-- posts the colour, after the hidden field below, so a swatch picked without JavaScript wins -->
             <input
               type="radio"
-              name="colorSwatch"
+              name="colorHex"
               value={option.hex}
               checked={swatch === option}
               onchange={() => ($fields.colorHex = option.hex)}
@@ -347,8 +352,6 @@
             {/snippet}
           </ColorPicker>
         </div>
-      {:else}
-        <input type="hidden" name="colorHex" value={$fields.colorHex} />
       {/if}
       <!-- said as it appears, and only then; a pale colour still saves -->
       <div aria-live="polite" class="empty:hidden">
@@ -395,9 +398,10 @@
           >· {iconLabel($fields.iconName)}</span
         ></Form.Legend
       >
-      <!-- the picker reports a pick; this is what posts -->
+      <!-- the stored name, for one no tile shows; a checked tile, posted after it, wins -->
       <input type="hidden" name="iconName" value={$fields.iconName} />
       <IconPicker
+        name="iconName"
         value={$fields.iconName}
         onpick={(name) => ($fields.iconName = name)}
         suggestFor={$fields.name}

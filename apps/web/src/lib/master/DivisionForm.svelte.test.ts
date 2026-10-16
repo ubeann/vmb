@@ -225,6 +225,35 @@ describe("DivisionForm", () => {
     expect(new FormData(document.querySelector("form")!).get("iconName")).toBe("truck");
   });
 
+  it("posts a swatch or an icon picked without JavaScript, as the server reads the form", async () => {
+    const form = await superValidate(
+      { name: "Finance", code: "FIN", colorHex: "#123456", iconName: "heroicon-o-banknotes" },
+      zod4(DivisionInputSchema)
+    );
+    const screen = await render(DivisionForm, { form });
+    // Superforms reads a field that posts twice by its last value
+    const posted = (field: string) =>
+      new FormData(document.querySelector("form")!).getAll(field).at(-1);
+
+    // as loaded: a custom colour no swatch shows, and a legacy icon name, unchanged
+    expect(posted("colorHex")).toBe("#123456");
+    expect(posted("iconName")).toBe("heroicon-o-banknotes");
+
+    // checked as a browser checks a radio with no script to hear it
+    const check = (name: string) => {
+      (screen.getByRole("radio", { name }).element() as HTMLInputElement).checked = true;
+    };
+    check("Teal");
+    const other = screen
+      .getByRole("group", { name: "Icon", exact: true })
+      .getByRole("radio")
+      .elements()[1] as HTMLInputElement;
+    other.checked = true;
+    expect(posted("colorHex")).toBe("#0D9488");
+    expect(posted("iconName")).toBe(other.value);
+    expect(other.value).not.toMatch(/^heroicon-/);
+  });
+
   it("suggests icons from the name as it is typed", async () => {
     const form = await superValidate(zod4(DivisionInputSchema), { errors: false });
     const screen = await render(DivisionForm, { form });
