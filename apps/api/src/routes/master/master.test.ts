@@ -109,6 +109,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     deleteDivision: vi.fn(async () => undefined),
     restoreDivision: vi.fn(async () => division),
     setDivisionActive: vi.fn(async () => division),
+    bulkDivisions: vi.fn(async (request) => ({ ids: request.ids })),
     listRoles: vi.fn(async () => EMPTY_ROLES),
     getRole: vi.fn(async () => ({ ...role, divisionName: null })),
     createRole: vi.fn(async () => role),
@@ -121,6 +122,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     updateUser: vi.fn(async () => user),
     deleteUser: vi.fn(async () => undefined),
     restoreUser: vi.fn(async () => user),
+    bulkUsers: vi.fn(async (request) => ({ ids: request.ids })),
     ...overrides
   };
 }
@@ -372,6 +374,73 @@ describe("master API: divisions", () => {
       appWith(store).request(`/divisions/${ID}/restore`, { method: "POST" }, env)
     ).resolves.toMatchObject({ status: 200 });
     expect(store.restoreDivision).toHaveBeenCalledWith(ID);
+  });
+
+  it("deletes and restores several at once through the one bulk endpoint", async () => {
+    const store = fakeStore();
+    const ids = [ID, OTHER_ID];
+
+    const deleted = await appWith(store).request(
+      "/divisions/bulk",
+      json("POST", { action: "delete", ids }),
+      env
+    );
+    expect(deleted.status).toBe(200);
+    await expect(deleted.json()).resolves.toEqual({ ids });
+    expect(store.bulkDivisions).toHaveBeenLastCalledWith({ action: "delete", ids });
+
+    const restored = await appWith(store).request(
+      "/divisions/bulk",
+      json("POST", { action: "restore", ids }),
+      env
+    );
+    expect(restored.status).toBe(200);
+    expect(store.bulkDivisions).toHaveBeenLastCalledWith({ action: "restore", ids });
+  });
+
+  it("refuses a bulk request with no ids, more than 100, a bad id or an unknown action", async () => {
+    const store = fakeStore();
+    const crowd = Array.from(
+      { length: 101 },
+      (_, n) => `d1000000-0000-4000-8000-${String(n).padStart(12, "0")}`
+    );
+
+    for (const body of [
+      { action: "delete", ids: [] },
+      { action: "delete", ids: crowd },
+      { action: "delete", ids: ["nope"] },
+      { action: "destroy", ids: [ID] },
+      { ids: [ID] }
+    ]) {
+      const response = await appWith(store).request("/divisions/bulk", json("POST", body), env);
+      expect(response.status).toBe(400);
+    }
+    // the cap is 100, and exactly 100 is fine
+    const full = await appWith(store).request(
+      "/divisions/bulk",
+      json("POST", { action: "delete", ids: crowd.slice(0, 100) }),
+      env
+    );
+    expect(full.status).toBe(200);
+    expect(store.bulkDivisions).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a bulk delete that meets a division with roles to 409 DIVISION_IN_USE, naming them", async () => {
+    const message = "1 of the 2 selected divisions still has roles: “Busy” (1 role).";
+    const store = fakeStore({
+      bulkDivisions: vi.fn(async () => {
+        throw new ConflictError(message, { code: "DIVISION_IN_USE" });
+      })
+    });
+
+    const response = await appWith(store).request(
+      "/divisions/bulk",
+      json("POST", { action: "delete", ids: [ID, OTHER_ID] }),
+      env
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ code: "DIVISION_IN_USE", message });
   });
 
   it("maps deleting a division that still has roles to 409 DIVISION_IN_USE", async () => {
@@ -925,6 +994,41 @@ describe("master API: users", () => {
       appWith(store).request(`/users/${ID}/restore`, { method: "POST" }, env)
     ).resolves.toMatchObject({ status: 200 });
     expect(store.restoreUser).toHaveBeenCalledWith(ID, CALLER);
+  });
+
+  it("deletes and restores several at once, as the caller", async () => {
+    const store = fakeStore();
+    const ids = [ID, OTHER_ID];
+
+    const deleted = await appWith(store).request(
+      "/users/bulk",
+      json("POST", { action: "delete", ids }),
+      env
+    );
+    expect(deleted.status).toBe(200);
+    await expect(deleted.json()).resolves.toEqual({ ids });
+    expect(store.bulkUsers).toHaveBeenLastCalledWith({ action: "delete", ids }, CALLER);
+
+    await appWith(store).request("/users/bulk", json("POST", { action: "restore", ids }), env);
+    expect(store.bulkUsers).toHaveBeenLastCalledWith({ action: "restore", ids }, CALLER);
+  });
+
+  it("maps a bulk delete that reaches a user out of the caller's reach to 403", async () => {
+    const message = "You cannot change a user who holds permissions you do not have: “Rina”.";
+    const store = fakeStore({
+      bulkUsers: vi.fn(async () => {
+        throw new ForbiddenError("PERMISSION_ESCALATION", message);
+      })
+    });
+
+    const response = await appWith(store).request(
+      "/users/bulk",
+      json("POST", { action: "delete", ids: [ID] }),
+      env
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ code: "PERMISSION_ESCALATION", message });
   });
 
   it("maps a duplicate email to 409 CONFLICT naming the email field", async () => {

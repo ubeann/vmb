@@ -11,6 +11,7 @@
   import ArrowDownIcon from "@lucide/svelte/icons/arrow-down";
   import ArrowUpIcon from "@lucide/svelte/icons/arrow-up";
   import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
+  import type { Snippet } from "svelte";
   import { listPage } from "./list-url.svelte.js";
 
   // the list's URL, which a record layer over it leaves in place (#302)
@@ -21,20 +22,23 @@
     column,
     label,
     current,
-    class: className = ""
+    class: className = "",
+    lead
   }: {
     base: MasterListPathname;
     column: string;
     label: string;
     current: { sort: string; dir: "asc" | "desc" };
     class?: string;
+    /** Something before the link in the same cell: the select-all checkbox (#305). */
+    lead?: Snippet;
   } = $props();
 
   const sorting = $derived(sortState(base, page.url.searchParams, current, column));
   const next = $derived(sorting.ariaSort === "ascending" ? "descending" : "ascending");
 </script>
 
-<Table.Head scope="col" aria-sort={sorting.ariaSort} class={className}>
+{#snippet link()}
   <a
     href={resolve(sorting.href)}
     aria-label="{label}, sort {next}"
@@ -54,4 +58,12 @@
       <ChevronsUpDownIcon aria-hidden="true" class="size-3.5 opacity-50" />
     {/if}
   </a>
+{/snippet}
+
+<Table.Head scope="col" aria-sort={sorting.ariaSort} class={className}>
+  {#if lead}
+    <div class="flex items-center gap-2.5">{@render lead()}{@render link()}</div>
+  {:else}
+    {@render link()}
+  {/if}
 </Table.Head>

@@ -1,4 +1,6 @@
 import {
+  type BulkRequest,
+  type BulkResponse,
   type Division,
   type DivisionDetail,
   type DivisionInput,
@@ -31,8 +33,10 @@ import {
   toIso,
   unchangedSince,
   withinDays,
-  type MasterDb
+  type MasterDb,
+  type OpenTransaction
 } from "./db.js";
+import { uniqueIds } from "./guards.js";
 import { inDivision } from "./users.js";
 import { ConflictError, NotFoundError, StaleRecordError } from "../errors.js";
 
@@ -336,4 +340,95 @@ export async function restoreDivision(db: MasterDb, id: string): Promise<Divisio
     // its name or code may have been taken while it was Trashed
     return conflictFrom(error, DIVISION_CONFLICTS);
   }
+}
+
+/** “Alpha” (1 role), “Beta” (2 roles): what a refusal says about the divisions it names. */
+function withRoles(rows: { name: string; roles: number }[]): string {
+  return rows
+    .map((row) => `“${row.name}” (${row.roles} ${row.roles === 1 ? "role" : "roles"})`)
+    .sort((a, b) => a.localeCompare(b))
+    .join(", ");
+}
+
+/**
+ * Delete or restore several divisions as one: all of them or none, in one
+ * transaction (#305). A refusal is read over the whole batch, so it names every
+ * division in the way: those that still have roles (`DIVISION_IN_USE`, with
+ * how many each), or a 404 when one is gone or not where the action needs it.
+ * The write repeats the rules in its own `where`, as the single delete does,
+ * so a division that changed since the read fails the batch too (ADR-0055).
+ */
+export async function bulkDivisions(
+  options: { transaction: OpenTransaction },
+  request: BulkRequest
+): Promise<BulkResponse> {
+  const ids = uniqueIds(request.ids);
+  return options.transaction((tx) =>
+    request.action === "delete" ? bulkDeleteDivisions(tx, ids) : bulkRestoreDivisions(tx, ids)
+  );
+}
+
+async function bulkDeleteDivisions(tx: MasterDb, ids: string[]): Promise<BulkResponse> {
+  const found = await tx
+    .select({ id: divisions.id, name: divisions.name, roles: count(roles.id) })
+    .from(divisions)
+    .leftJoin(roles, eq(roles.divisionId, divisions.id))
+    .where(and(inArray(divisions.id, ids), isNull(divisions.deletedAt)))
+    .groupBy(divisions.id);
+  if (found.length !== ids.length) {
+    throw new NotFoundError(
+      "Some of the selected divisions are gone or already in the Trash. Reload the list and try again."
+    );
+  }
+
+  const busy = found.filter((row) => row.roles > 0);
+  if (busy.length > 0) {
+    throw new ConflictError(
+      `${busy.length} of the ${ids.length} selected ${ids.length === 1 ? "division" : "divisions"} still ${busy.length === 1 ? "has" : "have"} roles: ${withRoles(busy)}. Move ${busy.length === 1 && busy[0]?.roles === 1 ? "that role" : "those roles"} to another division or delete them, then try again. Nothing was deleted.`,
+      { code: "DIVISION_IN_USE" }
+    );
+  }
+
+  const rows = await tx
+    .update(divisions)
+    .set({ deletedAt: new Date(), updatedAt: nextStamp(divisions.updatedAt) })
+    .where(
+      and(
+        inArray(divisions.id, ids),
+        isNull(divisions.deletedAt),
+        not(
+          exists(
+            tx
+              .select({ one: sql`1` })
+              .from(roles)
+              .where(eq(roles.divisionId, divisions.id))
+          )
+        )
+      )
+    )
+    .returning({ id: divisions.id });
+  if (rows.length !== ids.length) {
+    throw new ConflictError("Some divisions changed while they were being deleted. Try again.");
+  }
+  return { ids: rows.map((row) => row.id) };
+}
+
+async function bulkRestoreDivisions(tx: MasterDb, ids: string[]): Promise<BulkResponse> {
+  let rows: { id: string }[];
+  try {
+    rows = await tx
+      .update(divisions)
+      .set({ deletedAt: null, updatedAt: nextStamp(divisions.updatedAt) })
+      .where(and(inArray(divisions.id, ids), isNotNull(divisions.deletedAt)))
+      .returning({ id: divisions.id });
+  } catch (error) {
+    // a name or code may have been taken while they were Trashed
+    return conflictFrom(error, DIVISION_CONFLICTS);
+  }
+  if (rows.length !== ids.length) {
+    throw new NotFoundError(
+      "Some of the selected divisions are gone or no longer in the Trash. Reload the list and try again."
+    );
+  }
+  return { ids: rows.map((row) => row.id) };
 }

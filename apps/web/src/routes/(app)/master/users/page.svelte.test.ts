@@ -586,3 +586,160 @@ describe("users list", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 });
+
+describe("selecting users for a bulk action (#305)", () => {
+  // the bar's own count; the footer says "3 users" in a status of its own
+  const bar = (screen: Awaited<ReturnType<typeof render>>) =>
+    screen.getByRole("region", { name: "Bulk actions for users" });
+  const trashed = [
+    { ...rina, deletedAt: "2026-10-06T01:00:00.000Z" },
+    { ...siti, deletedAt: "2026-10-06T02:00:00.000Z" }
+  ];
+
+  it("puts a checkbox in each row's name cell and one in the header that selects the page, and swaps the toolbar for the bar", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/users", { total: 40 }));
+
+    expect(bar(screen).elements()).toHaveLength(0);
+    const header = screen.getByRole("checkbox", { name: "Select all 3 on this page" });
+    await screen.getByRole("checkbox", { name: "Select Rina Wijaya" }).click();
+    await expect.element(header).toHaveAttribute("aria-checked", "mixed");
+
+    await header.click();
+    // the page's three rows, not the 40 the list holds
+    await expect.element(bar(screen).getByRole("status")).toHaveTextContent("3 selected");
+    await expect.element(bar(screen).getByRole("button", { name: "Delete…" })).toBeVisible();
+    expect(screen.getByRole("searchbox").elements()).toHaveLength(0);
+
+    await bar(screen).getByRole("button", { name: "Clear" }).click();
+    await expect.element(screen.getByRole("searchbox", { name: "Search users" })).toBeVisible();
+    await expect.element(header).toHaveFocus();
+  });
+
+  it("clears the selection when the filters, the sort or the page change", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/users"));
+    await screen.getByRole("checkbox", { name: "Select Rina Wijaya" }).click();
+    await expect.element(bar(screen).getByRole("status")).toHaveTextContent("1 selected");
+
+    for (const search of ["?status=active", "?sort=email&dir=desc", "?page=2"]) {
+      mockPage.url = new URL(`/master/users${search}`, "http://localhost");
+      await expect.element(bar(screen)).not.toBeInTheDocument();
+      await screen.getByRole("checkbox", { name: "Select Rina Wijaya" }).click();
+      await expect.element(bar(screen).getByRole("status")).toHaveTextContent("1 selected");
+    }
+  });
+
+  it("is not offered to a caller who may not delete, or in the Trash to one who may not restore", async () => {
+    await browser.viewport(1280, 900);
+    const noDelete = await render(
+      Page,
+      props("/master/users", { permissions: ALL.filter((key) => !key.endsWith(".delete")) })
+    );
+    expect(noDelete.getByRole("checkbox").elements()).toHaveLength(0);
+    await noDelete.unmount();
+
+    const noRestore = await render(
+      Page,
+      props("/master/users?trashed=only", {
+        items: trashed,
+        permissions: ALL.filter((key) => !key.endsWith(".restore"))
+      })
+    );
+    expect(noRestore.getByRole("checkbox").elements()).toHaveLength(0);
+  });
+
+  it("asks naming the count and that their sessions end, then offers an Undo that restores the same rows", async () => {
+    await browser.viewport(1280, 900);
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    const screen = await render(Page, props("/master/users"));
+    await screen.getByRole("checkbox", { name: "Select Rina Wijaya" }).click();
+    await screen.getByRole("checkbox", { name: "Select Siti Lestari" }).click();
+    await screen.getByRole("button", { name: "Delete…" }).click();
+
+    const dialog = screen.getByRole("dialog", { name: "Delete 2 users?" });
+    await expect
+      .element(dialog.getByText(/They move to the Trash, where you can restore them\./))
+      .toBeVisible();
+    await expect.element(dialog.getByText(/Their sessions end now\./)).toBeVisible();
+    const form = dialog.element().querySelector("form")!;
+    expect(new FormData(form).get("action")).toBe("delete");
+    expect(new FormData(form).getAll("ids")).toEqual([rina.id, siti.id]);
+
+    deleteResult = { type: "success", status: 200, data: { ok: true } };
+    await dialog.getByRole("button", { name: "Delete" }).click();
+
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "2 users moved to Trash",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Undo" }) })
+      )
+    );
+    expect(bar(screen).elements()).toHaveLength(0);
+
+    const [, options] = toast.success.mock.calls[0] as [string, { action: { onClick(): void } }];
+    options.action.onClick();
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 users restored"));
+    expect(fetch).toHaveBeenCalledWith(
+      "/master/users?/bulk",
+      expect.objectContaining({ method: "POST" })
+    );
+    const body = fetch.mock.calls[0]?.[1]?.body as FormData;
+    expect(body.get("action")).toBe("restore");
+    expect(body.getAll("ids")).toEqual([rina.id, siti.id]);
+    expect(invalidateAll).toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open when a user is out of the caller's reach, naming them, and deletes none", async () => {
+    await browser.viewport(1280, 900);
+    const message =
+      "You cannot change a user who holds permissions you do not have: “Siti Lestari”. Nothing was changed.";
+    deleteResult = {
+      type: "failure",
+      status: 403,
+      data: { error: message, code: "PERMISSION_ESCALATION" }
+    };
+    const screen = await render(Page, props("/master/users"));
+    await screen.getByRole("checkbox", { name: "Select all 3 on this page" }).click();
+    await screen.getByRole("button", { name: "Delete…" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Delete 3 users?" });
+    await dialog.getByRole("button", { name: "Delete" }).click();
+
+    await expect.element(dialog.getByRole("alert")).toBeVisible();
+    expect(dialog.getByRole("alert").element().textContent).toContain(message);
+    expect(toast.error).not.toHaveBeenCalled();
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect.element(bar(screen).getByRole("status")).toHaveTextContent("3 selected");
+  });
+
+  it("offers Restore, not Delete, in the Trash, and restores the chosen rows in one request", async () => {
+    await browser.viewport(1280, 900);
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    const screen = await render(Page, props("/master/users?trashed=only", { items: trashed }));
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+
+    expect(bar(screen).getByRole("button", { name: "Delete…" }).elements()).toHaveLength(0);
+    await bar(screen).getByRole("button", { name: "Restore" }).click();
+
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 users restored"));
+    const body = fetch.mock.calls[0]?.[1]?.body as FormData;
+    expect(body.get("action")).toBe("restore");
+    expect(body.getAll("ids")).toEqual([rina.id, siti.id]);
+    expect(bar(screen).elements()).toHaveLength(0);
+  });
+
+  it("has no axe violations with rows chosen, and fits a phone without a sideways scroll", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/users"));
+    await screen.getByRole("checkbox", { name: "Select Rina Wijaya" }).click();
+    await expect.element(bar(screen).getByRole("status")).toHaveTextContent("1 selected");
+    expect(await axeViolations(document.body)).toEqual([]);
+
+    await browser.viewport(375, 667);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(375);
+  });
+});

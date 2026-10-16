@@ -247,6 +247,15 @@ describe("roles list", () => {
       .toHaveAttribute("href", "/master/roles/new");
   });
 
+  it("offers no row checkboxes or bulk bar, since deleting a Role is permanent (#305)", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/roles"));
+
+    await expect.element(screen.getByRole("table")).toBeVisible();
+    expect(screen.getByRole("checkbox").elements()).toHaveLength(0);
+    expect(screen.getByRole("region", { name: /Bulk actions/ }).elements()).toHaveLength(0);
+  });
+
   it("puts the search at the left of the card's top edge, Filter and View at its right", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/roles"));

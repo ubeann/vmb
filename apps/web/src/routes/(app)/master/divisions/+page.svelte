@@ -23,6 +23,9 @@
   import { LayerRoute } from "$lib/components/list/layer/layer-route.svelte.js";
   import RecordLayer from "$lib/components/list/layer/RecordLayer.svelte";
   import { listPage, provideListUrl } from "$lib/components/list/list-url.svelte.js";
+  import ListBulkBar from "$lib/components/list/ListBulkBar.svelte";
+  import SelectPageStrip from "$lib/components/list/SelectPageStrip.svelte";
+  import { Selection } from "$lib/components/list/selection.svelte.js";
   import { columnClass, TEXT_TRUNCATE } from "$lib/components/list/columns.js";
   import type { ListFilter } from "$lib/components/list/FilterChips.svelte";
   import ListCard from "$lib/components/list/ListCard.svelte";
@@ -30,7 +33,7 @@
   import ListToolbar from "$lib/components/list/ListToolbar.svelte";
   import Marked from "$lib/components/list/Marked.svelte";
   import RecordTile from "$lib/components/list/RecordTile.svelte";
-  import { postRowAction } from "$lib/components/list/row-action.js";
+  import { postBulkAction, postRowAction } from "$lib/components/list/row-action.js";
   import { RowKeys } from "$lib/components/list/row-keys.svelte.js";
   import {
     INACTIVE_NAME_CLASS,
@@ -51,8 +54,10 @@
   import ViewPanel from "$lib/components/list/ViewPanel.svelte";
   import { DATE_ORDER, TEXT_ORDER, type SortField } from "$lib/components/list/view.js";
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+  import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
+  import BulkDeleteDialog from "$lib/master/BulkDeleteDialog.svelte";
   import DeleteDivisionDialog from "$lib/master/DeleteDivisionDialog.svelte";
   import DivisionForm from "$lib/master/DivisionForm.svelte";
   import DivisionView from "$lib/master/DivisionView.svelte";
@@ -80,7 +85,7 @@
   import SearchXIcon from "@lucide/svelte/icons/search-x";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import type { Component } from "svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { mergeProps } from "bits-ui";
   import { toast } from "svelte-sonner";
   import type { SuperValidated } from "sveltekit-superforms";
@@ -154,6 +159,69 @@
   ]);
   // a search, filter, sort or page change on this list, still loading
   const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
+
+  // Rows chosen for a bulk action (#305): the current page's only, and gone once the page, the
+  // filters or the sort change, or the rows do
+  const selection = new Selection();
+  const pageIds = $derived(data.divisions?.items.map((division) => division.id) ?? []);
+  const selectable = $derived(
+    inTrash ? can("master-divisions.restore") : can("master-divisions.delete")
+  );
+  const pageState = $derived(selection.stateOf(pageIds));
+  $effect.pre(() => {
+    void page.url.search;
+    untrack(() => selection.clear());
+  });
+  $effect.pre(() => {
+    const rows = pageIds;
+    untrack(() => selection.keep(rows));
+  });
+  // the select-all box: the header's, or under 32rem (no header row) the strip's
+  let headerBox = $state<HTMLElement | null>(null);
+  let stripBox = $state<HTMLElement | null>(null);
+  function focusSelectAll() {
+    // the one that is shown has a layout box
+    [headerBox, stripBox].find((box) => box && box.offsetParent !== null)?.focus();
+  }
+  // the rows a delete asks about, kept while the dialog closes after the selection is gone
+  let bulkIds = $state<string[]>([]);
+  let bulkOpen = $state(false);
+
+  const manyDivisions = (n: number) => `${n} ${n === 1 ? "division" : "divisions"}`;
+
+  function askBulkDelete() {
+    bulkIds = selection.ids;
+    bulkOpen = true;
+  }
+
+  function clearSelection() {
+    selection.clear();
+    focusSelectAll();
+  }
+
+  function bulkDeleted(ids: string[]) {
+    selection.clear();
+    toast.success(`${manyDivisions(ids.length)} moved to Trash`, {
+      duration: 10_000,
+      action: can("master-divisions.restore")
+        ? { label: "Undo", onClick: () => restoreMany(ids) }
+        : undefined
+    });
+  }
+
+  /** Restore several in one request: the Trash's bulk Restore, and the Undo of a bulk delete. */
+  const restoreMany = (ids: string[]) =>
+    inOrder(async () => {
+      const result = await postBulkAction(`${actionPath}?/bulk`, { action: "restore", ids });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      selection.clear();
+      toast.success(`${manyDivisions(ids.length)} restored`);
+      await invalidateAll();
+      focusSelectAll();
+    });
 
   let confirmOpen = $state(false);
   let target = $state<Pick<Division, "id" | "name" | "code" | "colorHex" | "iconName"> | null>(
@@ -398,28 +466,46 @@
   </PageHeader>
 
   <ListCard busy={loading}>
-    <ListToolbar
-      {base}
-      viewsLabel="Division views"
-      countNouns={NOUNS}
-      facets={data.divisions ? data.divisions.facets : null}
-      views={data.divisions ? data.divisions.views : null}
-      searchLabel="Search divisions"
-      searchPlaceholder="Search name, code or description"
-      searchShortPlaceholder="Search divisions"
-      filters={FILTERS}
-    >
-      {#snippet actions()}
-        <ViewPanel
-          {base}
-          {columns}
-          perPage={data.query.perPage}
-          {sort}
-          {defaultSort}
-          {sortFields}
-        />
-      {/snippet}
-    </ListToolbar>
+    {#if selection.count > 0}
+      <ListBulkBar
+        count={selection.count}
+        label="Bulk actions for divisions"
+        onclear={clearSelection}
+      >
+        {#if inTrash}
+          <Button type="button" onclick={() => restoreMany(selection.ids)}>
+            <RotateCcwIcon aria-hidden="true" data-icon="inline-start" />Restore
+          </Button>
+        {:else}
+          <Button type="button" variant="outline" onclick={askBulkDelete}>
+            <Trash2Icon aria-hidden="true" data-icon="inline-start" />Delete…
+          </Button>
+        {/if}
+      </ListBulkBar>
+    {:else}
+      <ListToolbar
+        {base}
+        viewsLabel="Division views"
+        countNouns={NOUNS}
+        facets={data.divisions ? data.divisions.facets : null}
+        views={data.divisions ? data.divisions.views : null}
+        searchLabel="Search divisions"
+        searchPlaceholder="Search name, code or description"
+        searchShortPlaceholder="Search divisions"
+        filters={FILTERS}
+      >
+        {#snippet actions()}
+          <ViewPanel
+            {base}
+            {columns}
+            perPage={data.query.perPage}
+            {sort}
+            {defaultSort}
+            {sortFields}
+          />
+        {/snippet}
+      </ListToolbar>
+    {/if}
 
     {#if !data.divisions}
       <div class="p-4">
@@ -494,6 +580,14 @@
           </EmptyState>
         {/if}
       {:else}
+        {#if selectable}
+          <SelectPageStrip
+            bind:ref={stripBox}
+            state={pageState}
+            count={list.items.length}
+            onchange={() => selection.setPage(pageIds, pageState !== "all")}
+          />
+        {/if}
         <Table.Root class={cn("transition-opacity", loading && "opacity-50")}>
           <!-- under 32rem the header row goes; sorting is in View (ADR-0051 rule 11) -->
           <Table.Header class="@max-lg/list:hidden">
@@ -504,7 +598,20 @@
                 label="Name"
                 current={sort}
                 class={cn("bg-card pinned-start sticky left-0 z-10", columnClass("identity"))}
-              />
+              >
+                {#snippet lead()}
+                  {#if selectable}
+                    <Checkbox
+                      variant="kit"
+                      bind:ref={headerBox}
+                      checked={pageState === "all"}
+                      indeterminate={pageState === "some"}
+                      onCheckedChange={() => selection.setPage(pageIds, pageState !== "all")}
+                      aria-label="Select all {list.items.length} on this page"
+                    />
+                  {/if}
+                {/snippet}
+              </SortableHead>
               {#if columns.visible("code")}
                 <SortableHead
                   {base}
@@ -548,6 +655,7 @@
             {#each list.items as division (division.id)}
               <Table.Row
                 class={ROW_CLASS}
+                data-selected={selection.has(division.id) || undefined}
                 onclick={(event) => openRow(event, division)}
                 {...layer.preloadOn(recordHref(division.id))}
                 {...rowKeys.row(division)}
@@ -561,6 +669,14 @@
                   )}
                 >
                   <div class="flex items-center gap-2.5">
+                    {#if selectable}
+                      <Checkbox
+                        variant="kit"
+                        checked={selection.has(division.id)}
+                        onCheckedChange={(on) => selection.toggle(division.id, on)}
+                        aria-label="Select {division.name}"
+                      />
+                    {/if}
                     <RecordTile
                       iconName={division.iconName}
                       colorHex={division.colorHex}
@@ -751,6 +867,22 @@
   action="{actionPath}?/delete"
   ondeleted={deleted}
 />
+
+<BulkDeleteDialog
+  bind:open={bulkOpen}
+  ids={bulkIds}
+  noun={NOUNS.all}
+  action="{actionPath}?/bulk"
+  refusalCodes={["DIVISION_IN_USE"]}
+  returnFocus={() => [headerBox, stripBox].find((box) => box && box.offsetParent !== null) ?? null}
+  ondeleted={bulkDeleted}
+>
+  {#snippet refusalHelp()}
+    <a href={resolve("/master/roles")} class="font-medium underline underline-offset-2"
+      >Go to Roles</a
+    >
+  {/snippet}
+</BulkDeleteDialog>
 
 <RecordLayer
   open={layer.shown !== null}

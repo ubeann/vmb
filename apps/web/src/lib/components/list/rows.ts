@@ -10,11 +10,15 @@
  * fade, and a row whose menu is open keeps the hover colour.
  */
 export const ROW_CLASS =
-  "cursor-pointer transition-none hover:bg-muted has-aria-expanded:bg-muted data-marked:bg-muted";
+  "cursor-pointer transition-none hover:bg-muted has-aria-expanded:bg-muted data-marked:bg-muted data-selected:bg-[color-mix(in_oklab,var(--primary)_7%,var(--card))] data-selected:hover:bg-muted";
 
-/** A pinned cell follows every state that paints its row, the open menu included. */
+/**
+ * A pinned cell follows every state that paints its row, the open menu included. A chosen row
+ * (`data-selected`, #305) takes the card's colour with a touch of the primary, opaque so the
+ * pinned cells hide what scrolls behind them; hover and the keyboard's mark paint over it.
+ */
 export const PINNED_BG_CLASS =
-  "bg-card [tr:hover>&]:bg-muted [tr:has([aria-expanded=true])>&]:bg-muted [tr[data-marked]>&]:bg-muted";
+  "bg-card [tr[data-selected]>&]:bg-[color-mix(in_oklab,var(--primary)_7%,var(--card))] [tr:hover>&]:bg-muted [tr:has([aria-expanded=true])>&]:bg-muted [tr[data-marked]>&]:bg-muted";
 
 /** The keyboard's row (ADR-0052 rule 4) gets a green bar on its leading edge; put it on the name cell. */
 export const ROW_MARK_CLASS =

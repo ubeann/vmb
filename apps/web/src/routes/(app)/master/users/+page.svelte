@@ -31,9 +31,12 @@
   import ListCard from "$lib/components/list/ListCard.svelte";
   import ListFooter from "$lib/components/list/ListFooter.svelte";
   import { listPage, provideListUrl } from "$lib/components/list/list-url.svelte.js";
+  import ListBulkBar from "$lib/components/list/ListBulkBar.svelte";
+  import SelectPageStrip from "$lib/components/list/SelectPageStrip.svelte";
+  import { Selection } from "$lib/components/list/selection.svelte.js";
   import ListToolbar from "$lib/components/list/ListToolbar.svelte";
   import Marked from "$lib/components/list/Marked.svelte";
-  import { postRowAction } from "$lib/components/list/row-action.js";
+  import { postBulkAction, postRowAction } from "$lib/components/list/row-action.js";
   import { RowKeys } from "$lib/components/list/row-keys.svelte.js";
   import {
     INACTIVE_NAME_CLASS,
@@ -53,8 +56,10 @@
   import ViewPanel from "$lib/components/list/ViewPanel.svelte";
   import { DATE_ORDER, TEXT_ORDER, type SortField } from "$lib/components/list/view.js";
   import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+  import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
+  import BulkDeleteDialog from "$lib/master/BulkDeleteDialog.svelte";
   import DeleteUserDialog from "$lib/master/DeleteUserDialog.svelte";
   import { listHref } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
@@ -80,7 +85,7 @@
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import UsersIcon from "@lucide/svelte/icons/users";
   import type { Component } from "svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { toast } from "svelte-sonner";
   import type { PageData } from "./$types.js";
 
@@ -171,6 +176,53 @@
   // a search, filter, sort or page change on this list, still loading
   const loading = $derived(navigating.to?.url.pathname === page.url.pathname);
 
+  // Rows chosen for a bulk action (#305): the current page's only, and gone once the page, the
+  // filters or the sort change, or the rows do
+  const selection = new Selection();
+  const pageIds = $derived(data.users?.items.map((user) => user.id) ?? []);
+  const selectable = $derived(inTrash ? can("master-users.restore") : can("master-users.delete"));
+  const pageState = $derived(selection.stateOf(pageIds));
+  $effect.pre(() => {
+    void page.url.search;
+    untrack(() => selection.clear());
+  });
+  $effect.pre(() => {
+    const rows = pageIds;
+    untrack(() => selection.keep(rows));
+  });
+  // the select-all box: the header's, or under 32rem (no header row) the strip's
+  let headerBox = $state<HTMLElement | null>(null);
+  let stripBox = $state<HTMLElement | null>(null);
+  function focusSelectAll() {
+    // the one that is shown has a layout box
+    [headerBox, stripBox].find((box) => box && box.offsetParent !== null)?.focus();
+  }
+  // the rows a delete asks about, kept while the dialog closes after the selection is gone
+  let bulkIds = $state<string[]>([]);
+  let bulkOpen = $state(false);
+
+  const manyUsers = (n: number) => `${n} ${n === 1 ? "user" : "users"}`;
+
+  function askBulkDelete() {
+    bulkIds = selection.ids;
+    bulkOpen = true;
+  }
+
+  function clearSelection() {
+    selection.clear();
+    focusSelectAll();
+  }
+
+  function bulkDeleted(ids: string[]) {
+    selection.clear();
+    toast.success(`${manyUsers(ids.length)} moved to Trash`, {
+      duration: 10_000,
+      action: can("master-users.restore")
+        ? { label: "Undo", onClick: () => restoreMany(ids) }
+        : undefined
+    });
+  }
+
   type UserTarget = Pick<User, "id" | "name" | "email" | "profilePhotoPath">;
   let confirmOpen = $state(false);
   let target = $state<UserTarget | null>(null);
@@ -190,6 +242,20 @@
     queue = next.catch(() => {});
     return next;
   };
+
+  /** Restore several in one request: the Trash's bulk Restore, and the Undo of a bulk delete. */
+  const restoreMany = (ids: string[]) =>
+    inOrder(async () => {
+      const result = await postBulkAction(`${actionPath}?/bulk`, { action: "restore", ids });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      selection.clear();
+      toast.success(`${manyUsers(ids.length)} restored`);
+      await invalidateAll();
+      focusSelectAll();
+    });
 
   const restore = (user: Pick<User, "id" | "name">) =>
     inOrder(async () => {
@@ -344,28 +410,42 @@
   </PageHeader>
 
   <ListCard busy={loading}>
-    <ListToolbar
-      {base}
-      viewsLabel="User views"
-      countNouns={NOUNS}
-      {facets}
-      views={data.users ? data.users.views : null}
-      searchLabel="Search users"
-      searchPlaceholder="Search name, email or phone"
-      searchShortPlaceholder="Search users"
-      {filters}
-    >
-      {#snippet actions()}
-        <ViewPanel
-          {base}
-          {columns}
-          perPage={data.query.perPage}
-          {sort}
-          {defaultSort}
-          {sortFields}
-        />
-      {/snippet}
-    </ListToolbar>
+    {#if selection.count > 0}
+      <ListBulkBar count={selection.count} label="Bulk actions for users" onclear={clearSelection}>
+        {#if inTrash}
+          <Button type="button" onclick={() => restoreMany(selection.ids)}>
+            <RotateCcwIcon aria-hidden="true" data-icon="inline-start" />Restore
+          </Button>
+        {:else}
+          <Button type="button" variant="outline" onclick={askBulkDelete}>
+            <Trash2Icon aria-hidden="true" data-icon="inline-start" />Delete…
+          </Button>
+        {/if}
+      </ListBulkBar>
+    {:else}
+      <ListToolbar
+        {base}
+        viewsLabel="User views"
+        countNouns={NOUNS}
+        {facets}
+        views={data.users ? data.users.views : null}
+        searchLabel="Search users"
+        searchPlaceholder="Search name, email or phone"
+        searchShortPlaceholder="Search users"
+        {filters}
+      >
+        {#snippet actions()}
+          <ViewPanel
+            {base}
+            {columns}
+            perPage={data.query.perPage}
+            {sort}
+            {defaultSort}
+            {sortFields}
+          />
+        {/snippet}
+      </ListToolbar>
+    {/if}
 
     {#if !data.users}
       <div class="p-4">
@@ -441,6 +521,14 @@
           </EmptyState>
         {/if}
       {:else}
+        {#if selectable}
+          <SelectPageStrip
+            bind:ref={stripBox}
+            state={pageState}
+            count={list.items.length}
+            onchange={() => selection.setPage(pageIds, pageState !== "all")}
+          />
+        {/if}
         <Table.Root class={cn("transition-opacity", loading && "opacity-50")}>
           <!-- under 32rem the header row goes; sorting is in View (ADR-0051 rule 11) -->
           <Table.Header class="@max-lg/list:hidden">
@@ -451,7 +539,20 @@
                 label="Name"
                 current={sort}
                 class={cn("bg-card pinned-start sticky left-0 z-10", columnClass("identity"))}
-              />
+              >
+                {#snippet lead()}
+                  {#if selectable}
+                    <Checkbox
+                      variant="kit"
+                      bind:ref={headerBox}
+                      checked={pageState === "all"}
+                      indeterminate={pageState === "some"}
+                      onCheckedChange={() => selection.setPage(pageIds, pageState !== "all")}
+                      aria-label="Select all {list.items.length} on this page"
+                    />
+                  {/if}
+                {/snippet}
+              </SortableHead>
               {#if columns.visible("division")}
                 <Table.Head scope="col" class={columnClass("meta")}>Division</Table.Head>
               {/if}
@@ -493,6 +594,7 @@
               {@const pill = pillFor(user.status)}
               <Table.Row
                 class={ROW_CLASS}
+                data-selected={selection.has(user.id) || undefined}
                 onclick={(event) => openRow(event, user)}
                 {...rowKeys.row(user)}
               >
@@ -505,6 +607,14 @@
                   )}
                 >
                   <div class="flex items-center gap-2.5">
+                    {#if selectable}
+                      <Checkbox
+                        variant="kit"
+                        checked={selection.has(user.id)}
+                        onCheckedChange={(on) => selection.toggle(user.id, on)}
+                        aria-label="Select {user.name}"
+                      />
+                    {/if}
                     <UserAvatar
                       seed={user.id}
                       image={user.profilePhotoPath}
@@ -713,4 +823,15 @@
   {target}
   action="{actionPath}?/delete"
   ondeleted={deleted}
+/>
+
+<BulkDeleteDialog
+  bind:open={bulkOpen}
+  ids={bulkIds}
+  noun={NOUNS.all}
+  action="{actionPath}?/bulk"
+  note="Their sessions end now."
+  refusalCodes={["PERMISSION_ESCALATION"]}
+  returnFocus={() => [headerBox, stripBox].find((box) => box && box.offsetParent !== null) ?? null}
+  ondeleted={bulkDeleted}
 />

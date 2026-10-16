@@ -1,6 +1,7 @@
 import type { ApiClient } from "$lib/api.js";
 import {
   ApiErrorSchema,
+  BulkResponseSchema,
   isApiErrorCode,
   DivisionDetailSchema,
   DivisionListResponseSchema,
@@ -12,6 +13,8 @@ import {
   UserSchema,
   AccessSchema,
   type Access,
+  type BulkRequest,
+  type BulkResponse,
   type Division,
   type DivisionDetail,
   type DivisionInput,
@@ -193,6 +196,16 @@ export function restoreDivision(client: ApiClient, id: string): Promise<ApiResul
     .then((response) => read(response, DivisionSchema));
 }
 
+/** Delete or restore several divisions, all or none (#305). */
+export function bulkDivisions(
+  client: ApiClient,
+  request: BulkRequest
+): Promise<ApiResult<BulkResponse>> {
+  return client.api.master.divisions.bulk
+    .$post({ json: request })
+    .then((response) => read(response, BulkResponseSchema));
+}
+
 export function listRoles(
   client: ApiClient,
   query: RoleListRequest
@@ -267,4 +280,14 @@ export function restoreUser(client: ApiClient, id: string): Promise<ApiResult<Us
   return client.api.master.users[":id"].restore
     .$post({ param: { id } })
     .then((response) => read(response, UserSchema));
+}
+
+/** Delete or restore several users, all or none (#305). */
+export function bulkUsers(
+  client: ApiClient,
+  request: BulkRequest
+): Promise<ApiResult<BulkResponse>> {
+  return client.api.master.users.bulk
+    .$post({ json: request })
+    .then((response) => read(response, BulkResponseSchema));
 }
