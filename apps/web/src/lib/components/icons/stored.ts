@@ -11,7 +11,7 @@ export function resolveIcon(stored: string): IconName | null {
   return catalogIcon(stored)?.name ?? null;
 }
 
-/** What a person calls the icon a row stores: its catalogue label, else the stored name itself. */
+/** What a person calls the icon a row stores: its catalogue label, or a note that it has none. */
 export function iconLabel(stored: string): string {
-  return catalogIcon(stored)?.label ?? stored;
+  return catalogIcon(stored)?.label ?? "Not in the icon list";
 }

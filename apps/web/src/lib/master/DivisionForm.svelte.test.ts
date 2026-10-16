@@ -228,8 +228,8 @@ describe("DivisionForm", () => {
     await expect.element(screen.getByText("Pick an icon from the list.")).toBeVisible();
     await userEvent.click(screen.getByRole("radio", { name: "Truck" }));
     await expect.element(screen.getByRole("radio", { name: "Truck" })).toBeChecked();
-    // a pick stores the Lucide name (#176)
-    expect(new FormData(document.querySelector("form")!).get("iconName")).toBe("truck");
+    // a pick posts the Lucide name (#176) in the radio after the hidden field, the value Superforms reads
+    expect(new FormData(document.querySelector("form")!).getAll("iconName").at(-1)).toBe("truck");
   });
 
   it("posts a swatch or an icon picked without JavaScript, as the server reads the form", async () => {
@@ -302,7 +302,7 @@ describe("DivisionForm", () => {
     await userEvent.type(search, "money");
     await expect.element(screen.getByRole("radio", { name: "Coins" })).toBeVisible();
     await userEvent.click(screen.getByRole("radio", { name: "Wallet" }));
-    expect(new FormData(document.querySelector("form")!).get("iconName")).toBe("wallet");
+    expect(new FormData(document.querySelector("form")!).getAll("iconName").at(-1)).toBe("wallet");
 
     await userEvent.clear(search);
     await userEvent.type(search, "zzz");

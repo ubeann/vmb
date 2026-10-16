@@ -51,9 +51,9 @@ describe("resolveIcon and iconLabel", () => {
     expect(resolveIcon("")).toBeNull();
   });
 
-  it("names an icon as the picker does, else by what is stored", () => {
+  it("names an icon as the picker does, and says when one is outside the catalogue", () => {
     expect(iconLabel("banknote")).toBe("Banknotes");
     expect(iconLabel("forklift")).toBe("Forklift");
-    expect(iconLabel("heroicon-o-arrow-left")).toBe("heroicon-o-arrow-left");
+    expect(iconLabel("heroicon-o-arrow-left")).toBe("Not in the icon list");
   });
 });
