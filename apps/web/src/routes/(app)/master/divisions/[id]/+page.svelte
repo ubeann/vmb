@@ -55,7 +55,15 @@
 </svelte:head>
 
 <Page width="narrow" class="flex flex-col gap-4">
-  <PageHeader title={data.division.name} />
+  <!-- the code and the status, as the layer's header line has them -->
+  <PageHeader
+    title={data.division.name}
+    description="{data.division.code} · {data.division.deletedAt
+      ? 'In the Trash'
+      : data.division.isActive
+        ? 'Active'
+        : 'Inactive'}"
+  />
 
   {#if form?.error}
     <Notice variant="destructive">
@@ -85,7 +93,7 @@
     </section>
   {/if}
 
-  <div class="bg-card flex flex-col overflow-hidden rounded-xl border">
+  <div class="bg-background flex flex-col overflow-hidden rounded-xl border pt-3">
     <DivisionView
       division={data.division}
       permissions={data.permissions}

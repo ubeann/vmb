@@ -63,3 +63,9 @@ Built by the list-kit revision ticket, as the kit's layer component; #302's reco
   - Tried: the bottom sheet for forms, as rule 1 had it.
 - **Rules 6 and 7, for a record layer.** It has no panel frame, so it has no handover: crossing 480px changes the CSS alone, and closes and forgets nothing. A closing (Esc, ×, a click outside, Cancel, the browser's Back) asks "Discard changes?" first when a form in it has unsaved edits; the frame changing never asks.
 - **Focus (rule 5).** The record layer's title takes focus on open, in view, edit and new alike, so a phone's keyboard doesn't open over a form the user hasn't touched; closing returns focus to the row or button that opened it.
+
+**Amendment (2026-10-16, #302): a record layer's footer from 480px.** From polishing the Division layer against Cloudflare's dashboard (Kumo); owner decision on that ticket.
+
+- **Rule 4, for a record layer** (its view, create or edit). Under 480px the main action fills the footer, as rule 4 has it. From 480px, in the centred dialog, the footer's buttons keep their own width and sit at the right, the main action last: Cancel then "Create division", or Edit alone. A button that removes the record (Delete…) is a ghost at the left, away from the main action. The footer has no line above it: the form's card ends the fields. Filter, View and other layers keep rule 4 as it is.
+  - Why: a 32rem dialog's footer filled by one green button is a banner as wide as the form, louder than the fields it saves, and Cancel beside it was squeezed to its minimum. At the right, the main action is where a dialog's is on desktop, and a phone, where the thumb reaches across, still gets the full-width target.
+  - Tried: the full-width main action from 480px. It read as a call to action rather than the end of a form.

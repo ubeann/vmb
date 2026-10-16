@@ -1945,7 +1945,7 @@ describe("a Division in the layer over the list (#302)", () => {
 
     await screen.getByRole("cell", { name: "OPS" }).click();
     const dialog = screen.getByRole("dialog", { name: "Operations" });
-    await expect.element(dialog.getByText("Fleet and day-to-day operations")).toBeVisible();
+    await expect.element(dialog.getByText(/Fleet and day-to-day operations/)).toBeVisible();
     expect(dialog.getByRole("link", { name: "Edit" }).elements()).toHaveLength(0);
     expect(dialog.getByRole("link", { name: "Delete…" }).elements()).toHaveLength(0);
   });
@@ -2035,6 +2035,102 @@ describe("a Division in the layer over the list (#302)", () => {
     // `rounded-2xl`, which the theme's 0.625rem radius makes 18px
     expect(getComputedStyle(dialog).borderTopLeftRadius).toBe("18px");
     expect(box.height).toBeLessThanOrEqual(Math.min(900 * 0.85, 704));
+  });
+
+  it("heads the layer with the record's tile, its code and status, and marks edit and new on the tile", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    const header = () => layer()!.querySelector<HTMLElement>("[data-slot=layer-header]")!;
+    const tile = () => header().querySelector<HTMLElement>("[data-slot=record-tile]")!;
+    const badge = () =>
+      header().querySelector<HTMLElement>("[data-slot=layer-badge]")?.dataset.badge;
+
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    const view = screen.getByRole("dialog", { name: "Operations" });
+    await expect.element(view).toHaveAccessibleDescription("OPS · Active");
+    expect(tile().style.getPropertyValue("--tile")).toBe("#2563EB");
+    expect(badge()).toBeUndefined();
+
+    await view.getByRole("link", { name: "Edit" }).click();
+    const edit = screen.getByRole("dialog", { name: "Edit Operations" });
+    await expect.element(edit).toHaveAccessibleDescription("No changes yet · OPS");
+    expect(badge()).toBe("edit");
+    // the tile and the line under the title follow the form as it is edited
+    // the swatch's dot lies over its hidden radio
+    (edit.getByRole("radio", { name: "Green" }).element() as HTMLInputElement).click();
+    await expect.element(edit).toHaveAccessibleDescription("Unsaved changes · OPS");
+    expect(tile().style.getPropertyValue("--tile")).toBe("#16A34A");
+
+    await edit.getByRole("button", { name: "Cancel" }).click();
+    await screen.getByRole("button", { name: "Discard" }).click();
+    await closed();
+
+    await screen.getByRole("link", { name: "New division" }).click();
+    const create = screen.getByRole("dialog", { name: "New division" });
+    await expect.element(create).toHaveAccessibleDescription("Not saved yet");
+    expect(badge()).toBe("new");
+    await userEvent.type(create.getByRole("textbox", { name: "Name" }), "Finance");
+    await expect.element(create).toHaveAccessibleDescription(/^Not saved yet\s·\sFIN$/);
+  });
+
+  it("holds the content on a card that scrolls between the header and the footer", async () => {
+    await browser.viewport(800, 520);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+
+    const body = layer()!.querySelector<HTMLElement>("[data-slot=layer-card-body]")!;
+    const card = layer()!.querySelector<HTMLElement>("[data-slot=layer-card]")!;
+    const footer = layer()!.querySelector<HTMLElement>("[data-slot=layer-footer]")!;
+    const title = screen.getByRole("heading", { name: "Edit Operations" }).element();
+    // the fields are on the card; the header and the footer's buttons are on the ground around it
+    expect(card.contains(screen.getByRole("textbox", { name: "Name" }).element())).toBe(true);
+    expect(card.contains(footer)).toBe(false);
+    expect(card.contains(title)).toBe(false);
+    expect(card.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      footer.getBoundingClientRect().top
+    );
+
+    // the form is taller than the dialog: the card's body scrolls, the header and footer stay put
+    expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
+    const before = [title, footer].map((part) => part.getBoundingClientRect().top);
+    body.scrollTop = body.scrollHeight;
+    await new Promise((done) => setTimeout(done, 50));
+    expect(body.scrollTop).toBeGreaterThan(0);
+    expect([title, footer].map((part) => part.getBoundingClientRect().top)).toEqual(before);
+  });
+
+  it("fills the footer with its main action under 480px, and from 480px sets its buttons at the right", async () => {
+    await browser.viewport(375, 667);
+    const screen = await render(Page, props("/master/divisions"));
+    await openEdit(screen);
+    const footer = () =>
+      layer()!.querySelector<HTMLElement>("[data-slot=layer-footer]")!.getBoundingClientRect();
+    const box = (name: string) =>
+      screen.getByRole("button", { name }).element().getBoundingClientRect();
+    await new Promise((done) => setTimeout(done, 300));
+
+    // a phone: Cancel at the left, the main action filling the rest
+    expect(Math.round(box("Cancel").left)).toBe(Math.round(footer().left + 16));
+    expect(Math.round(box("Save division").right)).toBe(Math.round(footer().right - 16));
+    expect(box("Save division").width).toBeGreaterThan(box("Cancel").width * 2);
+
+    // the dialog: both keep their own width, the main action last at the right
+    await browser.viewport(800, 900);
+    await new Promise((done) => setTimeout(done, 50));
+    expect(Math.round(box("Save division").right)).toBe(Math.round(footer().right - 16));
+    expect(Math.round(box("Save division").left - box("Cancel").right)).toBe(8);
+    expect(box("Cancel").left).toBeGreaterThan(footer().left + 100);
+
+    // the view: Delete… apart at the left, Edit at the right
+    await screen.getByRole("button", { name: "Cancel" }).click();
+    await closed();
+    await screen.getByRole("cell", { name: "OPS" }).click();
+    const view = screen.getByRole("dialog", { name: "Operations" });
+    const link = (name: string) =>
+      view.getByRole("link", { name }).element().getBoundingClientRect();
+    await expect.element(view.getByRole("link", { name: "Edit" })).toBeVisible();
+    expect(Math.round(link("Delete…").left)).toBe(Math.round(footer().left + 16));
+    expect(Math.round(link("Edit").right)).toBe(Math.round(footer().right - 16));
   });
 
   it("deletes from the layer only after asking, then closes it and offers Undo", async () => {

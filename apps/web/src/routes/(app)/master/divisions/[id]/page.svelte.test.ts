@@ -56,13 +56,30 @@ describe("the division view page", () => {
       .toHaveAttribute("href", `/master/users?divisionId=${ID}`);
   });
 
+  it("reads in the form's sections: details, then appearance, then when", async () => {
+    const screen = await render(Page, { data: pageData(), form: null });
+
+    const details = screen.getByRole("group", { name: "Details" });
+    await expect.element(details.getByText(/No description/)).toBeVisible();
+    await expect.element(details.getByRole("link", { name: "12 users" })).toBeVisible();
+    // a seeded colour by its swatch's name, beside its hex; the icon by its picker label
+    const appearance = screen.getByRole("group", { name: "Appearance" });
+    await expect.element(appearance.getByText("Blue")).toBeVisible();
+    await expect.element(appearance.getByText("#2563EB")).toBeVisible();
+    await expect.element(appearance.getByText("Settings")).toBeVisible();
+    await expect.element(screen.getByText(/^Created/)).toBeVisible();
+    // the code and the status are the header's, not repeated in the body
+    expect(screen.getByRole("term").elements()).toHaveLength(0);
+  });
+
   it("offers Edit only with master-divisions.update, Delete only with .delete", async () => {
     const screen = await render(Page, {
       data: pageData({}, { permissions: ["master-divisions.view_any"] }),
       form: null
     });
 
-    await expect.element(screen.getByText("OPS")).toBeVisible();
+    // the code and the status in the page's header line, as the layer has them
+    await expect.element(screen.getByText("OPS · Active")).toBeVisible();
     expect(screen.getByRole("link", { name: "Edit" }).elements()).toHaveLength(0);
     expect(screen.getByRole("link", { name: "Delete…" }).elements()).toHaveLength(0);
   });

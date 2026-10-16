@@ -104,6 +104,8 @@
   --ring: oklch(0.51 0.164 143.6);
   /* The backdrop behind every dialog and sheet (ADR-0036, 2026-10-13): black at 40%, no blur */
   --scrim: oklch(0 0 0 / 0.4);
+  /* The shade at a layer card's edge while its content scrolls on past it (#302) */
+  --scroll-shadow: oklch(0 0 0 / 0.08);
   /* Engraving ink: the logo navy (#041c74) eased toward paper so dense hatching reads as texture */
   --etching: oklch(0.36 0.12 266);
   /* The logo navy, #041c74, for the VMB mark's swoosh */
@@ -173,6 +175,7 @@
   --ring: oklch(0.75 0.165 146.3);
   /* The navy at 45%, which deepens the frame without adding a second colour */
   --scrim: oklch(0.2 0.08 268 / 0.45);
+  --scroll-shadow: oklch(0 0 0 / 0.35);
   --etching: oklch(0.63 0.095 272);
   --brand-mark: oklch(0.954 0.011 95.2);
   --chart-1: oklch(0.87 0 0);
@@ -429,6 +432,17 @@
    * and the card, past the layer's edge. */
   [data-slot="form-fieldset"] {
     min-inline-size: 0;
+  }
+
+  /* A layer card's scrolling content (#302): a shade at its top or bottom edge while there is
+   * more to scroll that way. The shades stay put at the edges; a cover in the card's colour
+   * rides with the content and hides each one at its own end (Lea Verou's scrolling shadows). */
+  [data-slot="layer-card-body"] {
+    background:
+      linear-gradient(var(--card) 50%, transparent) top / 100% 1.5rem no-repeat local,
+      linear-gradient(transparent, var(--card) 50%) bottom / 100% 1.5rem no-repeat local,
+      linear-gradient(var(--scroll-shadow), transparent) top / 100% 0.625rem no-repeat scroll,
+      linear-gradient(transparent, var(--scroll-shadow)) bottom / 100% 0.625rem no-repeat scroll;
   }
 
   /* The registry's focus ring is the ring colour at half strength, which reads

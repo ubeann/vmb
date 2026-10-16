@@ -25,6 +25,7 @@ vi.mock("$lib/master/form-data.js", () => ({
   divisionFormData: (division: unknown) => division
 }));
 vi.mock("$lib/master/permissions.js", () => import("../../../../../lib/master/permissions.js"));
+vi.mock("$lib/master/appearance.js", () => import("../../../../../lib/master/appearance.js"));
 vi.mock("sveltekit-superforms/server", () => ({ superValidate: async () => ({ data: {} }) }));
 vi.mock("sveltekit-superforms/adapters", () => ({ zod4: (schema: unknown) => schema }));
 
@@ -107,9 +108,9 @@ describe("a division's pages answer as the API does without the permission", () 
     });
   });
 
-  it("opens the new page with master-divisions.create, active by default", async () => {
+  it("opens the new page with master-divisions.create, active and blue by default", async () => {
     await expect(create.load(eventFor())).resolves.toMatchObject({
-      form: { data: { isActive: true } }
+      form: { data: { isActive: true, colorHex: "#2563EB" } }
     });
   });
 });

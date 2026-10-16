@@ -16,7 +16,7 @@
 <Page width="narrow" class="flex flex-col gap-4">
   <PageHeader title="Edit division" description={data.division.name} />
 
-  <div class="bg-card flex flex-col overflow-hidden rounded-xl border">
+  <div class="bg-background flex flex-col overflow-hidden rounded-xl border pt-3">
     <DivisionForm
       form={data.form}
       reloadHref={resolve("/(app)/master/divisions/[id]/edit", { id: data.division.id })}

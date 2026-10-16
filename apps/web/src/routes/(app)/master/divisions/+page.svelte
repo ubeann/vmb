@@ -56,6 +56,7 @@
   import DeleteDivisionDialog from "$lib/master/DeleteDivisionDialog.svelte";
   import DivisionForm from "$lib/master/DivisionForm.svelte";
   import DivisionView from "$lib/master/DivisionView.svelte";
+  import type { DivisionDraft } from "$lib/master/appearance.js";
   import type { DivisionFormFields } from "$lib/master/form-data.js";
   import { listHref } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
@@ -178,6 +179,9 @@
   $effect.pre(() => {
     if (layer.shown) shown = layer.shown;
   });
+
+  // a form in the layer reports what it holds, which the layer's header shows as it changes
+  let draft = $state.raw<DivisionDraft | null>(null);
 
   const layerLabel = $derived.by(() => {
     if (!shown) return "";
@@ -749,16 +753,37 @@
 <RecordLayer
   open={layer.shown !== null}
   label={layerLabel}
+  badge={shown?.kind === "edit" ? "edit" : shown?.kind === "new" ? "new" : undefined}
   onclose={() => void layer.close()}
   returnFocus={layer.returnFocus}
 >
-  {#snippet title()}
+  {#snippet tile()}
     {#if shown?.kind === "view"}
       {@const { division } = shown.data as ViewData}
       <RecordTile iconName={division.iconName} colorHex={division.colorHex} />
-      <span class="truncate">{division.name}</span>
+    {:else if draft}
+      <!-- the form's colour and icon as they are picked -->
+      <RecordTile iconName={draft.iconName} colorHex={draft.colorHex} />
+    {/if}
+  {/snippet}
+  {#snippet subtitle()}
+    {#if shown?.kind === "view"}
+      {@const { division } = shown.data as ViewData}
+      <span class="font-mono">{division.code}</span> ·
+      {division.deletedAt ? "In the Trash" : division.isActive ? "Active" : "Inactive"}
+    {:else if shown?.kind === "edit"}
+      {#if draft?.dirty}
+        <!-- the edits Cancel or Esc would ask about, marked so they are not missed -->
+        <span class="text-foreground inline-flex items-center gap-1.5 font-medium"
+          ><span aria-hidden="true" class="size-1.5 rounded-full bg-amber-500"></span>Unsaved
+          changes</span
+        >
+      {:else}
+        No changes yet
+      {/if}
+      {#if draft?.code}· <span class="font-mono">{draft.code}</span>{/if}
     {:else}
-      <span class="truncate">{layerLabel}</span>
+      Not saved yet{#if draft?.code}&nbsp;· <span class="font-mono">{draft.code}</span>{/if}
     {/if}
   {/snippet}
   {#if shown}
@@ -788,6 +813,7 @@
           onreload={() => void layer.refresh()}
           oncancel={() => void layer.close()}
           onsaved={(record) => saved("edit", record)}
+          ondraft={(next) => (draft = next)}
         />
       {:else}
         {@const { form } = shown.data as NewData}
@@ -795,9 +821,11 @@
           {form}
           action={newHref}
           submitLabel="Create division"
+          submitIcon={PlusIcon}
           pendingLabel="Creating…"
           oncancel={() => void layer.close()}
           onsaved={(record) => saved("new", record)}
+          ondraft={(next) => (draft = next)}
         />
       {/if}
     {/key}
