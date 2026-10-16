@@ -1,7 +1,21 @@
-import type { Division, DivisionInput, IconName, Role, RoleInput, User } from "@vmb/types";
+import type {
+  Division,
+  DivisionInput,
+  IconName,
+  Role,
+  RoleInput,
+  User,
+  UserUpdateInput
+} from "@vmb/types";
 
 /** A Role's form: the shared input, and on an edit the `updatedAt` it loaded. */
 export type RoleFormFields = RoleInput & { updatedAt?: string | null };
+
+/**
+ * A User's form: an edit's fields and its `updatedAt`. A new user's form has
+ * no `updatedAt`, and asks for the password that an edit leaves alone.
+ */
+export type UserFormFields = Omit<UserUpdateInput, "updatedAt"> & { updatedAt?: string | null };
 
 /** A Division's form: the shared input, and on an edit the `updatedAt` it loaded. */
 export type DivisionFormFields = DivisionInput & { updatedAt?: string | null };

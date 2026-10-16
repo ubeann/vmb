@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
-import { rolePermissions, roles, userRoles, users } from "../schema/master.js";
+import { divisions, rolePermissions, roles, userRoles, users } from "../schema/master.js";
 import type { MasterDb } from "./db.js";
-import { ForbiddenError, NotFoundError } from "../errors.js";
+import { ForbiddenError, NotFoundError, RuleBrokenError } from "../errors.js";
 
 /**
  * Who is making a change: their id, and the permissions `requirePermission`
@@ -38,15 +38,30 @@ async function grantedBy(db: MasterDb, roleIds: string[]): Promise<string[]> {
  * is granting its permissions, so a caller may only change roles whose every
  * permission they hold themselves: nobody can hand out, or take away, more than
  * they have. A role with no permissions is always changeable.
+ *
+ * `added` is the part of `changed` the save newly gives (all of a new user's
+ * roles). The Inactive rule applies to those alone: a role scoped to an
+ * Inactive Division, or a Trashed one, cannot be newly given, while a user who
+ * already holds one keeps it. The roles are read once, so the rule costs no
+ * statement of its own.
  */
 export async function assertCanChangeRoles(
   db: MasterDb,
   held: readonly string[],
-  changed: string[]
+  changed: string[],
+  added: string[] = []
 ) {
   if (changed.length === 0) return;
 
-  const found = await db.select({ id: roles.id }).from(roles).where(inArray(roles.id, changed));
+  const found = await db
+    .select({
+      id: roles.id,
+      name: roles.name,
+      inactiveDivision: sql<boolean>`${divisions.id} is not null and (not ${divisions.isActive} or ${divisions.deletedAt} is not null)`
+    })
+    .from(roles)
+    .leftJoin(divisions, eq(divisions.id, roles.divisionId))
+    .where(inArray(roles.id, changed));
   if (found.length !== changed.length) {
     throw new NotFoundError("One of the chosen roles no longer exists.");
   }
@@ -58,6 +73,19 @@ export async function assertCanChangeRoles(
     throw new ForbiddenError(
       "PERMISSION_ESCALATION",
       "You cannot change a role that carries permissions you do not have."
+    );
+  }
+
+  const refused = found
+    .filter((role) => role.inactiveDivision && added.includes(role.id))
+    .map((role) => `“${role.name}”`)
+    .sort();
+  if (refused.length > 0) {
+    throw new RuleBrokenError(
+      refused.length === 1
+        ? `The role ${refused[0]} is scoped to an Inactive Division and cannot be given to a user.`
+        : `The roles ${refused.join(", ")} are scoped to an Inactive Division and cannot be given to a user.`,
+      "roleIds"
     );
   }
 }

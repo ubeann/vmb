@@ -14,6 +14,7 @@ const user: User = {
   name: "Rina Wijaya",
   status: "active",
   roles: [],
+  divisions: [],
   phone: "+628111000001",
   email: "rina@vmblogistics.id",
   emailVerified: false,

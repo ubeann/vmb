@@ -2,7 +2,8 @@
   The Filter panel (#365; ADR-0051 rule 4), on the kit's layer (ADR-0053): the
   panel by its button from 640px, a dialog or bottom sheet under it.
 
-  A value filter is a list of checkboxes with the rows each would give. A date
+  A value filter is a list of checkboxes with the rows each would give; a long
+  one (Division, over seven options) has a search box over it. A date
   filter is one row showing its value, opening presets with their dates and a
   custom range: beside the panel where the picker fits, in a step of its own
   where it doesn't, the custom range a step of its own again so no step
@@ -17,6 +18,7 @@
   import { resolve } from "$app/paths";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { RangeCalendar } from "$lib/components/ui/range-calendar/index.js";
   import {
@@ -32,6 +34,7 @@
   import CheckIcon from "@lucide/svelte/icons/check";
   import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import ListFilterIcon from "@lucide/svelte/icons/list-filter";
+  import SearchIcon from "@lucide/svelte/icons/search";
   import { dateFilterRange, dateFilterValue, splitListParam, type DateRange } from "@vmb/types";
   import type { DateRange as PickedRange } from "bits-ui";
   import {
@@ -114,6 +117,16 @@
       keepFocus: true
     });
   }
+
+  // a value filter with more options than this gets a search box (ADR-0051 rule 4)
+  const SEARCH_OVER = 7;
+  let optionSearch = $state<Record<string, string>>({});
+  const optionsShown = (filter: ValueFilter) => {
+    const term = (optionSearch[filter.key] ?? "").trim().toLowerCase();
+    return term
+      ? filter.options.filter((option) => option.label.toLowerCase().includes(term))
+      : filter.options;
+  };
 
   function toggle(filter: ValueFilter, value: string) {
     choose(
@@ -265,8 +278,25 @@
                   class="size-3.5"
                 />{/if}{filter.label}
             </h3>
+            {#if filter.options.length > SEARCH_OVER}
+              <div class="relative mb-2">
+                <SearchIcon
+                  aria-hidden="true"
+                  class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+                />
+                <Input
+                  type="search"
+                  variant="kit"
+                  aria-label="Search {filter.label.toLowerCase()}"
+                  placeholder="Search {filter.label.toLowerCase()}"
+                  autocomplete="off"
+                  class="h-8 pl-8"
+                  bind:value={optionSearch[filter.key]}
+                />
+              </div>
+            {/if}
             <div class="-mx-2 flex flex-col">
-              {#each filter.options as option (option.value)}
+              {#each optionsShown(filter) as option (option.value)}
                 {@const count = facets?.[filter.key]?.[option.value]}
                 <Label
                   data-slot="filter-option"
@@ -282,6 +312,10 @@
                     <span class="text-muted-foreground ml-auto text-xs tabular-nums">{count}</span>
                   {/if}
                 </Label>
+              {:else}
+                <p class="text-muted-foreground px-2 py-1.5 text-sm">
+                  No {filter.label.toLowerCase()} matches
+                </p>
               {/each}
             </div>
           </section>

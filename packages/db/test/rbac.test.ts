@@ -2,6 +2,7 @@ import {
   allPermissionKeys,
   type User,
   type UserCreateInput,
+  type UserListRequest,
   type UserUpdateInput
 } from "@vmb/types";
 import { describe, expect, it } from "vitest";
@@ -20,6 +21,18 @@ import { count, rejects, withMigratedDatabase, transactionsOn, withMigratedDb } 
 const SUPER_ADMIN = fixtureId(ID_GROUPS.role, 1);
 const MANAGER_FINANCE = fixtureId(ID_GROUPS.role, 2);
 const FINANCE = fixtureId(ID_GROUPS.division, 2);
+
+const userListQuery = (overrides: Partial<UserListRequest> = {}): UserListRequest => ({
+  status: [],
+  division: [],
+  trashed: "exclude",
+  sort: "name",
+  dir: "asc",
+  page: 1,
+  perPage: 10,
+  tz: "Asia/Jakarta",
+  ...overrides
+});
 
 describe("role-based access tables", () => {
   it("lets Super Admin hold every permission the catalogue defines", async () => {
@@ -469,14 +482,7 @@ describe("assigning roles to users", () => {
       const admin = await actor(db, SUPER_ADMIN_USER);
       const target = await store(db).createUser(newUser({ roleIds: [STAFF_ROLE] }), admin);
 
-      await counted.listUsers({
-        status: "all",
-        trashed: "exclude",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      await counted.listUsers(userListQuery());
       await counted.getUser(target.id);
       // the form sends the roles the user already holds, or none at all
       const kept = await counted.updateUser(target.id, edit(target, [STAFF_ROLE]), admin);
@@ -587,15 +593,7 @@ describe("assigning roles to users", () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
 
-      const list = await store(db).listUsers({
-        divisionId: FINANCE,
-        status: "all",
-        trashed: "exclude",
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10
-      });
+      const list = await store(db).listUsers(userListQuery({ division: [FINANCE] }));
 
       expect(list.items.map((user) => user.id)).toEqual([MANAGER_USER]);
     });

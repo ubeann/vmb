@@ -14,7 +14,7 @@ import type {
   RoleUpdateInput,
   User,
   UserCreateInput,
-  UserListQuery,
+  UserListRequest,
   UserListResponse,
   UserUpdateInput
 } from "@vmb/types";
@@ -70,7 +70,7 @@ export type MasterStore = {
   updateRole(id: string, input: RoleUpdateInput): Promise<Role>;
   deleteRole(id: string): Promise<void>;
 
-  listUsers(query: UserListQuery): Promise<UserListResponse>;
+  listUsers(query: UserListRequest): Promise<UserListResponse>;
   getUser(id: string): Promise<User>;
   getSignInEligibility(id: string): Promise<SignInEligibility>;
   createUser(input: UserCreateInput, actor: Actor): Promise<User>;

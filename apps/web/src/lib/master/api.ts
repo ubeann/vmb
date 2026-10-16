@@ -26,7 +26,7 @@ import {
   type RoleUpdateInput,
   type User,
   type UserCreateInput,
-  type UserListQuery,
+  type UserListRequest,
   type UserListResponse,
   type UserUpdateInput,
   type ValidationIssue
@@ -230,7 +230,7 @@ export function deleteRole(client: ApiClient, id: string): Promise<ApiResult<nul
 
 export function listUsers(
   client: ApiClient,
-  query: UserListQuery
+  query: UserListRequest
 ): Promise<ApiResult<UserListResponse>> {
   return client.api.master.users
     .$get({ query: queryStrings(query) })

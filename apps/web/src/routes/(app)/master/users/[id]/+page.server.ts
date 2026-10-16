@@ -15,7 +15,13 @@ export const load: PageServerLoad = async (event) => {
     error(pageErrorStatus(access.value.status), access.value.error);
   }
 
-  return { user: access.value.value, crumb: { label: access.value.value.name } };
+  const user = access.value.value;
+  return {
+    user,
+    // without JavaScript, Delete… asks on the page itself before the form posts
+    confirmDelete: event.url.searchParams.has("delete"),
+    crumb: { label: user.name }
+  };
 };
 
 export const actions: Actions = {

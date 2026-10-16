@@ -23,6 +23,7 @@
   import Notice from "$lib/components/Notice.svelte";
   import PageMeta from "$lib/components/PageMeta.svelte";
   import PasswordInput from "$lib/components/PasswordInput.svelte";
+  import PasswordMeter from "$lib/components/PasswordMeter.svelte";
   import SubmitButton from "$lib/components/SubmitButton.svelte";
   import MovingCheck from "$lib/components/movingicons/check.svelte";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -31,13 +32,6 @@
   import { SUPPORT_EMAIL } from "$lib/error-page.js";
   import { createFieldValidation, focusFirstInvalidField } from "$lib/field-validation.svelte.js";
   import { createSubmission, type Handle } from "$lib/form-submission.svelte.js";
-  import {
-    PASSWORD_BAR_FULL_AT,
-    PASSWORD_MIN_MARK,
-    passwordBarFill,
-    passwordReading,
-    passwordStrength
-  } from "$lib/password-strength.js";
   import type { ActionData, PageData } from "./$types.js";
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -187,7 +181,6 @@
     return "";
   });
   let passwordLength = $derived(password.length);
-  let strength = $derived(passwordStrength(passwordLength));
   // The email is the user's own, so naming the word to leave out reveals nothing.
   let contextWords = $derived(passwordContextWords(password, email));
   // A word to leave out stops the form in the browser, with the field marked
@@ -321,36 +314,7 @@
             </p>
           {/if}
           <div id="password-rules" class="space-y-2 pt-1 text-sm">
-            <!-- One bar for the length rule and the advice: the tick is the
-                 minimum, and past it the fill goes on to the full mark. Text
-                 says the same, so colour is not the only cue. Advice only: the
-                 schema is what blocks. -->
-            <div
-              role="meter"
-              aria-label="Password length"
-              aria-valuemin={0}
-              aria-valuemax={PASSWORD_BAR_FULL_AT}
-              aria-valuenow={Math.min(passwordLength, PASSWORD_BAR_FULL_AT)}
-              aria-valuetext={passwordReading(passwordLength)}
-              data-password-strength={strength ?? "none"}
-              class="bg-border relative h-1.5 overflow-hidden rounded-full"
-            >
-              <div
-                class={[
-                  "h-full transition-[clip-path,background-color] duration-(--duration-feedback) ease-(--easing-standard) motion-reduce:transition-none",
-                  strength ? "bg-primary" : "bg-muted-foreground"
-                ]}
-                style="clip-path: inset(0 {100 -
-                  passwordBarFill(passwordLength) * 100}% 0 0 round 9999px)"
-              ></div>
-              <div
-                class="bg-card absolute inset-y-0 w-0.5"
-                style="left: {PASSWORD_MIN_MARK * 100}%"
-              ></div>
-            </div>
-            <p class={strength ? "text-foreground" : "text-muted-foreground"}>
-              {passwordReading(passwordLength)}
-            </p>
+            <PasswordMeter length={passwordLength} />
             <!-- The advice and a word to leave out share one line: the warning
                  takes the advice's place, so the line is never empty and
                  nothing under it moves. Hidden, the advice drops out of the

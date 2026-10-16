@@ -41,16 +41,16 @@
 {#if layer}
   <Layer label="Filters">
     {#snippet trigger({ props })}<button {...props}>Filter</button>{/snippet}
-    <p>Panel body</p>
+    <p class="my-4">Panel body</p>
   </Layer>
 {/if}
-<table>
+<table class="w-full border-collapse">
   <tbody>
     {#each items as item (item.id)}
       {@const menu = keys.menu(item)}
       <tr class={ROW_CLASS} {...keys.row(item)} onclick={() => log(`click ${item.name}`)}>
-        <td>{item.name}</td>
-        <td>
+        <td class="p-2">{item.name}</td>
+        <td class="p-2">
           <DropdownMenu.Root>
             <DropdownMenu.Trigger aria-label="Actions for {item.name}">⋮</DropdownMenu.Trigger>
             <DropdownMenu.Content {...menu.content}>

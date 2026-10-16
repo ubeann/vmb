@@ -9,6 +9,7 @@
    */
   export const STATUS_TONES = {
     Active: "success",
+    Suspended: "warning",
     Inactive: "neutral"
   } as const satisfies Record<string, Tone>;
 
