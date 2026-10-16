@@ -8,6 +8,9 @@ describe("StatusPill", () => {
     const active = await render(StatusPill, { status: "Active" });
     await expect.element(active.getByText("Active")).toHaveAttribute("data-tone", "success");
 
+    const suspended = await render(StatusPill, { status: "Suspended" });
+    await expect.element(suspended.getByText("Suspended")).toHaveAttribute("data-tone", "warning");
+
     const inactive = await render(StatusPill, { status: "Inactive" });
     await expect.element(inactive.getByText("Inactive")).toHaveAttribute("data-tone", "neutral");
   });
