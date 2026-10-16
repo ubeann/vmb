@@ -2,7 +2,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzleEmbedded } from "drizzle-orm/pglite";
 import { migrate as migrateEmbedded } from "drizzle-orm/pglite/migrator";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
@@ -212,6 +213,22 @@ function databaseUrl(url: string, database: string): string {
   const parsed = new URL(url);
   parsed.pathname = `/${database}`;
   return parsed.toString();
+}
+
+/** The first `count` migrations only, as an earlier run that stopped part-way saw them. */
+export async function truncatedChain(count: number): Promise<string> {
+  const folder = await mkdtemp(path.join(tmpdir(), "vmb-chain-"));
+  const { entries } = JSON.parse(
+    await readFile(path.join(migrationsFolder, "meta", "_journal.json"), "utf8")
+  ) as { entries: { tag: string }[] };
+  const first = entries.slice(0, count);
+
+  await mkdir(path.join(folder, "meta"), { recursive: true });
+  await writeFile(path.join(folder, "meta", "_journal.json"), JSON.stringify({ entries: first }));
+  for (const entry of first) {
+    await copyFile(`${migrationsFolder}/${entry.tag}.sql`, `${folder}/${entry.tag}.sql`);
+  }
+  return folder;
 }
 
 /** Apply one synthetic fixture over an already-migrated database. */

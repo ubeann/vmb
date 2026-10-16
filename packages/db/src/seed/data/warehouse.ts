@@ -45,7 +45,7 @@ const items = table(
     name: item.name,
     code: item.code,
     description: `${item.name} kept in the central warehouse`,
-    icon_name: "heroicon-o-cube",
+    icon_name: "box",
     current_stock: item.stock,
     reorder_level: item.reorder,
     ...stamps(index + 1)

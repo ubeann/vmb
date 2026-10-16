@@ -1,3 +1,4 @@
+import { ICON_NAMES } from "@vmb/types";
 import { checksumRows, pickKeys } from "./checksum.js";
 import type { IdentityTransformResult } from "./identity.js";
 import type { SqlClient } from "../sql-client.js";
@@ -126,7 +127,38 @@ export async function verify(snapshot: Snapshot, client: SqlClient): Promise<Rep
     });
   }
 
+  warnings.push(...(await strayIcons(client)));
+
   return { errors, warnings, rowCounts, checksums };
+}
+
+/** The tables whose rows carry an icon from the catalogue (#176). */
+const iconTables = ["master.divisions", "master.roles", "warehouse.items"];
+
+/**
+ * Icons outside the catalogue: legacy names migration `0032` had no icon for.
+ * They draw a fallback, and the form asks for an icon when the row is next
+ * saved, so they warn rather than fail; each distinct name is listed, so the
+ * map can be extended if one should have one.
+ */
+async function strayIcons(client: SqlClient): Promise<Finding[]> {
+  const catalogue = ICON_NAMES.map((name) => `'${name}'`).join(", ");
+  const findings: Finding[] = [];
+  for (const table of iconTables) {
+    const rows = await client.query<{ icon_name: string; rows: number }>(
+      `select icon_name, count(*)::int as rows from ${quoted(table)}
+        where icon_name not in (${catalogue})
+        group by icon_name order by icon_name`
+    );
+    if (rows.length === 0) continue;
+    const total = rows.reduce((sum, row) => sum + row.rows, 0);
+    findings.push({
+      level: "warning",
+      code: "icon-name",
+      message: `${table}: ${total} row(s) hold an icon outside the catalogue: ${rows.map((row) => row.icon_name).join(", ")}`
+    });
+  }
+  return findings;
 }
 
 async function compareBusinessKeys(

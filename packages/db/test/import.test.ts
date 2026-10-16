@@ -322,6 +322,33 @@ describe("the verifier", () => {
       expect(finding?.message).toContain("legacy.something_new");
     });
   });
+
+  it("lands Lucide icons, and names the legacy ones it had no icon for", async () => {
+    // #176: the import replays 0032 over the loaded rows
+    await withDatabase(async (client) => {
+      const report = await importSnapshot(
+        client,
+        path.join(testDir, "fixtures", "stray-icon-snapshot.sql"),
+        migrationsFolder
+      );
+
+      expect(report.errors).toEqual([]);
+      expect(report.warnings).toEqual([
+        {
+          level: "warning",
+          code: "icon-name",
+          message:
+            "master.divisions: 2 row(s) hold an icon outside the catalogue: heroicon-m-x-mark, heroicon-o-arrow-left"
+        }
+      ]);
+      expect(
+        await scalar<string>(
+          client,
+          "select icon_name as value from master.divisions where code = 'TRK'"
+        )
+      ).toBe("truck");
+    });
+  });
 });
 
 describe("the insert order", () => {

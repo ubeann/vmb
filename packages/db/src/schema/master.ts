@@ -24,7 +24,7 @@ export const divisions = master.table(
     code: varchar({ length: 255 }).notNull(),
     description: text(),
     colorHex: varchar("color_hex", { length: 255 }).default("#000000").notNull(),
-    iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-rocket-launch").notNull(),
+    iconName: varchar("icon_name", { length: 255 }).default("rocket").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
     updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }),
@@ -54,7 +54,7 @@ export const roles = master.table(
     isActive: boolean("is_active").default(true).notNull(),
     isSystem: boolean("is_system").default(false).notNull(),
     colorHex: varchar("color_hex", { length: 255 }).default("#000000").notNull(),
-    iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-rocket-launch").notNull(),
+    iconName: varchar("icon_name", { length: 255 }).default("rocket").notNull(),
     description: varchar({ length: 255 }),
     // The division a role operates in; null means every division (Super Admin,
     // Executive). Division scopes a role and never grants anything itself.

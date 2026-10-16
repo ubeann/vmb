@@ -103,7 +103,7 @@ export const items = warehouse.table(
     name: varchar({ length: 255 }).notNull(),
     code: varchar({ length: 255 }),
     description: text(),
-    iconName: varchar("icon_name", { length: 255 }).default("heroicon-o-cube").notNull(),
+    iconName: varchar("icon_name", { length: 255 }).default("box").notNull(),
     currentStock: integer("current_stock").default(0).notNull(),
     reorderLevel: integer("reorder_level").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }),
