@@ -1,4 +1,7 @@
-import type { Division, DivisionInput, Role, User } from "@vmb/types";
+import type { Division, DivisionInput, Role, RoleInput, User } from "@vmb/types";
+
+/** A Role's form: the shared input, and on an edit the `updatedAt` it loaded. */
+export type RoleFormFields = RoleInput & { updatedAt?: string | null };
 
 /** A Division's form: the shared input, and on an edit the `updatedAt` it loaded. */
 export type DivisionFormFields = DivisionInput & { updatedAt?: string | null };

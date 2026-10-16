@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { checkboxSchema, optionalText, updatedAtSchema } from "./inputs.js";
-import { PageSchema, PerPageSchema, SearchSchema, listResponse } from "./list.js";
+import {
+  DateFilterSchema,
+  PageSchema,
+  PerPageSchema,
+  SearchSchema,
+  SortDirectionSchema,
+  TimeZoneSchema,
+  listResponse,
+  optionCounts,
+  valueFilter
+} from "./list.js";
 
 export const RoleSchema = z.object({
   id: z.uuid(),
@@ -49,19 +59,53 @@ export const RoleUpdateInputSchema = RoleInputSchema.extend({ updatedAt: updated
 
 export type RoleUpdateInput = z.infer<typeof RoleUpdateInputSchema>;
 
-export const RoleSortSchema = z.enum(["name", "updatedAt"]).default("name");
+/**
+ * One role's detail: the record plus the name of its Division, so the view can
+ * say where it applies. A role with no Division applies in every Division.
+ */
+export const RoleDetailSchema = RoleSchema.extend({ divisionName: z.string().nullable() });
 
+export type RoleDetail = z.infer<typeof RoleDetailSchema>;
+
+export const RoleSortSchema = z.enum(["name", "createdAt", "updatedAt"]).default("name");
+
+/** The Status filter's options, in the order the Filter panel lists them. */
+export const ROLE_STATUSES = ["active", "inactive"] as const;
+
+/**
+ * The Roles list's state, as its URL carries it (#303, ADR-0051 rule 4):
+ * `status` takes several values (`active,inactive`), and `updated` and
+ * `created` a preset (`today`, `week`, `month`) or an inclusive
+ * `YYYY-MM-DD..YYYY-MM-DD` range. Roles have no Trash, so there is no view.
+ */
 export const RoleListQuerySchema = z.object({
   search: SearchSchema,
-  active: z.enum(["all", "active", "inactive"]).default("all"),
+  status: valueFilter(ROLE_STATUSES),
+  updated: DateFilterSchema,
+  created: DateFilterSchema,
   sort: RoleSortSchema,
-  dir: z.enum(["asc", "desc"]).default("asc"),
+  dir: SortDirectionSchema,
   page: PageSchema,
   perPage: PerPageSchema
 });
 
 export type RoleListQuery = z.infer<typeof RoleListQuerySchema>;
 
-export const RoleListResponseSchema = listResponse(RoleSchema);
+/**
+ * What `GET /api/master/roles` takes: the list's state plus the reader's time
+ * zone, which decides where each day of a date filter starts and ends (as for
+ * Divisions).
+ */
+export const RoleListRequestSchema = RoleListQuerySchema.extend({ tz: TimeZoneSchema });
+
+export type RoleListRequest = z.infer<typeof RoleListRequestSchema>;
+
+/**
+ * A page of roles, with how many rows each Status option would give under the
+ * search and the other filters (ADR-0051 rule 4).
+ */
+export const RoleListResponseSchema = listResponse(RoleSchema).extend({
+  facets: z.object({ status: optionCounts(ROLE_STATUSES) })
+});
 
 export type RoleListResponse = z.infer<typeof RoleListResponseSchema>;

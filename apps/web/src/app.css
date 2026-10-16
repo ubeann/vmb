@@ -716,14 +716,6 @@
   .muted {
     color: var(--muted-foreground);
   }
-  .swatch {
-    display: inline-block;
-    width: 1rem;
-    height: 1rem;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    vertical-align: text-bottom;
-  }
   .actions {
     display: inline;
   }

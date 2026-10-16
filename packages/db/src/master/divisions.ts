@@ -1,6 +1,4 @@
 import {
-  dateFilterRange,
-  todayIn,
   type Division,
   type DivisionDetail,
   type DivisionInput,
@@ -22,16 +20,17 @@ import {
   not,
   or,
   sql,
-  type AnyColumn,
   type SQL
 } from "drizzle-orm";
 import { divisions, roles, users } from "../schema/master.js";
 import {
   conflictFrom,
+  countWhere,
   nextStamp,
   nullIfEmpty,
   toIso,
   unchangedSince,
+  withinDays,
   type MasterDb
 } from "./db.js";
 import { inDivision } from "./users.js";
@@ -72,20 +71,6 @@ function toDivision(row: DivisionRow): Division {
   };
 }
 
-/**
- * Rows stamped on one of the days a date filter covers, in the reader's zone:
- * from that zone's midnight at the start of `from` to its midnight after `to`.
- * A row with no stamp is on no day.
- */
-function withinDays(column: AnyColumn, value: string | undefined, tz: string) {
-  const range = dateFilterRange(value, todayIn(tz));
-  if (!range) return undefined;
-  return and(
-    sql`${column} >= (${range.from}::date)::timestamp at time zone ${tz}`,
-    sql`${column} < (${range.to}::date + 1)::timestamp at time zone ${tz}`
-  );
-}
-
 /** The search and every filter but the view and the status, which the counts vary. */
 function sharedConditions(query: DivisionListRequest): SQL[] {
   const conditions: SQL[] = [];
@@ -120,12 +105,6 @@ function statusCondition(status: DivisionListRequest["status"]): SQL | undefined
     divisions.isActive,
     status.map((value) => value === "active")
   );
-}
-
-/** Rows matching every condition given, as a count the driver hands back as a number. */
-function countWhere(...conditions: (SQL | undefined)[]) {
-  const where = and(...conditions) ?? sql`true`;
-  return sql<number>`cast(count(*) filter (where ${where}) as integer)`.mapWith(Number);
 }
 
 /**

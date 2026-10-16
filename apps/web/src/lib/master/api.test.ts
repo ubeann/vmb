@@ -1,10 +1,11 @@
-import { DivisionListRequestSchema, RoleListQuerySchema } from "@vmb/types";
+import { DivisionListRequestSchema, RoleListRequestSchema } from "@vmb/types";
 import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "../api.js";
 import {
   createDivision,
   deleteDivision,
   getDivision,
+  getRole,
   listDivisions,
   listRoles,
   restoreDivision,
@@ -264,11 +265,47 @@ describe("master API client", () => {
     });
   });
 
-  it("lists roles through their own query schema", async () => {
-    const { client, calls } = clientWith(() => json({ items: [], total: 0, page: 1, perPage: 10 }));
+  it("lists roles through their own request schema, several statuses as one parameter", async () => {
+    const { client, calls } = clientWith(() =>
+      json({
+        items: [],
+        total: 0,
+        page: 1,
+        perPage: 10,
+        facets: { status: { active: 0, inactive: 0 } }
+      })
+    );
 
-    await listRoles(client, RoleListQuerySchema.parse({}));
+    await listRoles(
+      client,
+      RoleListRequestSchema.parse({ status: "active,inactive", updated: "week", search: "adm" })
+    );
 
-    expect(calls[0]?.path).toBe("/api/master/roles?active=all&sort=name&dir=asc&page=1&perPage=25");
+    expect(calls[0]?.path).toBe(
+      "/api/master/roles?search=adm&status=active%2Cinactive&updated=week&sort=name&dir=asc&page=1&perPage=25&tz=Asia%2FJakarta"
+    );
+  });
+
+  it("reads a role's detail with its division's name", async () => {
+    const { client } = clientWith(() =>
+      json({
+        id: ID,
+        name: "Dispatcher",
+        isActive: true,
+        isSystem: false,
+        colorHex: "#2563EB",
+        iconName: "heroicon-o-user",
+        description: null,
+        divisionId: ID,
+        divisionName: "Hub",
+        createdAt: STAMP,
+        updatedAt: STAMP
+      })
+    );
+
+    await expect(getRole(client, ID)).resolves.toMatchObject({
+      ok: true,
+      value: { divisionName: "Hub" }
+    });
   });
 });

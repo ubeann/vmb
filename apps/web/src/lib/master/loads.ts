@@ -1,6 +1,6 @@
 import { withApiClient } from "$lib/api-access.js";
 import { listDivisions, listRoles } from "$lib/master/api.js";
-import { DivisionListRequestSchema, RoleListQuerySchema, type Division } from "@vmb/types";
+import { DivisionListRequestSchema, RoleListRequestSchema, type Division } from "@vmb/types";
 import type { RequestEvent } from "@sveltejs/kit";
 
 /**
@@ -33,7 +33,7 @@ export type RoleOption = { id: string; name: string };
  * save never silently removes one.
  */
 export async function loadRoleOptions(event: RequestEvent): Promise<RoleOption[]> {
-  const query = RoleListQuerySchema.parse({ perPage: "100", active: "active" });
+  const query = RoleListRequestSchema.parse({ perPage: "100", status: "active" });
   const access = await withApiClient(event, (client) => listRoles(client, query));
 
   if (!access.ok) {

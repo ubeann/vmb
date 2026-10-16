@@ -5,6 +5,7 @@ import {
   DivisionDetailSchema,
   DivisionListResponseSchema,
   DivisionSchema,
+  RoleDetailSchema,
   RoleListResponseSchema,
   RoleSchema,
   UserListResponseSchema,
@@ -18,8 +19,9 @@ import {
   type DivisionListResponse,
   type DivisionUpdateInput,
   type Role,
+  type RoleDetail,
   type RoleInput,
-  type RoleListQuery,
+  type RoleListRequest,
   type RoleListResponse,
   type RoleUpdateInput,
   type User,
@@ -193,17 +195,17 @@ export function restoreDivision(client: ApiClient, id: string): Promise<ApiResul
 
 export function listRoles(
   client: ApiClient,
-  query: RoleListQuery
+  query: RoleListRequest
 ): Promise<ApiResult<RoleListResponse>> {
   return client.api.master.roles
     .$get({ query: queryStrings(query) })
     .then((response) => read(response, RoleListResponseSchema));
 }
 
-export function getRole(client: ApiClient, id: string): Promise<ApiResult<Role>> {
+export function getRole(client: ApiClient, id: string): Promise<ApiResult<RoleDetail>> {
   return client.api.master.roles[":id"]
     .$get({ param: { id } })
-    .then((response) => read(response, RoleSchema));
+    .then((response) => read(response, RoleDetailSchema));
 }
 
 export function createRole(client: ApiClient, input: RoleInput): Promise<ApiResult<Role>> {

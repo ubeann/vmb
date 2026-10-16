@@ -11,9 +11,13 @@
   bottom sheet on a phone; the strip of chips shows from 640px, and a chip opens
   the panel at its filter. Under 640px the button's count and the panel itself
   say what is filtered.
+
+  A list whose records have no Trash (Roles, #303) passes no `views`: it has
+  no tabs, and the search sits at the left with the controls at the right.
 -->
 <script lang="ts">
   import { nounFor, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
+  import { cn } from "$lib/utils.js";
   import type { Snippet } from "svelte";
   import { readerToday } from "./dates.js";
   import FilterChips, { hasActiveFilters, type ListFilter } from "./FilterChips.svelte";
@@ -30,6 +34,7 @@
     viewsLabel,
     countNouns,
     views,
+    total = null,
     searchLabel,
     searchPlaceholder,
     searchShortPlaceholder,
@@ -39,11 +44,16 @@
   }: {
     base: MasterListPathname;
     /** Names the tabs for a screen reader: "Division views". */
-    viewsLabel: string;
-    /** What the tabs' counts count: "divisions" and "deleted divisions". */
-    countNouns: { all: CountNoun; trash: CountNoun };
-    /** Rows in each view under the current search and filters; null when the list failed to load. */
-    views: { all: number; trash: number } | null;
+    viewsLabel?: string;
+    /** What the tabs' counts count: "divisions" and "deleted divisions"; the Trash's only with tabs. */
+    countNouns: { all: CountNoun; trash?: CountNoun };
+    /**
+     * Rows in each view under the current search and filters; null when the list failed to load.
+     * Left out for a list with no Trash, which has no tabs.
+     */
+    views?: { all: number; trash: number } | null;
+    /** The rows the list holds under the search and filters, for a list with no tabs; null when it failed to load. */
+    total?: number | null;
     searchLabel: string;
     /** Names the matched fields: "Search name, code or description". */
     searchPlaceholder: string;
@@ -59,8 +69,10 @@
   const anyActive = $derived(hasActiveFilters(filters, page.url.searchParams, readerToday()));
   // the rows the panel's main action says it shows, and what they are: the view the list is in
   const inTrash = $derived(page.url.searchParams.get("trashed") === "only");
-  const shown = $derived(views ? (inTrash ? views.trash : views.all) : null);
-  const noun = $derived(inTrash ? countNouns.trash : countNouns.all);
+  const shown = $derived(
+    views === undefined ? total : views ? (inTrash ? views.trash : views.all) : null
+  );
+  const noun = $derived((inTrash && countNouns.trash) || countNouns.all);
   // the list's name on the shortcut sheet: "Divisions"
   const listName = $derived.by(() => {
     const name = nounFor(countNouns.all, 2);
@@ -70,21 +82,31 @@
 
 <div>
   <div class="border-border flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-3">
-    <ListTabs
-      {base}
-      label={viewsLabel}
-      {views}
-      {countNouns}
-      class="@max-3xl/list:-mx-3 @max-3xl/list:mb-0 @max-3xl/list:w-[calc(100%+1.5rem)] @max-3xl/list:px-3 @max-3xl/list:shadow-[inset_0_-1px_0_var(--border)]"
-    />
-    <div class="ml-auto flex items-center gap-2 py-2 max-sm:w-full @max-3xl/list:w-full">
+    {#if views !== undefined}
+      <ListTabs
+        {base}
+        label={viewsLabel ?? "Views"}
+        {views}
+        countNouns={{ all: countNouns.all, trash: countNouns.trash ?? countNouns.all }}
+        class="@max-3xl/list:-mx-3 @max-3xl/list:mb-0 @max-3xl/list:w-[calc(100%+1.5rem)] @max-3xl/list:px-3 @max-3xl/list:shadow-[inset_0_-1px_0_var(--border)]"
+      />
+    {/if}
+    <div
+      class={cn(
+        "flex items-center gap-2 py-2 max-sm:w-full @max-3xl/list:w-full",
+        views === undefined ? "w-full" : "ml-auto"
+      )}
+    >
       <ListSearch
         {base}
         label={searchLabel}
         placeholder={searchPlaceholder}
         shortPlaceholder={searchShortPlaceholder}
         {listName}
-        class="flex-1 @3xl/list:w-80 @3xl/list:flex-none"
+        class={cn(
+          "flex-1 @3xl/list:w-80 @3xl/list:flex-none",
+          views === undefined && "@3xl/list:mr-auto"
+        )}
       />
       <FilterPanel bind:this={panel} {base} {filters} {facets} {shown} {noun} />
 

@@ -1,4 +1,5 @@
-import { sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { dateFilterRange, todayIn } from "@vmb/types";
+import { and, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { DatabaseSchema } from "../schema/index.js";
 import { ConflictError } from "../errors.js";
@@ -44,6 +45,26 @@ export function unchangedSince(column: AnyColumn, updatedAt: string | null): SQL
  */
 export function nextStamp(column: AnyColumn): SQL {
   return sql`greatest(now(), ${column} + interval '1 millisecond')`;
+}
+
+/**
+ * Rows stamped on one of the days a date filter covers, in the reader's zone:
+ * from that zone's midnight at the start of `from` to its midnight after `to`.
+ * A row with no stamp is on no day.
+ */
+export function withinDays(column: AnyColumn, value: string | undefined, tz: string) {
+  const range = dateFilterRange(value, todayIn(tz));
+  if (!range) return undefined;
+  return and(
+    sql`${column} >= (${range.from}::date)::timestamp at time zone ${tz}`,
+    sql`${column} < (${range.to}::date + 1)::timestamp at time zone ${tz}`
+  );
+}
+
+/** Rows matching every condition given, as a count the driver hands back as a number. */
+export function countWhere(...conditions: (SQL | undefined)[]) {
+  const where = and(...conditions) ?? sql`true`;
+  return sql<number>`cast(count(*) filter (where ${where}) as integer)`.mapWith(Number);
 }
 
 /** The rows a raw `db.execute` returned, whichever driver ran it. */
