@@ -1,10 +1,11 @@
 import type { SqlClient } from "../sql-client.js";
 import { transformIdentities, type IdentityTransformResult } from "./identity.js";
 import { loadStatements } from "./load.js";
+import { transformRbac, type RbacReport } from "./rbac.js";
 import { journalDdl, journalInsertSql } from "../migration/journal.js";
 import { byPhase, readChain, type Migration } from "./phases.js";
 import { readSnapshot } from "./snapshot.js";
-import { failedReport, verify, type Report } from "./verify.js";
+import { failedReport, verify, type Finding, type Report } from "./verify.js";
 
 /**
  * Load a legacy snapshot and replay the chain over it.
@@ -28,6 +29,7 @@ export async function importSnapshot(
   const migrations = await readChain(migrationsFolder);
   const { statements, problems } = loadStatements(snapshot);
   let identities: IdentityTransformResult | undefined;
+  let rbac: { report: RbacReport; findings: Finding[] } | undefined;
 
   try {
     await reset(client);
@@ -49,13 +51,21 @@ export async function importSnapshot(
     // Identity is the one ETL path (#7, ADR-0032/0033): it reads the replayed
     // business rows the chain left behind and writes Better Auth identities.
     identities = await transformIdentities(client);
+
+    // RBAC reads the snapshot, not the database: the legacy role tables are
+    // never loaded and 0030 has dropped users.division_id (#311, ADR-0056).
+    rbac = await transformRbac(client, snapshot);
   } catch (error) {
     return failedReport(error instanceof Error ? error.message : String(error));
   }
 
   const report = await verify(snapshot, client);
   report.errors.push(...problems);
+  for (const finding of rbac.findings) {
+    (finding.level === "error" ? report.errors : report.warnings).push(finding);
+  }
   report.identities = identities;
+  report.rbac = rbac.report;
   return report;
 }
 
@@ -108,6 +118,12 @@ export function summarise(report: Report): string {
   ];
   if (report.identities) {
     lines.push(`identities: ${report.identities.users} user(s) created`);
+  }
+  if (report.rbac) {
+    const { rolesCarried, rolesSplit, grants, assignments, unmappedPermissions } = report.rbac;
+    lines.push(
+      `rbac: ${rolesCarried} role(s) carried (${rolesSplit} split), ${grants} grant(s), ${assignments} assignment(s), ${unmappedPermissions} unmapped permission(s)`
+    );
   }
   for (const finding of [...report.errors, ...report.warnings]) {
     lines.push(`  [${finding.level}] ${finding.code}: ${finding.message}`);

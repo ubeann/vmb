@@ -9,3 +9,8 @@
 COPY master.divisions (id, name, code, description) FROM stdin;
 11111111-1111-4111-8111-111111111111	Operations	OPS
 \.
+
+-- every snapshot needs its Super Admin (#311)
+COPY master.roles (uuid, name, is_system) FROM stdin;
+66666666-6666-4666-8666-666666666666	Super Admin	t
+\.

@@ -4,8 +4,9 @@
  * The exclusions are the decisions in ADR-0024 and the ledger: Laravel runtime,
  * Laravel auth, and the Spatie RBAC tables are not ported. `master.users` is
  * ported because every domain holds foreign keys to it (ledger D-004) and the
- * identity transform (#7) needs it; the RBAC tables are retained in the raw
- * snapshot so #8's mapper can be written without another dump.
+ * identity transform (#7) needs it. The RBAC tables are not loaded either: the
+ * RBAC transform (#311) reads them from the parsed snapshot and writes the new
+ * roles, grants and assignments itself.
  */
 
 /** The migration that creates the baseline every snapshot is loaded into. */
@@ -27,14 +28,14 @@ export const excludedTables: { table: string; reason: string }[] = [
   { table: "auth.sessions", reason: "replaced by Better Auth (#7)" },
   { table: "auth.password_reset_tokens", reason: "replaced by Better Auth (#7)" },
   { table: "auth.two_factors", reason: "non-portable secrets; re-enrolment (#7)" },
-  { table: "master.roles", reason: "replaced by the RBAC layer (#8); data retained" },
-  { table: "master.permissions", reason: "replaced by the RBAC layer (#8); data retained" },
-  { table: "spatie.model_has_roles", reason: "replaced by the RBAC layer (#8); data retained" },
+  { table: "master.roles", reason: "rebuilt by the RBAC transform (#311)" },
+  { table: "master.permissions", reason: "rebuilt by the RBAC transform (#311)" },
+  { table: "spatie.model_has_roles", reason: "rebuilt by the RBAC transform (#311)" },
   {
     table: "spatie.model_has_permissions",
-    reason: "replaced by the RBAC layer (#8); data retained"
+    reason: "rebuilt by the RBAC transform (#311)"
   },
-  { table: "spatie.role_has_permissions", reason: "replaced by the RBAC layer (#8); data retained" }
+  { table: "spatie.role_has_permissions", reason: "rebuilt by the RBAC transform (#311)" }
 ];
 
 /**

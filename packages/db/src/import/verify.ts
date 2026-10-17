@@ -1,6 +1,7 @@
 import { ICON_NAMES } from "@vmb/types";
 import { checksumRows, pickKeys } from "./checksum.js";
 import type { IdentityTransformResult } from "./identity.js";
+import type { RbacReport } from "./rbac.js";
 import type { SqlClient } from "../sql-client.js";
 import { isExcluded, isPorted, portedTables } from "./manifest.js";
 import type { Snapshot } from "./snapshot.js";
@@ -20,6 +21,8 @@ export type Report = {
   checksums: Record<string, string>;
   /** Identities created by the run's transform (#7); absent before that phase. */
   identities?: IdentityTransformResult;
+  /** What the RBAC transform carried (#311); absent before that phase. */
+  rbac?: RbacReport;
 };
 
 /** Compare one table's business keys between the snapshot and the database. */

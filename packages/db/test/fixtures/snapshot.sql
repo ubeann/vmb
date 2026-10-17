@@ -27,14 +27,22 @@ COPY warehouse.items (id, division_id, name, code, description, icon_name, curre
 55555555-5555-4555-8555-555555555555	11111111-1111-4111-8111-111111111111	Fixture Item	IT-001	\N	heroicon-o-cube	10	2	2026-01-02 08:00:00	2026-01-02 08:00:00
 \.
 
--- Excluded tables: the pipeline must leave these behind, even though they are
--- present in the snapshot.
-COPY master.roles (id, name, guard_name, level, is_system, created_at, updated_at) FROM stdin;
+-- Excluded tables: the pipeline does not load these, even though they are
+-- present in the snapshot; the RBAC transform reads them from it (#311).
+COPY master.roles (uuid, name, guard_name, level, is_system, created_at, updated_at) FROM stdin;
 66666666-6666-4666-8666-666666666666	Super Admin	web	1	t	2026-01-02 08:00:00	2026-01-02 08:00:00
+\.
+
+COPY master.permissions (uuid, name, guard_name) FROM stdin;
+77777777-7777-4777-8777-777777777777	master-users.view_any	web
 \.
 
 COPY spatie.role_has_permissions (permission_uuid, role_uuid) FROM stdin;
 77777777-7777-4777-8777-777777777777	66666666-6666-4666-8666-666666666666
+\.
+
+COPY spatie.model_has_roles (role_uuid, model_type, model_id) FROM stdin;
+66666666-6666-4666-8666-666666666666	App\\Models\\Master\\User	22222222-2222-4222-8222-222222222222
 \.
 
 COPY trucking.drivers (id, name, date_of_birth, identification_number, license_number, phone, address, profile_photo_path, created_at, updated_at, deleted_at) FROM stdin;
