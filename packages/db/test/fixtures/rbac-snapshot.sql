@@ -5,7 +5,8 @@
 -- id; Super Admin is a system role whose holder's division is dropped; Archivist
 -- is held only in a Trashed division. STAFF differs from Staff only by case.
 -- Three permissions have no catalogue key, one user holds a direct grant, one
--- holds a role with no division, and one live user holds nothing.
+-- holds a role with no division, and one live user holds nothing. A role and a
+-- permission held by another model type (whose id is a user's) are not the user's.
 --
 -- Synthetic, like the other fixtures.
 --
@@ -68,8 +69,10 @@ c0000000-0000-4000-8000-000000000003	App\\Models\\Master\\User	b0000000-0000-400
 c0000000-0000-4000-8000-000000000004	App\\Models\\Master\\User	b0000000-0000-4000-8000-000000000006
 c0000000-0000-4000-8000-000000000003	App\\Models\\Master\\User	b0000000-0000-4000-8000-000000000007
 c0000000-0000-4000-8000-000000000005	App\\Models\\Master\\User	b0000000-0000-4000-8000-000000000011
+c0000000-0000-4000-8000-000000000002	App\\Models\\Trucking\\Driver	b0000000-0000-4000-8000-000000000008
 \.
 
 COPY spatie.model_has_permissions (permission_uuid, model_type, model_id) FROM stdin;
 e0000000-0000-4000-8000-000000000005	App\\Models\\Master\\User	b0000000-0000-4000-8000-000000000004
+e0000000-0000-4000-8000-000000000005	App\\Models\\Trucking\\Driver	b0000000-0000-4000-8000-000000000005
 \.

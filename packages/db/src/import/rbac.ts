@@ -54,6 +54,9 @@ const ROLE_RENAMES: Readonly<Record<string, string>> = {
 /** The system role that holds every catalogue key. */
 const SUPER_ADMIN = "Super Admin";
 
+/** The `model_type` Spatie's pivots record for a user; legacy has no morph map. */
+const USER_MODEL = "App\\Models\\Master\\User";
+
 const COLOR_HEX = /^#[0-9A-Fa-f]{6}$/;
 
 /**
@@ -181,14 +184,13 @@ export function planRbac(snapshot: Snapshot): RbacPlan {
   }
 
   // Only rows naming a user the snapshot carries count: `model_id` is
-  // polymorphic and has no foreign key, and Spatie detaches a user's roles when
-  // the user is deleted, so a row naming no user names nothing.
-  const holdings = records(snapshot, "spatie.model_has_roles", ["role_uuid", "model_id"]).flatMap(
-    (row) => {
-      const user = users.get(row.model_id as string);
-      return user ? [{ user, roleId: row.role_uuid as string }] : [];
-    }
-  );
+  // polymorphic and has no foreign key, so another model's row is not a user's
+  // even when the ids coincide, and Spatie detaches a user's roles when the user
+  // is deleted, so a row naming no user names nothing.
+  const holdings = userRows(snapshot, "spatie.model_has_roles", "role_uuid").flatMap((row) => {
+    const user = users.get(row.model_id as string);
+    return user ? [{ user, roleId: row.role_uuid as string }] : [];
+  });
 
   // The divisions each role is held in, ordered by division name so the copies
   // come out in a stable order.
@@ -350,10 +352,7 @@ export function planRbac(snapshot: Snapshot): RbacPlan {
     );
   }
 
-  for (const row of records(snapshot, "spatie.model_has_permissions", [
-    "permission_uuid",
-    "model_id"
-  ])) {
+  for (const row of userRows(snapshot, "spatie.model_has_permissions", "permission_uuid")) {
     const user = users.get(row.model_id as string);
     const permission =
       permissionNames.get(row.permission_uuid as string) ?? (row.permission_uuid as string);
@@ -463,6 +462,13 @@ function records(snapshot: Snapshot, table: string, required: string[]): Snapsho
   }
   return (snapshot.rows.get(table) ?? []).map((row) =>
     Object.fromEntries(columns.map((column, index) => [column, row[index] ?? null]))
+  );
+}
+
+/** A Spatie pivot's rows that belong to a user, not another polymorphic model. */
+function userRows(snapshot: Snapshot, table: string, key: string): SnapshotRecord[] {
+  return records(snapshot, table, [key, "model_type", "model_id"]).filter(
+    (row) => row.model_type === USER_MODEL
   );
 }
 
