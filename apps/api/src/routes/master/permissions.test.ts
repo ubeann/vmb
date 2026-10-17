@@ -141,7 +141,7 @@ describe("master API permissions", () => {
         page: 1,
         perPage: 10,
         views: { all: 0, trash: 0 },
-        facets: { status: { active: 0, inactive: 0, suspended: 0 }, division: {} }
+        facets: { status: { active: 0, inactive: 0, suspended: 0 }, division: {}, role: {} }
       }))
     } as unknown as MasterStore;
     const app = withErrorReplies(

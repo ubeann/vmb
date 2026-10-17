@@ -28,6 +28,7 @@ const FINANCE = fixtureId(ID_GROUPS.division, 2);
 const userListQuery = (overrides: Partial<UserListRequest> = {}): UserListRequest => ({
   status: [],
   division: [],
+  role: [],
   trashed: "exclude",
   sort: "name",
   dir: "asc",
