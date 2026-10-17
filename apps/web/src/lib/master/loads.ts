@@ -25,6 +25,35 @@ export async function loadDivisionOptions(event: RequestEvent): Promise<Division
 }
 
 /**
+ * Every role, active or not, for the Users list's Role filter: a user can hold
+ * a role that has since gone Inactive. Only the roles the caller may list come
+ * back, every page of them, and a failure degrades to the roles read so far.
+ */
+export async function loadRoleFilterOptions(
+  event: RequestEvent
+): Promise<Array<{ id: string; name: string }>> {
+  const options: Array<{ id: string; name: string }> = [];
+
+  for (let page = 1; ; page++) {
+    const query = RoleListRequestSchema.parse({ perPage: "100", page: String(page) });
+    const access = await withApiClient(event, (client) => listRoles(client, query));
+
+    if (!access.ok) {
+      console.error("role filter options: failed to reach the API", access.error);
+      return options;
+    }
+    if (!access.value.ok) {
+      console.error("role filter options: API refused the request", access.value.error);
+      return options;
+    }
+
+    const { items, total } = access.value.value;
+    options.push(...items.map(({ id, name }) => ({ id, name })));
+    if (items.length === 0 || options.length >= total) return options;
+  }
+}
+
+/**
  * A role a user can be given: what the form needs to show it. A role scoped to
  * an Inactive Division cannot be newly given, so the form offers it only to
  * the user who already holds it (the Inactive rule, #304).

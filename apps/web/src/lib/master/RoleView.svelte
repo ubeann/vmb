@@ -18,6 +18,7 @@
   import RecordTime from "$lib/components/RecordTime.svelte";
   import { cn } from "$lib/utils.js";
   import { SWATCHES } from "./appearance.js";
+  import { listHref } from "./list.js";
   import { plainClick } from "$lib/components/list/rows.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import type { PermissionKey, RoleDetail } from "@vmb/types";
@@ -44,6 +45,9 @@
 
   // a seeded colour by its name, as the form's swatches have it; any other by its hex alone
   const swatch = $derived(SWATCHES.find((option) => option.hex === role.colorHex.toUpperCase()));
+
+  // the Users list narrowed to this Role, for a caller who can list users
+  const canListUsers = $derived(can("master-users.view_any"));
 
   const recordHref = $derived(resolve("/(app)/master/roles/[id]", { id: role.id }));
 
@@ -76,6 +80,15 @@
         <span class="font-medium">Every division</span>
       {/if}
     </p>
+    {#if canListUsers}
+      <p>
+        <a
+          href={resolve(listHref("/master/users", new URLSearchParams(), { role: role.id }))}
+          class="text-primary font-medium underline-offset-4 hover:underline"
+          >Users with this Role</a
+        >
+      </p>
+    {/if}
   </FormSection>
 
   <FormSection title="Appearance">

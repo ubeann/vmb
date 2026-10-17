@@ -50,6 +50,7 @@ const listQuery = (overrides: Partial<DivisionListRequest> = {}): DivisionListRe
 const userListQuery = (overrides: Partial<UserListRequest> = {}): UserListRequest => ({
   status: [],
   division: [],
+  role: [],
   trashed: "exclude",
   sort: "name",
   dir: "asc",
@@ -792,6 +793,67 @@ describe("users store", () => {
       await store.deleteUser(rina.id, ACTOR);
       const trashed = await store.listUsers(userListQuery({ trashed: "only" }));
       expect(trashed.items.map((item) => item.name)).toEqual(["Rina Wijaya"]);
+    });
+  });
+
+  it("filters by several roles, and counts every role under the other filters", async () => {
+    await withMigratedDb(async (db, client) => {
+      const ops = "d1000000-0000-4000-8000-000000000001";
+      await insertDivision(client, ops, "Operations", "OPS");
+      const dispatcher = await insertRole(client, "Dispatcher", ops);
+      const accountant = await insertRole(client, "Accountant");
+      const idle = await insertRole(client, "Auditor");
+      const store = storeFor(db);
+
+      await store.createUser(input({ roleIds: [dispatcher, accountant] }), ACTOR);
+      await store.createUser(
+        input({ name: "Agus", email: "agus@vmblogistics.id", roleIds: [accountant] }),
+        ACTOR
+      );
+      await store.createUser(
+        input({
+          name: "Siti",
+          email: "siti@vmblogistics.id",
+          status: "suspended",
+          roleIds: [dispatcher]
+        }),
+        ACTOR
+      );
+      const leaver = await store.createUser(
+        input({ name: "Budi", email: "budi@vmblogistics.id", roleIds: [accountant] }),
+        ACTOR
+      );
+      await store.deleteUser(leaver.id, ACTOR);
+
+      // one role is the users holding it
+      const accountants = await store.listUsers(userListQuery({ role: [accountant] }));
+      expect(accountants.items.map((item) => item.name)).toEqual(["Agus", "Rina Wijaya"]);
+
+      // several roles are "any of them", and a user holding both is listed once
+      const either = await store.listUsers(userListQuery({ role: [dispatcher, accountant] }));
+      expect(either.items.map((item) => item.name)).toEqual(["Agus", "Rina Wijaya", "Siti"]);
+      expect(either.total).toBe(3);
+
+      // a role nobody holds gives nobody, and has no entry in the counts
+      const none = await store.listUsers(userListQuery({ role: [idle] }));
+      expect(none.items).toEqual([]);
+
+      // each role's count leaves out the Role filter, and keeps the others and the view
+      const narrowed = await store.listUsers(
+        userListQuery({ role: [dispatcher], status: ["active"] })
+      );
+      expect(narrowed.items.map((item) => item.name)).toEqual(["Rina Wijaya"]);
+      expect(narrowed.facets.role).toEqual({ [dispatcher]: 1, [accountant]: 2 });
+      // the other facets and tabs do keep it
+      expect(narrowed.facets.status).toEqual({ active: 1, inactive: 0, suspended: 1 });
+      expect(narrowed.views).toEqual({ all: 1, trash: 0 });
+
+      const base = await store.listUsers(userListQuery());
+      expect(base.facets.role).toEqual({ [dispatcher]: 2, [accountant]: 2 });
+
+      const trash = await store.listUsers(userListQuery({ trashed: "only", role: [accountant] }));
+      expect(trash.items.map((item) => item.name)).toEqual(["Budi"]);
+      expect(trash.facets.role).toEqual({ [accountant]: 1 });
     });
   });
 

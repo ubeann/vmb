@@ -123,17 +123,21 @@ export const DivisionFilterSchema = z
   .transform((ids) => [...new Set(ids.map((id) => id.toLowerCase()))])
   .default([]);
 
+/** The Role filter's parameter: the roles chosen, as ids, read as the Division filter's are. */
+export const RoleFilterSchema = DivisionFilterSchema;
+
 /**
  * The Users list's state, as its URL carries it (#304, ADR-0051 rule 4):
- * `status` and `division` take several values (`status=active,suspended`),
+ * `status`, `division` and `role` take several values (`status=active,suspended`),
  * and `updated` and `created` a preset (`today`, `week`, `month`) or an
  * inclusive `YYYY-MM-DD..YYYY-MM-DD` range. A user is in a division when they
- * hold a role scoped to it.
+ * hold a role scoped to it, and has a role when they hold it.
  */
 export const UserListQuerySchema = z.object({
   search: SearchSchema,
   status: valueFilter(USER_STATUSES),
   division: DivisionFilterSchema,
+  role: RoleFilterSchema,
   updated: DateFilterSchema,
   created: DateFilterSchema,
   trashed: TrashedSchema,
@@ -156,15 +160,16 @@ export type UserListRequest = z.infer<typeof UserListRequestSchema>;
 
 /**
  * A page of users, with the counts the list kit shows beside its controls:
- * each view's rows (the All and Trash tabs), and each Status and Division
+ * each view's rows (the All and Trash tabs), and each Status, Division and Role
  * option's rows in the current view. Every count keeps the search and the
- * other filters; a Division with no user in it has no entry.
+ * other filters; a Division or Role with no user in it has no entry.
  */
 export const UserListResponseSchema = listResponse(UserSchema).extend({
   views: ViewCountsSchema,
   facets: z.object({
     status: optionCounts(USER_STATUSES),
-    division: z.record(z.uuid(), z.number().int().min(0))
+    division: z.record(z.uuid(), z.number().int().min(0)),
+    role: z.record(z.uuid(), z.number().int().min(0))
   })
 });
 

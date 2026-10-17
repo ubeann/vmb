@@ -85,7 +85,7 @@ const EMPTY_USERS: UserListResponse = {
   page: 1,
   perPage: 10,
   views: { all: 0, trash: 0 },
-  facets: { status: { active: 0, inactive: 0, suspended: 0 }, division: {} }
+  facets: { status: { active: 0, inactive: 0, suspended: 0 }, division: {}, role: {} }
 };
 
 const EMPTY_DIVISIONS: DivisionListResponse = {
@@ -895,6 +895,7 @@ describe("master API: users", () => {
       search: undefined,
       status: [],
       division: [],
+      role: [],
       updated: undefined,
       created: undefined,
       trashed: "exclude",
@@ -915,13 +916,14 @@ describe("master API: users", () => {
         views: { all: 4, trash: 1 },
         facets: {
           status: { active: 2, inactive: 0, suspended: 2 },
-          division: { [OTHER_ID]: 3 }
+          division: { [OTHER_ID]: 3 },
+          role: { [ID]: 2 }
         }
       }))
     });
 
     const response = await appWith(store).request(
-      `/users?division=${OTHER_ID},${ID}&status=suspended,active&updated=week&created=2025-01-01..2025-01-31&tz=UTC`,
+      `/users?division=${OTHER_ID},${ID}&role=${ID},${OTHER_ID.toUpperCase()},${ID}&status=suspended,active&updated=week&created=2025-01-01..2025-01-31&tz=UTC`,
       {},
       env
     );
@@ -929,6 +931,7 @@ describe("master API: users", () => {
     expect(store.listUsers).toHaveBeenCalledWith(
       expect.objectContaining({
         division: [OTHER_ID, ID],
+        role: [ID, OTHER_ID],
         status: ["active", "suspended"],
         updated: "week",
         created: "2025-01-01..2025-01-31",
@@ -937,13 +940,14 @@ describe("master API: users", () => {
     );
     await expect(response.json()).resolves.toMatchObject({
       views: { all: 4, trash: 1 },
-      facets: { status: { suspended: 2 }, division: { [OTHER_ID]: 3 } }
+      facets: { status: { suspended: 2 }, division: { [OTHER_ID]: 3 }, role: { [ID]: 2 } }
     });
   });
 
   it.each([
     ["an unknown status", "status=active,archived", "status.1"],
-    ["a division that is not an id", `division=${ID},nope`, "division.1"]
+    ["a division that is not an id", `division=${ID},nope`, "division.1"],
+    ["a role that is not an id", `role=${ID},nope`, "role.1"]
   ])("rejects %s with the issue list", async (_name, search, path) => {
     const store = fakeStore();
     const response = await appWith(store).request(`/users?${search}`, {}, env);
