@@ -111,20 +111,17 @@ export type UserUpdateInput = z.infer<typeof UserUpdateInputSchema>;
 export const UserSortSchema = z.enum(["name", "email", "createdAt", "updatedAt"]).default("name");
 
 /**
- * The Division filter's parameter: the divisions chosen, as ids, each once, in
- * the order the URL gave them (`division=a,b`, ADR-0051 rule 4). An id that is
+ * The Division and Role filters' parameter: the ids chosen, each once, in the
+ * order the URL gave them (`division=a,b`, ADR-0051 rule 4). An id that is
  * not a uuid fails at its own index, so `parseListQuery` can drop that value
  * and keep the others.
  */
-export const DivisionFilterSchema = z
+export const IdListFilterSchema = z
   .string()
   .transform(splitListParam)
   .pipe(z.array(z.uuid()))
   .transform((ids) => [...new Set(ids.map((id) => id.toLowerCase()))])
   .default([]);
-
-/** The Role filter's parameter: the roles chosen, as ids, read as the Division filter's are. */
-export const RoleFilterSchema = DivisionFilterSchema;
 
 /**
  * The Users list's state, as its URL carries it (#304, ADR-0051 rule 4):
@@ -136,8 +133,8 @@ export const RoleFilterSchema = DivisionFilterSchema;
 export const UserListQuerySchema = z.object({
   search: SearchSchema,
   status: valueFilter(USER_STATUSES),
-  division: DivisionFilterSchema,
-  role: RoleFilterSchema,
+  division: IdListFilterSchema,
+  role: IdListFilterSchema,
   updated: DateFilterSchema,
   created: DateFilterSchema,
   trashed: TrashedSchema,
