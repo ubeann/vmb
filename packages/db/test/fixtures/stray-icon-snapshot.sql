@@ -11,3 +11,8 @@ COPY master.divisions (id, name, code, icon_name) FROM stdin;
 22222222-2222-4222-8222-222222222222	Finance	FIN	heroicon-o-arrow-left
 33333333-3333-4333-8333-333333333333	Warehouse	WHS	heroicon-m-x-mark
 \.
+
+-- every snapshot needs its Super Admin (#311)
+COPY master.roles (uuid, name, is_system) FROM stdin;
+66666666-6666-4666-8666-666666666666	Super Admin	t
+\.

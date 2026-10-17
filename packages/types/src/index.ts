@@ -5,6 +5,7 @@ export * from "./api-error.js";
 export * from "./divisions.js";
 export * from "./roles.js";
 export * from "./icons.js";
+export * from "./legacy-icons.js";
 export * from "./permissions.js";
 export * from "./access.js";
 export * from "./users.js";

@@ -105,6 +105,6 @@ function quoteIdentifier(name: string): string {
  * characters are emitted as they are, because escaping them with a backslash
  * would store the backslash instead of the character.
  */
-function quoteLiteral(value: string): string {
+export function quoteLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
