@@ -78,6 +78,7 @@
   import EllipsisVerticalIcon from "@lucide/svelte/icons/ellipsis-vertical";
   import EyeIcon from "@lucide/svelte/icons/eye";
   import HistoryIcon from "@lucide/svelte/icons/history";
+  import KeyRoundIcon from "@lucide/svelte/icons/key-round";
   import PencilIcon from "@lucide/svelte/icons/pencil";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
@@ -115,11 +116,17 @@
       icon: Building2Icon,
       options: data.divisions.map((division) => ({ value: division.id, label: division.name }))
     },
+    {
+      key: "role",
+      label: "Role",
+      icon: KeyRoundIcon,
+      options: data.roles.map((role) => ({ value: role.id, label: role.name }))
+    },
     { kind: "date", key: "updated", label: "Updated", icon: CalendarClockIcon },
     { kind: "date", key: "created", label: "Created", icon: CalendarPlusIcon }
   ]);
 
-  // a Division with nobody in it has no count from the API, and says 0 rather than nothing
+  // a Division or Role with nobody in it has no count from the API, and says 0 rather than nothing
   const facets = $derived(
     data.users
       ? {
@@ -129,6 +136,9 @@
               division.id,
               data.users?.facets.division[division.id] ?? 0
             ])
+          ),
+          role: Object.fromEntries(
+            data.roles.map((role) => [role.id, data.users?.facets.role[role.id] ?? 0])
           )
         }
       : null
@@ -159,7 +169,8 @@
   const filtered = $derived(
     Boolean(data.query.search || data.query.updated || data.query.created) ||
       data.query.status.length > 0 ||
-      data.query.division.length > 0
+      data.query.division.length > 0 ||
+      data.query.role.length > 0
   );
   const sort = $derived({ sort: data.query.sort, dir: data.query.dir });
   // what narrow cards sort by in the View panel; a deleted user's last update is their deletion
@@ -494,6 +505,7 @@
                   search: null,
                   status: null,
                   division: null,
+                  role: null,
                   updated: null,
                   created: null
                 })

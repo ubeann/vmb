@@ -58,6 +58,8 @@ const { default: Page } = await import("./+page.svelte");
 
 const FINANCE = "d1000000-0000-4000-8000-000000000001";
 const OPS = "d1000000-0000-4000-8000-000000000002";
+const MANAGER = "a1000000-0000-4000-8000-000000000001";
+const STAFF = "a1000000-0000-4000-8000-000000000002";
 
 const rina: User = {
   id: "u1000000-0000-4000-8000-000000000001",
@@ -127,6 +129,7 @@ function props(
     permissions?: string[];
     failed?: boolean;
     divisions?: Division[];
+    roles?: Array<{ id: string; name: string }>;
   } = {}
 ) {
   mockPage.url = new URL(url, "http://localhost");
@@ -149,12 +152,17 @@ function props(
             views: { all: overrides.total ?? items.length, trash: 2 },
             facets: {
               status: { active: 1, inactive: 1, suspended: 1 },
-              division: { [FINANCE]: 2 }
+              division: { [FINANCE]: 2 },
+              role: { [MANAGER]: 2 }
             }
           },
       trashCount: 2,
       outOf: overrides.outOf ?? null,
-      divisions: overrides.divisions ?? [division(FINANCE, "Finance"), division(OPS, "Operations")]
+      divisions: overrides.divisions ?? [division(FINANCE, "Finance"), division(OPS, "Operations")],
+      roles: overrides.roles ?? [
+        { id: MANAGER, name: "Manager Finance" },
+        { id: STAFF, name: "Staff" }
+      ]
     } as unknown as PageData
   };
 }
@@ -269,6 +277,39 @@ describe("users list", () => {
       `/master/users?status=active,suspended&division=${FINANCE}`,
       expect.objectContaining({ noScroll: true })
     );
+  });
+
+  it("filters by Role: each role with its users, and a role nobody holds saying 0", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/users"));
+
+    await screen.getByRole("button", { name: /^Filter/ }).click();
+    const panel = screen.getByRole("dialog", { name: "Filters" });
+    await expect
+      .element(panel.getByRole("checkbox", { name: /^Manager Finance\s*2$/ }))
+      .toBeVisible();
+    await expect.element(panel.getByRole("checkbox", { name: /^Staff\s*0$/ })).toBeVisible();
+
+    await panel.getByRole("checkbox", { name: /^Manager Finance/ }).click();
+    expect(goto).toHaveBeenLastCalledWith(
+      `/master/users?role=${MANAGER}`,
+      expect.objectContaining({ noScroll: true })
+    );
+  });
+
+  it("names a Role filter by its roles on the chip, and clears it with the other filters", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(
+      Page,
+      props(`/master/users?role=${MANAGER},${STAFF}&status=active`, { items: [] })
+    );
+
+    await expect
+      .element(screen.getByRole("link", { name: "Remove filter Role: Manager Finance, Staff" }))
+      .toHaveAttribute("href", "/master/users?status=active");
+    await expect
+      .element(screen.getByRole("link", { name: "Clear search and filters" }))
+      .toHaveAttribute("href", "/master/users");
   });
 
   it("names a Division filter by its Division on the chip, and gives a long list a search box", async () => {

@@ -53,6 +53,23 @@ describe("the role view page", () => {
     await expect.element(screen.getByText("Active", { exact: true })).toBeVisible();
   });
 
+  it("links to the users holding the role, for a caller who can list users", async () => {
+    const screen = await render(Page, {
+      data: pageData({}, { permissions: [...ALL, "master-users.view_any"] }),
+      form: null
+    });
+
+    await expect
+      .element(screen.getByRole("link", { name: "Users with this Role" }))
+      .toHaveAttribute("href", `/master/users?role=${ID}`);
+  });
+
+  it("leaves the users link out for a caller who can't list users", async () => {
+    const screen = await render(Page, { data: pageData(), form: null });
+
+    expect(screen.getByRole("link", { name: "Users with this Role" }).elements()).toHaveLength(0);
+  });
+
   it("names the division a role is scoped to", async () => {
     const screen = await render(Page, {
       data: pageData({ divisionId: ID, divisionName: "Warehouse" }),

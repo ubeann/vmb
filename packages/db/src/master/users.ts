@@ -131,7 +131,14 @@ export function inDivision(divisionId: string): SQL {
   )`;
 }
 
-/** The search and every filter but the view, status and division, which the counts vary. */
+/** A user holding a role: the Role filter's membership. */
+function holdsRole(roleId: string): SQL {
+  return sql`exists (
+    select 1 from master.user_roles ur where ur.user_id = ${users.id} and ur.role_id = ${roleId}
+  )`;
+}
+
+/** The search and every filter but the view, status, division and role, which the counts vary. */
 function sharedConditions(query: UserListRequest): SQL[] {
   const conditions: SQL[] = [];
 
@@ -168,36 +175,42 @@ function divisionCondition(division: UserListRequest["division"]): SQL | undefin
   return division.length === 0 ? undefined : or(...division.map(inDivision));
 }
 
+/** A user holding any of the roles chosen; none chosen is any. */
+function roleCondition(role: UserListRequest["role"]): SQL | undefined {
+  return role.length === 0 ? undefined : or(...role.map(holdsRole));
+}
+
 /**
  * A page of the list, with the counts the list kit shows: each view's rows,
  * each Status option's rows in the current view, and how many users each
- * Division would give (ADR-0051 rules 2 and 4). Every count keeps the search
- * and the other filters, and leaves out the filter it is the options of. The
- * counts come from one aggregate over the rows the shared conditions match,
- * and one grouped read for the divisions.
+ * Division and each Role would give (ADR-0051 rules 2 and 4). Every count
+ * keeps the search and the other filters, and leaves out the filter it is the
+ * options of. The counts come from one aggregate over the rows the shared
+ * conditions match, and one grouped read each for the divisions and the roles.
  */
 export async function listUsers(db: MasterDb, query: UserListRequest): Promise<UserListResponse> {
   const shared = sharedConditions(query);
   const view = viewCondition(query.trashed);
   const status = statusCondition(query.status);
   const division = divisionCondition(query.division);
+  const role = roleCondition(query.role);
   const column = SORT_COLUMNS[query.sort];
   const order = query.dir === "asc" ? asc(column) : desc(column);
 
-  const [rows, totals, divisionCounts] = await Promise.all([
+  const [rows, totals, divisionCounts, roleCounts] = await Promise.all([
     selectUsers(db)
-      .where(and(...shared, view, status, division))
+      .where(and(...shared, view, status, division, role))
       .orderBy(order, asc(users.id))
       .limit(query.perPage)
       .offset((query.page - 1) * query.perPage),
     db
       .select({
-        total: countWhere(view, status, division),
-        all: countWhere(isNull(users.deletedAt), status, division),
-        trash: countWhere(isNotNull(users.deletedAt), status, division),
-        active: countWhere(view, division, eq(users.status, "active")),
-        inactive: countWhere(view, division, eq(users.status, "inactive")),
-        suspended: countWhere(view, division, eq(users.status, "suspended"))
+        total: countWhere(view, status, division, role),
+        all: countWhere(isNull(users.deletedAt), status, division, role),
+        trash: countWhere(isNotNull(users.deletedAt), status, division, role),
+        active: countWhere(view, division, role, eq(users.status, "active")),
+        inactive: countWhere(view, division, role, eq(users.status, "inactive")),
+        suspended: countWhere(view, division, role, eq(users.status, "suspended"))
       })
       .from(users)
       .where(and(...shared)),
@@ -206,8 +219,14 @@ export async function listUsers(db: MasterDb, query: UserListRequest): Promise<U
       .from(users)
       .innerJoin(userRoles, eq(userRoles.userId, users.id))
       .innerJoin(roles, eq(roles.id, userRoles.roleId))
-      .where(and(...shared, view, status, isNotNull(roles.divisionId)))
-      .groupBy(roles.divisionId)
+      .where(and(...shared, view, status, role, isNotNull(roles.divisionId)))
+      .groupBy(roles.divisionId),
+    db
+      .select({ roleId: userRoles.roleId, value: sql<number>`count(distinct ${users.id})` })
+      .from(users)
+      .innerJoin(userRoles, eq(userRoles.userId, users.id))
+      .where(and(...shared, view, status, division))
+      .groupBy(userRoles.roleId)
   ]);
   const counts = totals[0] ?? { total: 0, all: 0, trash: 0, active: 0, inactive: 0, suspended: 0 };
 
@@ -215,6 +234,9 @@ export async function listUsers(db: MasterDb, query: UserListRequest): Promise<U
   for (const row of divisionCounts) {
     if (row.divisionId) byDivision[row.divisionId] = Number(row.value);
   }
+
+  const byRole: Record<string, number> = {};
+  for (const row of roleCounts) byRole[row.roleId] = Number(row.value);
 
   return {
     items: rows.map(toUser),
@@ -228,7 +250,8 @@ export async function listUsers(db: MasterDb, query: UserListRequest): Promise<U
         inactive: counts.inactive,
         suspended: counts.suspended
       },
-      division: byDivision
+      division: byDivision,
+      role: byRole
     }
   };
 }
