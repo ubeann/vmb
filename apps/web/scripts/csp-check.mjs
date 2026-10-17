@@ -235,6 +235,7 @@ async function overlays(page) {
 
 /** `?` opens the shortcut sheet on a signed-in page. */
 async function shortcutSheet(page) {
+  where.step = "shortcut sheet";
   const before = await lockState(page);
   await page.locator("body").click({ position: { x: 1, y: 1 } });
   await page.keyboard.press("?");
@@ -247,25 +248,40 @@ async function shortcutSheet(page) {
   return 1;
 }
 
-/** Theme > Dark, then Theme > Light: mode-watcher appends its style sheet on each. */
+/**
+ * Theme > Dark, then Theme > Light: mode-watcher appends its style sheet on each.
+ * The signed-in shell keeps the choice in the profile menu; the error page has
+ * the masthead's Theme button.
+ */
 async function theme(page) {
-  const toggle = page.getByRole("button", { name: "Theme", exact: true });
-  if (!(await toggle.isVisible().catch(() => false))) {
-    gaps.push(`${describe()}: no Theme button`);
+  where.step = "theme";
+  const menu = page
+    .getByRole("button", { name: /account menu$/ })
+    .or(page.getByRole("button", { name: "Theme", exact: true }))
+    .first();
+  if (!(await menu.isVisible().catch(() => false))) {
+    gaps.push(`${describe()}: no profile menu or Theme button`);
     return 0;
   }
   for (const mode of ["Dark", "Light"]) {
-    await toggle.click();
-    await page.getByRole("menuitemradio", { name: mode }).click();
+    const radio = page.getByRole("menuitemradio", { name: mode, exact: true });
+    // the profile menu stays open after a choice, the Theme menu closes
+    if (!(await radio.isVisible().catch(() => false))) {
+      await menu.click();
+      await wait(page, 400);
+    }
+    await radio.click();
     await wait(page, 700);
     const dark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
     if (dark !== (mode === "Dark")) gaps.push(`${describe()}: choosing ${mode} left dark=${dark}`);
   }
+  await closeAll(page);
   return 2;
 }
 
 /** From a list, a click on the first record opens it in its layer; Escape closes it. */
 async function recordLayer(page, listPath) {
+  where.step = "record in its layer";
   const row = page.locator(`main a[href^="${listPath}/"]`).first();
   if (!(await row.isVisible().catch(() => false))) {
     gaps.push(`${describe()}: no record to open in a layer`);
@@ -288,7 +304,7 @@ const VISITS = {
   signedIn: [
     { path: "/" },
     { path: "/design-system" },
-    { path: "/csp-check-no-such-page", name: "/404 (signed in)" }
+    { path: "/csp-check-no-such-page", name: "/404 (signed in)", shell: false }
   ]
 };
 
@@ -323,7 +339,7 @@ async function visit(context, entry, { explore, signedIn }) {
       gaps.push(`${describe()}: bounced to /login`);
     } else if (explore) {
       opened += await overlays(page);
-      if (signedIn) opened += await shortcutSheet(page);
+      if (signedIn && entry.shell !== false) opened += await shortcutSheet(page);
       if (signedIn && entry.list) opened += await recordLayer(page, entry.list);
       if (signedIn) opened += await theme(page);
     }
