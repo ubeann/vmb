@@ -169,7 +169,7 @@ Legacy 2FA never challenged at login (F4); it only guarded a few profile actions
 
 **Recommendation:** (a). A second factor that is never asked at sign-in is parity with a defect. Opt-in, not mandatory for any role yet (legacy mandated nothing); mandating it for Super Admin can be a later one-line policy. Record as an ADR (login flow, recovery, what happens to a user who loses the device: an admin disables it from the Users form).
 
-**Answer (2026-10-17):** **drop two-factor.** Not carried; ledger row D-015. T7d is withdrawn. Revisit only when the business asks, with Better Auth's plugin as the path.
+**Answer (2026-10-17):** **drop two-factor.** Not carried; ledger row D-015. T7d is withdrawn. The trigger for bringing it back is research #470.
 
 ### Q3. Self-service account deletion: carry or drop?
 
@@ -177,7 +177,7 @@ Legacy let any signed-in user soft-delete their own account after a password pro
 
 **Recommendation:** **drop it** as a deliberate deviation (a ledger row, no ADR): offboarding is an admin's act in Master, and the admin path already revokes every session. If the owner wants it kept, it becomes T9: password confirm, refuse when the user is the last active holder of a role that grants every key, revoke all sessions.
 
-**Answer (2026-10-17):** drop it, as recommended. Ledger row D-016; T9 is withdrawn.
+**Answer (2026-10-17):** drop it, as recommended. Ledger row D-016; T9 is withdrawn. Whether UU PDP obliges an erasure or export path is research #469.
 
 ### Q4. Hide out-of-reach records, or show them read-only?
 
@@ -209,7 +209,7 @@ Legacy allowed it on the profile with no re-verification (F1). Here the email is
 
 **Recommendation:** **not on the profile for now.** Name, phone and avatar are self-service; the email is changed by an admin in Master, which already dual-writes the identity. Better Auth's `changeEmail` with verification can come later if asked. T7a states this.
 
-**Answer (2026-10-17):** admin-only for now, as recommended. T7a shows the email read-only.
+**Answer (2026-10-17):** admin-only for now, as recommended. T7a shows the email read-only; the right-to-correction question is part of #469.
 
 ### Q8. What happens to #6?
 
