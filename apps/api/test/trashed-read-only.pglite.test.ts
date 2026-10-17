@@ -232,13 +232,16 @@ describe("master API: a Trashed record is read-only", () => {
     ])("is refused %s: 404, and stays as it was", async (_what, { assignRole, ...overrides }) => {
       const user = await trashedUser();
       if (assignRole) {
-        const staff = await store.createRole({
-          name: `Staff ${serial}`,
-          description: "",
-          colorHex: "#805AD5",
-          iconName: "user",
-          isActive: true
-        });
+        const staff = await store.createRole(
+          {
+            name: `Staff ${serial}`,
+            description: "",
+            colorHex: "#805AD5",
+            iconName: "user",
+            isActive: true
+          },
+          ACTOR
+        );
         Object.assign(overrides, { roleIds: [staff.id] });
       }
 

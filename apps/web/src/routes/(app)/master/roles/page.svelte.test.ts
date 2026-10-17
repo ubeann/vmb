@@ -46,9 +46,9 @@ async function loadLayer(href: string) {
   }
   const record = [staff, inactive, admin].find((role) => role.id === id);
   if (!record) return { type: "loaded" as const, status: 404, data: {} };
-  const detail: RoleDetail = { ...record, divisionName: null };
+  const detail: RoleDetail = { ...record, divisionName: null, permissionKeys: [] };
   if (edit) {
-    const form = await superValidate(roleFormData(record), zod4(RoleUpdateInputSchema));
+    const form = await superValidate(roleFormData(detail), zod4(RoleUpdateInputSchema));
     return { type: "loaded" as const, status: 200, data: { role: detail, form } };
   }
   return {
@@ -117,6 +117,7 @@ const staff: Role = {
   iconName: "user",
   description: "Supports daily operations",
   divisionId: null,
+  permissionCount: 2,
   createdAt: "2026-01-05T01:00:00.000Z",
   updatedAt: "2026-10-05T03:04:00.000Z"
 };
@@ -483,6 +484,18 @@ describe("roles list", () => {
       .toBeVisible();
   });
 
+  it("shows how many permissions each role grants, in a column and folded under the name", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/roles"));
+
+    await expect.element(screen.getByRole("columnheader", { name: "Permissions" })).toBeVisible();
+    const row = screen.getByRole("row", { name: /^Staff/ });
+    await expect.element(row.getByRole("cell", { name: "2", exact: true })).toBeVisible();
+
+    await browser.viewport(414, 896);
+    await expect.element(row.getByText(/2 permissions/)).toBeVisible();
+  });
+
   it("hides a column from View and keeps the sort in the headers", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/roles"));
@@ -549,7 +562,7 @@ describe("a Role in the layer over the list (#303)", () => {
       type: "loaded" as const,
       status: 200,
       data: {
-        role: { ...staff, divisionId: "x", divisionName: "Warehouse" },
+        role: { ...staff, divisionId: "x", divisionName: "Warehouse", permissionKeys: [] },
         permissions: ALL
       }
     }));

@@ -19,6 +19,8 @@ const role: RoleDetail = {
   description: null,
   divisionId: null,
   divisionName: null,
+  permissionCount: 0,
+  permissionKeys: [],
   createdAt: STAMP,
   updatedAt: STAMP
 };

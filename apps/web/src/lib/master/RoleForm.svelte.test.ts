@@ -1,4 +1,4 @@
-import { RoleInputSchema, RoleUpdateInputSchema } from "@vmb/types";
+import { RoleInputSchema, RoleUpdateInputSchema, allPermissionKeys } from "@vmb/types";
 import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it, vi } from "vitest";
@@ -13,13 +13,17 @@ vi.mock("$app/forms", async (original) => ({
 
 const { render } = await import("vitest-browser-svelte");
 const { default: RoleForm } = await import("./RoleForm.svelte");
+const { RoleFormSchema } = await import("./form-data.js");
+
+// a caller who holds every key, unless a test says otherwise
+const HELD = allPermissionKeys();
 
 describe("RoleForm", () => {
   it("renders the role fields, active by default, with one primary action", async () => {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
     form.data.isActive = true;
 
-    const screen = await render(RoleForm, { form });
+    const screen = await render(RoleForm, { held: HELD, form });
 
     await expect.element(screen.getByRole("textbox", { name: "Name" })).toBeVisible();
     await expect
@@ -35,7 +39,7 @@ describe("RoleForm", () => {
   it("has no Division field: a role's division is set with its permissions, not here", async () => {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
 
-    await render(RoleForm, { form });
+    await render(RoleForm, { held: HELD, form });
 
     expect(document.querySelector('[name="divisionId"]')).toBeNull();
   });
@@ -52,7 +56,7 @@ describe("RoleForm", () => {
       zod4(RoleInputSchema)
     );
 
-    const screen = await render(RoleForm, { form });
+    const screen = await render(RoleForm, { held: HELD, form });
 
     await expect
       .element(screen.getByRole("textbox", { name: "Name" }))
@@ -66,7 +70,7 @@ describe("RoleForm", () => {
 
   it("previews the role from what is typed, unless a layer's header shows it", async () => {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
-    const screen = await render(RoleForm, { form });
+    const screen = await render(RoleForm, { held: HELD, form });
 
     await expect.element(screen.getByText("Role name")).toBeVisible();
     await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Dispatcher");
@@ -76,6 +80,7 @@ describe("RoleForm", () => {
     const drafts: { name: string; dirty: boolean }[] = [];
     document.body.innerHTML = "";
     const layered = await render(RoleForm, {
+      held: HELD,
       form,
       ondraft: (draft) => drafts.push(draft)
     });
@@ -99,7 +104,7 @@ describe("RoleForm on an edit", () => {
   it("posts the updatedAt it loaded in a hidden field, with no conflict line", async () => {
     const form = await superValidate({ ...loaded, updatedAt: STAMP }, zod4(RoleUpdateInputSchema));
 
-    const screen = await render(RoleForm, { form, reloadHref });
+    const screen = await render(RoleForm, { held: HELD, form, reloadHref });
 
     const stamp = document.querySelector<HTMLInputElement>('input[name="updatedAt"]');
     expect(stamp?.type).toBe("hidden");
@@ -110,7 +115,7 @@ describe("RoleForm on an edit", () => {
   it("posts an empty field for a record that was never stamped", async () => {
     const form = await superValidate({ ...loaded, updatedAt: null }, zod4(RoleUpdateInputSchema));
 
-    await render(RoleForm, { form, reloadHref });
+    await render(RoleForm, { held: HELD, form, reloadHref });
 
     expect(document.querySelector<HTMLInputElement>('input[name="updatedAt"]')?.value).toBe("");
   });
@@ -118,7 +123,7 @@ describe("RoleForm on an edit", () => {
   it("has no updatedAt field on a create", async () => {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
 
-    await render(RoleForm, { form });
+    await render(RoleForm, { held: HELD, form });
 
     expect(document.querySelector('input[name="updatedAt"]')).toBeNull();
   });
@@ -130,7 +135,7 @@ describe("RoleForm on an edit", () => {
     );
     setError(form, "updatedAt", "This record was changed by someone else since you opened it.");
 
-    const screen = await render(RoleForm, { form, reloadHref });
+    const screen = await render(RoleForm, { held: HELD, form, reloadHref });
 
     await expect.element(screen.getByRole("alert")).toBeVisible();
     expect(screen.getByRole("alert").element().textContent).toContain(
@@ -155,7 +160,7 @@ describe("RoleForm's checks", () => {
 
   it("says an empty name is required, under the field", async () => {
     const form = await superValidate(loaded, zod4(RoleInputSchema));
-    const screen = await render(RoleForm, { form });
+    const screen = await render(RoleForm, { held: HELD, form });
 
     await userEvent.clear(screen.getByRole("textbox", { name: "Name" }));
     await userEvent.tab();
@@ -167,7 +172,7 @@ describe("RoleForm's checks", () => {
     const refused = await superValidate(loaded, zod4(RoleInputSchema));
     setError(refused, "name", "A role with that name already exists.");
 
-    const screen = await render(RoleForm, { form: refused });
+    const screen = await render(RoleForm, { held: HELD, form: refused });
 
     await expect.element(screen.getByText("A role with that name already exists.")).toBeVisible();
     await expect
@@ -224,6 +229,7 @@ describe("RoleForm in the layer", () => {
       );
     const saved: unknown[] = [];
     const screen = await render(RoleForm, {
+      held: HELD,
       form,
       action: "/master/roles/r-1/edit",
       onsaved: (role) => saved.push(role)
@@ -236,5 +242,144 @@ describe("RoleForm in the layer", () => {
     expect(saved[0]).toMatchObject({ name: "Staff Lead" });
     expect(String(fetch.mock.calls[0]?.[0])).toContain("/master/roles/r-1/edit");
     fetch.mockRestore();
+  });
+});
+
+describe("RoleForm's permissions", () => {
+  const loaded = {
+    name: "Staff",
+    description: "",
+    colorHex: "#805AD5",
+    iconName: "user" as const,
+    isActive: true
+  };
+  // the keys a manager holds, and may grant or revoke
+  const MANAGER = [
+    "master-divisions.view_any",
+    "master-divisions.view",
+    "master-users.view_any",
+    "master-users.view"
+  ];
+
+  const posted = () =>
+    [...document.querySelectorAll<HTMLInputElement>('input[name="permissionKeys"]')]
+      .filter((input) => input.type === "hidden" || input.checked)
+      .filter((input) => !input.disabled)
+      .map((input) => input.value)
+      .sort();
+
+  it("lists every key grouped by resource, with its label and description, ticked as loaded", async () => {
+    const form = await superValidate(
+      { ...loaded, permissionKeys: ["master-users.view_any"] },
+      zod4(RoleFormSchema)
+    );
+    const screen = await render(RoleForm, { held: HELD, form });
+
+    const users = screen.getByRole("group", { name: "Users" });
+    await expect.element(users).toBeVisible();
+    await expect
+      .element(screen.getByText("The people who sign in, their roles and their status."))
+      .toBeVisible();
+    await expect
+      .element(users.getByRole("checkbox", { name: "List" }))
+      .toHaveAccessibleDescription("Open the users list and search it.");
+    await expect.element(users.getByRole("checkbox", { name: "List" })).toBeChecked();
+    await expect.element(users.getByRole("checkbox", { name: "View" })).not.toBeChecked();
+    expect(posted()).toEqual(["master-users.view_any"]);
+  });
+
+  it("ticks and clears a whole resource with its All box", async () => {
+    const form = await superValidate({ ...loaded, permissionKeys: [] }, zod4(RoleFormSchema));
+    const screen = await render(RoleForm, { held: HELD, form });
+    const all = screen.getByRole("checkbox", { name: "All Roles permissions" });
+
+    await userEvent.click(
+      screen
+        .getByRole("group", { name: "Roles" })
+        .getByRole("checkbox", { name: "View", exact: true })
+    );
+    await expect.element(all).toHaveAttribute("aria-checked", "mixed");
+
+    await userEvent.click(all);
+    await expect.element(all).toBeChecked();
+    expect(posted()).toEqual(
+      allPermissionKeys()
+        .filter((key) => key.startsWith("master-roles."))
+        .sort()
+    );
+
+    await userEvent.click(all);
+    expect(posted()).toEqual([]);
+  });
+
+  it("narrows the groups with the search, and still posts what it hides", async () => {
+    const form = await superValidate(
+      { ...loaded, permissionKeys: ["master-divisions.manager"] },
+      zod4(RoleFormSchema)
+    );
+    const screen = await render(RoleForm, { held: HELD, form });
+    const search = screen.getByRole("searchbox", { name: "Search permissions" });
+
+    await userEvent.type(search, "trash");
+    await expect.element(screen.getByRole("group", { name: "Roles" })).not.toBeInTheDocument();
+    await expect
+      .element(
+        screen
+          .getByRole("group", { name: "Users" })
+          .getByRole("checkbox", { name: "Restore", exact: true })
+      )
+      .toBeVisible();
+    // Enter searches; it does not save the form
+    await userEvent.keyboard("{Enter}");
+    expect(posted()).toEqual(["master-divisions.manager"]);
+
+    await userEvent.fill(search, "nothing like this");
+    await expect
+      .element(screen.getByText("No permissions match “nothing like this”."))
+      .toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    await expect.element(screen.getByRole("group", { name: "Roles" })).toBeVisible();
+  });
+
+  it("greys out a key the caller does not hold, with a hint, and All leaves it alone", async () => {
+    const form = await superValidate(
+      { ...loaded, permissionKeys: ["master-users.view_any"] },
+      zod4(RoleFormSchema)
+    );
+    const screen = await render(RoleForm, { held: MANAGER, form });
+    const users = screen.getByRole("group", { name: "Users" });
+
+    await expect
+      .element(
+        screen.getByText(/You can grant or take away only the permissions you hold yourself/)
+      )
+      .toBeVisible();
+    const remove = users.getByRole("checkbox", { name: "Delete", exact: true });
+    await expect.element(remove).toBeDisabled();
+    await expect.element(remove).toHaveAccessibleDescription(/You don't hold this one\./);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "All Users permissions" }));
+    expect(posted()).toEqual(["master-users.view", "master-users.view_any"]);
+    // a resource with nothing the caller holds has no All to use
+    await expect
+      .element(screen.getByRole("checkbox", { name: "All Roles permissions" }))
+      .toBeDisabled();
+  });
+
+  it("posts the empty set when every box is cleared, so the save revokes them all", async () => {
+    const form = await superValidate(
+      { ...loaded, permissionKeys: ["master-users.view_any"] },
+      zod4(RoleFormSchema)
+    );
+    const screen = await render(RoleForm, { held: HELD, form });
+
+    await userEvent.click(
+      screen.getByRole("group", { name: "Users" }).getByRole("checkbox", { name: "List" })
+    );
+
+    expect(posted()).toEqual([]);
+    const parsed = await superValidate(new FormData(), zod4(RoleFormSchema));
+    expect(parsed.data.permissionKeys).toEqual([]);
   });
 });

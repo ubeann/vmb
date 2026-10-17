@@ -110,6 +110,7 @@
   const columns = new ColumnVisibility("roles", [
     { id: "name", label: "Name", hideable: false },
     { id: "description", label: "Description" },
+    { id: "permissions", label: "Permissions" },
     { id: "updatedAt", label: "Updated" },
     { id: "createdAt", label: "Created", hidden: true }
   ]);
@@ -247,8 +248,9 @@
 
   // what a row folded to two lines says under its name, following the columns the user shows
   function metaParts(role: Role) {
-    const parts: ("inactive" | "changed" | "created")[] = [];
+    const parts: ("inactive" | "permissions" | "changed" | "created")[] = [];
     if (!role.isActive) parts.push("inactive");
+    if (columns.visible("permissions")) parts.push("permissions");
     if (columns.visible("updatedAt")) parts.push("changed");
     if (columns.visible("createdAt")) parts.push("created");
     return parts;
@@ -400,6 +402,11 @@
               {#if columns.visible("description")}
                 <Table.Head scope="col" class={columnClass("text")}>Description</Table.Head>
               {/if}
+              {#if columns.visible("permissions")}
+                <Table.Head scope="col" class={cn("text-right", columnClass("meta"))}
+                  >Permissions</Table.Head
+                >
+              {/if}
               {#if columns.visible("updatedAt")}
                 <SortableHead
                   {base}
@@ -480,6 +487,10 @@
                           {#if index > 0}{SEP}{/if}
                           {#if part === "inactive"}
                             <span class="text-foreground/80 font-medium">Inactive</span>
+                          {:else if part === "permissions"}
+                            {role.permissionCount}{SPACE}{role.permissionCount === 1
+                              ? "permission"
+                              : "permissions"}
                           {:else if part === "changed"}
                             Updated{SPACE}<RecordTime day iso={role.updatedAt} />
                           {:else}
@@ -496,6 +507,11 @@
                       ><Marked text={role.description ?? "—"} term={data.query.search} /></span
                     >
                   </Table.Cell>
+                {/if}
+                {#if columns.visible("permissions")}
+                  <Table.Cell class={cn("text-right tabular-nums", columnClass("meta"))}
+                    >{role.permissionCount}</Table.Cell
+                  >
                 {/if}
                 {#if columns.visible("updatedAt")}
                   <Table.Cell class={columnClass("meta")}
@@ -681,6 +697,7 @@
         {@const { role, form } = shown.data as EditData}
         <RoleForm
           {form}
+          held={data.permissions}
           action={editHref(role.id)}
           reloadHref={editHref(role.id)}
           onreload={() => void layer.refresh()}
@@ -692,6 +709,7 @@
         {@const { form } = shown.data as NewData}
         <RoleForm
           {form}
+          held={data.permissions}
           action={newHref}
           submitLabel="Create role"
           submitIcon={PlusIcon}

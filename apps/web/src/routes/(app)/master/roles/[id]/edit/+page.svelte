@@ -19,6 +19,7 @@
   <div class="bg-background flex flex-col overflow-hidden rounded-xl border pt-3">
     <RoleForm
       form={data.form}
+      held={data.permissions}
       reloadHref={resolve("/(app)/master/roles/[id]/edit", { id: data.role.id })}
       cancelHref={resolve("/(app)/master/roles/[id]", { id: data.role.id })}
     />

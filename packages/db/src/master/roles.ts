@@ -6,24 +6,47 @@ import type {
   RoleListResponse,
   RoleUpdateInput
 } from "@vmb/types";
-import { and, asc, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { isPermissionKey } from "@vmb/types";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type SQL
+} from "drizzle-orm";
 import { divisions, roles, userRoles } from "../schema/master.js";
 import {
   conflictFrom,
   countWhere,
   nextStamp,
   nullIfEmpty,
+  rowsOf,
   toIso,
   unchangedSince,
   withinDays,
   type MasterDb
 } from "./db.js";
+import { roleOutOfReach, roleWithinReach, textArray, type Actor } from "./guards.js";
 import { ConflictError, ForbiddenError, NotFoundError, StaleRecordError } from "../errors.js";
 
 /** The legacy policy refuses to modify a system role (`RolePolicy.php`). */
 const SYSTEM_ROLE_MESSAGE = "System roles cannot be modified or deleted.";
 
-type RoleRow = typeof roles.$inferSelect;
+// a role's columns plus how many permissions it grants, so a list needs no second query
+const roleColumns = {
+  ...getTableColumns(roles),
+  permissionCount: sql<number>`(
+    select cast(count(*) as integer) from master.role_permissions rp where rp.role_id = ${roles.id}
+  )`.mapWith(Number)
+};
+
+type RoleRow = typeof roles.$inferSelect & { permissionCount: number };
 
 const SORT_COLUMNS = {
   name: roles.name,
@@ -45,6 +68,7 @@ function toRole(row: RoleRow): Role {
     iconName: row.iconName,
     description: row.description,
     divisionId: row.divisionId,
+    permissionCount: row.permissionCount,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt)
   };
@@ -89,7 +113,7 @@ export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<R
 
   const [rows, totals] = await Promise.all([
     db
-      .select()
+      .select(roleColumns)
       .from(roles)
       .where(and(...shared, status))
       .orderBy(order, asc(roles.name), asc(roles.id))
@@ -115,69 +139,170 @@ export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<R
   };
 }
 
-/** A role with the name of its Division, for the view; none means it applies in every Division. */
+/**
+ * A role with the name of its Division, for the view, and the keys it grants,
+ * for the view and the form; no Division means it applies in every Division.
+ */
 export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
   const rows = await db
-    .select({ role: roles, divisionName: divisions.name })
+    .select({
+      role: roleColumns,
+      divisionName: divisions.name,
+      permissionKeys: sql<string[]>`coalesce((
+        select json_agg(rp.permission_key order by rp.permission_key)
+          from master.role_permissions rp where rp.role_id = ${roles.id}
+      ), '[]'::json)`
+    })
     .from(roles)
     .leftJoin(divisions, eq(divisions.id, roles.divisionId))
     .where(eq(roles.id, id))
     .limit(1);
   const row = rows[0];
   if (!row) throw new NotFoundError("Role not found.");
-  return { ...toRole(row.role), divisionName: row.divisionName };
+  return {
+    ...toRole(row.role),
+    divisionName: row.divisionName,
+    permissionKeys: row.permissionKeys
+  };
 }
 
-export async function createRole(db: MasterDb, input: RoleInput): Promise<Role> {
+/**
+ * The keys a save grants, once each and sorted, if the caller may grant them
+ * all: a key the catalogue does not define is a 404, and one the caller does
+ * not hold a 403, before anything is written. The catalogue is the code's
+ * (ADR-0045), and a test holds `master.permissions` to it.
+ */
+function grantable(keys: readonly string[], actor: Actor): string[] {
+  const unique = [...new Set(keys)].sort();
+  if (!unique.every(isPermissionKey)) {
+    throw new NotFoundError("One of the chosen permissions does not exist.");
+  }
+  const held = new Set(actor.permissions);
+  if (unique.some((key) => !held.has(key))) {
+    throw new ForbiddenError(
+      "PERMISSION_ESCALATION",
+      "You cannot grant a permission you do not have."
+    );
+  }
+  return unique;
+}
+
+/**
+ * What a raw role statement returns, under the names a `Role` has. The stamps
+ * are formatted in SQL, so every driver hands back the same ISO string the
+ * query builder's would; `permissionCount` is the grants once it is written.
+ */
+function returnedRole(permissionCount: SQL): SQL {
+  const iso = (column: string) =>
+    sql.raw(`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`);
+  return sql`r.id, r.name, r.is_active as "isActive", r.is_system as "isSystem",
+    r.color_hex as "colorHex", r.icon_name as "iconName", r.description,
+    r.division_id as "divisionId", ${permissionCount} as "permissionCount",
+    ${iso("r.created_at")} as "createdAt", ${iso("r.updated_at")} as "updatedAt"`;
+}
+
+// a driver may hand an integer back as a string
+type ReturnedRole = Omit<Role, "permissionCount"> & { permissionCount: number | string };
+
+function fromReturned(row: ReturnedRole): Role {
+  return { ...row, permissionCount: Number(row.permissionCount) };
+}
+
+/**
+ * Create a role and its grants in one statement, so a role never exists
+ * without the grants it was saved with. The caller may grant only keys they
+ * hold (ADR-0045's amendment of 2026-10-17).
+ */
+export async function createRole(db: MasterDb, input: RoleInput, actor: Actor): Promise<Role> {
+  const keys = grantable(input.permissionKeys ?? [], actor);
+
   try {
-    const stamp = new Date();
-    const rows = await db
-      .insert(roles)
-      .values({
-        ...input,
-        description: nullIfEmpty(input.description),
-        isSystem: false,
-        createdAt: stamp,
-        updatedAt: stamp
-      })
-      .returning();
-    const row = rows[0];
+    const result = await db.execute(sql`
+      with r as (
+        insert into master.roles
+          (name, description, color_hex, icon_name, is_active, is_system, created_at, updated_at)
+        values (${input.name}, ${nullIfEmpty(input.description)}, ${input.colorHex},
+                ${input.iconName}, ${input.isActive}, false, now(), now())
+        returning *
+      ), granted as (
+        insert into master.role_permissions (role_id, permission_key)
+        select r.id, key from r cross join unnest(${textArray(keys)}) as key
+        returning 1
+      )
+      select ${returnedRole(sql`${keys.length}`)} from r
+    `);
+    const row = rowsOf<ReturnedRole>(result)[0];
     if (!row) throw new Error("creating a role returned no row");
-    return toRole(row);
+    return fromReturned(row);
   } catch (error) {
     return conflictFrom(error, ROLE_NAME_CONFLICT);
   }
 }
 
 /**
- * Save an edit, if the role is still as the editor loaded it: `input.updatedAt`
- * is compared inside the update, so nothing saved since can be overwritten. A
- * miss is a 409 when the role exists and a 404 when it does not.
+ * Save an edit, if the role is still as the editor loaded it and the caller
+ * may change it. One statement writes the role's fields and, when
+ * `permissionKeys` is given, replaces its grants with that set. Its `where`
+ * carries the stale check and the reach test (the role grants nothing the
+ * caller lacks), so neither a save nor a grant landing after the check ahead
+ * of it can be overwritten, or widened past the caller (ADR-0045's amendment
+ * of 2026-10-17). The check ahead answers first with its own message; a write
+ * that still matches no row reads once more to say why: 404, 403, then 409.
  */
-export async function updateRole(db: MasterDb, id: string, input: RoleUpdateInput): Promise<Role> {
-  await assertMutable(db, id);
-  const { updatedAt, ...fields } = input;
+export async function updateRole(
+  db: MasterDb,
+  id: string,
+  input: RoleUpdateInput,
+  actor: Actor
+): Promise<Role> {
+  await assertEditable(db, id, actor);
+  const { updatedAt, permissionKeys, ...fields } = input;
+  // the role grants nothing the caller lacks, so this also covers what a save revokes
+  const keys = permissionKeys === undefined ? undefined : grantable(permissionKeys, actor);
+
+  // omitted keys leave the grants alone, and the count is the stored one
+  const grants =
+    keys === undefined
+      ? sql``
+      : sql`, revoked as (
+          delete from master.role_permissions
+           where role_id = (select id from r) and permission_key <> all(${textArray(keys)})
+          returning 1
+        ), granted as (
+          insert into master.role_permissions (role_id, permission_key)
+          select r.id, key from r cross join unnest(${textArray(keys)}) as key
+          on conflict do nothing
+          returning 1
+        )`;
+  const permissionCount =
+    keys === undefined
+      ? sql`(select cast(count(*) as integer) from master.role_permissions rp where rp.role_id = r.id)`
+      : sql`${keys.length}`;
 
   try {
-    const rows = await db
-      .update(roles)
-      .set({
-        ...fields,
-        description: nullIfEmpty(fields.description),
-        updatedAt: nextStamp(roles.updatedAt)
-      })
-      .where(
-        and(eq(roles.id, id), eq(roles.isSystem, false), unchangedSince(roles.updatedAt, updatedAt))
-      )
-      .returning();
-    const row = rows[0];
-    if (row) return toRole(row);
+    const result = await db.execute(sql`
+      with r as (
+        update master.roles
+           set name = ${fields.name},
+               description = ${nullIfEmpty(fields.description)},
+               color_hex = ${fields.colorHex},
+               icon_name = ${fields.iconName},
+               is_active = ${fields.isActive},
+               updated_at = ${nextStamp(roles.updatedAt)}
+         where id = ${id} and not is_system and ${unchangedSince(roles.updatedAt, updatedAt)}
+           and ${roleWithinReach(actor)}
+        returning *
+      )${grants}
+      select ${returnedRole(permissionCount)} from r
+    `);
+    const row = rowsOf<ReturnedRole>(result)[0];
+    if (row) return fromReturned(row);
   } catch (error) {
     return conflictFrom(error, ROLE_NAME_CONFLICT);
   }
 
-  // `assertMutable` found the role a moment ago: it is gone, or changed since
-  await assertMutable(db, id);
+  // the check found the role a moment ago: it is gone, out of reach, or changed since
+  await assertEditable(db, id, actor);
   throw new StaleRecordError();
 }
 
@@ -204,6 +329,24 @@ export async function deleteRole(db: MasterDb, id: string): Promise<void> {
     .returning({ id: roles.id });
 
   if (!rows[0]) throw new NotFoundError("Role not found.");
+}
+
+/**
+ * Whether `actor` may edit this role, in one read: it exists (404), is not a
+ * System Role (403 `SYSTEM_ROLE`), and grants nothing the caller lacks (403
+ * `PERMISSION_ESCALATION`).
+ */
+async function assertEditable(db: MasterDb, id: string, actor: Actor): Promise<void> {
+  const rows = await db
+    .select({ isSystem: roles.isSystem, inReach: sql<boolean>`${roleWithinReach(actor)}` })
+    .from(roles)
+    .where(eq(roles.id, id))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) throw new NotFoundError("Role not found.");
+  if (row.isSystem) throw new ForbiddenError("SYSTEM_ROLE", SYSTEM_ROLE_MESSAGE);
+  if (!row.inReach) throw roleOutOfReach();
 }
 
 async function assertMutable(db: MasterDb, id: string): Promise<void> {

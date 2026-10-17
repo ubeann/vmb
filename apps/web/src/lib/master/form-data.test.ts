@@ -1,4 +1,4 @@
-import type { Division, Role, User } from "@vmb/types";
+import type { Division, RoleDetail, User } from "@vmb/types";
 import { describe, expect, it } from "vitest";
 import { divisionFormData, roleFormData, userFormData } from "./form-data.js";
 
@@ -18,7 +18,7 @@ const division: Division = {
   deletedAt: null
 };
 
-const role: Role = {
+const role: RoleDetail = {
   id: ID,
   name: "Staff",
   isActive: true,
@@ -27,6 +27,9 @@ const role: Role = {
   iconName: "user",
   description: null,
   divisionId: null,
+  divisionName: null,
+  permissionCount: 2,
+  permissionKeys: ["master-users.view", "master-users.view_any"],
   createdAt: STAMP,
   updatedAt: STAMP
 };
@@ -57,5 +60,12 @@ describe("edit form data", () => {
     expect(divisionFormData({ ...division, updatedAt: null }).updatedAt).toBeNull();
     expect(roleFormData({ ...role, updatedAt: null }).updatedAt).toBeNull();
     expect(userFormData({ ...user, updatedAt: null }).updatedAt).toBeNull();
+  });
+
+  it("loads a role's grants, so a save that changes nothing else keeps them", () => {
+    expect(roleFormData(role).permissionKeys).toEqual([
+      "master-users.view",
+      "master-users.view_any"
+    ]);
   });
 });

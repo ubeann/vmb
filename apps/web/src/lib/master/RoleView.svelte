@@ -1,8 +1,10 @@
 <!--
   A Role in view mode (#303), in the layer over the list and on its full page
-  alike: its fields, and for a System Role why there is nothing to change. The
-  footer holds what the caller may do: Edit and Delete… for an ordinary Role.
-  A System Role has no footer: nobody can edit or delete one.
+  alike: its fields and the permissions it grants, and for a System Role why
+  there is nothing to change. The footer holds what the caller may do: Edit and
+  Delete… for an ordinary Role, Edit only when it grants nothing the caller
+  lacks (ADR-0045's amendment of 2026-10-17). A System Role has no footer:
+  nobody can edit or delete one.
 
   Each action is a real link or form, so the full page works without
   JavaScript; in the layer the `on*` callbacks take their place.
@@ -20,7 +22,7 @@
   import { SWATCHES } from "./appearance.js";
   import { plainClick } from "$lib/components/list/rows.js";
   import { Button } from "$lib/components/ui/button/index.js";
-  import type { PermissionKey, RoleDetail } from "@vmb/types";
+  import { permissionGroups, type PermissionKey, type RoleDetail } from "@vmb/types";
   import PencilIcon from "@lucide/svelte/icons/pencil";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
 
@@ -38,8 +40,21 @@
 
   const can = (permission: PermissionKey) => permissions.includes(permission);
 
-  // a System Role is read-only whoever the caller is; the API refuses the same
-  const canEdit = $derived(!role.isSystem && can("master-roles.update"));
+  // a System Role is read-only whoever the caller is, and so is one that grants
+  // what the caller lacks; the API refuses the same
+  const inReach = $derived(role.permissionKeys.every((key) => permissions.includes(key)));
+  const canEdit = $derived(!role.isSystem && inReach && can("master-roles.update"));
+
+  // what it grants, by resource in catalogue order, with each action's label
+  const granted = $derived.by(() => {
+    const keys = new Set(role.permissionKeys);
+    return permissionGroups()
+      .map((group) => ({
+        label: group.label,
+        actions: group.permissions.filter((option) => keys.has(option.key))
+      }))
+      .filter((group) => group.actions.length > 0);
+  });
   const canDelete = $derived(!role.isSystem && can("master-roles.delete"));
 
   // a seeded colour by its name, as the form's swatches have it; any other by its hex alone
@@ -76,6 +91,31 @@
         <span class="font-medium">Every division</span>
       {/if}
     </p>
+  </FormSection>
+
+  <FormSection title="Permissions">
+    <!-- a class, so the legacy paragraph margin (app.css) leaves it alone -->
+    <p class="text-pretty">
+      {#if role.permissionCount === 0}
+        <span class="text-muted-foreground">No permissions: holding it grants nothing</span>
+      {:else}
+        <span class="font-medium tabular-nums">{role.permissionCount}</span>
+        {role.permissionCount === 1 ? "permission" : "permissions"}
+      {/if}
+    </p>
+    {#if granted.length > 0}
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
+        {#each granted as group (group.label)}
+          <dt class="text-muted-foreground">{group.label}</dt>
+          <dd class="text-pretty">{group.actions.map((option) => option.label).join(", ")}</dd>
+        {/each}
+      </dl>
+    {/if}
+    {#if !role.isSystem && !inReach && can("master-roles.update")}
+      <p class="text-muted-foreground text-xs text-pretty">
+        It grants permissions you don't hold, so you can't edit it.
+      </p>
+    {/if}
   </FormSection>
 
   <FormSection title="Appearance">

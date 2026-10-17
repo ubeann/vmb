@@ -1,5 +1,8 @@
 import {
   allPermissionKeys,
+  permissionGroups,
+  type Role,
+  type RoleUpdateInput,
   type User,
   type UserCreateInput,
   type UserListRequest,
@@ -635,6 +638,323 @@ describe("the permission catalogue", () => {
       expect(rows.map((row) => row.key)).toEqual([...allPermissionKeys()].sort());
     });
   });
+
+  it("labels and describes every resource and every key, for the Role form", () => {
+    const groups = permissionGroups();
+
+    expect(groups.flatMap((group) => group.permissions.map((option) => option.key))).toEqual(
+      allPermissionKeys()
+    );
+    for (const group of groups) {
+      expect(group.label).not.toBe("");
+      expect(group.description).toMatch(/\.$/);
+      for (const option of group.permissions) {
+        expect(option.label).not.toBe("");
+        expect(option.description).toMatch(/^[A-Z].*\.$/);
+      }
+    }
+    // a resource without a Trash deletes for good, and says so
+    const roles = groups.find((group) => group.resource === "master-roles");
+    expect(roles?.permissions.find((option) => option.action === "delete")?.description).toBe(
+      "Delete one role for good."
+    );
+  });
+});
+
+describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
+  const store = (db: MasterDb) =>
+    createMasterStore(db, {
+      hashPassword: async (password) => password,
+      transaction: transactionsOn(db)
+    });
+
+  const ADMIN = fixtureId(ID_GROUPS.user, 1); // Super Admin: every key
+  const STAFF_ROLE = fixtureId(ID_GROUPS.role, 4); // grants the two Division views
+
+  const DIVISION_VIEWS = ["master-divisions.view", "master-divisions.view_any"];
+  // a role editor who holds the manager's keys and may edit roles, but holds no Users write
+  const EDITOR: Actor = {
+    id: fixtureId(ID_GROUPS.user, 2),
+    permissions: [
+      "master-divisions.view_any",
+      "master-divisions.view",
+      "master-divisions.manager",
+      "master-users.view_any",
+      "master-users.view",
+      "master-roles.view_any",
+      "master-roles.view",
+      "master-roles.create",
+      "master-roles.update"
+    ]
+  };
+
+  const editing = (role: Role, permissionKeys?: string[]): RoleUpdateInput => ({
+    name: role.name,
+    description: role.description ?? "",
+    colorHex: role.colorHex,
+    iconName: role.iconName as RoleUpdateInput["iconName"],
+    isActive: role.isActive,
+    updatedAt: role.updatedAt,
+    ...(permissionKeys === undefined ? {} : { permissionKeys })
+  });
+
+  const grantsOf = async (client: Parameters<typeof count>[0], roleId: string) =>
+    (
+      await client.query<{ key: string }>(
+        `select permission_key as key from master.role_permissions
+          where role_id = '${roleId}' order by permission_key`
+      )
+    ).map((row) => row.key);
+
+  it("grants and revokes keys the caller holds, as the whole new set", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const staff = await store(db).getRole(STAFF_ROLE);
+      expect(staff.permissionKeys).toEqual(DIVISION_VIEWS);
+
+      const saved = await store(db).updateRole(
+        STAFF_ROLE,
+        editing(staff, ["master-divisions.view_any", "master-users.view_any"]),
+        EDITOR
+      );
+
+      expect(saved.permissionCount).toBe(2);
+      expect(await grantsOf(client, STAFF_ROLE)).toEqual([
+        "master-divisions.view_any",
+        "master-users.view_any"
+      ]);
+      await expect(store(db).getRole(STAFF_ROLE)).resolves.toMatchObject({
+        permissionCount: 2,
+        permissionKeys: ["master-divisions.view_any", "master-users.view_any"],
+        updatedAt: saved.updatedAt
+      });
+    });
+  });
+
+  it("revokes every grant for an empty set, and leaves them alone when the set is omitted", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const staff = await store(db).getRole(STAFF_ROLE);
+
+      const renamed = await store(db).updateRole(
+        STAFF_ROLE,
+        { ...editing(staff), name: "Office staff" },
+        EDITOR
+      );
+      expect(renamed).toMatchObject({ name: "Office staff", permissionCount: 2 });
+      expect(await grantsOf(client, STAFF_ROLE)).toEqual(DIVISION_VIEWS);
+
+      const emptied = await store(db).updateRole(STAFF_ROLE, editing(renamed, []), EDITOR);
+      expect(emptied.permissionCount).toBe(0);
+      expect(await grantsOf(client, STAFF_ROLE)).toEqual([]);
+    });
+  });
+
+  it("refuses to grant a key the caller lacks, and writes nothing", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const staff = await store(db).getRole(STAFF_ROLE);
+
+      await expect(
+        store(db).updateRole(
+          STAFF_ROLE,
+          { ...editing(staff, [...DIVISION_VIEWS, "master-users.delete"]), name: "Changed" },
+          EDITOR
+        )
+      ).rejects.toMatchObject({
+        code: "PERMISSION_ESCALATION",
+        message: "You cannot grant a permission you do not have."
+      });
+
+      expect(await grantsOf(client, STAFF_ROLE)).toEqual(DIVISION_VIEWS);
+      await expect(store(db).getRole(STAFF_ROLE)).resolves.toMatchObject({
+        name: "Staff",
+        updatedAt: staff.updatedAt
+      });
+    });
+  });
+
+  it("refuses to revoke a key the caller lacks, or to edit at all a role that holds one", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      await client.exec(
+        `insert into master.role_permissions (role_id, permission_key)
+          values ('${STAFF_ROLE}', 'master-users.delete')`
+      );
+      // inactive or not, it grants the key the moment it is switched on
+      await client.exec(`update master.roles set is_active = false where id = '${STAFF_ROLE}'`);
+      const staff = await store(db).getRole(STAFF_ROLE);
+      const refusal = {
+        code: "PERMISSION_ESCALATION",
+        message: "You cannot change a role that carries permissions you do not have."
+      };
+
+      // revoking the key the editor lacks
+      await expect(
+        store(db).updateRole(STAFF_ROLE, editing(staff, DIVISION_VIEWS), EDITOR)
+      ).rejects.toMatchObject(refusal);
+      // keeping it, and changing only what the editor holds
+      await expect(
+        store(db).updateRole(
+          STAFF_ROLE,
+          editing(staff, [...staff.permissionKeys, "master-users.view"]),
+          EDITOR
+        )
+      ).rejects.toMatchObject(refusal);
+      // or not touching the grants at all: switching the role on would hand the key out
+      await expect(
+        store(db).updateRole(STAFF_ROLE, { ...editing(staff), isActive: true }, EDITOR)
+      ).rejects.toMatchObject(refusal);
+
+      await expect(store(db).getRole(STAFF_ROLE)).resolves.toMatchObject({
+        isActive: false,
+        permissionKeys: staff.permissionKeys,
+        updatedAt: staff.updatedAt
+      });
+      // a caller who holds the key may
+      await expect(
+        store(db).updateRole(STAFF_ROLE, editing(staff, DIVISION_VIEWS), await actor(db, ADMIN))
+      ).resolves.toMatchObject({ permissionCount: 2 });
+    });
+  });
+
+  it("refuses a System Role, even to a caller who holds every key", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const superAdmin = await store(db).getRole(SUPER_ADMIN);
+
+      await expect(
+        store(db).updateRole(SUPER_ADMIN, editing(superAdmin, []), await actor(db, ADMIN))
+      ).rejects.toMatchObject({ code: "SYSTEM_ROLE" });
+
+      expect(await grantsOf(client, SUPER_ADMIN)).toHaveLength(allPermissionKeys().length);
+    });
+  });
+
+  it("answers a key the catalogue does not define as not found, on a save and on a create", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const admin = await actor(db, ADMIN);
+      const staff = await store(db).getRole(STAFF_ROLE);
+      const unknown = {
+        code: "NOT_FOUND",
+        message: "One of the chosen permissions does not exist."
+      };
+
+      await expect(
+        store(db).updateRole(STAFF_ROLE, editing(staff, ["master-users.fly"]), admin)
+      ).rejects.toMatchObject(unknown);
+      await expect(
+        store(db).createRole({ ...editing(staff, ["master-users.fly"]), name: "Pilot" }, admin)
+      ).rejects.toMatchObject(unknown);
+
+      expect(await grantsOf(client, STAFF_ROLE)).toEqual(DIVISION_VIEWS);
+      expect(
+        await count(client, `select count(*)::int as value from master.roles where name = 'Pilot'`)
+      ).toBe(0);
+    });
+  });
+
+  it("refuses a stale save that changes grants, and writes none of them", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const loaded = await store(db).getRole(STAFF_ROLE);
+      await store(db).updateRole(STAFF_ROLE, { ...editing(loaded), name: "Clerk" }, EDITOR);
+
+      await expect(
+        store(db).updateRole(STAFF_ROLE, editing(loaded, ["master-users.view"]), EDITOR)
+      ).rejects.toMatchObject({ code: "STALE_RECORD" });
+
+      expect(await grantsOf(client, STAFF_ROLE)).toEqual(DIVISION_VIEWS);
+    });
+  });
+
+  it("creates a role with its grants in one request, within the caller's reach only", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const fields = {
+        description: "",
+        colorHex: "#805AD5",
+        iconName: "user" as const,
+        isActive: true
+      };
+
+      const created = await store(db).createRole(
+        { ...fields, name: "Viewer", permissionKeys: [...DIVISION_VIEWS, DIVISION_VIEWS[0]!] },
+        EDITOR
+      );
+      expect(created).toMatchObject({ name: "Viewer", permissionCount: 2, isSystem: false });
+      expect(await grantsOf(client, created.id)).toEqual(DIVISION_VIEWS);
+
+      await expect(
+        store(db).createRole(
+          { ...fields, name: "Deleter", permissionKeys: ["master-users.delete"] },
+          EDITOR
+        )
+      ).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
+      expect(
+        await count(
+          client,
+          `select count(*)::int as value from master.roles where name = 'Deleter'`
+        )
+      ).toBe(0);
+    });
+  });
+
+  it("shows each role's grant count in the list", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+
+      const page = await store(db).listRoles({
+        status: [],
+        sort: "name",
+        dir: "asc",
+        page: 1,
+        perPage: 10,
+        tz: "Asia/Jakarta"
+      });
+
+      expect(page.items.map((role) => [role.name, role.permissionCount])).toEqual([
+        ["Manager Division", 5],
+        ["Manager Finance", 5],
+        ["Staff", 2],
+        ["Super Admin", allPermissionKeys().length]
+      ]);
+    });
+  });
+
+  // A key granted to the role after the check and before the write, as the import
+  // or another editor's save would: PGlite is one connection, so real Postgres only.
+  it.skipIf(!process.env.TEST_DATABASE_URL)(
+    "refuses a save of a role that gains a key the caller lacks after the check",
+    async () => {
+      await withMigratedDb(async (db, client, _statements, connect) => {
+        await seed(client);
+        const staff = await store(db).getRole(STAFF_ROLE);
+
+        const other = await connect!();
+        await other.execute(sql`begin`);
+        await other.execute(sql`lock table master.roles in share mode`);
+        const written = store(db).updateRole(STAFF_ROLE, editing(staff, []), EDITOR);
+        written.catch(() => undefined);
+        try {
+          expect(await waitingQuery(await connect!())).toMatch(/update\s+"?master"?\."?roles/i);
+          await other.execute(
+            sql`insert into master.role_permissions (role_id, permission_key)
+                values (${STAFF_ROLE}, 'master-users.delete')`
+          );
+        } finally {
+          await other.execute(sql`commit`);
+        }
+
+        await expect(written).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
+        expect(await grantsOf(client, STAFF_ROLE)).toEqual([
+          ...DIVISION_VIEWS,
+          "master-users.delete"
+        ]);
+      });
+    }
+  );
 });
 
 describe("reaching a more privileged user", () => {
@@ -948,6 +1268,55 @@ describe("what a request costs (ADR-0045's amendment)", () => {
 
       // the roles read, the existence read, the check's two reads, the write, the result
       expect(statements).toHaveLength(6);
+    });
+  });
+});
+
+describe("what a role save costs", () => {
+  const STAFF_ROLE = fixtureId(ID_GROUPS.role, 4);
+
+  // the read that answers a missing, System or out-of-reach role first, and the
+  // write: the role's own fields, the revokes and the grants in one statement,
+  // with the reach test in its `where`
+  it("saves a role that changes its grants in 2 statements, and creates one with grants in 1", async () => {
+    await withMigratedDb(async (db, client, statements) => {
+      await seed(client);
+      const store = createMasterStore(db, {
+        hashPassword: async (password) => password,
+        transaction: transactionsOn(db)
+      });
+      const caller = await actor(db, fixtureId(ID_GROUPS.user, 1));
+      const staff = await store.getRole(STAFF_ROLE);
+      statements.length = 0;
+
+      await store.updateRole(
+        STAFF_ROLE,
+        {
+          name: staff.name,
+          description: staff.description ?? "",
+          colorHex: staff.colorHex,
+          iconName: "user",
+          isActive: staff.isActive,
+          updatedAt: staff.updatedAt,
+          permissionKeys: ["master-divisions.view_any", "master-users.view_any"]
+        },
+        caller
+      );
+      expect(statements).toHaveLength(2);
+
+      statements.length = 0;
+      await store.createRole(
+        {
+          name: "Viewer",
+          description: "",
+          colorHex: "#805AD5",
+          iconName: "user",
+          isActive: true,
+          permissionKeys: ["master-users.view_any"]
+        },
+        caller
+      );
+      expect(statements).toHaveLength(1);
     });
   });
 });

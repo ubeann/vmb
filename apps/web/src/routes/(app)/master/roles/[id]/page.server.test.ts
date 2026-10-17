@@ -22,7 +22,9 @@ vi.mock("$lib/master/form-action.js", () => ({
   createMasterFormAction: () => vi.fn()
 }));
 vi.mock("$lib/master/form-data.js", () => ({
-  roleFormData: (role: unknown) => role
+  roleFormData: (role: unknown) => role,
+  RoleFormSchema: {},
+  RoleFormUpdateSchema: {}
 }));
 vi.mock("$lib/master/permissions.js", () => import("../../../../../lib/master/permissions.js"));
 vi.mock("$lib/master/appearance.js", () => import("../../../../../lib/master/appearance.js"));
@@ -38,7 +40,8 @@ const role = {
   name: "Staff",
   isSystem: false,
   iconName: "user",
-  colorHex: "#805AD5"
+  colorHex: "#805AD5",
+  permissionKeys: ["master-roles.view_any"]
 };
 
 const ALL = ["master-roles.view_any", "master-roles.create", "master-roles.update"];
@@ -83,6 +86,18 @@ describe("a role's edit route", () => {
     await expect(edit.load(event)).rejects.toMatchObject({
       status: 403,
       body: { message: "System roles cannot be modified or deleted." }
+    });
+  });
+
+  it("is refused for a role that grants what the caller lacks, as the API refuses its save", async () => {
+    getRoleMock.mockResolvedValue({
+      ok: true,
+      value: { ...role, permissionKeys: ["master-roles.view_any", "master-users.delete"] }
+    });
+
+    await expect(edit.load(event)).rejects.toMatchObject({
+      status: 403,
+      body: { message: "You cannot change a role that carries permissions you do not have." }
     });
   });
 

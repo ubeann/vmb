@@ -22,11 +22,21 @@ export const RoleSchema = z.object({
   iconName: z.string(),
   description: z.string().nullable(),
   divisionId: z.uuid().nullable(),
+  /** How many permissions it grants, for the list's column and the detail. */
+  permissionCount: z.number().int().nonnegative(),
   createdAt: z.iso.datetime().nullable(),
   updatedAt: z.iso.datetime().nullable()
 });
 
 export type Role = z.infer<typeof RoleSchema>;
+
+/**
+ * A Role's grants as a request sends them: the whole new set of permission
+ * keys. An unknown key is answered 404 by the store rather than refused here,
+ * so the API says which kind of mistake it was; the bound only stops a body
+ * that could never be a real set.
+ */
+export const PermissionKeysSchema = z.array(z.string().max(100)).max(500);
 
 /**
  * `is_system` is not settable: system roles are seeded, and the legacy policy
@@ -45,7 +55,12 @@ export const RoleInputSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex value such as #3182CE.")
     .default("#000000"),
   iconName: IconNameSchema.default("rocket"),
-  isActive: checkboxSchema
+  isActive: checkboxSchema,
+  /**
+   * The grants, as the whole new set (ADR-0045's amendment of 2026-10-17).
+   * Omitted leaves them alone; an empty list revokes every one.
+   */
+  permissionKeys: PermissionKeysSchema.optional()
 });
 
 export type RoleInput = z.infer<typeof RoleInputSchema>;
@@ -57,9 +72,13 @@ export type RoleUpdateInput = z.infer<typeof RoleUpdateInputSchema>;
 
 /**
  * One role's detail: the record plus the name of its Division, so the view can
- * say where it applies. A role with no Division applies in every Division.
+ * say where it applies, and the permissions it grants. A role with no Division applies in every Division.
  */
-export const RoleDetailSchema = RoleSchema.extend({ divisionName: z.string().nullable() });
+export const RoleDetailSchema = RoleSchema.extend({
+  divisionName: z.string().nullable(),
+  /** The keys it grants, in catalogue key order, for the form and the view. */
+  permissionKeys: z.array(z.string())
+});
 
 export type RoleDetail = z.infer<typeof RoleDetailSchema>;
 
