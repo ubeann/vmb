@@ -1,5 +1,7 @@
 # Master entities review: Roles, Divisions, Users
 
+> **Superseded for status** by [`master-parity-audit.md`](master-parity-audit.md) (2026-10-17), which checks every legacy Master rule against `master`. The findings and decisions D1–D7 below stand; the status notes are as of 2026-10-06.
+
 Review date: **2026-10-06**. The owner accepted the recommendations in [section 5](#5-decisions-for-the-owner) on 2026-10-06. Phase 2 (migration `0029`), the status gate (D2), the matching role and user page edits and the API permission checks (ADR-0045) are built; D1 (division through roles, migration `0030`) and role assignment, with a guard against granting more than you hold, are built; what remains is the legacy RBAC import (#311) ([section 6](#6-suggested-slicing)). Evidence is cited as `repo:path:line` against `ubeann/vmb` (this repo, **new**), `ubeann/vmb-warehouse@development` (**legacy**, the deployed shape) and `ubeann/vmb-warehouse@revamp` (**revamp**, the legacy branch where the owner already redesigned Master; it holds `refactor/divisions-on-roles`, merged as its PR #174).
 
 ## 1. Where the backend stands
