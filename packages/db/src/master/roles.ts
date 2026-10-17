@@ -248,6 +248,13 @@ export async function createRole(db: MasterDb, input: RoleInput, actor: Actor): 
  * of it can be overwritten, or widened past the caller (ADR-0045's amendment
  * of 2026-10-17). The check ahead answers first with its own message; a write
  * that still matches no row reads once more to say why: 404, 403, then 409.
+ *
+ * Every grant the app writes goes through this statement or `createRole`, and
+ * this one updates the role's row first: a concurrent save of the same role
+ * waits on that row's lock, then fails the stale check, so two saves cannot
+ * interleave their grants. What stays open is a grant written outside the
+ * app (the legacy import) inside this statement's own snapshot, the window
+ * ADR-0045's amendment of 2026-10-12 accepts for the user writes.
  */
 export async function updateRole(
   db: MasterDb,
