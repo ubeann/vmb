@@ -62,8 +62,7 @@ describe("the CSP (ADR-0047)", () => {
     expect(enforced?.["style-src-attr"]).toEqual(["unsafe-inline"]);
 
     expect(reportOnly?.["script-src"]).toEqual(["strict-dynamic"]);
-    expect(reportOnly?.["style-src"]).not.toContain("unsafe-inline");
-    expect(reportOnly?.["style-src-attr"]).toEqual(["none"]);
+    expect({ ...reportOnly, "script-src": enforced?.["script-src"] }).toEqual(enforced);
   });
 
   it.each([

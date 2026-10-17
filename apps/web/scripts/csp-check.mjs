@@ -71,7 +71,9 @@ function plain(uri) {
   if (!uri) return "(none)";
   try {
     const url = new URL(uri);
-    return `${url.origin === base ? "" : `${url.origin}`}${url.pathname}`;
+    // data: and blob: URLs carry their payload in the path
+    if (!url.protocol.startsWith("http")) return url.protocol;
+    return `${url.origin === base ? "" : url.origin}${url.pathname}`;
   } catch {
     return uri;
   }
@@ -229,6 +231,14 @@ async function overlays(page) {
       }
       await wait(page, 600);
       opened++;
+      // a Delete entry must have asked, not acted: nothing here may change a record
+      const asked = await page
+        .locator('[role="alertdialog"], [role="dialog"]')
+        .locator("visible=true")
+        .count();
+      if (!asked && /delete/i.test(name)) {
+        gaps.push(`${describe()}: "${name}" opened no confirmation, so it may have acted`);
+      }
       await expectUnlocked(page, before, `${first.name} > ${name}`);
     }
   }
@@ -322,8 +332,8 @@ async function recordPaths(context) {
       .locator(`main a[href^="/master/${resource}/"]`)
       .evaluateAll((links) => links.map((link) => link.getAttribute("href")));
     await page.close();
-    const record = hrefs.find((href) => !/\/(new|edit)$/.test(href ?? ""));
-    if (record) paths[resource] = record.replace(/[?#].*/, "");
+    const first = hrefs.find((href) => !/\/(new|edit)$/.test(href ?? ""));
+    if (first) paths[resource] = first.replace(/[?#].*/, "");
     else gaps.push(`${where.browser}: /master/${resource} lists no record to open`);
   }
   return paths;
@@ -334,9 +344,10 @@ async function visit(context, entry, { explore, signedIn }) {
   where = { ...where, page: name, step: "load" };
   const before = problems.length;
   let opened = 0;
+  let page;
   try {
     const state = entry.state ? stateOrExit(entry.state) : undefined;
-    const page = await openPage(context, new URL(entry.path, base).href, state, 300);
+    page = await openPage(context, new URL(entry.path, base).href, state, 300);
     if (signedIn && isLoginPage(page.url())) {
       gaps.push(`${describe()}: bounced to /login`);
     } else if (explore) {
@@ -345,9 +356,10 @@ async function visit(context, entry, { explore, signedIn }) {
       if (signedIn && entry.list) opened += await recordLayer(page, entry.list);
       if (signedIn) opened += await theme(page);
     }
-    await page.close();
   } catch (error) {
     gaps.push(`${describe()}: ${String(error.message ?? error).split("\n")[0]}`);
+  } finally {
+    await page?.close().catch(() => {});
   }
   const found = problems.slice(before).filter(counts).length;
   console.log(
@@ -356,42 +368,52 @@ async function visit(context, entry, { explore, signedIn }) {
   );
 }
 
+const KNOWN_BROWSERS = ["chromium", "firefox", "webkit"];
+const unknown = browserNames.filter((name) => !KNOWN_BROWSERS.includes(name));
+if (unknown.length) {
+  console.error(`unknown browser: ${unknown.join(", ")}. Known: ${KNOWN_BROWSERS.join(", ")}`);
+  process.exit(1);
+}
+
 for (const browserName of browserNames) {
   const browser = await playwright[browserName].launch();
-  for (const scheme of ["light", "dark"]) {
-    const explore = scheme === "light";
-    const fresh = async (page) => {
-      where = { browser: browserName, scheme, page, step: "" };
-      const context = await browser.newContext({ colorScheme: scheme });
-      await collect(context);
-      return context;
-    };
+  try {
+    for (const scheme of ["light", "dark"]) {
+      const explore = scheme === "light";
+      const fresh = async (page) => {
+        where = { browser: browserName, scheme, page, step: "" };
+        const context = await browser.newContext({ colorScheme: scheme });
+        await collect(context);
+        return context;
+      };
 
-    // signed out: a signed-in context is bounced off /login and /activate
-    const signedOut = await fresh("(signed out)");
-    for (const entry of VISITS.public) {
-      await visit(signedOut, entry, { explore, signedIn: false });
-    }
-    await signedOut.close();
-
-    if (login) {
-      const context = await fresh("sign-in");
-      // the sign-in goes through /login's real form, so its violations count too
-      await signIn(context, base);
-      const paths = await recordPaths(context);
-      const pages = [...VISITS.signedIn];
-      for (const resource of RESOURCES) {
-        const list = `/master/${resource}`;
-        pages.push({ path: list, list }, { path: `${list}/new` });
-        if (paths[resource]) {
-          pages.push({ path: paths[resource] }, { path: `${paths[resource]}/edit` });
-        }
+      // signed out: a signed-in context is bounced off /login and /activate
+      const signedOut = await fresh("(signed out)");
+      for (const entry of VISITS.public) {
+        await visit(signedOut, entry, { explore, signedIn: false });
       }
-      for (const entry of pages) await visit(context, entry, { explore, signedIn: true });
-      await context.close();
+      await signedOut.close();
+
+      if (login) {
+        const context = await fresh("sign-in");
+        // the sign-in goes through /login's real form, so its violations count too
+        await signIn(context, base);
+        const paths = await recordPaths(context);
+        const pages = [...VISITS.signedIn];
+        for (const resource of RESOURCES) {
+          const list = `/master/${resource}`;
+          pages.push({ path: list, list }, { path: `${list}/new` });
+          if (paths[resource]) {
+            pages.push({ path: paths[resource] }, { path: `${paths[resource]}/edit` });
+          }
+        }
+        for (const entry of pages) await visit(context, entry, { explore, signedIn: true });
+        await context.close();
+      }
     }
+  } finally {
+    await browser.close();
   }
-  await browser.close();
 }
 
 // ---- report ----
