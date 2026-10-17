@@ -3,7 +3,8 @@
 -- seeded roles and the cases its rules name. Manager Division and Staff are held
 -- in two divisions each and split; Manager Finance is held in one and keeps its
 -- id; Super Admin is a system role whose holder's division is dropped; Archivist
--- is held only in a Trashed division. STAFF differs from Staff only by case.
+-- is held only in a Trashed division, and Auditor by nobody. STAFF differs from
+-- Staff only by case. One unmapped permission exists for a second guard.
 -- Three permissions have no catalogue key, one user holds a direct grant, one
 -- holds a role with no division, and one live user holds nothing. A role and a
 -- permission held by another model type (whose id is a user's) are not the user's.
@@ -40,6 +41,7 @@ c0000000-0000-4000-8000-000000000003	Staff	web	3	t	f	#654321	heroicon-o-user	Wor
 c0000000-0000-4000-8000-000000000004	Manager Finance	web	2	f	f	red	heroicon-o-calculator	\N	{}	2025-01-02 08:00:00	2025-03-04 09:30:00
 c0000000-0000-4000-8000-000000000005	Archivist	web	3	t	f	#0000ff	heroicon-o-arrow-left	\N	{}	2025-01-02 08:00:00	2025-03-04 09:30:00
 c0000000-0000-4000-8000-000000000006	STAFF	web	3	t	f	#000000	heroicon-o-user	\N	{}	2025-01-02 08:00:00	2025-03-04 09:30:00
+c0000000-0000-4000-8000-000000000007	Auditor	web	3	t	f	#336699	heroicon-o-scale	\N	{}	2025-01-02 08:00:00	2025-01-02 08:00:00
 \.
 
 COPY master.permissions (uuid, code, "group", name, guard_name, is_active, description, metadata, created_at, updated_at) FROM stdin;
@@ -48,6 +50,7 @@ e0000000-0000-4000-8000-000000000002	P2	master-divisions	master-divisions.manage
 e0000000-0000-4000-8000-000000000003	P3	trucking-orders	trucking-orders.view_any	web	t	trucking-orders.view_any	\N	2025-01-02 08:00:00	2025-01-02 08:00:00
 e0000000-0000-4000-8000-000000000004	P4	trucking-orders	trucking-orders.create	web	t	trucking-orders.create	\N	2025-01-02 08:00:00	2025-01-02 08:00:00
 e0000000-0000-4000-8000-000000000005	P5	warehouse-items	warehouse-items.view	web	t	warehouse-items.view	\N	2025-01-02 08:00:00	2025-01-02 08:00:00
+e0000000-0000-4000-8000-000000000006	P6	trucking-orders	trucking-orders.create	api	t	trucking-orders.create	\N	2025-01-02 08:00:00	2025-01-02 08:00:00
 \.
 
 COPY spatie.role_has_permissions (permission_uuid, role_uuid) FROM stdin;

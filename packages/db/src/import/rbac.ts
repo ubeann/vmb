@@ -253,7 +253,14 @@ export function planRbac(snapshot: Snapshot): RbacPlan {
     const divisions = divisionsOf.get(role.id) ?? [];
     if (role.isSystem || divisions.length <= 1) {
       // a system role operates everywhere; a role nobody holds stays unscoped
-      // too, since no holder says which division it belongs to
+      // too, since no holder says which division it belongs to, and is named
+      // so the operator can scope it before anyone is given it
+      if (!role.isSystem && divisions.length === 0) {
+        warning(
+          "role-scope",
+          `role ${describe(role)} is held in no division, so it is carried unscoped and operates in every division; scope it on the Roles screen if it should not`
+        );
+      }
       emit(role, role.id, role.name, role.isSystem ? null : (divisions[0] ?? null));
       continue;
     }
@@ -335,9 +342,11 @@ export function planRbac(snapshot: Snapshot): RbacPlan {
     for (const target of targets.get(roleId)?.values() ?? []) grant(target, key);
   }
 
-  // A legacy permission with no catalogue key is listed once per resource.
+  // A legacy permission with no catalogue key is listed once per resource. A
+  // name can repeat across guards (`master.permissions` is unique on name and
+  // guard), so it is counted once.
   const unmapped = new Map<string, string[]>();
-  for (const name of permissionNames.values()) {
+  for (const name of new Set(permissionNames.values())) {
     if (catalogued.has(name)) continue;
     const dot = name.lastIndexOf(".");
     const resource = dot === -1 ? name : name.slice(0, dot);

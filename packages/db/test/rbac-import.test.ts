@@ -121,6 +121,20 @@ describe("the RBAC transform", () => {
     });
   });
 
+  it("carries a role nobody holds unscoped, under its id, and warns", async () => {
+    expect(await roleNamed("Auditor")).toMatchObject({
+      id: "c0000000-0000-4000-8000-000000000007",
+      division_id: null,
+      icon_name: "scale"
+    });
+    expect(report.warnings).toContainEqual({
+      level: "warning",
+      code: "role-scope",
+      message:
+        "role Auditor (c0000000-0000-4000-8000-000000000007) is held in no division, so it is carried unscoped and operates in every division; scope it on the Roles screen if it should not"
+    });
+  });
+
   it("carries a role scoped to a Trashed division as it is", async () => {
     expect(await roleNamed("Archivist")).toMatchObject({ id: ARCHIVIST, division_id: ARCHIVE });
   });
@@ -261,6 +275,7 @@ describe("the RBAC transform", () => {
     expect(report.warnings.map((finding) => finding.code).sort()).toEqual([
       "color-hex",
       "icon-name",
+      "role-scope",
       "unmapped-permission",
       "unmapped-permission"
     ]);
@@ -268,14 +283,14 @@ describe("the RBAC transform", () => {
 
   it("reports what it carried in an rbac section, and the CLI prints it", () => {
     expect(report.rbac).toEqual({
-      rolesCarried: 7,
+      rolesCarried: 8,
       rolesSplit: 2,
       grants: allPermissionKeys().length + 8,
       assignments: 7,
       unmappedPermissions: 3
     });
     expect(summarise(report)).toContain(
-      `rbac: 7 role(s) carried (2 split), ${allPermissionKeys().length + 8} grant(s), 7 assignment(s), 3 unmapped permission(s)`
+      `rbac: 8 role(s) carried (2 split), ${allPermissionKeys().length + 8} grant(s), 7 assignment(s), 3 unmapped permission(s)`
     );
   });
 
