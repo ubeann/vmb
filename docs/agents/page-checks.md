@@ -27,6 +27,20 @@ Pass `--login` to any of the scripts. It signs in through `/login` as the seeded
 - `node apps/web/scripts/layer-squeeze.mjs <origin> --login` opens the `/design-system` layer on a step at 768px, jumps to a 425px phone through the same CDP calls as a DevTools device preset, and exits 1 unless the sheet keeps the step and `body` has no padding (ADR-0053 rule 6).
 - `node apps/web/scripts/contact-sheet.mjs <out.png> <width> "Label=file.png"...` lays captures side by side for a README or a review.
 
+## CSP violations
+
+`node apps/web/scripts/csp-check.mjs <origin> [--login] [--browsers chromium,firefox,webkit] [--ignore-report-only]` opens the app's screens in Chromium, Firefox and WebKit and collects every `securitypolicyviolation` event, from the enforced policy and the report-only one (ADR-0047, point 4). It prints a row per violation with its page, step, browser, scheme, policy, directive, blocked URI and source file, and exits 1 on any. Run it on a PR preview, never local dev: SvelteKit loosens styles in dev, so style violations only show on a production build. A local `pnpm build` served by `wrangler pages dev .svelte-kit/cloudflare` is a production build too, but signed out only without an API.
+
+Re-run it when the policy changes, when a screen or overlay is added, and after bumping bits-ui, mode-watcher or svelte-sonner, which build their own elements.
+
+- **Signed out** (always): `/login`, `/activate`, each state of `page-states.mjs`, and the 404 page.
+- **`--login`** adds `/`, `/design-system`, a signed-in 404, and the list, `new`, detail and `edit` pages of Divisions, Roles and Users (the detail and edit pages of the first record in each list). Add a route to `VISITS` or `RESOURCES` in the script when a module ships.
+- **Schemes.** Each page opens in a light context and a dark one (`prefers-color-scheme`), for the first-paint script. Only the light context explores overlays.
+- **Overlays.** On each page it opens every dialog, sheet, popover, menu and select it finds, closes it with Escape, and checks the page looks unlocked and still scrolls: the scroll-lock reset ADR-0047 calls out. In a menu it also opens the Delete entries, which ask a confirmation (it never confirms one, and it skips entries such as Deactivate that act at once), and a layer's date and select pickers. Signed in, it opens `?`'s shortcut sheet and a record in its layer, and runs Theme › Dark › Light through the real menu, which makes mode-watcher append its style sheet.
+- **`--ignore-report-only`** still prints the report-only violations, but lets them pass. Use it on the last run of a PR that keeps a tighter variant in `kit.csp.reportOnly` to measure the next step.
+
+It also exits 1 on a **gap**: a page that bounced to `/login` or did not load, a record or Theme button it could not find, an overlay that would not close. A gap is not a pass, so read the `GAP:` lines. A control it could not click is only a `note:`.
+
 ## A preview's one-time code
 
 Previews never send email (`EMAIL_TRANSPORT=log`, ADR-0019): the API logs it, code included. Request the code on the preview, then open the PR's Worker Preview of `vmb-api` in the Cloudflare dashboard, go to **Observability**, and search `suppressed outbound email`. Codes expire after 5 minutes.
