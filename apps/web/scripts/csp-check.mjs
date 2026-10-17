@@ -55,10 +55,12 @@ const TRIGGERS = [
 const OVERLAY =
   '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"], [data-slot="popover-content"]';
 // Inside an open overlay, what opens one more: the menu entries that ask a
-// confirmation (never the entry that confirms), and a layer's pickers.
-const NESTED_ENTRY = /delete|deactivate|suspend|trash/i;
+// confirmation (Delete, never the entry that confirms; Deactivate and Restore act at once), and a layer's pickers.
+const NESTED_ENTRY = /delete/i;
 const NESTED_PICKER = '[data-slot="filter-date-row"], [role="combobox"]';
 
+// a violation fails the run unless --ignore-report-only excuses a report-only one
+const counts = (p) => !(ignoreReportOnly && p.disposition === "report");
 const problems = []; // violations, as { browser, scheme, page, step, ... }
 const gaps = []; // pages and overlays that could not be reached
 const notes = []; // things worth reading that don't fail the run
@@ -347,7 +349,7 @@ async function visit(context, entry, { explore, signedIn }) {
   } catch (error) {
     gaps.push(`${describe()}: ${String(error.message ?? error).split("\n")[0]}`);
   }
-  const found = problems.length - before;
+  const found = problems.slice(before).filter(counts).length;
   console.log(
     `${found ? "✗" : "✓"} ${where.browser} ${where.scheme} ${name}` +
       `${explore ? ` (${opened} overlays)` : ""}${found ? `: ${found} violation(s)` : ""}`
@@ -393,21 +395,49 @@ for (const browserName of browserNames) {
 }
 
 // ---- report ----
-const counted = problems.filter((p) => !(ignoreReportOnly && p.disposition === "report"));
-const rows = new Map();
-for (const p of problems) {
-  const key = [p.browser, p.scheme, p.page, p.step, p.disposition, p.directive, p.blocked, p.source]
-    .map((cell) => String(cell).replaceAll("|", "\\|"))
-    .join(" | ");
-  rows.set(key, (rows.get(key) ?? 0) + 1);
-}
-console.log(`\n${problems.length} violation(s), ${counted.length} counted, ${gaps.length} gap(s).`);
-if (rows.size) {
+const counted = problems.filter(counts);
+const cell = (value) => String(value).replaceAll("|", "\\|");
+const table = (header, keys) => {
+  const rows = new Map();
+  for (const key of keys) rows.set(key, (rows.get(key) ?? 0) + 1);
+  if (!rows.size) return;
   console.log(
-    "\n| browser | scheme | page | step | policy | directive | blocked | source | times |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+    `\n| ${header.join(" | ")} | times |\n| ${[...header, ""].map(() => "---").join(" | ")} |`
   );
   for (const [key, times] of rows) console.log(`| ${key} | ${times} |`);
-}
+};
+console.log(`\n${problems.length} violation(s), ${counted.length} counted, ${gaps.length} gap(s).`);
+
+// By policy and directive, then the pages each one came from, then each source.
+table(
+  ["policy", "directive", "browser"],
+  problems.map((p) =>
+    [p.disposition === "report" ? "report-only" : "enforced", p.directive, p.browser]
+      .map(cell)
+      .join(" | ")
+  )
+);
+table(
+  ["policy", "directive", "page", "step"],
+  problems.map((p) =>
+    [p.disposition === "report" ? "report-only" : "enforced", p.directive, p.page, p.step]
+      .map(cell)
+      .join(" | ")
+  )
+);
+table(
+  ["policy", "directive", "blocked", "source (no line)"],
+  problems.map((p) =>
+    [
+      p.disposition === "report" ? "report-only" : "enforced",
+      p.directive,
+      p.blocked,
+      p.source.replace(/:\d+$/, "")
+    ]
+      .map(cell)
+      .join(" | ")
+  )
+);
 for (const note of notes) console.log(`note: ${note}`);
 for (const gap of gaps) console.error(`GAP: ${gap}`);
 process.exit(counted.length || gaps.length ? 1 : 0);
