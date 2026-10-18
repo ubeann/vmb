@@ -14,4 +14,4 @@
 </script>
 
 <button type="button" onclick={async () => onanswer(await checks.allow())}>Close layer</button>
-<RoleForm {form} />
+<RoleForm {form} held={[]} />

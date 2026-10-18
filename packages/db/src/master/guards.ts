@@ -134,13 +134,7 @@ export function outOfReach() {
 export function withinReach(actor: Actor, targetId: string): SQL {
   if (isSelf(actor, targetId)) return sql`true`;
 
-  const held =
-    actor.permissions.length === 0
-      ? sql`array[]::text[]`
-      : sql`array[${sql.join(
-          actor.permissions.map((key) => sql`${key}`),
-          sql`, `
-        )}]::text[]`;
+  const held = textArray(actor.permissions);
 
   return sql`not exists (
     select 1
@@ -149,6 +143,39 @@ export function withinReach(actor: Actor, targetId: string): SQL {
       join master.role_permissions rp on rp.role_id = r.id
      where ur.user_id = ${users.id} and rp.permission_key <> all(${held})
   )`;
+}
+
+/**
+ * The reach test for a Role, as a condition of a statement that writes or
+ * selects `master.roles`: the role grants no permission outside `actor`'s
+ * (ADR-0045's amendment of 2026-10-17). Every grant counts, an inactive
+ * role's too, since switching it on hands them out. Unlike a user's, there
+ * is no exemption for the caller's own role: that would let anyone widen the
+ * role they hold.
+ */
+export function roleWithinReach(actor: Actor): SQL {
+  return sql`not exists (
+    select 1
+      from master.role_permissions rp
+     where rp.role_id = ${roles.id} and rp.permission_key <> all(${textArray(actor.permissions)})
+  )`;
+}
+
+/** The refusal for a Role holding a permission the caller lacks. */
+export function roleOutOfReach() {
+  return new ForbiddenError(
+    "PERMISSION_ESCALATION",
+    "You cannot change a role that carries permissions you do not have."
+  );
+}
+
+/** Keys as a Postgres `text[]`, an empty one included. */
+export function textArray(keys: readonly string[]): SQL {
+  if (keys.length === 0) return sql`array[]::text[]`;
+  return sql`array[${sql.join(
+    keys.map((key) => sql`${key}`),
+    sql`, `
+  )}]::text[]`;
 }
 
 /** Whether the caller is changing their own user, whom the reach rule never refuses. */

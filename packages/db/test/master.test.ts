@@ -1,11 +1,12 @@
-import type {
-  DivisionInput,
-  DivisionListRequest,
-  RoleInput,
-  RoleListRequest,
-  UserCreateInput,
-  UserListRequest,
-  UserUpdateInput
+import {
+  allPermissionKeys,
+  type DivisionInput,
+  type DivisionListRequest,
+  type RoleInput,
+  type RoleListRequest,
+  type UserCreateInput,
+  type UserListRequest,
+  type UserUpdateInput
 } from "@vmb/types";
 import { describe, expect, it } from "vitest";
 import { ForbiddenError } from "../src/errors.js";
@@ -69,6 +70,12 @@ const roleListQuery = (overrides: Partial<RoleListRequest> = {}): RoleListReques
   tz: "Asia/Jakarta",
   ...overrides
 });
+
+// whoever saves the roles below: they hold every key, so no grant is out of their reach
+const ROLE_EDITOR = {
+  id: "00000000-0000-4000-8000-0000000000ab",
+  permissions: allPermissionKeys()
+};
 
 const role = (overrides: Partial<RoleInput> = {}): RoleInput => ({
   name: "Staff",
@@ -499,7 +506,7 @@ describe("roles store", () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
 
-      const created = await store.createRole(role());
+      const created = await store.createRole(role(), ROLE_EDITOR);
 
       expect(created).toMatchObject({
         name: "Staff",
@@ -514,9 +521,9 @@ describe("roles store", () => {
   it("lists by name and search, name ascending by default", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
-      await store.createRole(role({ name: "Staff" }));
-      await store.createRole(role({ name: "Manager" }));
-      await store.createRole(role({ name: "Admin", description: "Everything" }));
+      await store.createRole(role({ name: "Staff" }), ROLE_EDITOR);
+      await store.createRole(role({ name: "Manager" }), ROLE_EDITOR);
+      await store.createRole(role({ name: "Admin", description: "Everything" }), ROLE_EDITOR);
 
       const list = await store.listRoles(roleListQuery());
       expect(list.items.map((item) => item.name)).toEqual(["Admin", "Manager", "Staff"]);
@@ -529,9 +536,12 @@ describe("roles store", () => {
   it("filters by status and counts each status option under the search and other filters", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
-      await store.createRole(role({ name: "Staff" }));
-      await store.createRole(role({ name: "Auditor", isActive: false }));
-      await store.createRole(role({ name: "Admin", description: "Staff access", isActive: false }));
+      await store.createRole(role({ name: "Staff" }), ROLE_EDITOR);
+      await store.createRole(role({ name: "Auditor", isActive: false }), ROLE_EDITOR);
+      await store.createRole(
+        role({ name: "Admin", description: "Staff access", isActive: false }),
+        ROLE_EDITOR
+      );
 
       const inactive = await store.listRoles(roleListQuery({ status: ["inactive"] }));
       expect(inactive.items.map((item) => item.name)).toEqual(["Admin", "Auditor"]);
@@ -555,8 +565,8 @@ describe("roles store", () => {
   it("filters by the days a role was updated or created, in the reader's zone", async () => {
     await withMigratedDb(async (db, client) => {
       const store = storeFor(db);
-      const old = await store.createRole(role({ name: "Old" }));
-      await store.createRole(role({ name: "Fresh" }));
+      const old = await store.createRole(role({ name: "Old" }), ROLE_EDITOR);
+      await store.createRole(role({ name: "Fresh" }), ROLE_EDITOR);
       await client.exec(
         `update master.roles set updated_at = '2025-03-31T17:30:00Z', created_at = '2025-01-02T00:00:00Z' where id = '${old.id}'`
       );
@@ -574,8 +584,8 @@ describe("roles store", () => {
   it("sorts by name, creation and update", async () => {
     await withMigratedDb(async (db, client) => {
       const store = storeFor(db);
-      const b = await store.createRole(role({ name: "B" }));
-      const a = await store.createRole(role({ name: "A" }));
+      const b = await store.createRole(role({ name: "B" }), ROLE_EDITOR);
+      const a = await store.createRole(role({ name: "A" }), ROLE_EDITOR);
       await client.exec(
         `update master.roles set created_at = '2025-01-01T00:00:00Z', updated_at = '2025-06-01T00:00:00Z' where id = '${b.id}'`
       );
@@ -597,7 +607,7 @@ describe("roles store", () => {
       const store = storeFor(db);
       await insertDivision(client, "11111111-1111-4111-8111-111111111111", "Hub", "HUB");
       const scoped = await insertRole(client, "Dispatcher", "11111111-1111-4111-8111-111111111111");
-      const everywhere = await store.createRole(role({ name: "Auditor" }));
+      const everywhere = await store.createRole(role({ name: "Auditor" }), ROLE_EDITOR);
 
       await expect(store.getRole(scoped)).resolves.toMatchObject({
         divisionId: "11111111-1111-4111-8111-111111111111",
@@ -613,11 +623,12 @@ describe("roles store", () => {
   it("updates and deletes an ordinary role", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
-      const created = await store.createRole(role());
+      const created = await store.createRole(role(), ROLE_EDITOR);
 
       const updated = await store.updateRole(
         created.id,
-        editing(created, role({ name: "Senior Staff" }))
+        editing(created, role({ name: "Senior Staff" })),
+        ROLE_EDITOR
       );
       expect(updated).toMatchObject({ name: "Senior Staff" });
 
@@ -629,13 +640,13 @@ describe("roles store", () => {
   it("refuses duplicate role names", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
-      await store.createRole(role());
+      await store.createRole(role(), ROLE_EDITOR);
 
-      await expect(store.createRole(role({ description: "Another" }))).rejects.toThrow(
+      await expect(store.createRole(role({ description: "Another" }), ROLE_EDITOR)).rejects.toThrow(
         "A role with that name already exists."
       );
       // case does not make a different role
-      await expect(store.createRole(role({ name: "staff" }))).rejects.toThrow(
+      await expect(store.createRole(role({ name: "staff" }), ROLE_EDITOR)).rejects.toThrow(
         "A role with that name already exists."
       );
     });
@@ -650,7 +661,11 @@ describe("roles store", () => {
       );
 
       await expect(
-        store.updateRole("00000000-0000-4000-8000-000000000002", { ...role(), updatedAt: null })
+        store.updateRole(
+          "00000000-0000-4000-8000-000000000002",
+          { ...role(), updatedAt: null },
+          ROLE_EDITOR
+        )
       ).rejects.toBeInstanceOf(ForbiddenError);
       await expect(store.deleteRole("00000000-0000-4000-8000-000000000002")).rejects.toMatchObject({
         code: "SYSTEM_ROLE"
@@ -665,9 +680,9 @@ describe("roles store", () => {
       const missing = "00000000-0000-4000-8000-000000000000";
 
       await expect(store.getRole(missing)).rejects.toThrow("Role not found.");
-      await expect(store.updateRole(missing, { ...role(), updatedAt: null })).rejects.toThrow(
-        "Role not found."
-      );
+      await expect(
+        store.updateRole(missing, { ...role(), updatedAt: null }, ROLE_EDITOR)
+      ).rejects.toThrow("Role not found.");
       await expect(store.deleteRole(missing)).rejects.toThrow("Role not found.");
     });
   });
@@ -1436,7 +1451,7 @@ describe("edits over a newer save", () => {
     await withMigratedDb(async (db, client) => {
       const store = storeFor(db);
       const division_ = await store.createDivision(division());
-      const role_ = await store.createRole(role());
+      const role_ = await store.createRole(role(), ROLE_EDITOR);
       const user_ = await store.createUser(
         {
           name: "Rina Wijaya",
@@ -1463,7 +1478,7 @@ describe("edits over a newer save", () => {
 
       const saved = [
         await store.updateDivision(division_.id, { ...division(), updatedAt: ahead }),
-        await store.updateRole(role_.id, { ...role(), updatedAt: ahead }),
+        await store.updateRole(role_.id, { ...role(), updatedAt: ahead }, ROLE_EDITOR),
         await store.updateUser(
           user_.id,
           {
@@ -1508,19 +1523,31 @@ describe("edits over a newer save", () => {
   it("refuses a stale role save, keeps the row, and still answers a missing or system role as before", async () => {
     await withMigratedDb(async (db, client) => {
       const store = storeFor(db);
-      const loaded = await store.createRole(role());
-      const first = await store.updateRole(loaded.id, editing(loaded, role({ name: "Senior" })));
+      const loaded = await store.createRole(role(), ROLE_EDITOR);
+      const first = await store.updateRole(
+        loaded.id,
+        editing(loaded, role({ name: "Senior" })),
+        ROLE_EDITOR
+      );
 
       await expect(
-        store.updateRole(loaded.id, editing(loaded, role({ name: "Junior" })))
+        store.updateRole(loaded.id, editing(loaded, role({ name: "Junior" })), ROLE_EDITOR)
       ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
-      await expect(store.getRole(loaded.id)).resolves.toEqual({ ...first, divisionName: null });
+      await expect(store.getRole(loaded.id)).resolves.toEqual({
+        ...first,
+        divisionName: null,
+        permissionKeys: []
+      });
 
-      await expect(store.updateRole(missing, editing(loaded, role()))).rejects.toMatchObject({
+      await expect(
+        store.updateRole(missing, editing(loaded, role()), ROLE_EDITOR)
+      ).rejects.toMatchObject({
         code: "NOT_FOUND"
       });
       await client.exec(`update master.roles set is_system = true where id = '${loaded.id}'`);
-      await expect(store.updateRole(loaded.id, editing(first, role()))).rejects.toMatchObject({
+      await expect(
+        store.updateRole(loaded.id, editing(first, role()), ROLE_EDITOR)
+      ).rejects.toMatchObject({
         code: "SYSTEM_ROLE"
       });
     });
@@ -1529,11 +1556,11 @@ describe("edits over a newer save", () => {
   it("lets exactly one of two role saves from the same load win", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
-      const loaded = await store.createRole(role());
+      const loaded = await store.createRole(role(), ROLE_EDITOR);
 
       const results = await Promise.allSettled([
-        store.updateRole(loaded.id, editing(loaded, role({ name: "Ada" }))),
-        store.updateRole(loaded.id, editing(loaded, role({ name: "Budi" })))
+        store.updateRole(loaded.id, editing(loaded, role({ name: "Ada" })), ROLE_EDITOR),
+        store.updateRole(loaded.id, editing(loaded, role({ name: "Budi" })), ROLE_EDITOR)
       ]);
 
       expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);

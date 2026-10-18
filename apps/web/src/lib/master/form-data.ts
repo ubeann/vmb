@@ -1,15 +1,28 @@
-import type {
-  Division,
-  DivisionInput,
-  IconName,
-  Role,
-  RoleInput,
-  User,
-  UserUpdateInput
+import {
+  PermissionKeysSchema,
+  RoleInputSchema,
+  RoleUpdateInputSchema,
+  type Division,
+  type DivisionInput,
+  type IconName,
+  type RoleDetail,
+  type RoleUpdateInput,
+  type User,
+  type UserUpdateInput
 } from "@vmb/types";
 
-/** A Role's form: the shared input, and on an edit the `updatedAt` it loaded. */
-export type RoleFormFields = RoleInput & { updatedAt?: string | null };
+/**
+ * The Role form's schemas: the shared input, except that the form always sends
+ * its grants. A form post with no box ticked carries no `permissionKeys` at
+ * all, which the API reads as "leave the grants alone"; here it is the empty
+ * set, so unticking every box revokes every grant.
+ */
+const formGrants = { permissionKeys: PermissionKeysSchema.default([]) };
+export const RoleFormSchema = RoleInputSchema.extend(formGrants);
+export const RoleFormUpdateSchema = RoleUpdateInputSchema.extend(formGrants);
+
+/** A Role's form: its fields and grants, and on an edit the `updatedAt` it loaded. */
+export type RoleFormFields = Omit<RoleUpdateInput, "updatedAt"> & { updatedAt?: string | null };
 
 /**
  * A User's form: an edit's fields and its `updatedAt`. A new user's form has
@@ -40,13 +53,14 @@ export function divisionFormData(division: Division) {
   };
 }
 
-export function roleFormData(role: Role) {
+export function roleFormData(role: RoleDetail) {
   return {
     name: role.name,
     description: role.description ?? "",
     colorHex: role.colorHex,
     iconName: role.iconName as IconName,
     isActive: role.isActive,
+    permissionKeys: role.permissionKeys,
     updatedAt: role.updatedAt
   };
 }

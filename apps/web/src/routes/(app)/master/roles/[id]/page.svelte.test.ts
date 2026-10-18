@@ -19,6 +19,8 @@ const role: RoleDetail = {
   description: null,
   divisionId: null,
   divisionName: null,
+  permissionCount: 0,
+  permissionKeys: [],
   createdAt: STAMP,
   updatedAt: STAMP
 };
@@ -51,6 +53,47 @@ describe("the role view page", () => {
     await expect.element(appearance.getByText("#805AD5")).toBeVisible();
     await expect.element(screen.getByText(/^Created/)).toBeVisible();
     await expect.element(screen.getByText("Active", { exact: true })).toBeVisible();
+  });
+
+  it("lists the permissions it grants by resource, with their count", async () => {
+    const screen = await render(Page, {
+      data: pageData(
+        {
+          permissionCount: 3,
+          permissionKeys: ["master-roles.view", "master-users.view", "master-users.view_any"]
+        },
+        { permissions: [...ALL, "master-roles.view", "master-users.view", "master-users.view_any"] }
+      ),
+      form: null
+    });
+
+    const grants = screen.getByRole("group", { name: "Permissions" });
+    await expect.element(grants.getByText("3", { exact: true })).toBeVisible();
+    await expect.element(grants.getByText("List, View")).toBeVisible();
+    await expect.element(grants.getByText("View", { exact: true })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: "Edit" })).toBeVisible();
+  });
+
+  it("says a role with no permissions grants nothing", async () => {
+    const screen = await render(Page, { data: pageData(), form: null });
+
+    await expect
+      .element(screen.getByText("No permissions: holding it grants nothing"))
+      .toBeVisible();
+  });
+
+  it("offers no Edit on a role that grants what the caller lacks, and says why", async () => {
+    const screen = await render(Page, {
+      data: pageData({ permissionCount: 1, permissionKeys: ["master-users.delete"] }),
+      form: null
+    });
+
+    await expect
+      .element(screen.getByText("It grants permissions you don't hold, so you can't edit it."))
+      .toBeVisible();
+    expect(screen.getByRole("link", { name: "Edit" }).elements()).toHaveLength(0);
+    // deleting is not editing: it stays the caller's to do
+    await expect.element(screen.getByRole("link", { name: "Delete…" })).toBeVisible();
   });
 
   it("links to the users holding the role, for a caller who can list users", async () => {

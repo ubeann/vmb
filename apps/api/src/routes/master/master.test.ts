@@ -52,6 +52,7 @@ const role: Role = {
   iconName: "user",
   description: "",
   divisionId: null,
+  permissionCount: 0,
   createdAt: STAMP,
   updatedAt: STAMP
 };
@@ -111,7 +112,7 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     setDivisionActive: vi.fn(async () => division),
     bulkDivisions: vi.fn(async (request) => ({ ids: request.ids })),
     listRoles: vi.fn(async () => EMPTY_ROLES),
-    getRole: vi.fn(async () => ({ ...role, divisionName: null })),
+    getRole: vi.fn(async () => ({ ...role, divisionName: null, permissionKeys: [] })),
     createRole: vi.fn(async () => role),
     updateRole: vi.fn(async () => role),
     deleteRole: vi.fn(async () => undefined),
@@ -604,7 +605,7 @@ describe("master API: roles", () => {
 
   it("answers a role's detail with its division's name", async () => {
     const store = fakeStore({
-      getRole: vi.fn(async () => ({ ...role, divisionName: "Hub" }))
+      getRole: vi.fn(async () => ({ ...role, divisionName: "Hub", permissionKeys: [] }))
     });
 
     const response = await appWith(store).request(`/roles/${ID}`, {}, env);
@@ -625,20 +626,97 @@ describe("master API: roles", () => {
     await expect(appWith(store).request("/roles", json("POST", body), env)).resolves.toMatchObject({
       status: 201
     });
-    expect(store.createRole).toHaveBeenCalledWith({
-      name: "Staff",
-      description: "",
-      colorHex: "#805AD5",
-      iconName: "user",
-      isActive: true
-    });
+    // the second argument is who is asking, which the grant rule needs
+    expect(store.createRole).toHaveBeenCalledWith(
+      {
+        name: "Staff",
+        description: "",
+        colorHex: "#805AD5",
+        iconName: "user",
+        isActive: true
+      },
+      CALLER
+    );
 
     await expect(
       appWith(store).request(`/roles/${ID}`, json("PATCH", { ...body, updatedAt: STAMP }), env)
     ).resolves.toMatchObject({ status: 200 });
+    // no `permissionKeys`: the grants are left alone
+    expect(store.updateRole).toHaveBeenCalledWith(
+      ID,
+      expect.not.objectContaining({ permissionKeys: expect.anything() }),
+      CALLER
+    );
     await expect(
       appWith(store).request(`/roles/${ID}`, { method: "DELETE" }, env)
     ).resolves.toMatchObject({ status: 204 });
+  });
+
+  it("takes the grants as the whole new set, on a create and on an edit", async () => {
+    const store = fakeStore();
+    const body = {
+      name: "Viewer",
+      description: "",
+      colorHex: "#805AD5",
+      iconName: "user",
+      isActive: true,
+      permissionKeys: ["master-users.view_any", "master-users.view"]
+    };
+
+    await appWith(store).request("/roles", json("POST", body), env);
+    expect(store.createRole).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionKeys: body.permissionKeys }),
+      CALLER
+    );
+
+    await appWith(store).request(
+      `/roles/${ID}`,
+      json("PATCH", { ...body, permissionKeys: [], updatedAt: STAMP }),
+      env
+    );
+    expect(store.updateRole).toHaveBeenCalledWith(
+      ID,
+      expect.objectContaining({ permissionKeys: [] }),
+      CALLER
+    );
+  });
+
+  it("answers the grant refusals: 403 PERMISSION_ESCALATION, 403 SYSTEM_ROLE, 404 for an unknown key", async () => {
+    const refusals = [
+      [
+        new ForbiddenError(
+          "PERMISSION_ESCALATION",
+          "You cannot grant a permission you do not have."
+        ),
+        403
+      ],
+      [new ForbiddenError("SYSTEM_ROLE", "System roles cannot be modified or deleted."), 403],
+      [new NotFoundError("One of the chosen permissions does not exist."), 404]
+    ] as const;
+
+    for (const [error, status] of refusals) {
+      const store = fakeStore({
+        updateRole: vi.fn(async () => {
+          throw error;
+        })
+      });
+      const response = await appWith(store).request(
+        `/roles/${ID}`,
+        json("PATCH", {
+          name: "Staff",
+          description: "",
+          colorHex: "#805AD5",
+          iconName: "user",
+          isActive: true,
+          permissionKeys: ["master-users.delete"],
+          updatedAt: STAMP
+        }),
+        env
+      );
+
+      expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toEqual({ code: error.code, message: error.message });
+    }
   });
 
   it("maps a system role to 403 SYSTEM_ROLE", async () => {
@@ -1110,7 +1188,7 @@ describe("master API: edits over a newer save", () => {
     expect(store[method]).toHaveBeenCalledWith(
       ID,
       expect.objectContaining({ updatedAt: STAMP }),
-      ...(method === "updateUser" ? [CALLER] : [])
+      ...(method === "updateDivision" ? [] : [CALLER])
     );
   });
 

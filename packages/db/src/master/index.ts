@@ -72,8 +72,8 @@ export type MasterStore = {
 
   listRoles(query: RoleListRequest): Promise<RoleListResponse>;
   getRole(id: string): Promise<RoleDetail>;
-  createRole(input: RoleInput): Promise<Role>;
-  updateRole(id: string, input: RoleUpdateInput): Promise<Role>;
+  createRole(input: RoleInput, actor: Actor): Promise<Role>;
+  updateRole(id: string, input: RoleUpdateInput, actor: Actor): Promise<Role>;
   deleteRole(id: string): Promise<void>;
 
   listUsers(query: UserListRequest): Promise<UserListResponse>;
@@ -103,8 +103,8 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
 
     listRoles: (query) => listRoles(db, query),
     getRole: (id) => getRole(db, id),
-    createRole: (input) => createRole(db, input),
-    updateRole: (id, input) => updateRole(db, id, input),
+    createRole: (input, actor) => createRole(db, input, actor),
+    updateRole: (id, input, actor) => updateRole(db, id, input, actor),
     deleteRole: (id) => deleteRole(db, id),
 
     listUsers: (query) => listUsers(db, query),
