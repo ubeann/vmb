@@ -1,6 +1,7 @@
 {
   "name": "vmb",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "packageManager": "pnpm@12.4.1",
   "engines": {
     "node": ">=24"
