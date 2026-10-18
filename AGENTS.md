@@ -30,7 +30,7 @@ VMB is being migrated from `ubeann/vmb-warehouse` (Laravel + Filament). See `doc
 
 ### Agent harnesses
 
-Which harnesses (Claude Code, Antigravity) load these instructions and the skill-driven flows, and the routing constraint that follows. See `docs/agents/harnesses.md`.
+Which harness (Claude Code, on two profiles) loads these instructions and the skill-driven flows, and the routing constraint that follows. See `docs/agents/harnesses.md`.
 
 ### Design workflow
 
