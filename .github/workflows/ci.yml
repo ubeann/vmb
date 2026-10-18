@@ -382,6 +382,7 @@ jobs:
           bash scripts/frontier.test.sh
           bash scripts/merge-gate.test.sh
           bash scripts/master-ruleset.test.sh
+          bash scripts/ci-failed.test.sh
 
   deploy:
     name: Release

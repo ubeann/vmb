@@ -62,6 +62,11 @@ pre-commit:
     merge-gate:
       glob: "scripts/merge-gate*.sh"
       run: bash scripts/merge-gate.test.sh
+    # The reader a build uses to act on a red check; a wrong filter hides the
+    # failure it was meant to show.
+    ci-failed:
+      glob: "scripts/ci-failed*.sh"
+      run: bash scripts/ci-failed.test.sh
     # The `master` ruleset is what stops a red merge or a direct push on GitHub.
     master-ruleset:
       glob: "scripts/master-ruleset*.sh"
