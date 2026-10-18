@@ -40,8 +40,7 @@ export const PermissionKeysSchema = z.array(z.string().max(100)).max(500);
 
 /**
  * `is_system` is not settable: system roles are seeded, and the legacy policy
- * refused to view, edit or delete them. `divisionId` is not settable here yet;
- * the Roles form gains it with role assignment (#8).
+ * refused to view, edit or delete them.
  */
 export const RoleInputSchema = z.object({
   name: z
@@ -56,6 +55,14 @@ export const RoleInputSchema = z.object({
     .default("#000000"),
   iconName: IconNameSchema.default("rocket"),
   isActive: checkboxSchema,
+  /**
+   * The Division the role operates in, or null for every Division. Omitted
+   * leaves an edit's Division alone and puts a new role in every Division. The
+   * API answers a Division that does not exist 404, and one that is Inactive
+   * or Trashed 400 when the save moves the role into it; a role already scoped
+   * to one keeps it.
+   */
+  divisionId: z.uuid().nullable().optional(),
   /**
    * The grants, as the whole new set (ADR-0045's amendment of 2026-10-17).
    * Omitted leaves them alone; an empty list revokes every one.
@@ -76,6 +83,10 @@ export type RoleUpdateInput = z.infer<typeof RoleUpdateInputSchema>;
  */
 export const RoleDetailSchema = RoleSchema.extend({
   divisionName: z.string().nullable(),
+  /** Whether that Division is Inactive or Trashed: the role keeps it, but no role can be moved into it. */
+  divisionInactive: z.boolean(),
+  /** How many users hold the role, the count `ROLE_IN_USE` names; a Division change moves every one. */
+  userCount: z.number().int().nonnegative(),
   /** The keys it grants, in catalogue key order, for the form and the view. */
   permissionKeys: z.array(z.string())
 });

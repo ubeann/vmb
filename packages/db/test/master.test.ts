@@ -620,6 +620,145 @@ describe("roles store", () => {
     });
   });
 
+  describe("a role's Division (#463)", () => {
+    const hub = "d1000000-0000-4000-8000-000000000001";
+    const yard = "d1000000-0000-4000-8000-000000000002";
+
+    it("puts a role in a Division on create, moves it on edit, leaves it when omitted, and frees it with null", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        await insertDivision(client, hub, "Hub", "HUB");
+        await insertDivision(client, yard, "Yard", "YRD");
+
+        const created = await store.createRole(role({ divisionId: hub }), ROLE_EDITOR);
+        expect(created.divisionId).toBe(hub);
+        await expect(store.getRole(created.id)).resolves.toMatchObject({
+          divisionId: hub,
+          divisionName: "Hub",
+          divisionInactive: false
+        });
+
+        const moved = await store.updateRole(
+          created.id,
+          editing(created, role({ divisionId: yard })),
+          ROLE_EDITOR
+        );
+        expect(moved.divisionId).toBe(yard);
+
+        // an edit that does not mention the Division leaves it where it is
+        const renamed = await store.updateRole(
+          created.id,
+          editing(moved, role({ name: "Yard staff" })),
+          ROLE_EDITOR
+        );
+        expect(renamed.divisionId).toBe(yard);
+
+        const freed = await store.updateRole(
+          created.id,
+          editing(renamed, role({ name: "Yard staff", divisionId: null })),
+          ROLE_EDITOR
+        );
+        expect(freed.divisionId).toBeNull();
+      });
+    });
+
+    it("answers a Division that does not exist 404 on the field, and writes nothing", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const gone = "d1000000-0000-4000-8000-0000000000ff";
+        const created = await store.createRole(role(), ROLE_EDITOR);
+
+        await expect(
+          store.createRole(role({ name: "Other", divisionId: gone }), ROLE_EDITOR)
+        ).rejects.toMatchObject({ code: "NOT_FOUND", issues: [{ path: "divisionId" }] });
+        await expect(
+          store.updateRole(created.id, editing(created, role({ divisionId: gone })), ROLE_EDITOR)
+        ).rejects.toMatchObject({ code: "NOT_FOUND", issues: [{ path: "divisionId" }] });
+
+        expect(await count(client, "select count(*)::int as value from master.roles")).toBe(1);
+        await expect(store.getRole(created.id)).resolves.toMatchObject({ divisionId: null });
+      });
+    });
+
+    it("refuses moving a role into an Inactive or Trashed Division, and lets a role already there keep it", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        await insertDivision(client, hub, "Hub", "HUB");
+        await insertDivision(client, yard, "Yard", "YRD");
+        const staff = await store.createRole(role({ divisionId: hub }), ROLE_EDITOR);
+        const free = await store.createRole(role({ name: "Free" }), ROLE_EDITOR);
+        await client.exec(`update master.divisions set is_active = false where id = '${hub}'`);
+        await client.exec(`update master.divisions set deleted_at = now() where id = '${yard}'`);
+
+        // a new choice, whichever way the Division is out of use
+        for (const divisionId of [hub, yard]) {
+          await expect(
+            store.createRole(role({ name: "New", divisionId }), ROLE_EDITOR)
+          ).rejects.toMatchObject({
+            code: "VALIDATION_FAILED",
+            issues: [{ path: "divisionId", message: expect.stringContaining("Inactive") }]
+          });
+          await expect(
+            store.updateRole(
+              free.id,
+              editing(free, role({ name: "Free", divisionId })),
+              ROLE_EDITOR
+            )
+          ).rejects.toMatchObject({ code: "VALIDATION_FAILED", issues: [{ path: "divisionId" }] });
+        }
+
+        // the role that is already there keeps it, saved as it is or by an edit that is silent on it
+        const kept = await store.updateRole(
+          staff.id,
+          editing(staff, role({ name: "Hub staff", divisionId: hub })),
+          ROLE_EDITOR
+        );
+        expect(kept.divisionId).toBe(hub);
+        await expect(store.getRole(staff.id)).resolves.toMatchObject({
+          divisionName: "Hub",
+          divisionInactive: true
+        });
+        const silent = await store.updateRole(
+          staff.id,
+          editing(kept, role({ name: "Hub crew" })),
+          ROLE_EDITOR
+        );
+        expect(silent.divisionId).toBe(hub);
+
+        // and can always leave it
+        const left = await store.updateRole(
+          staff.id,
+          editing(silent, role({ name: "Hub crew", divisionId: null })),
+          ROLE_EDITOR
+        );
+        expect(left.divisionId).toBeNull();
+        expect(await count(client, "select count(*)::int as value from master.roles")).toBe(2);
+      });
+    });
+
+    it("counts the users who hold a role in its detail", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const idle = await store.createRole(role({ name: "Idle" }), ROLE_EDITOR);
+        const busy = await store.createRole(role({ name: "Busy" }), ROLE_EDITOR);
+        for (const [id, email] of [
+          ["d2000000-0000-4000-8000-0000000000a1", "a@vmblogistics.id"],
+          ["d2000000-0000-4000-8000-0000000000a2", "b@vmblogistics.id"]
+        ]) {
+          await client.exec(
+            `insert into master.users (id, name, status, phone, email, created_at, updated_at)
+              values ('${id}', 'Holder', 'active', '+628111000001', '${email}', now(), now())`
+          );
+          await client.exec(
+            `insert into master.user_roles (user_id, role_id) values ('${id}', '${busy.id}')`
+          );
+        }
+        await expect(store.getRole(idle.id)).resolves.toMatchObject({ userCount: 0 });
+        await expect(store.getRole(busy.id)).resolves.toMatchObject({ userCount: 2 });
+      });
+    });
+  });
+
   it("updates and deletes an ordinary role", async () => {
     await withMigratedDb(async (db) => {
       const store = storeFor(db);
@@ -1682,6 +1821,8 @@ describe("edits over a newer save", () => {
       await expect(store.getRole(loaded.id)).resolves.toEqual({
         ...first,
         divisionName: null,
+        divisionInactive: false,
+        userCount: 0,
         permissionKeys: []
       });
 

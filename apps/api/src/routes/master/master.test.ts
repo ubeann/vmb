@@ -57,6 +57,9 @@ const role: Role = {
   updatedAt: STAMP
 };
 
+// what a role's detail adds to its record besides the Division's name and the grants
+const holders = (userCount: number, divisionInactive = false) => ({ divisionInactive, userCount });
+
 const EMPTY_ROLES: RoleListResponse = {
   items: [],
   total: 0,
@@ -112,7 +115,12 @@ function fakeStore(overrides: Partial<MasterStore> = {}): MasterStore {
     setDivisionActive: vi.fn(async () => division),
     bulkDivisions: vi.fn(async (request) => ({ ids: request.ids })),
     listRoles: vi.fn(async () => EMPTY_ROLES),
-    getRole: vi.fn(async () => ({ ...role, divisionName: null, permissionKeys: [] })),
+    getRole: vi.fn(async () => ({
+      ...role,
+      ...holders(0),
+      divisionName: null,
+      permissionKeys: []
+    })),
     createRole: vi.fn(async () => role),
     updateRole: vi.fn(async () => role),
     deleteRole: vi.fn(async () => undefined),
@@ -623,12 +631,102 @@ describe("master API: roles", () => {
 
   it("answers a role's detail with its division's name", async () => {
     const store = fakeStore({
-      getRole: vi.fn(async () => ({ ...role, divisionName: "Hub", permissionKeys: [] }))
+      getRole: vi.fn(async () => ({
+        ...role,
+        ...holders(3, true),
+        divisionId: OTHER_ID,
+        divisionName: "Hub",
+        permissionKeys: []
+      }))
     });
 
     const response = await appWith(store).request(`/roles/${ID}`, {}, env);
 
-    await expect(response.json()).resolves.toMatchObject({ id: ID, divisionName: "Hub" });
+    await expect(response.json()).resolves.toMatchObject({
+      id: ID,
+      divisionName: "Hub",
+      divisionInactive: true,
+      userCount: 3
+    });
+  });
+
+  it("takes a role's Division on a create and an edit: an id, null for every Division, or none", async () => {
+    const store = fakeStore();
+    const body = {
+      name: "Staff",
+      description: "",
+      colorHex: "#805AD5",
+      iconName: "user",
+      isActive: true
+    };
+
+    for (const divisionId of [OTHER_ID, null]) {
+      await appWith(store).request("/roles", json("POST", { ...body, divisionId }), env);
+      expect(store.createRole).toHaveBeenLastCalledWith(
+        expect.objectContaining({ divisionId }),
+        CALLER
+      );
+      await appWith(store).request(
+        `/roles/${ID}`,
+        json("PATCH", { ...body, divisionId, updatedAt: STAMP }),
+        env
+      );
+      expect(store.updateRole).toHaveBeenLastCalledWith(
+        ID,
+        expect.objectContaining({ divisionId }),
+        CALLER
+      );
+    }
+
+    // not mentioned: an edit leaves the Division where it is
+    await appWith(store).request(`/roles/${ID}`, json("PATCH", { ...body, updatedAt: STAMP }), env);
+    expect(store.updateRole).toHaveBeenLastCalledWith(
+      ID,
+      expect.not.objectContaining({ divisionId: expect.anything() }),
+      CALLER
+    );
+
+    const response = await appWith(store).request(
+      "/roles",
+      json("POST", { ...body, divisionId: "hub" }),
+      env
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("answers a Division that is gone 404 and an Inactive one 400, each on divisionId", async () => {
+    const body = {
+      name: "Staff",
+      description: "",
+      colorHex: "#805AD5",
+      iconName: "user",
+      isActive: true,
+      divisionId: OTHER_ID
+    };
+    const refusals = [
+      [new NotFoundError("That division no longer exists.", "divisionId"), 404, "NOT_FOUND"],
+      [
+        new RuleBrokenError("“Hub” is an Inactive Division.", "divisionId"),
+        400,
+        "VALIDATION_FAILED"
+      ]
+    ] as const;
+
+    for (const [error, status, code] of refusals) {
+      const store = fakeStore({
+        createRole: vi.fn(async () => {
+          throw error;
+        })
+      });
+      const response = await appWith(store).request("/roles", json("POST", body), env);
+
+      expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toEqual({
+        code,
+        message: error.message,
+        issues: [{ path: "divisionId", message: error.message }]
+      });
+    }
   });
 
   it("creates, updates and deletes", async () => {
