@@ -88,7 +88,7 @@ jobs:
       # delete (ADR-0029). Cleanup previously inlined the `pr-<N>` Neon name and
       # the `pr<N>-` Pages prefix; sourcing the same definitions preview.yml
       # uses is what keeps create and destroy from drifting apart.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Lookup and delete in one step. Deletion used to be delegated to
       # `neondatabase/delete-branch-action`, but that is a composite action that

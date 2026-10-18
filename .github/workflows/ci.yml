@@ -58,7 +58,7 @@ jobs:
             -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:18 \
             >"$LOG" 2>&1 &
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # `Detect code-relevant changes` diffs `github.event.before..HEAD`,
           # so a push to `master` needs the baseline commit in the clone; the
@@ -159,7 +159,7 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: steps.turbo-remote-cache.outputs.configured == 'false'
         with:
           # The directory `TURBO_CACHE_DIR` pins for this job (see the job-level
@@ -394,7 +394,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup
 

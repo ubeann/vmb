@@ -31,13 +31,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # `install: false`: the comparison reads `.mise.toml` and asks each tool's
       # upstream what the newest release is. It never needs the tools
       # themselves, so there is no reason to install a whole toolchain — nor to
       # fail here because one pin can't be installed.
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           experimental: true
           install: false
