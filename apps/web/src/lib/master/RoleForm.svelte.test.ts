@@ -540,6 +540,8 @@ describe("RoleForm's Division (#463)", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Division" }));
     await expect.element(screen.getByRole("option", { name: "Division 14" })).toBeVisible();
+    // axe reads the colours it sees: wait out the list's fade in
+    await expect.poll(() => document.getAnimations().length).toBe(0);
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
