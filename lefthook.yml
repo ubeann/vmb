@@ -62,6 +62,16 @@ pre-commit:
     merge-gate:
       glob: "scripts/merge-gate*.sh"
       run: bash scripts/merge-gate.test.sh
+    # The one merge path: the gate, then ready and squash; the owner's call
+    # recorded before any merge past a FAIL.
+    merge:
+      glob: "scripts/merge*.sh"
+      run: bash scripts/merge.test.sh
+    # The Claude Code hook that refuses a polling wait; a wrong pattern either
+    # lets the loops back or blocks ordinary work.
+    check-bash-wait:
+      glob: "scripts/check-bash-wait*.sh"
+      run: bash scripts/check-bash-wait.test.sh
     # The reader a build uses to act on a red check; a wrong filter hides the
     # failure it was meant to show.
     ci-failed:
