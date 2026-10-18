@@ -5,8 +5,9 @@
 # changes. The build posts `@coderabbitai review` on its draft PR after the
 # first green `Verify` (docs/agents/ticket-loop.md, Build), and answers the
 # findings under the three-round rule (docs/agents/model-routing.md, Review).
-# Everything that is not a finding is off, so a review is one comment thread
-# and never a walkthrough: a bot comment wakes the build thread.
+# Everything optional is off. A review still posts one walkthrough comment,
+# collapsed and without findings; the build has nothing to answer in it and
+# only acts on the inline findings (docs/agents/ticket-loop.md, Build).
 language: en-GB
 tone_instructions: >-
   Terse. Report correctness and security findings only, each with the failing

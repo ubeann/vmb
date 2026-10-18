@@ -274,11 +274,22 @@ if ! gh pr list --repo "$REPO" --state open --limit 10 --json number,title,isDra
   warn "could not list PRs; open one and come back."
 fi
 ask PR_NUMBER "PR number to try (Enter to skip):"
-if [[ -n "${PR_NUMBER:-}" ]]; then
-  gh pr comment "$PR_NUMBER" --repo "$REPO" --body "@sourcery-ai review" >/dev/null &&
-    printf '  %s✓ posted%s @sourcery-ai review on #%s\n' "$GREEN" "$RESET" "$PR_NUMBER"
-  gh pr comment "$PR_NUMBER" --repo "$REPO" --body "@coderabbitai review" >/dev/null &&
-    printf '  %s✓ posted%s @coderabbitai review on #%s\n' "$GREEN" "$RESET" "$PR_NUMBER"
+GH_LOGIN=$(gh api user --jq .login 2>/dev/null || true)
+if [[ -n "${PR_NUMBER:-}" && ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+  warn "'$PR_NUMBER' is not a PR number; skipping the trigger."
+  SKIPPED+=("Trigger the reviewers on a PR as vmb-agent (got '$PR_NUMBER', not a number)")
+elif [[ -n "${PR_NUMBER:-}" && "$GH_LOGIN" != "vmb-agent" ]]; then
+  warn "gh is '${GH_LOGIN:-nobody}', not vmb-agent, so this would not test the build's account; skipping."
+  SKIPPED+=("Trigger the reviewers on #$PR_NUMBER with gh logged in as vmb-agent")
+elif [[ -n "${PR_NUMBER:-}" ]]; then
+  for bot in sourcery-ai coderabbitai; do
+    if gh pr comment "$PR_NUMBER" --repo "$REPO" --body "@$bot review" >/dev/null; then
+      printf '  %s✓ posted%s @%s review on #%s\n' "$GREEN" "$RESET" "$bot" "$PR_NUMBER"
+    else
+      warn "could not post @$bot review on #$PR_NUMBER"
+      SKIPPED+=("Post '@$bot review' on #$PR_NUMBER as vmb-agent")
+    fi
+  done
   open_url "https://github.com/$REPO/pull/$PR_NUMBER"
   step "Wait a few minutes. A review, or a 'rate limit' reply, from each bot means a vmb-agent comment works."
   step "No reply from a bot: post the same comment from your own account, and note it in"
@@ -290,5 +301,5 @@ else
 fi
 
 finish
-say "Next: once a week of PRs has gone through, decide whether the two reviewers join"
-say "the Review table in docs/agents/model-routing.md (research note: review by 2026-11-18)."
+say "Next: in the first week of November 2026, after CodeRabbit's trial ends on 2026-11-01,"
+say "decide whether the two reviewers stay in docs/agents/model-routing.md's Review table."
