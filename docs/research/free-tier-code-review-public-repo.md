@@ -239,6 +239,7 @@ All accessed 2026-10-18 unless stated.
 
 - Fetches were summarised by an automated reader; quoted strings were returned as page text, but open the linked page before acting on any number.
 - Gemini's consumer GitHub app could not be located on current official pages; everything about a free consumer tier is from dated secondary coverage or a stale search snippet.
+- Settled on PR #487 (2026-10-18): `@sourcery-ai review` and `@coderabbitai review` from `vmb-agent` both trigger a review on a draft PR; Sourcery's label allowlist, set to a label no PR carries, stops its automatic reviews while the comment trigger still answers.
 - Whether a `@coderabbitai review` comment from the `vmb-agent` collaborator triggers a review, and whether Copilot ruleset reviews run (and bill) for PRs authored by an account without Copilot, were not tested.
 - Korbit, Ellipsis and Greptile Starter rest on a single primary page each (homepage / pricing card) with gaps the vendors' docs do not fill.
 - "Qualifies" above means the vendor's published gate is satisfied on its face; none of these vendors publishes how it audits licences, and a vendor may still decline a viewing-only-licence repo on its own programme's judgement.
