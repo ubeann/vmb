@@ -18,6 +18,12 @@ updates:
       github-actions:
         patterns:
           - "*"
+    ignore:
+      # 6.4.0 is tagged on a January commit twelve commits behind 6.3.1's March
+      # one and takes the action back to node20 (PR #491); a tag that moves
+      # backwards is not an update. Lift this when a later tag passes 6.3.1.
+      - dependency-name: neondatabase/create-branch-action
+        versions: ["6.4.0"]
 
   # The workspace is pnpm at the repo root; Dependabot reads pnpm-lock.yaml.
   # Minor and patch bumps are grouped to keep the queue quiet — majors stay as

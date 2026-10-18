@@ -27,7 +27,9 @@
 # <tier> is the model tier for the ticket's `complexity:*` label
 # (`model-routing.md`); <type> is the branch prefix (`git-workflow.md`): `fix`
 # for a `bug`, `docs` for a `research` ticket, `feature` otherwise.
-# Tests: `bash scripts/frontier.test.sh`.
+# Each GitHub call runs under `timeout` (FRONTIER_TIMEOUT, default 60 s): on
+# 2026-10-12 one hung the dispatcher for 42 minutes, and every run since
+# wrapped the script by hand. Tests: `bash scripts/frontier.test.sh`.
 
 set -euo pipefail
 
@@ -62,12 +64,28 @@ if [ ! -f "$lint" ]; then
   lint="$tmp/ticket-lint.sh"
 fi
 
+# GNU `timeout` is coreutils; macOS ships none, and Homebrew installs it as
+# `timeout` or `gtimeout`. With neither on PATH the script stops at once: a
+# GitHub call with no deadline is the hang this guards against (2026-10-12).
+with_timeout() {
+  local secs=$1
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$secs" "$@"
+  else
+    echo "neither timeout nor gtimeout is on PATH: install coreutils (brew install coreutils) and run again." >&2
+    return 127
+  fi
+}
+
 fetch() {
   local owner name issues numbers aliases referenced
   owner=${repo%/*}
   name=${repo#*/}
   # shellcheck disable=SC2016 # the $variables are GraphQL's, bound with -F
-  issues=$(gh api graphql -F owner="$owner" -F name="$name" -f query='
+  issues=$(with_timeout "${FRONTIER_TIMEOUT:-60}" gh api graphql -F owner="$owner" -F name="$name" -f query='
     query($owner: String!, $name: String!) {
       repository(owner: $owner, name: $name) {
         issues(labels: ["ready-for-agent"], states: OPEN, first: 100,
@@ -105,7 +123,7 @@ fetch() {
     for n in $numbers; do
       aliases+="i$n: issue(number: $n) { number state } "
     done
-    referenced=$(gh api graphql -F owner="$owner" -F name="$name" -f query="
+    referenced=$(with_timeout "${FRONTIER_TIMEOUT:-60}" gh api graphql -F owner="$owner" -F name="$name" -f query="
       query(\$owner: String!, \$name: String!) {
         repository(owner: \$owner, name: \$name) { $aliases }
       }" | jq '[.data.repository[] | select(. != null)] | map({(.number | tostring): .state}) | add // {}')

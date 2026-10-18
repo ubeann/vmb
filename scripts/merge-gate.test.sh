@@ -21,17 +21,31 @@ passing='{
   "repo": "ubeann/vmb",
   "pr": {
     "number": 300, "baseRefName": "master", "mergeable": "MERGEABLE", "labels": [],
+    "headRefOid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "body": "Closes #218\n\n## Acceptance criteria\n\n- [x] Footer renders\n\n## Merge Danger\n\n**Door:** two-way",
     "files": [{"path": "apps/web/src/lib/components/AppShell.svelte"}],
     "statusCheckRollup": [
-      {"__typename": "CheckRun", "name": "Verify", "status": "COMPLETED", "conclusion": "SUCCESS"},
+      {"__typename": "CheckRun", "name": "Verify", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-10-18T09:00:00Z"},
       {"__typename": "CheckRun", "name": "Release", "status": "COMPLETED", "conclusion": "SKIPPED"},
       {"__typename": "StatusContext", "context": "Socket", "state": "SUCCESS"}
     ],
-    "closingIssuesReferences": [{"number": 218}]
+    "closingIssuesReferences": [{"number": 218}],
+    "comments": [
+      {"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@coderabbitai review"}
+    ],
+    "reviews": [
+      {"author": {"login": "coderabbitai"}, "submittedAt": "2026-10-18T10:05:00Z", "state": "COMMENTED", "body": "Actionable comments posted: 0", "commit": {"oid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+    ],
+    "reviewThreads": []
   },
   "issues": [{"number": 218, "url": "https://github.com/ubeann/vmb/issues/218", "labels": [{"name": "ready-for-agent"}, {"name": "complexity:standard"}]}]
 }'
+
+sourcery_round='.pr.comments += [{"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@sourcery-ai review"}]
+  | .pr.reviews += [{"author": {"login": "sourcery-ai"}, "submittedAt": "2026-10-18T10:04:00Z", "state": "COMMENTED", "body": "Hey - I have reviewed your changes and they look great!", "commit": {"oid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]'
+
+bot_thread='{"isResolved": false, "path": "apps/web/src/lib/components/AppShell.svelte",
+  "comments": [{"author": "sourcery-ai", "createdAt": "2026-10-18T10:04:00Z"}]}'
 
 # check <description> <expected exit> <expected output substring|""> <jq edit>
 check() {
@@ -123,6 +137,115 @@ check "secrets config fails" 1 "one-way path \`fnox.toml\`" \
 
 check "every reason is listed, not just the first" 1 "Closes no issue" \
   '.pr.mergeable = "CONFLICTING" | .pr.closingIssuesReferences = [] | .issues = []'
+
+# The checks that must have reported, not merely be green when present.
+check "a PR with checks but no Verify fails" 1 "Check \`Verify\` has not reported" \
+  '.pr.statusCheckRollup[0].name = "Build"'
+
+check "a .ts change without a CodeQL check fails" 1 "Check \`CodeQL\` has not reported" \
+  '.pr.files += [{"path": "apps/api/src/auth.ts"}] | .' \
+
+check "a .ts change with CodeQL reported passes" 0 "PASS" \
+  '.pr.files += [{"path": "packages/types/src/roles.ts"}]
+   | .pr.statusCheckRollup += [{"__typename": "CheckRun", "name": "CodeQL", "status": "COMPLETED", "conclusion": "SUCCESS"}]'
+
+check "a Svelte-only change needs no CodeQL check" 0 "PASS" \
+  '.pr.files = [{"path": "apps/web/src/routes/+page.svelte"}]'
+
+# The on-request review round (model-routing.md, Review).
+check "a trivial ticket skips the review round" 0 "PASS" \
+  '.issues[0].labels = [{"name": "complexity:trivial"}] | .pr.comments = [] | .pr.reviews = []'
+
+check "a standard PR nobody asked CodeRabbit about fails" 1 "CodeRabbit has not been asked for a review: comment \`@coderabbitai review\`" \
+  '.pr.comments = []'
+
+check "an ask by an untrusted author does not count" 1 "CodeRabbit has not been asked" \
+  '.pr.comments[0].author.login = "someone-else"'
+
+check "a review older than the latest ask fails" 1 "CodeRabbit has not reviewed since the ask at 2026-10-18T11:00:00Z" \
+  '.pr.comments += [{"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T11:00:00Z", "body": "@coderabbitai review"}]'
+
+check "a REST-spelled bot login still counts as the review" 0 "PASS" \
+  '.pr.reviews[0].author.login = "coderabbitai[bot]"'
+
+check "a rate-limit reply is not a review" 1 "CodeRabbit answered the ask at 2026-10-18T10:00:00Z with a rate limit" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:01:00Z", "body": "Rate limit exceeded. Please try again in 23 minutes."}]'
+
+check "an API change also needs Sourcery" 1 "Sourcery has not been asked for a review: comment \`@sourcery-ai review\`" \
+  '.pr.files += [{"path": "apps/api/src/routes/master/users.ts"}]
+   | .pr.statusCheckRollup += [{"__typename": "CheckRun", "name": "CodeQL", "status": "COMPLETED", "conclusion": "SUCCESS"}]'
+
+check "a db change with both rounds done passes" 0 "PASS" \
+  ".pr.files += [{\"path\": \"packages/db/src/master/users.ts\"}]
+   | .pr.statusCheckRollup += [{\"__typename\": \"CheckRun\", \"name\": \"CodeQL\", \"status\": \"COMPLETED\", \"conclusion\": \"SUCCESS\"}]
+   | $sourcery_round"
+
+check "a web-only standard PR needs no Sourcery" 0 "PASS" \
+  '.pr.files = [{"path": "apps/web/src/lib/components/AppShell.svelte"}]'
+
+# Every finding answered: a bot thread is resolved or carries a trusted reply.
+check "an unanswered bot thread fails" 1 "Review thread by sourcery-ai on \`apps/web/src/lib/components/AppShell.svelte\` has no reply after its last finding" \
+  ".pr.reviewThreads = [$bot_thread]"
+
+check "a resolved bot thread passes" 0 "PASS" \
+  ".pr.reviewThreads = [$bot_thread | .isResolved = true]"
+
+check "a bot thread answered by vmb-agent passes" 0 "PASS" \
+  ".pr.reviewThreads = [$bot_thread | .comments += [{\"author\": \"vmb-agent\", \"createdAt\": \"2026-10-18T10:30:00Z\"}]]"
+
+check "a thread opened by a stranger is not the round's" 0 "PASS" \
+  ".pr.reviewThreads = [$bot_thread | .comments[0].author = \"someone-else\"]"
+
+check "a bot follow-up after the reply reopens the thread" 1 "has no reply after its last finding" \
+  ".pr.reviewThreads = [$bot_thread | .comments += [{\"author\": \"vmb-agent\", \"createdAt\": \"2026-10-18T10:30:00Z\"}, {\"author\": \"sourcery-ai\", \"createdAt\": \"2026-10-18T10:40:00Z\"}]]"
+
+check "a thread too long to fetch whole is not judged" 1 "has over 100 replies: not judged" \
+  ".pr.reviewThreads = [$bot_thread | .complete = false]"
+
+# A review counts only for the head it was made on.
+check "a review of an older head fails until the reviewer is asked again" 1 "The last CodeRabbit review is of 1111111, not the head 2222222: a push followed it" \
+  '.pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"'
+
+check "a second review on the new head passes" 0 "PASS" \
+  '.pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   | .pr.reviews += [{"author": {"login": "coderabbitai"}, "submittedAt": "2026-10-18T10:20:00Z", "state": "COMMENTED", "body": "Actionable comments posted: 0", "commit": {"oid": "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}]'
+
+check "a document without a head judges reviews by time alone" 0 "PASS" \
+  'del(.pr.headRefOid) | del(.pr.reviews[0].commit)'
+
+# CodeRabbit acknowledges thread replies as bodiless reviews and reports an
+# empty incremental round by editing its acknowledgement, not by a review.
+check "a bodiless reply review is not a review" 1 "CodeRabbit has not reviewed since the ask" \
+  '.pr.reviews[0].body = ""'
+
+check "a finished CodeRabbit acknowledgement counts when the ask came after the head" 0 "PASS" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "<details><summary>✅ Action performed</summary>Review finished.</details>"}]'
+
+check "a triggered acknowledgement is not finished" 1 "CodeRabbit has not reviewed since the ask" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "<details><summary>Action performed</summary>Review triggered.</details>"}]'
+
+check "a finished acknowledgement for an ask older than the head does not count" 1 "The last CodeRabbit round finished before the head moved to 2222222: ask again" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "✅ Action performed Review finished."}]
+   | .pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   | .pr.statusCheckRollup[0].startedAt = "2026-10-18T10:30:00Z"'
+
+check "a finished acknowledgement with no check run on the head does not count" 1 "The last CodeRabbit round finished before the head moved" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "✅ Action performed Review finished."}]
+   | .pr.statusCheckRollup |= map(del(.startedAt))'
+
+check "a finished acknowledgement does not stand in for Sourcery" 1 "Sourcery has not reviewed since the ask" \
+  '.pr.files += [{"path": "apps/api/src/routes/master/users.ts"}]
+   | .pr.statusCheckRollup += [{"__typename": "CheckRun", "name": "CodeQL", "status": "COMPLETED", "conclusion": "SUCCESS"}]
+   | .pr.comments += [{"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@sourcery-ai review"},
+                      {"author": {"login": "sourcery-ai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "Review finished."}]'
+
+check "an old document without the review fields still judges the rest" 1 "CodeRabbit has not been asked" \
+  'del(.pr.comments, .pr.reviews, .pr.reviewThreads)'
 
 printf '\n%d checks, %d failed\n' "$checks" "$failures"
 [ "$failures" -eq 0 ]
