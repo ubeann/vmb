@@ -22,11 +22,10 @@ passing='{
   "pr": {
     "number": 300, "baseRefName": "master", "mergeable": "MERGEABLE", "labels": [],
     "headRefOid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "commits": [{"oid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "committedDate": "2026-10-18T09:00:00Z"}],
     "body": "Closes #218\n\n## Acceptance criteria\n\n- [x] Footer renders\n\n## Merge Danger\n\n**Door:** two-way",
     "files": [{"path": "apps/web/src/lib/components/AppShell.svelte"}],
     "statusCheckRollup": [
-      {"__typename": "CheckRun", "name": "Verify", "status": "COMPLETED", "conclusion": "SUCCESS"},
+      {"__typename": "CheckRun", "name": "Verify", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-10-18T09:00:00Z"},
       {"__typename": "CheckRun", "name": "Release", "status": "COMPLETED", "conclusion": "SKIPPED"},
       {"__typename": "StatusContext", "context": "Socket", "state": "SUCCESS"}
     ],
@@ -232,7 +231,12 @@ check "a finished acknowledgement for an ask older than the head does not count"
   '.pr.reviews = []
    | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "✅ Action performed Review finished."}]
    | .pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-   | .pr.commits += [{"oid": "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "committedDate": "2026-10-18T10:30:00Z"}]'
+   | .pr.statusCheckRollup[0].startedAt = "2026-10-18T10:30:00Z"'
+
+check "a finished acknowledgement with no check run on the head does not count" 1 "The last CodeRabbit round finished before the head moved" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "✅ Action performed Review finished."}]
+   | .pr.statusCheckRollup |= map(del(.startedAt))'
 
 check "a finished acknowledgement does not stand in for Sourcery" 1 "Sourcery has not reviewed since the ask" \
   '.pr.files += [{"path": "apps/api/src/routes/master/users.ts"}]

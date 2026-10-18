@@ -62,6 +62,8 @@ check "a sleep by full path is refused" 2 "/bin/sleep 2"
 check "a sleep with a variable duration is refused" 2 'n=30; sleep "$n"'
 check "a sleep with a fractional duration is refused" 2 "sleep .5; echo done"
 check "a redirect before the watch flag is still refused" 2 "gh pr checks 482 2>&1 --watch"
+check "a pause split by a line continuation is refused" 2 $'sleep\\\n 2'
+check "a watch flag split by a line continuation is refused" 2 $'gh pr checks 482 \\\n  --watch'
 
 check "a plain gh pr checks passes" 0 "gh pr checks 485"
 check "ci-failed.sh passes" 0 "scripts/ci-failed.sh 485"

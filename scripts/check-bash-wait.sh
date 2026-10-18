@@ -42,8 +42,11 @@ else
 fi
 [ -n "$cmd" ] || exit 0
 
-# One line, so a loop or a pipeline split across lines reads as one command.
-flat=$(printf '%s' "$cmd" | tr '\n' ' ')
+# One line, as Bash reads it: a backslash-newline joins two lines into one
+# word (so `sleep\` + newline + `2` is `sleep 2`), then every other newline is
+# a separator, so a loop or a pipeline split across lines reads as one command.
+joined=${cmd//\\$'\n'/}
+flat=$(printf '%s' "$joined" | tr '\n' ' ')
 reason=""
 # shellcheck disable=SC2016 # a `$(` inside a pattern is text, not an expansion
 if printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(/[^[:space:]]*/)?sleep([[:space:]]|$)'; then

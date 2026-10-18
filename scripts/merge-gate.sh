@@ -56,7 +56,7 @@ if [ "$1" = "--input" ]; then
 else
   # `gh pr view` loads every page of `comments` and `reviews` before printing.
   pr=$(gh pr view "$1" --json \
-    number,baseRefName,mergeable,labels,body,headRefOid,commits,statusCheckRollup,closingIssuesReferences,comments,reviews)
+    number,baseRefName,mergeable,labels,body,headRefOid,statusCheckRollup,closingIssuesReferences,comments,reviews)
   # `gh pr view --json files` stops at 100 files on older gh releases, which
   # would hide a one-way path in a big PR; the paginated REST list never does.
   files=$(gh api --paginate "repos/{owner}/{repo}/pulls/$1/files" --jq '.[].filename' |
@@ -134,11 +134,13 @@ reasons=$(printf '%s' "$doc" | jq -r '
   # saw, and a bodiless review is the bot acknowledging a reply in a thread.
   # CodeRabbit posts no review when an incremental round finds nothing; it
   # edits its acknowledgement to "Review finished" instead, which counts when
-  # the ask itself came after the head commit. A rate-limit reply is named
-  # apart. (No apostrophes in this jq program: the shell quotes it with
-  # single quotes.)
+  # the ask came after the head reached the PR. That moment is the earliest
+  # check run started on the head (a commit date says when it was written,
+  # not when it was pushed); with no check run known, the acknowledgement does
+  # not count. A rate-limit reply is named apart. (No apostrophes in this jq
+  # program: the shell quotes it with single quotes.)
   | ($pr.headRefOid // null) as $head
-  | ([($pr.commits // [])[] | select(.oid == $head) | .committedDate] | first // null) as $head_date
+  | ([$pr.statusCheckRollup[] | .startedAt // empty] | min // null) as $head_seen
   | [
       {name: "CodeRabbit", bot: "coderabbitai", ask: "@coderabbitai (full )?review", due: $reviewed_tier},
       {name: "Sourcery", bot: "sourcery-ai", ask: "@sourcery-ai review", due: $sourcery_due}
@@ -154,7 +156,7 @@ reasons=$(printf '%s' "$doc" | jq -r '
       | [$comments[] | select((.author.login | login) == $r.bot and .createdAt >= ($asked // ""))] as $replies
       | (any($replies[]; .body | test("rate limit"; "i"))) as $limited
       | ($r.bot == "coderabbitai" and ($asked != null) and any($replies[]; .body | test("Review finished"))) as $acked
-      | ($acked and ($head_date == null or $asked >= $head_date)) as $finished
+      | ($acked and $head_seen != null and $asked >= $head_seen) as $finished
       | . + {asked: $asked, done: ($reviewed != null or $finished), stale: (($since_ask | length > 0) or $acked),
              stale_oid: $stale_oid, limited: $limited})
     as $reviewers

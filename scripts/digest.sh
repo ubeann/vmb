@@ -69,8 +69,8 @@ fi
 # Search strings cannot take GraphQL variables, so they are built here.
 q() { printf 'search(query: "repo:%s %s", type: ISSUE, first: %s)' "$repo" "$1" "$2"; }
 # GNU `timeout` is coreutils; macOS ships none, and Homebrew installs it as
-# `timeout` or `gtimeout`. Without either the call runs unbounded, which still
-# beats a report that never prints.
+# `timeout` or `gtimeout`. With neither on PATH the script stops at once: a
+# GitHub call with no deadline is the hang this guards against (2026-10-12).
 with_timeout() {
   local secs=$1
   shift
@@ -79,7 +79,8 @@ with_timeout() {
   elif command -v gtimeout >/dev/null 2>&1; then
     gtimeout "$secs" "$@"
   else
-    "$@"
+    echo "neither timeout nor gtimeout is on PATH: install coreutils (brew install coreutils) and run again." >&2
+    return 127
   fi
 }
 
@@ -114,12 +115,12 @@ doc=$(with_timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
       number title isDraft headRefOid
       author { login }
       closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } } } }
-      files(first: 100) { nodes { path } }
+      files(first: 100) { pageInfo { hasNextPage } nodes { path } }
       comments(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } body createdAt } }
       reviews(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } submittedAt body commit { oid } } }
       reviewThreads(first: 50) { pageInfo { hasNextPage }
         nodes { isResolved comments(first: 10) { pageInfo { hasNextPage } nodes { author { login } } } } }
-      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }
+      commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 20) { nodes { ... on CheckRun { startedAt } } } } } } } } }
   }
 }")
 
@@ -165,9 +166,10 @@ printf '%s' "$doc" | jq -r '
 # incremental round as a "Review finished" acknowledgement instead); a
 # reviewer thread is answered when resolved or when a trusted author has the
 # last word. A PR is listed only when something is missing. The last 100
-# comments and reviews, 50 threads and 10 replies a thread are read (GitHub
-# caps one query at 500,000 nodes); anything past that is reported as unread,
-# not guessed at, and the gate reads every page before a merge.
+# comments and reviews, 100 files, 50 threads and 10 replies a thread are read
+# (GitHub caps one query at 500,000 nodes); anything past that is reported as
+# unread, not guessed at (a file list cut short counts Sourcery as due), and
+# the gate reads every page before a merge.
 printf '\nreview round:\n'
 printf '%s' "$doc" | jq -r '
   def login: (. // "") | sub("\\[bot\\]$"; "");
@@ -177,7 +179,7 @@ printf '%s' "$doc" | jq -r '
   select(.commits.nodes[0].commit.statusCheckRollup.state == "SUCCESS") |
   ([.closingIssuesReferences.nodes[].labels.nodes[].name]) as $labels |
   select(($labels | index("complexity:standard")) != null or ($labels | index("complexity:complex")) != null) |
-  ([.files.nodes[].path] | any(test("^apps/api/") or test("^packages/db/"))) as $apidb |
+  (([.files.nodes[].path] | any(test("^apps/api/") or test("^packages/db/"))) or .files.pageInfo.hasNextPage) as $apidb |
   . as $pr |
   ($pr.headRefOid) as $head |
   ([ {name: "CodeRabbit", bot: "coderabbitai", ask: "@coderabbitai (full )?review", due: true},
@@ -188,9 +190,9 @@ printf '%s' "$doc" | jq -r '
      ([$pr.comments.nodes[] | select((.author.login | trusted) and (.body | test($r.ask))) | .createdAt] | max) as $asked |
      [$pr.reviews.nodes[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // "") and ((.body // "") != ""))] as $since |
      [$pr.comments.nodes[] | select((.author.login | login) == $r.bot and .createdAt >= ($asked // ""))] as $replies |
-     ($pr.commits.nodes[0].commit.committedDate) as $head_date |
+     ([$pr.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[] | .startedAt // empty] | min // null) as $head_seen |
      ($r.bot == "coderabbitai" and $asked != null and any($replies[]; .body | test("Review finished"))) as $acked |
-     ((any($since[]; .commit.oid == $head)) or ($acked and $asked >= $head_date)) as $answered |
+     ((any($since[]; .commit.oid == $head)) or ($acked and $head_seen != null and $asked >= $head_seen)) as $answered |
      (any($replies[]; .body | test("rate limit"; "i"))) as $limited |
      "\($r.name): \(
        if $asked == null then "not asked"
@@ -202,9 +204,9 @@ printf '%s' "$doc" | jq -r '
     | select((.comments.nodes[0].author.login | login) | IN("coderabbitai", "sourcery-ai"))
     | select((.isResolved | not) and ((.comments.nodes | last | .author.login | trusted) | not))] | length) as $open |
   ($pr.comments.pageInfo.hasPreviousPage or $pr.reviews.pageInfo.hasPreviousPage or $pr.reviewThreads.pageInfo.hasNextPage
-    or any($pr.reviewThreads.nodes[]; .comments.pageInfo.hasNextPage)) as $truncated |
+    or $pr.files.pageInfo.hasNextPage or any($pr.reviewThreads.nodes[]; .comments.pageInfo.hasNextPage)) as $truncated |
   ($statuses + (if $open > 0 then ["\($open) reviewer thread(s) unanswered"] else [] end)
-             + (if $truncated then ["over 100 comments, reviews or threads: read the PR"] else [] end)) as $parts |
+             + (if $truncated then ["over 100 comments, reviews, files or threads: read the PR"] else [] end)) as $parts |
   select(any($parts[]; endswith(": answered") | not)) |
   "  #\($pr.number)  \($pr.title)  \($parts | join("  "))"'
 

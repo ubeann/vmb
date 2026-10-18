@@ -65,8 +65,8 @@ if [ ! -f "$lint" ]; then
 fi
 
 # GNU `timeout` is coreutils; macOS ships none, and Homebrew installs it as
-# `timeout` or `gtimeout`. Without either the call runs unbounded, which still
-# beats a report that never prints.
+# `timeout` or `gtimeout`. With neither on PATH the script stops at once: a
+# GitHub call with no deadline is the hang this guards against (2026-10-12).
 with_timeout() {
   local secs=$1
   shift
@@ -75,7 +75,8 @@ with_timeout() {
   elif command -v gtimeout >/dev/null 2>&1; then
     gtimeout "$secs" "$@"
   else
-    "$@"
+    echo "neither timeout nor gtimeout is on PATH: install coreutils (brew install coreutils) and run again." >&2
+    return 127
   fi
 }
 
