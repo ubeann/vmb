@@ -11,7 +11,10 @@
   shows nothing (rule 7). A user's Division is whichever their roles are scoped
   to. Under 32rem the second line leads with the status word, then the email,
   then what the hidden columns hold. Delete asks first and moves the user to
-  the Trash, with an Undo; their sessions end with it.
+  the Trash, with an Undo; their sessions end with it. A user holding permissions the
+  caller lacks is out of their reach (`withinReach`, from the API): the row offers View
+  alone, and bulk selection skips it and says so, since the API would refuse each change
+  with 403 `PERMISSION_ESCALATION`.
 -->
 <script lang="ts">
   import { goto, invalidateAll } from "$app/navigation";
@@ -191,11 +194,16 @@
   // filters or the sort change, or the rows do
   const selection = new Selection();
   const pageIds = $derived(data.users?.items.map((user) => user.id) ?? []);
+  // the rows a bulk action may take: those within the caller's reach; the others are skipped
+  const reachableIds = $derived(
+    data.users?.items.filter((user) => user.withinReach).map((user) => user.id) ?? []
+  );
+  const skipped = $derived(pageIds.length - reachableIds.length);
   // the bulk actions check the `_any` keys, as legacy's did (#467)
   const selectable = $derived(
     inTrash ? can("master-users.restore_any") : can("master-users.delete_any")
   );
-  const pageState = $derived(selection.stateOf(pageIds));
+  const pageState = $derived(selection.stateOf(reachableIds));
   $effect.pre(() => {
     void page.url.search;
     untrack(() => selection.clear());
@@ -303,39 +311,41 @@
 
   // ADR-0051 rule 8: a row gets a menu only for two or more of these; one is a button
   function rowActions(user: User): RowAction[] {
-    if (user.deletedAt) {
-      return can("master-users.restore")
-        ? [
-            {
-              key: "restore",
-              shortcut: KEYS.restore,
-              label: "Restore",
-              icon: RotateCcwIcon,
-              run: () => restore(user)
-            }
-          ]
-        : [];
-    }
     const actions: RowAction[] = [];
-    if (can("master-users.update")) {
-      actions.push({
-        key: "edit",
-        shortcut: KEYS.edit,
-        label: "Edit",
-        icon: PencilIcon,
-        href: resolve("/(app)/master/users/[id]/edit", { id: user.id }),
-        run: () => void goto(resolve("/(app)/master/users/[id]/edit", { id: user.id }))
-      });
-    }
-    if (can("master-users.delete")) {
-      actions.push({
-        key: "delete",
-        shortcut: KEYS.delete,
-        label: "Delete…",
-        icon: Trash2Icon,
-        destructive: true,
-        run: () => askDelete(user)
-      });
+    // a user out of the caller's reach is only to look at: the API refuses every change
+    if (user.withinReach) {
+      if (user.deletedAt) {
+        if (can("master-users.restore")) {
+          actions.push({
+            key: "restore",
+            shortcut: KEYS.restore,
+            label: "Restore",
+            icon: RotateCcwIcon,
+            run: () => restore(user)
+          });
+        }
+      } else {
+        if (can("master-users.update")) {
+          actions.push({
+            key: "edit",
+            shortcut: KEYS.edit,
+            label: "Edit",
+            icon: PencilIcon,
+            href: resolve("/(app)/master/users/[id]/edit", { id: user.id }),
+            run: () => void goto(resolve("/(app)/master/users/[id]/edit", { id: user.id }))
+          });
+        }
+        if (can("master-users.delete")) {
+          actions.push({
+            key: "delete",
+            shortcut: KEYS.delete,
+            label: "Delete…",
+            icon: Trash2Icon,
+            destructive: true,
+            run: () => askDelete(user)
+          });
+        }
+      }
     }
     // what a row has when nothing can be changed: only to look
     if (actions.length === 0 && can("master-users.view")) {
@@ -425,7 +435,14 @@
 
   <ListCard busy={loading}>
     {#if selection.count > 0}
-      <ListBulkBar count={selection.count} label="Bulk actions for users" onclear={clearSelection}>
+      <ListBulkBar
+        count={selection.count}
+        label="Bulk actions for users"
+        note={skipped > 0
+          ? `${skipped} skipped: you don't hold every permission they hold`
+          : undefined}
+        onclear={clearSelection}
+      >
         {#if inTrash}
           <Button type="button" onclick={() => restoreMany(selection.ids)}>
             <RotateCcwIcon aria-hidden="true" data-icon="inline-start" />Restore
@@ -540,8 +557,9 @@
           <SelectPageStrip
             bind:ref={stripBox}
             state={pageState}
-            count={list.items.length}
-            onchange={() => selection.setPage(pageIds, pageState !== "all")}
+            count={reachableIds.length}
+            disabled={reachableIds.length === 0}
+            onchange={() => selection.setPage(reachableIds, pageState !== "all")}
           />
         {/if}
         <Table.Root class={cn("transition-opacity", loading && "opacity-50")}>
@@ -562,8 +580,9 @@
                       bind:ref={headerBox}
                       checked={pageState === "all"}
                       indeterminate={pageState === "some"}
-                      onCheckedChange={() => selection.setPage(pageIds, pageState !== "all")}
-                      aria-label="Select all {list.items.length} on this page"
+                      disabled={reachableIds.length === 0}
+                      onCheckedChange={() => selection.setPage(reachableIds, pageState !== "all")}
+                      aria-label="Select all {reachableIds.length} on this page"
                     />
                   {/if}
                 {/snippet}
@@ -626,8 +645,11 @@
                       <Checkbox
                         variant="kit"
                         checked={selection.has(user.id)}
+                        disabled={!user.withinReach}
                         onCheckedChange={(on) => selection.toggle(user.id, on)}
-                        aria-label="Select {user.name}"
+                        aria-label={user.withinReach
+                          ? `Select ${user.name}`
+                          : `Select ${user.name} (out of your reach)`}
                       />
                     {/if}
                     <UserAvatar

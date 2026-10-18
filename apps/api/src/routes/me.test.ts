@@ -37,7 +37,8 @@ const profile: User = {
   profilePhotoPath: null,
   createdAt: STAMP,
   updatedAt: STAMP,
-  deletedAt: null
+  deletedAt: null,
+  withinReach: true
 };
 
 function patch(body: unknown) {

@@ -9,12 +9,14 @@ vi.mock("$lib/api-access.js", () => ({
   withApiClient: (event: unknown, run: (client: unknown) => Promise<unknown>) =>
     withApiClientMock(event, run)
 }));
+const listDivisionsMock = vi.fn();
 vi.mock("$lib/master/api.js", () => ({
   listRoles: (...args: unknown[]) => listRolesMock(...args),
-  listDivisions: vi.fn()
+  listDivisions: (...args: unknown[]) => listDivisionsMock(...args)
 }));
 
-const { divisionChoices, loadRoleFilterOptions } = await import("./loads.js");
+const { divisionChoices, loadRoleFilterOptions, loadRoleOptions, roleChoices } =
+  await import("./loads.js");
 
 const roles = (from: number, count: number) =>
   Array.from({ length: count }, (_, index) => ({
@@ -29,6 +31,8 @@ const event = {} as never;
 beforeEach(() => {
   withApiClientMock.mockReset();
   listRolesMock.mockReset();
+  listDivisionsMock.mockReset();
+  listDivisionsMock.mockResolvedValue({ ok: true, value: { items: [], total: 0 } });
   vi.spyOn(console, "error").mockImplementation(() => {});
   withApiClientMock.mockImplementation(
     async (_event: unknown, run: (client: unknown) => Promise<unknown>) => ({
@@ -108,5 +112,97 @@ describe("divisionChoices", () => {
       { id: "t", name: "Old", inactive: true }
     ]);
     expect(divisionChoices(all, { id: "a", name: "Hub", inactive: false })).toHaveLength(2);
+  });
+});
+
+describe("the user form's role options", () => {
+  const role = (overrides: Record<string, unknown>) => ({
+    id: "r-1",
+    name: "Staff",
+    isActive: true,
+    divisionId: null,
+    grantable: true,
+    ...overrides
+  });
+
+  it("reads every role, inactive ones too, and says which the caller may grant", async () => {
+    listRolesMock.mockResolvedValue(
+      page(
+        [
+          role({ id: "r-1", name: "Staff" }),
+          role({ id: "r-2", name: "Super Admin", grantable: false }),
+          role({ id: "r-3", name: "Retired", isActive: false })
+        ],
+        3
+      )
+    );
+
+    const options = await loadRoleOptions(event);
+
+    expect(listRolesMock.mock.calls[0]?.[1].status).toEqual([]);
+    expect(options).toEqual([
+      expect.objectContaining({ id: "r-1", isActive: true, grantable: true }),
+      expect.objectContaining({ id: "r-2", isActive: true, grantable: false }),
+      expect.objectContaining({ id: "r-3", isActive: false, grantable: true })
+    ]);
+  });
+
+  it("names a role's Division and whether it is inactive", async () => {
+    listDivisionsMock.mockResolvedValue({
+      ok: true,
+      value: { items: [{ id: "d-1", name: "Hub", isActive: false }], total: 1 }
+    });
+    listRolesMock.mockResolvedValue(page([role({ divisionId: "d-1" })], 1));
+
+    await expect(loadRoleOptions(event)).resolves.toEqual([
+      expect.objectContaining({ divisionName: "Hub", divisionInactive: true })
+    ]);
+  });
+});
+
+describe("the roles a user form offers", () => {
+  const option = (overrides: Record<string, unknown>) => ({
+    id: "r-1",
+    name: "Staff",
+    isActive: true,
+    divisionName: null,
+    divisionInactive: false,
+    grantable: true,
+    ...overrides
+  });
+
+  it("offers an active role, and an inactive one or one of an Inactive Division only to who holds it", () => {
+    const options = [
+      option({ id: "r-a", name: "Active" }),
+      option({ id: "r-i", name: "Inactive", isActive: false }),
+      option({ id: "r-h", name: "Hub", divisionInactive: true })
+    ];
+
+    expect(roleChoices(options, []).map((role) => role.id)).toEqual(["r-a"]);
+    expect(
+      roleChoices(options, [
+        { id: "r-i", name: "Inactive" },
+        { id: "r-h", name: "Hub" }
+      ]).map((role) => role.id)
+    ).toEqual(["r-a", "r-h", "r-i"]);
+  });
+
+  it("keeps an ungrantable role in the list, for the form to disable", () => {
+    const [kept] = roleChoices([option({ grantable: false })], []);
+
+    expect(kept).toMatchObject({ id: "r-1", grantable: false });
+  });
+
+  it("takes a held role the options did not return as grantable: the API decides", () => {
+    expect(roleChoices([], [{ id: "r-gone", name: "Retired" }])).toEqual([
+      {
+        id: "r-gone",
+        name: "Retired",
+        isActive: true,
+        divisionName: null,
+        divisionInactive: false,
+        grantable: true
+      }
+    ]);
   });
 });

@@ -26,7 +26,8 @@ const user: User = {
   profilePhotoPath: null,
   createdAt: STAMP,
   updatedAt: STAMP,
-  deletedAt: null
+  deletedAt: null,
+  withinReach: true
 };
 
 const pageData = (
@@ -119,6 +120,52 @@ describe("the user view page", () => {
     await expect
       .element(screen.getByRole("link", { name: "Cancel" }))
       .toHaveAttribute("href", `/master/users/${ID}`);
+  });
+
+  describe("a user out of the caller's reach", () => {
+    const outOfReach = { withinReach: false };
+
+    it("offers View only: no Edit, no Delete…, and says why", async () => {
+      const screen = await render(Page, { data: pageData(outOfReach), form: null });
+
+      await expect
+        .element(
+          screen.getByText("They hold permissions you don't hold, so you can only view them.")
+        )
+        .toBeVisible();
+      expect(screen.getByRole("link", { name: "Edit" }).elements()).toHaveLength(0);
+      expect(screen.getByRole("link", { name: "Delete…" }).elements()).toHaveLength(0);
+      expect(document.querySelector('a[href$="/edit"]')).toBeNull();
+    });
+
+    it("does not ask to delete on the page itself, whatever the URL says", async () => {
+      const screen = await render(Page, {
+        data: pageData(outOfReach, { confirmDelete: true }),
+        form: null
+      });
+
+      expect(screen.getByRole("heading", { name: /^Delete / }).elements()).toHaveLength(0);
+      expect(screen.getByRole("button", { name: "Delete" }).elements()).toHaveLength(0);
+    });
+
+    it("offers no Restore for one in the Trash", async () => {
+      const screen = await render(Page, {
+        data: pageData({ ...outOfReach, deletedAt: "2026-10-06T01:00:00.000Z" }),
+        form: null
+      });
+
+      await expect.element(screen.getByText(/This user is in the Trash/)).toBeVisible();
+      expect(screen.getByRole("button", { name: "Restore" }).elements()).toHaveLength(0);
+    });
+
+    it("says nothing of reach to a caller who could not change anyone", async () => {
+      const screen = await render(Page, {
+        data: pageData(outOfReach, { permissions: ["master-users.view_any"] }),
+        form: null
+      });
+
+      expect(screen.getByText(/you can only view them/).elements()).toHaveLength(0);
+    });
   });
 
   it("shows what the API refused", async () => {

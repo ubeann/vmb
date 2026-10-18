@@ -4,8 +4,10 @@
   in the URL. Roles have no Trash, so there is no All · Trash switch and
   deleting is permanent: the dialog says so, and no Undo follows. A System Role
   carries a lock badge, and its row offers View alone, since nobody can edit or
-  delete one. Actions follow the caller's permissions; the API refuses the same
-  things. Keyboard rows (ADR-0052 rule 4) are wired but off, as Divisions ships.
+  delete one. A Role that grants what the caller lacks (`grantable`, from the API)
+  is View and Delete… only: nobody may edit grants they do not hold. Actions follow
+  the caller's permissions; the API refuses the same things. Keyboard rows
+  (ADR-0052 rule 4) are wired but off, as Divisions ships.
 -->
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
@@ -207,7 +209,7 @@
   // A System Role is never edited or deleted, so it has View alone.
   function rowActions(role: Role): RowAction[] {
     const actions: RowAction[] = [];
-    if (!role.isSystem && can("master-roles.update")) {
+    if (!role.isSystem && role.grantable && can("master-roles.update")) {
       actions.push({
         key: "edit",
         shortcut: KEYS.edit,

@@ -3,14 +3,18 @@
   sit as removable chips in the field, and typing narrows the list under it. A
   role scoped to a Division says so beside its name, and one of an Inactive
   Division is offered only to the user who already holds it, marked as such
-  (the Inactive rule). The chosen ids post as hidden `roleIds` fields, so the
-  form works as a plain form post.
+  (the Inactive rule). A role the caller does not fully hold (`grantable`, from the
+  API) is listed disabled with a hint, since giving it or taking it away is
+  refused with 403 `PERMISSION_ESCALATION`: a user who already holds one keeps it,
+  as a chip with no remove button. The chosen ids post as hidden `roleIds` fields,
+  so the form works as a plain form post.
 -->
 <script lang="ts">
   import Marked from "$lib/components/list/Marked.svelte";
   import { cn } from "$lib/utils.js";
   import CheckIcon from "@lucide/svelte/icons/check";
   import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
+  import LockIcon from "@lucide/svelte/icons/lock";
   import XIcon from "@lucide/svelte/icons/x";
   import { Combobox } from "bits-ui";
   import type { RoleOption } from "./loads.js";
@@ -33,6 +37,8 @@
     invalid?: boolean;
     describedby?: string;
   } = $props();
+
+  const UNGRANTABLE = "You don't hold every permission this role grants";
 
   let search = $state("");
   let open = $state(false);
@@ -57,14 +63,24 @@
     );
   });
 
+  // the roles held that the caller may not take away: whatever the list does, they stay
+  const locked = $derived(chosen.filter((role) => !role.grantable).map((role) => role.id));
+  const keepLocked = (ids: string[]) => [...ids, ...locked.filter((id) => !ids.includes(id))];
+
   function remove(roleId: string) {
     value = picked.filter((each) => each !== roleId);
     input?.focus();
   }
 
   function onkeydown(event: KeyboardEvent) {
-    // Backspace in an empty field takes the last chip back, as a tag field does
-    if (event.key === "Backspace" && search === "" && picked.length > 0) {
+    // Backspace in an empty field takes the last chip back, as a tag field does, unless it is locked
+    const last = picked.at(-1);
+    if (
+      event.key === "Backspace" &&
+      search === "" &&
+      last !== undefined &&
+      !locked.includes(last)
+    ) {
       value = picked.slice(0, -1);
     }
   }
@@ -78,7 +94,7 @@
   type="multiple"
   value={picked}
   onValueChange={(next) => {
-    value = next;
+    value = keepLocked(next);
     search = "";
   }}
   bind:open
@@ -106,17 +122,28 @@
     {#each chosen as role (role.id)}
       <span
         data-slot="role-chip"
-        class="bg-muted text-foreground inline-flex h-6 max-w-full items-center gap-1 rounded-md pr-0.5 pl-2 text-sm font-medium pointer-coarse:h-8"
+        title={role.grantable ? undefined : UNGRANTABLE}
+        class={cn(
+          "bg-muted text-foreground inline-flex h-6 max-w-full items-center gap-1 rounded-md pl-2 text-sm font-medium pointer-coarse:h-8",
+          role.grantable ? "pr-0.5" : "pr-2"
+        )}
       >
-        <span class="truncate">{role.name}</span>
-        <button
-          type="button"
-          aria-label="Remove the role {role.name}"
-          class="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-ring inline-flex size-5 shrink-0 items-center justify-center rounded-[5px] outline-none focus-visible:ring-2 pointer-coarse:size-7"
-          onclick={() => remove(role.id)}
+        <span class="truncate"
+          >{role.name}{#if !role.grantable}<span class="sr-only">, which you can't remove</span
+            >{/if}</span
         >
-          <XIcon aria-hidden="true" class="size-3.5" />
-        </button>
+        {#if role.grantable}
+          <button
+            type="button"
+            aria-label="Remove the role {role.name}"
+            class="text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-ring inline-flex size-5 shrink-0 items-center justify-center rounded-[5px] outline-none focus-visible:ring-2 pointer-coarse:size-7"
+            onclick={() => remove(role.id)}
+          >
+            <XIcon aria-hidden="true" class="size-3.5" />
+          </button>
+        {:else}
+          <LockIcon aria-hidden="true" class="text-muted-foreground size-3.5 shrink-0" />
+        {/if}
       </span>
     {/each}
     <Combobox.Input
@@ -151,16 +178,21 @@
           <Combobox.Item
             value={role.id}
             label={role.name}
-            class="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-8 w-full cursor-default items-center gap-2 rounded-md py-1 pr-2 pl-2 text-sm outline-hidden select-none pointer-coarse:min-h-11"
+            disabled={!role.grantable}
+            aria-disabled={role.grantable ? undefined : "true"}
+            class="data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:text-muted-foreground flex min-h-8 w-full cursor-default items-center gap-2 rounded-md py-1 pr-2 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none pointer-coarse:min-h-11"
           >
             {#snippet children({ selected })}
               <CheckIcon
                 aria-hidden="true"
                 class={cn("text-primary size-4 shrink-0", !selected && "invisible")}
               />
-              <span class="min-w-0 flex-1 truncate font-medium"
-                ><Marked text={role.name} term={search} /></span
-              >
+              <span class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate font-medium"><Marked text={role.name} term={search} /></span>
+                {#if !role.grantable}
+                  <span class="text-muted-foreground text-xs text-pretty">{UNGRANTABLE}</span>
+                {/if}
+              </span>
               {#if role.divisionName}
                 <span class="text-muted-foreground shrink-0 text-xs"
                   >{role.divisionName}{role.divisionInactive ? " (inactive)" : ""}</span

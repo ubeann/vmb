@@ -76,7 +76,8 @@ const rina: User = {
   profilePhotoPath: null,
   createdAt: "2026-01-05T01:00:00.000Z",
   updatedAt: "2026-10-05T03:04:00.000Z",
-  deletedAt: null
+  deletedAt: null,
+  withinReach: true
 };
 
 const siti: User = {
@@ -382,6 +383,69 @@ describe("users list", () => {
     await expect.element(admin.getByRole("menuitem", { name: "Delete…" })).toBeVisible();
   });
 
+  describe("a user out of the caller's reach", () => {
+    // holds permissions the caller lacks, so the API would refuse every change to them
+    const agus: User = {
+      ...rina,
+      id: "u1000000-0000-4000-8000-000000000004",
+      name: "Agus Prasetyo",
+      email: "agus@vmblogistics.id",
+      roles: [{ id: "r9", name: "Super Admin" }],
+      withinReach: false
+    };
+
+    it("offers View only, to a caller who holds update and delete", async () => {
+      const screen = await render(Page, props("/master/users", { items: [rina, agus] }));
+
+      // Rina is in reach: the full menu
+      await screen.getByRole("button", { name: "Actions for Rina Wijaya" }).click();
+      await expect.element(screen.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+      await screen.getByRole("menuitem", { name: "Edit" }).element().blur();
+      await userEvent.keyboard("{Escape}");
+
+      // Agus is not: one View link, no menu, no Edit, no Delete…
+      await expect
+        .element(screen.getByRole("link", { name: "View Agus Prasetyo" }))
+        .toHaveAttribute("href", "/master/users/u1000000-0000-4000-8000-000000000004");
+      expect(
+        screen.getByRole("button", { name: "Actions for Agus Prasetyo" }).elements()
+      ).toHaveLength(0);
+      expect(screen.getByRole("link", { name: "Edit Agus Prasetyo" }).elements()).toHaveLength(0);
+    });
+
+    it("offers View, not Restore, in the Trash", async () => {
+      const screen = await render(
+        Page,
+        props("/master/users?trashed=only", {
+          items: [
+            { ...rina, deletedAt: "2026-10-06T01:00:00.000Z" },
+            { ...agus, deletedAt: "2026-10-06T02:00:00.000Z" }
+          ]
+        })
+      );
+
+      await expect
+        .element(screen.getByRole("button", { name: "Restore Rina Wijaya" }))
+        .toBeVisible();
+      await expect
+        .element(screen.getByRole("link", { name: "View Agus Prasetyo" }))
+        .toHaveAttribute("href", "/master/users/u1000000-0000-4000-8000-000000000004");
+      expect(screen.getByRole("button", { name: "Restore Agus Prasetyo" }).elements()).toHaveLength(
+        0
+      );
+    });
+
+    it("gives its row no edit or delete shortcut", async () => {
+      await browser.viewport(1280, 900);
+      const screen = await render(Page, props("/master/users", { items: [agus] }));
+
+      const row = screen.getByRole("row", { name: /Agus Prasetyo/ }).element();
+      row.focus();
+      await userEvent.keyboard("e");
+      expect(goto).not.toHaveBeenCalled();
+    });
+  });
+
   it("opens the user on a click anywhere on the row, but not from its own controls", async () => {
     await browser.viewport(1280, 900);
     const screen = await render(Page, props("/master/users"));
@@ -657,6 +721,75 @@ describe("selecting users for a bulk action (#305)", () => {
     await bar(screen).getByRole("button", { name: "Clear" }).click();
     await expect.element(screen.getByRole("searchbox", { name: "Search users" })).toBeVisible();
     await expect.element(header).toHaveFocus();
+  });
+
+  describe("with users out of the caller's reach on the page", () => {
+    const agus: User = {
+      ...rina,
+      id: "u1000000-0000-4000-8000-000000000004",
+      name: "Agus Prasetyo",
+      email: "agus@vmblogistics.id",
+      withinReach: false
+    };
+    const dewi: User = {
+      ...agus,
+      id: "u1000000-0000-4000-8000-000000000005",
+      name: "Dewi Anggraini"
+    };
+
+    it("skips them: select all takes the rest, and the bar says how many were skipped", async () => {
+      await browser.viewport(1280, 900);
+      const screen = await render(
+        Page,
+        props("/master/users", { items: [rina, agus, siti, dewi] })
+      );
+
+      // the page's four rows, two of them out of reach
+      const header = screen.getByRole("checkbox", { name: "Select all 2 on this page" });
+      await header.click();
+
+      await expect.element(bar(screen).getByRole("status")).toHaveTextContent("2 selected");
+      await expect
+        .element(bar(screen).getByText("2 skipped: you don't hold every permission they hold"))
+        .toBeVisible();
+      await expect
+        .element(screen.getByRole("checkbox", { name: "Select Rina Wijaya" }))
+        .toBeChecked();
+      await expect
+        .element(screen.getByRole("checkbox", { name: "Select Siti Lestari" }))
+        .toBeChecked();
+    });
+
+    it("cannot be ticked one by one", async () => {
+      await browser.viewport(1280, 900);
+      const screen = await render(Page, props("/master/users", { items: [rina, agus] }));
+
+      const box = screen.getByRole("checkbox", {
+        name: "Select Agus Prasetyo (out of your reach)"
+      });
+      await expect.element(box).toBeDisabled();
+      await screen.getByRole("checkbox", { name: "Select Rina Wijaya" }).click();
+      await expect
+        .element(bar(screen).getByText("1 skipped: you don't hold every permission they hold"))
+        .toBeVisible();
+    });
+
+    it("sends only the rows within reach to the delete", async () => {
+      await browser.viewport(1280, 900);
+      const screen = await render(Page, props("/master/users", { items: [rina, agus, siti] }));
+
+      await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+      await bar(screen).getByRole("button", { name: "Delete…" }).click();
+
+      await expect.element(screen.getByRole("dialog", { name: "Delete 2 users?" })).toBeVisible();
+    });
+
+    it("has nothing to select when every row on the page is out of reach", async () => {
+      await browser.viewport(1280, 900);
+      const screen = await render(Page, props("/master/users", { items: [agus, dewi] }));
+
+      await expect.element(screen.getByRole("checkbox", { name: /^Select all/ })).toBeDisabled();
+    });
   });
 
   it("clears the selection when the filters, the sort or the page change", async () => {

@@ -47,7 +47,7 @@ const eventFor = (permissions = ALL, url = "http://localhost/master/users/u-1") 
 
 const event = eventFor();
 
-const live = { id: "u-1", name: "Rina", roles: [], deletedAt: null };
+const live = { id: "u-1", name: "Rina", roles: [], deletedAt: null, withinReach: true };
 
 beforeEach(() => {
   getUserMock.mockReset();
@@ -77,9 +77,32 @@ describe("a user's edit route", () => {
     await expect(edit.load(event)).rejects.toMatchObject({ status: 404 });
   });
 
+  it("is refused for a user out of the caller's reach, as the API refuses its save", async () => {
+    getUserMock.mockResolvedValue({ ok: true, value: { ...live, withinReach: false } });
+
+    await expect(edit.load(event)).rejects.toMatchObject({
+      status: 403,
+      body: { message: "You cannot change a user who holds permissions you do not have." }
+    });
+  });
+
   it("offers a role of an Inactive Division only to the user who holds it", async () => {
-    const hub = { id: "r-hub", name: "Hub staff", divisionName: "Hub", divisionInactive: true };
-    const staff = { id: "r-staff", name: "Staff", divisionName: null, divisionInactive: false };
+    const hub = {
+      id: "r-hub",
+      name: "Hub staff",
+      isActive: true,
+      divisionName: "Hub",
+      divisionInactive: true,
+      grantable: true
+    };
+    const staff = {
+      id: "r-staff",
+      name: "Staff",
+      isActive: true,
+      divisionName: null,
+      divisionInactive: false,
+      grantable: true
+    };
     loadRoleOptionsMock.mockResolvedValue([hub, staff]);
 
     const other = await edit.load(event);
@@ -114,8 +137,22 @@ describe("a user's edit route", () => {
 describe("a new user's route", () => {
   it("offers no role of an Inactive Division", async () => {
     loadRoleOptionsMock.mockResolvedValue([
-      { id: "r-hub", name: "Hub staff", divisionName: "Hub", divisionInactive: true },
-      { id: "r-staff", name: "Staff", divisionName: null, divisionInactive: false }
+      {
+        id: "r-hub",
+        name: "Hub staff",
+        isActive: true,
+        divisionName: "Hub",
+        divisionInactive: true,
+        grantable: true
+      },
+      {
+        id: "r-staff",
+        name: "Staff",
+        isActive: true,
+        divisionName: null,
+        divisionInactive: false,
+        grantable: true
+      }
     ]);
 
     const loaded = await create.load(eventFor());

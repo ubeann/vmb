@@ -303,6 +303,7 @@ describe("master API client", () => {
         divisionInactive: true,
         userCount: 2,
         permissionCount: 1,
+        grantable: true,
         permissionKeys: ["master-users.view_any"],
         createdAt: STAMP,
         updatedAt: STAMP

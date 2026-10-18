@@ -11,11 +11,14 @@ import {
 import { describe, expect, it } from "vitest";
 import { ForbiddenError } from "../src/errors.js";
 import { createMasterStore } from "../src/master/index.js";
-import type { MasterStore } from "../src/master/index.js";
+import type { Actor, MasterStore } from "../src/master/index.js";
 import type { SqlClient } from "../src/sql-client.js";
 import { count, scalar, transactionsOn, withMigratedDb } from "./harness.js";
 
 const hashPassword = async (password: string) => `hashed:${password}`;
+
+// a caller who reads: holding no permission, so a role that grants any is not theirs to give
+const READER: Actor = { id: "00000000-0000-4000-8000-0000000000ab", permissions: [] };
 
 function storeFor(db: Parameters<typeof createMasterStore>[0]): MasterStore {
   return createMasterStore(db, { hashPassword, transaction: transactionsOn(db) });
@@ -203,7 +206,7 @@ describe("divisions store", () => {
         const leaver = await store.createUser(person(3, [dispatcher]), ACTOR);
         await store.deleteUser(leaver.id, ACTOR);
 
-        const listed = await store.listUsers(userListQuery({ division: [hub.id] }));
+        const listed = await store.listUsers(userListQuery({ division: [hub.id] }), READER);
         const detail = await store.getDivision(hub.id);
 
         expect(detail.userCount).toBe(2);
@@ -514,7 +517,7 @@ describe("roles store", () => {
         isActive: true,
         divisionId: null
       });
-      await expect(store.getRole(created.id)).resolves.toMatchObject({ id: created.id });
+      await expect(store.getRole(created.id, READER)).resolves.toMatchObject({ id: created.id });
     });
   });
 
@@ -525,10 +528,10 @@ describe("roles store", () => {
       await store.createRole(role({ name: "Manager" }), ROLE_EDITOR);
       await store.createRole(role({ name: "Admin", description: "Everything" }), ROLE_EDITOR);
 
-      const list = await store.listRoles(roleListQuery());
+      const list = await store.listRoles(roleListQuery(), READER);
       expect(list.items.map((item) => item.name)).toEqual(["Admin", "Manager", "Staff"]);
 
-      const search = await store.listRoles(roleListQuery({ search: "every" }));
+      const search = await store.listRoles(roleListQuery({ search: "every" }), READER);
       expect(search.items.map((item) => item.name)).toEqual(["Admin"]);
     });
   });
@@ -543,20 +546,23 @@ describe("roles store", () => {
         ROLE_EDITOR
       );
 
-      const inactive = await store.listRoles(roleListQuery({ status: ["inactive"] }));
+      const inactive = await store.listRoles(roleListQuery({ status: ["inactive"] }), READER);
       expect(inactive.items.map((item) => item.name)).toEqual(["Admin", "Auditor"]);
       expect(inactive.total).toBe(2);
       // the counts ignore the status filter itself, so each option says what choosing it gives
       expect(inactive.facets.status).toEqual({ active: 1, inactive: 2 });
 
-      const either = await store.listRoles(roleListQuery({ status: ["active", "inactive"] }));
+      const either = await store.listRoles(
+        roleListQuery({ status: ["active", "inactive"] }),
+        READER
+      );
       expect(either.total).toBe(3);
 
-      const searched = await store.listRoles(roleListQuery({ search: "staff" }));
+      const searched = await store.listRoles(roleListQuery({ search: "staff" }), READER);
       expect(searched.items.map((item) => item.name)).toEqual(["Admin", "Staff"]);
       expect(searched.facets.status).toEqual({ active: 1, inactive: 1 });
 
-      const page = await store.listRoles(roleListQuery({ page: 2, perPage: 2 }));
+      const page = await store.listRoles(roleListQuery({ page: 2, perPage: 2 }), READER);
       expect(page.items.map((item) => item.name)).toEqual(["Staff"]);
       expect(page.total).toBe(3);
     });
@@ -572,11 +578,20 @@ describe("roles store", () => {
       );
 
       // 2025-03-31T17:30Z is already 1 April in Jakarta
-      const april = await store.listRoles(roleListQuery({ updated: "2025-04-01..2025-04-01" }));
+      const april = await store.listRoles(
+        roleListQuery({ updated: "2025-04-01..2025-04-01" }),
+        READER
+      );
       expect(april.items.map((item) => item.name)).toEqual(["Old"]);
-      const march = await store.listRoles(roleListQuery({ updated: "2025-03-01..2025-03-31" }));
+      const march = await store.listRoles(
+        roleListQuery({ updated: "2025-03-01..2025-03-31" }),
+        READER
+      );
       expect(march.items).toEqual([]);
-      const created = await store.listRoles(roleListQuery({ created: "2025-01-01..2025-01-31" }));
+      const created = await store.listRoles(
+        roleListQuery({ created: "2025-01-01..2025-01-31" }),
+        READER
+      );
       expect(created.items.map((item) => item.name)).toEqual(["Old"]);
     });
   });
@@ -593,7 +608,7 @@ describe("roles store", () => {
         `update master.roles set created_at = '2025-02-01T00:00:00Z', updated_at = '2025-05-01T00:00:00Z' where id = '${a.id}'`
       );
       const names = async (overrides: Partial<RoleListRequest>) =>
-        (await store.listRoles(roleListQuery(overrides))).items.map((item) => item.name);
+        (await store.listRoles(roleListQuery(overrides), READER)).items.map((item) => item.name);
 
       expect(await names({ sort: "name", dir: "desc" })).toEqual(["B", "A"]);
       expect(await names({ sort: "createdAt" })).toEqual(["B", "A"]);
@@ -609,11 +624,11 @@ describe("roles store", () => {
       const scoped = await insertRole(client, "Dispatcher", "11111111-1111-4111-8111-111111111111");
       const everywhere = await store.createRole(role({ name: "Auditor" }), ROLE_EDITOR);
 
-      await expect(store.getRole(scoped)).resolves.toMatchObject({
+      await expect(store.getRole(scoped, READER)).resolves.toMatchObject({
         divisionId: "11111111-1111-4111-8111-111111111111",
         divisionName: "Hub"
       });
-      await expect(store.getRole(everywhere.id)).resolves.toMatchObject({
+      await expect(store.getRole(everywhere.id, READER)).resolves.toMatchObject({
         divisionId: null,
         divisionName: null
       });
@@ -632,7 +647,7 @@ describe("roles store", () => {
 
         const created = await store.createRole(role({ divisionId: hub }), ROLE_EDITOR);
         expect(created.divisionId).toBe(hub);
-        await expect(store.getRole(created.id)).resolves.toMatchObject({
+        await expect(store.getRole(created.id, READER)).resolves.toMatchObject({
           divisionId: hub,
           divisionName: "Hub",
           divisionInactive: false
@@ -676,7 +691,9 @@ describe("roles store", () => {
         ).rejects.toMatchObject({ code: "NOT_FOUND", issues: [{ path: "divisionId" }] });
 
         expect(await count(client, "select count(*)::int as value from master.roles")).toBe(1);
-        await expect(store.getRole(created.id)).resolves.toMatchObject({ divisionId: null });
+        await expect(store.getRole(created.id, READER)).resolves.toMatchObject({
+          divisionId: null
+        });
       });
     });
 
@@ -714,7 +731,7 @@ describe("roles store", () => {
           ROLE_EDITOR
         );
         expect(kept.divisionId).toBe(hub);
-        await expect(store.getRole(staff.id)).resolves.toMatchObject({
+        await expect(store.getRole(staff.id, READER)).resolves.toMatchObject({
           divisionName: "Hub",
           divisionInactive: true
         });
@@ -753,8 +770,8 @@ describe("roles store", () => {
             `insert into master.user_roles (user_id, role_id) values ('${id}', '${busy.id}')`
           );
         }
-        await expect(store.getRole(idle.id)).resolves.toMatchObject({ userCount: 0 });
-        await expect(store.getRole(busy.id)).resolves.toMatchObject({ userCount: 2 });
+        await expect(store.getRole(idle.id, READER)).resolves.toMatchObject({ userCount: 0 });
+        await expect(store.getRole(busy.id, READER)).resolves.toMatchObject({ userCount: 2 });
       });
     });
   });
@@ -772,7 +789,7 @@ describe("roles store", () => {
       expect(updated).toMatchObject({ name: "Senior Staff" });
 
       await store.deleteRole(created.id);
-      await expect(store.getRole(created.id)).rejects.toThrow("Role not found.");
+      await expect(store.getRole(created.id, READER)).rejects.toThrow("Role not found.");
     });
   });
 
@@ -818,7 +835,7 @@ describe("roles store", () => {
       const store = storeFor(db);
       const missing = "00000000-0000-4000-8000-000000000000";
 
-      await expect(store.getRole(missing)).rejects.toThrow("Role not found.");
+      await expect(store.getRole(missing, READER)).rejects.toThrow("Role not found.");
       await expect(
         store.updateRole(missing, { ...role(), updatedAt: null }, ROLE_EDITOR)
       ).rejects.toThrow("Role not found.");
@@ -927,7 +944,7 @@ describe("users store", () => {
         ACTOR
       );
 
-      const list = await store.listUsers(userListQuery());
+      const list = await store.listUsers(userListQuery(), READER);
       expect(list.total).toBe(3);
       expect(list.items.map((item) => item.name)).toEqual([
         "Agus Setiawan",
@@ -935,17 +952,20 @@ describe("users store", () => {
         "Siti Lestari"
       ]);
 
-      const byDivision = await store.listUsers(userListQuery({ division: [otherDivisionId] }));
+      const byDivision = await store.listUsers(
+        userListQuery({ division: [otherDivisionId] }),
+        READER
+      );
       expect(byDivision.items.map((item) => item.name)).toEqual(["Agus Setiawan"]);
 
-      const suspended = await store.listUsers(userListQuery({ status: ["suspended"] }));
+      const suspended = await store.listUsers(userListQuery({ status: ["suspended"] }), READER);
       expect(suspended.items.map((item) => item.name)).toEqual(["Siti Lestari"]);
 
-      const search = await store.listUsers(userListQuery({ search: "rina@" }));
+      const search = await store.listUsers(userListQuery({ search: "rina@" }), READER);
       expect(search.items.map((item) => item.name)).toEqual(["Rina Wijaya"]);
 
       await store.deleteUser(rina.id, ACTOR);
-      const trashed = await store.listUsers(userListQuery({ trashed: "only" }));
+      const trashed = await store.listUsers(userListQuery({ trashed: "only" }), READER);
       expect(trashed.items.map((item) => item.name)).toEqual(["Rina Wijaya"]);
     });
   });
@@ -980,21 +1000,25 @@ describe("users store", () => {
       await store.deleteUser(leaver.id, ACTOR);
 
       // one role is the users holding it
-      const accountants = await store.listUsers(userListQuery({ role: [accountant] }));
+      const accountants = await store.listUsers(userListQuery({ role: [accountant] }), READER);
       expect(accountants.items.map((item) => item.name)).toEqual(["Agus", "Rina Wijaya"]);
 
       // several roles are "any of them", and a user holding both is listed once
-      const either = await store.listUsers(userListQuery({ role: [dispatcher, accountant] }));
+      const either = await store.listUsers(
+        userListQuery({ role: [dispatcher, accountant] }),
+        READER
+      );
       expect(either.items.map((item) => item.name)).toEqual(["Agus", "Rina Wijaya", "Siti"]);
       expect(either.total).toBe(3);
 
       // a role nobody holds gives nobody, and has no entry in the counts
-      const none = await store.listUsers(userListQuery({ role: [idle] }));
+      const none = await store.listUsers(userListQuery({ role: [idle] }), READER);
       expect(none.items).toEqual([]);
 
       // each role's count leaves out the Role filter, and keeps the others and the view
       const narrowed = await store.listUsers(
-        userListQuery({ role: [dispatcher], status: ["active"] })
+        userListQuery({ role: [dispatcher], status: ["active"] }),
+        READER
       );
       expect(narrowed.items.map((item) => item.name)).toEqual(["Rina Wijaya"]);
       expect(narrowed.facets.role).toEqual({ [dispatcher]: 1, [accountant]: 2 });
@@ -1002,10 +1026,13 @@ describe("users store", () => {
       expect(narrowed.facets.status).toEqual({ active: 1, inactive: 0, suspended: 1 });
       expect(narrowed.views).toEqual({ all: 1, trash: 0 });
 
-      const base = await store.listUsers(userListQuery());
+      const base = await store.listUsers(userListQuery(), READER);
       expect(base.facets.role).toEqual({ [dispatcher]: 2, [accountant]: 2 });
 
-      const trash = await store.listUsers(userListQuery({ trashed: "only", role: [accountant] }));
+      const trash = await store.listUsers(
+        userListQuery({ trashed: "only", role: [accountant] }),
+        READER
+      );
       expect(trash.items.map((item) => item.name)).toEqual(["Budi"]);
       expect(trash.facets.role).toEqual({ [accountant]: 1 });
     });
@@ -1042,7 +1069,7 @@ describe("users store", () => {
       await store.deleteUser(leaver.id, ACTOR);
 
       // a user holds each division once, however many roles are scoped to it
-      const all = await store.listUsers(userListQuery());
+      const all = await store.listUsers(userListQuery(), READER);
       expect(all.items.find((item) => item.id === rina.id)?.divisions).toEqual([
         { id: fin, name: "Finance" },
         { id: ops, name: "Operations" }
@@ -1052,36 +1079,43 @@ describe("users store", () => {
       ]);
 
       // several divisions are "any of them", and each user is listed once
-      const either = await store.listUsers(userListQuery({ division: [ops, fin] }));
+      const either = await store.listUsers(userListQuery({ division: [ops, fin] }), READER);
       expect(either.items.map((item) => item.name)).toEqual(["Agus", "Rina Wijaya", "Siti"]);
       expect(either.total).toBe(3);
 
-      const picked = await store.listUsers(userListQuery({ status: ["active", "suspended"] }));
+      const picked = await store.listUsers(
+        userListQuery({ status: ["active", "suspended"] }),
+        READER
+      );
       expect(picked.items.map((item) => item.name)).toEqual(["Agus", "Rina Wijaya", "Siti"]);
 
       // each count leaves out its own filter, and keeps the others and the view
       const narrowed = await store.listUsers(
-        userListQuery({ status: ["suspended"], division: [fin] })
+        userListQuery({ status: ["suspended"], division: [fin] }),
+        READER
       );
       expect(narrowed.items).toEqual([]);
       expect(narrowed.views).toEqual({ all: 0, trash: 0 });
       expect(narrowed.facets.status).toEqual({ active: 2, inactive: 0, suspended: 0 });
       expect(narrowed.facets.division).toEqual({ [ops]: 1 });
 
-      const base = await store.listUsers(userListQuery());
+      const base = await store.listUsers(userListQuery(), READER);
       expect(base.views).toEqual({ all: 3, trash: 1 });
       expect(base.facets.status).toEqual({ active: 2, inactive: 0, suspended: 1 });
       expect(base.facets.division).toEqual({ [ops]: 2, [fin]: 2 });
 
-      const trash = await store.listUsers(userListQuery({ trashed: "only" }));
+      const trash = await store.listUsers(userListQuery({ trashed: "only" }), READER);
       expect(trash.items.map((item) => item.name)).toEqual(["Budi"]);
       expect(trash.facets.status).toEqual({ active: 0, inactive: 1, suspended: 0 });
       expect(trash.facets.division).toEqual({});
 
       // the date filters read the reader's days
-      const today = await store.listUsers(userListQuery({ created: "today" }));
+      const today = await store.listUsers(userListQuery({ created: "today" }), READER);
       expect(today.total).toBe(3);
-      const last = await store.listUsers(userListQuery({ created: "2020-01-01..2020-01-31" }));
+      const last = await store.listUsers(
+        userListQuery({ created: "2020-01-01..2020-01-31" }),
+        READER
+      );
       expect(last.total).toBe(0);
     });
   });
@@ -1155,7 +1189,7 @@ describe("users store", () => {
           ACTOR
         )
       ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-      await expect(store.getUser(other.id)).resolves.toMatchObject({
+      await expect(store.getUser(other.id, READER)).resolves.toMatchObject({
         roles: [{ id: anywhere }]
       });
 
@@ -1360,8 +1394,10 @@ describe("users store", () => {
         `update public."user" set email_verified = true where id = '${created.id}'`
       );
 
-      await expect(store.getUser(created.id)).resolves.toMatchObject({ emailVerified: true });
-      const list = await store.listUsers(userListQuery());
+      await expect(store.getUser(created.id, READER)).resolves.toMatchObject({
+        emailVerified: true
+      });
+      const list = await store.listUsers(userListQuery(), READER);
       expect(list.items[0]?.emailVerified).toBe(true);
     });
   });
@@ -1387,7 +1423,7 @@ describe("users store", () => {
       );
       expect(await count(client, `select count(*)::int as value from public.session`)).toBe(1);
 
-      const afterFirst = await store.getUser(created.id);
+      const afterFirst = await store.getUser(created.id, READER);
       await store.updateUser(
         created.id,
         {
@@ -1449,7 +1485,7 @@ describe("users store", () => {
       const store = storeFor(db);
       const missing = "00000000-0000-4000-8000-000000000000";
 
-      await expect(store.getUser(missing)).rejects.toThrow("User not found.");
+      await expect(store.getUser(missing, READER)).rejects.toThrow("User not found.");
       await expect(
         store.updateUser(
           missing,
@@ -1818,7 +1854,7 @@ describe("edits over a newer save", () => {
       await expect(
         store.updateRole(loaded.id, editing(loaded, role({ name: "Junior" })), ROLE_EDITOR)
       ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
-      await expect(store.getRole(loaded.id)).resolves.toEqual({
+      await expect(store.getRole(loaded.id, READER)).resolves.toEqual({
         ...first,
         divisionName: null,
         divisionInactive: false,
@@ -1895,7 +1931,7 @@ describe("edits over a newer save", () => {
         ).rejects.toMatchObject({ code: "STALE_RECORD", issues: [{ path: "updatedAt" }] });
       }
 
-      await expect(store.getUser(created.id)).resolves.toEqual(first);
+      await expect(store.getUser(created.id, READER)).resolves.toEqual(first);
       expect(
         await scalar<string>(client, `select name from public."user" where id = '${created.id}'`)
       ).toBe("Rina W.");
@@ -2112,8 +2148,8 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
         await client.exec(`update master.divisions set deleted_at = now() where id = '${hub.id}'`);
 
         // nothing cascades: the role stays scoped to the Trashed division and its holder keeps it
-        await expect(store.getRole(staff)).resolves.toMatchObject({ divisionId: hub.id });
-        await expect(store.getUser(rina.id)).resolves.toMatchObject({
+        await expect(store.getRole(staff, READER)).resolves.toMatchObject({ divisionId: hub.id });
+        await expect(store.getUser(rina.id, READER)).resolves.toMatchObject({
           roles: [{ id: staff, name: "Staff" }]
         });
         // and so are its permissions: a division scopes a role but grants nothing itself
@@ -2270,7 +2306,7 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
         const other = await insertRole(client, "Other");
         const created = await store.createUser(newUser({ roleIds: [staff] }), ACTOR);
         await store.deleteUser(created.id, ACTOR);
-        const trashed = await store.getUser(created.id);
+        const trashed = await store.getUser(created.id, READER);
         const row = `select name, email, status, updated_at, deleted_at from master.users where id = '${created.id}'`;
         const before = await client.query(row);
 
@@ -2298,7 +2334,7 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
         }
 
         expect(await client.query(row)).toEqual(before);
-        await expect(store.getUser(created.id)).resolves.toEqual(trashed);
+        await expect(store.getUser(created.id, READER)).resolves.toEqual(trashed);
         expect(
           await scalar<string>(client, `select email from public."user" where id = '${created.id}'`)
         ).toBe("rina@vmblogistics.id");
@@ -2336,7 +2372,7 @@ describe("a Trashed record is read-only until restored (ADR-0055)", () => {
             order === "edit first" ? [edit(), remove()] : [remove(), edit()]
           );
           const edited = results[order === "edit first" ? 0 : 1];
-          const after = await store.getUser(raced.id);
+          const after = await store.getUser(raced.id, READER);
 
           expect(after.deletedAt).not.toBeNull();
           expect(after.name).toBe(edited?.status === "fulfilled" ? "Edited" : `Raced ${order}`);

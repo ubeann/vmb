@@ -90,7 +90,7 @@ describe("master API: a Trashed record is read-only", () => {
       ACTOR
     );
     await store.deleteUser(created.id, ACTOR);
-    return store.getUser(created.id);
+    return store.getUser(created.id, ACTOR);
   }
 
   const divisionEdit = (division: Division) => ({

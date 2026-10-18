@@ -24,6 +24,10 @@ export const load: PageServerLoad = async (event) => {
   }
   // a Trashed user is read-only until restored (ADR-0055): the API answers an edit of one 404, and so does this
   if (access.value.value.deletedAt) error(404, "User not found.");
+  // nor is a user holding permissions the caller lacks theirs to change: the API answers 403
+  if (!access.value.value.withinReach) {
+    error(403, "You cannot change a user who holds permissions you do not have.");
+  }
 
   return {
     user: access.value.value,

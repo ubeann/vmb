@@ -22,6 +22,7 @@ const role: RoleDetail = {
   divisionInactive: false,
   userCount: 0,
   permissionCount: 0,
+  grantable: true,
   permissionKeys: [],
   createdAt: STAMP,
   updatedAt: STAMP
@@ -86,7 +87,11 @@ describe("the role view page", () => {
 
   it("offers no Edit on a role that grants what the caller lacks, and says why", async () => {
     const screen = await render(Page, {
-      data: pageData({ permissionCount: 1, permissionKeys: ["master-users.delete"] }),
+      data: pageData({
+        permissionCount: 1,
+        permissionKeys: ["master-users.delete"],
+        grantable: false
+      }),
       form: null
     });
 

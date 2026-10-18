@@ -24,6 +24,12 @@ export const RoleSchema = z.object({
   divisionId: z.uuid().nullable(),
   /** How many permissions it grants, for the list's column and the detail. */
   permissionCount: z.number().int().nonnegative(),
+  /**
+   * Whether the caller holds every permission this role grants, so may give it
+   * to a user and edit it (ADR-0045). The API refuses either otherwise with
+   * 403 `PERMISSION_ESCALATION`; this lets a screen stop offering them.
+   */
+  grantable: z.boolean(),
   createdAt: z.iso.datetime().nullable(),
   updatedAt: z.iso.datetime().nullable()
 });

@@ -27,7 +27,7 @@ async function refuseBreachedPassword(c: Context<MasterEnv>, password: string) {
 export const userRoutes = new Hono<MasterEnv>()
   .get("/", requirePermission("master-users.view_any"), async (c) => {
     const query = queryParams(c, UserListRequestSchema);
-    const page = await c.get("store").listUsers(query);
+    const page = await c.get("store").listUsers(query, actor(c));
     return c.json(UserListResponseSchema.parse(page));
   })
   .post(
@@ -53,7 +53,7 @@ export const userRoutes = new Hono<MasterEnv>()
     return c.json(BulkResponseSchema.parse(done));
   })
   .get("/:id", requirePermission("master-users.view"), async (c) => {
-    const user = await c.get("store").getUser(pathId(c));
+    const user = await c.get("store").getUser(pathId(c), actor(c));
     return c.json(UserSchema.parse(user));
   })
   .patch(

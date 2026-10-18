@@ -56,25 +56,30 @@ export async function loadRoleFilterOptions(
 /**
  * A role a user can be given: what the form needs to show it. A role scoped to
  * an Inactive Division cannot be newly given, so the form offers it only to
- * the user who already holds it (the Inactive rule, #304).
+ * the user who already holds it (the Inactive rule, #304). Nor can an inactive
+ * role, or one the caller may not grant.
  */
 export type RoleOption = {
   id: string;
   name: string;
+  isActive: boolean;
   /** The Division it is scoped to, when the caller can read Divisions; none means every Division. */
   divisionName: string | null;
   divisionInactive: boolean;
+  /** Whether the caller holds every permission it grants (from the API); if not, it is not theirs to give or take away. */
+  grantable: boolean;
 };
 
 /**
- * Every active role, for the user form's combobox. A failure degrades to no
- * choices, and the form keeps showing the roles the user already holds, so a
- * save never silently removes one. Without `master-divisions.view_any` the
+ * Every role, for the user form's combobox, inactive ones too, so a role the
+ * user holds shows whether the caller may take it away. A failure degrades to
+ * no choices, and the form keeps showing the roles the user already holds, so
+ * a save never silently removes one. Without `master-divisions.view_any` the
  * roles carry no Division name and none counts as inactive: the API refuses
  * what the rule forbids.
  */
 export async function loadRoleOptions(event: RequestEvent): Promise<RoleOption[]> {
-  const roleQuery = RoleListRequestSchema.parse({ perPage: "100", status: "active" });
+  const roleQuery = RoleListRequestSchema.parse({ perPage: "100" });
   const [roles, divisions] = await Promise.all([
     withApiClient(event, (client) => listRoles(client, roleQuery)),
     loadDivisionOptions(event)
@@ -90,29 +95,40 @@ export async function loadRoleOptions(event: RequestEvent): Promise<RoleOption[]
   }
 
   const byId = new Map(divisions.map((division) => [division.id, division]));
-  return roles.value.value.items.map(({ id, name, divisionId }) => {
+  return roles.value.value.items.map(({ id, name, isActive, divisionId, grantable }) => {
     const division = divisionId ? byId.get(divisionId) : undefined;
     return {
       id,
       name,
+      isActive,
       divisionName: division?.name ?? null,
-      divisionInactive: division ? !division.isActive : false
+      divisionInactive: division ? !division.isActive : false,
+      grantable
     };
   });
 }
 
 /**
- * The roles to offer: the options minus those of an Inactive Division, plus
- * every role in `held`, so none can be dropped by omission. A held role keeps
- * its Division's state, and is marked as such where it shows.
+ * The roles to offer: the active options minus those of an Inactive Division,
+ * plus every role in `held`, so none can be dropped by omission. A held role
+ * keeps its Division's state, and is marked as such where it shows. One the
+ * options did not return is taken as active and grantable: the API decides.
  */
 export function roleChoices(options: RoleOption[], held: Array<{ id: string; name: string }>) {
   const heldIds = new Set(held.map((role) => role.id));
-  const offered = options.filter((role) => !role.divisionInactive || heldIds.has(role.id));
+  const offered = options.filter(
+    (role) => (role.isActive && !role.divisionInactive) || heldIds.has(role.id)
+  );
   const known = new Set(options.map((role) => role.id));
   const missing = held
     .filter((role) => !known.has(role.id))
-    .map((role) => ({ ...role, divisionName: null, divisionInactive: false }));
+    .map((role) => ({
+      ...role,
+      isActive: true,
+      divisionName: null,
+      divisionInactive: false,
+      grantable: true
+    }));
   return [...offered, ...missing].sort((a, b) => a.name.localeCompare(b.name));
 }
 

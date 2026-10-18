@@ -10,13 +10,16 @@
     ref = $bindable(null),
     state,
     count,
+    disabled = false,
     onchange
   }: {
     ref?: HTMLElement | null;
     /** How much of the page is chosen. */
     state: "none" | "some" | "all";
-    /** The rows on the page. */
+    /** The rows on the page that can be chosen. */
     count: number;
+    /** Nothing on the page can be chosen. */
+    disabled?: boolean;
     /** Select the whole page, or clear it. */
     onchange: () => void;
   } = $props();
@@ -30,6 +33,7 @@
     bind:ref
     checked={state === "all"}
     indeterminate={state === "some"}
+    {disabled}
     onCheckedChange={onchange}
     aria-label="Select all {count} on this page"
   />

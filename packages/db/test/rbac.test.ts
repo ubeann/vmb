@@ -25,6 +25,10 @@ import { count, rejects, withMigratedDatabase, transactionsOn, withMigratedDb } 
 const SUPER_ADMIN = fixtureId(ID_GROUPS.role, 1);
 const MANAGER_FINANCE = fixtureId(ID_GROUPS.role, 2);
 const FINANCE = fixtureId(ID_GROUPS.division, 2);
+const ADMIN_USER = fixtureId(ID_GROUPS.user, 1);
+
+// a caller who reads: holding no permission, so a role that grants any is not theirs to give
+const READER: Actor = { id: "00000000-0000-4000-8000-0000000000ab", permissions: [] };
 
 const userListQuery = (overrides: Partial<UserListRequest> = {}): UserListRequest => ({
   status: [],
@@ -378,7 +382,7 @@ describe("assigning roles to users", () => {
       );
       const cleared = await store(db).updateUser(
         created.id,
-        edit(await store(db).getUser(created.id), []),
+        edit(await store(db).getUser(created.id, READER), []),
         await actor(db, SUPER_ADMIN_USER)
       );
       expect(cleared.roles).toEqual([]);
@@ -411,13 +415,13 @@ describe("assigning roles to users", () => {
   it("will not let a caller take away a role that carries permissions they lack", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const admin = await store(db).getUser(SUPER_ADMIN_USER);
+      const admin = await store(db).getUser(SUPER_ADMIN_USER, READER);
 
       await expect(
         store(db).updateUser(admin.id, edit(admin, []), await actor(db, MANAGER_USER))
       ).rejects.toBeInstanceOf(ForbiddenError);
       // nothing changed
-      expect((await store(db).getUser(admin.id)).roles.map((role) => role.name)).toEqual([
+      expect((await store(db).getUser(admin.id, READER)).roles.map((role) => role.name)).toEqual([
         "Super Admin"
       ]);
     });
@@ -442,7 +446,7 @@ describe("assigning roles to users", () => {
         )
       ).rejects.toBeInstanceOf(ConflictError);
 
-      expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
+      expect((await store(db).getUser(target.id, READER)).roles.map((role) => role.name)).toEqual([
         "Staff"
       ]);
     });
@@ -464,7 +468,7 @@ describe("assigning roles to users", () => {
         store(db).updateUser(target.id, edit(target, [MANAGER_FINANCE]), admin)
       ).rejects.toBeInstanceOf(StaleRecordError);
 
-      expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
+      expect((await store(db).getUser(target.id, READER)).roles.map((role) => role.name)).toEqual([
         "Staff"
       ]);
     });
@@ -487,8 +491,8 @@ describe("assigning roles to users", () => {
       const admin = await actor(db, SUPER_ADMIN_USER);
       const target = await store(db).createUser(newUser({ roleIds: [STAFF_ROLE] }), admin);
 
-      await counted.listUsers(userListQuery());
-      await counted.getUser(target.id);
+      await counted.listUsers(userListQuery(), READER);
+      await counted.getUser(target.id, READER);
       // the form sends the roles the user already holds, or none at all
       const kept = await counted.updateUser(target.id, edit(target, [STAFF_ROLE]), admin);
       const omitted = await counted.updateUser(
@@ -560,10 +564,9 @@ describe("assigning roles to users", () => {
         } finally {
           commit();
         }
-        expect((await store(db).getUser(target.id)).roles.map((role) => role.name)).toEqual([
-          "Staff",
-          "Super Admin"
-        ]);
+        expect((await store(db).getUser(target.id, READER)).roles.map((role) => role.name)).toEqual(
+          ["Staff", "Super Admin"]
+        );
       });
     }
   );
@@ -598,7 +601,7 @@ describe("assigning roles to users", () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
 
-      const list = await store(db).listUsers(userListQuery({ division: [FINANCE] }));
+      const list = await store(db).listUsers(userListQuery({ division: [FINANCE] }), READER);
 
       expect(list.items.map((user) => user.id)).toEqual([MANAGER_USER]);
     });
@@ -714,7 +717,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
   it("grants and revokes keys the caller holds, as the whole new set", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const staff = await store(db).getRole(STAFF_ROLE);
+      const staff = await store(db).getRole(STAFF_ROLE, READER);
       expect(staff.permissionKeys).toEqual(DIVISION_VIEWS);
 
       const saved = await store(db).updateRole(
@@ -728,7 +731,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
         "master-divisions.view_any",
         "master-users.view_any"
       ]);
-      await expect(store(db).getRole(STAFF_ROLE)).resolves.toMatchObject({
+      await expect(store(db).getRole(STAFF_ROLE, READER)).resolves.toMatchObject({
         permissionCount: 2,
         permissionKeys: ["master-divisions.view_any", "master-users.view_any"],
         updatedAt: saved.updatedAt
@@ -739,7 +742,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
   it("revokes every grant for an empty set, and leaves them alone when the set is omitted", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const staff = await store(db).getRole(STAFF_ROLE);
+      const staff = await store(db).getRole(STAFF_ROLE, READER);
 
       const renamed = await store(db).updateRole(
         STAFF_ROLE,
@@ -758,7 +761,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
   it("refuses to grant a key the caller lacks, and writes nothing", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const staff = await store(db).getRole(STAFF_ROLE);
+      const staff = await store(db).getRole(STAFF_ROLE, READER);
 
       await expect(
         store(db).updateRole(
@@ -772,7 +775,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
       });
 
       expect(await grantsOf(client, STAFF_ROLE)).toEqual(DIVISION_VIEWS);
-      await expect(store(db).getRole(STAFF_ROLE)).resolves.toMatchObject({
+      await expect(store(db).getRole(STAFF_ROLE, READER)).resolves.toMatchObject({
         name: "Staff",
         updatedAt: staff.updatedAt
       });
@@ -788,7 +791,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
       );
       // inactive or not, it grants the key the moment it is switched on
       await client.exec(`update master.roles set is_active = false where id = '${STAFF_ROLE}'`);
-      const staff = await store(db).getRole(STAFF_ROLE);
+      const staff = await store(db).getRole(STAFF_ROLE, READER);
       const refusal = {
         code: "PERMISSION_ESCALATION",
         message: "You cannot change a role that carries permissions you do not have."
@@ -811,7 +814,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
         store(db).updateRole(STAFF_ROLE, { ...editing(staff), isActive: true }, EDITOR)
       ).rejects.toMatchObject(refusal);
 
-      await expect(store(db).getRole(STAFF_ROLE)).resolves.toMatchObject({
+      await expect(store(db).getRole(STAFF_ROLE, READER)).resolves.toMatchObject({
         isActive: false,
         permissionKeys: staff.permissionKeys,
         updatedAt: staff.updatedAt
@@ -826,7 +829,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
   it("refuses a System Role, even to a caller who holds every key", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const superAdmin = await store(db).getRole(SUPER_ADMIN);
+      const superAdmin = await store(db).getRole(SUPER_ADMIN, READER);
 
       await expect(
         store(db).updateRole(SUPER_ADMIN, editing(superAdmin, []), await actor(db, ADMIN))
@@ -840,7 +843,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
       const admin = await actor(db, ADMIN);
-      const staff = await store(db).getRole(STAFF_ROLE);
+      const staff = await store(db).getRole(STAFF_ROLE, READER);
       const unknown = {
         code: "NOT_FOUND",
         message: "One of the chosen permissions does not exist."
@@ -863,7 +866,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
   it("refuses a stale save that changes grants, and writes none of them", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const loaded = await store(db).getRole(STAFF_ROLE);
+      const loaded = await store(db).getRole(STAFF_ROLE, READER);
       await store(db).updateRole(STAFF_ROLE, { ...editing(loaded), name: "Clerk" }, EDITOR);
 
       await expect(
@@ -906,18 +909,46 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
     });
   });
 
+  it("says which roles the caller may grant, in the list and on a record", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const manager = await actor(db, fixtureId(ID_GROUPS.user, 2)); // Manager Finance
+
+      const page = await store(db).listRoles(
+        { status: [], sort: "name", dir: "asc", page: 1, perPage: 10, tz: "Asia/Jakarta" },
+        manager
+      );
+      const grantable = (name: string) => page.items.find((role) => role.name === name)?.grantable;
+
+      // a role is the caller's to give when they hold every key it grants
+      expect(grantable("Super Admin")).toBe(false);
+      expect(grantable("Manager Finance")).toBe(true);
+      expect(grantable("Staff")).toBe(true);
+
+      await expect(store(db).getRole(SUPER_ADMIN, manager)).resolves.toMatchObject({
+        grantable: false
+      });
+      await expect(
+        store(db).getRole(SUPER_ADMIN, await actor(db, ADMIN_USER))
+      ).resolves.toMatchObject({ grantable: true });
+    });
+  });
+
   it("shows each role's grant count in the list", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
 
-      const page = await store(db).listRoles({
-        status: [],
-        sort: "name",
-        dir: "asc",
-        page: 1,
-        perPage: 10,
-        tz: "Asia/Jakarta"
-      });
+      const page = await store(db).listRoles(
+        {
+          status: [],
+          sort: "name",
+          dir: "asc",
+          page: 1,
+          perPage: 10,
+          tz: "Asia/Jakarta"
+        },
+        READER
+      );
 
       expect(page.items.map((role) => [role.name, role.permissionCount])).toEqual([
         ["Manager Division", 5],
@@ -935,7 +966,7 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
     async () => {
       await withMigratedDb(async (db, client, _statements, connect) => {
         await seed(client);
-        const staff = await store(db).getRole(STAFF_ROLE);
+        const staff = await store(db).getRole(STAFF_ROLE, READER);
 
         const other = await connect!();
         await other.execute(sql`begin`);
@@ -987,7 +1018,7 @@ describe("reaching a more privileged user", () => {
   it("refuses to edit, delete or restore a user who holds permissions the caller lacks", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const admin = await store(db).getUser(ADMIN);
+      const admin = await store(db).getUser(ADMIN, READER);
 
       // roleIds omitted: only the credential changes, yet it is still account takeover
       await expect(
@@ -1018,11 +1049,43 @@ describe("reaching a more privileged user", () => {
     });
   });
 
+  it("tells the caller which users are within their reach, on a record and in the list", async () => {
+    await withMigratedDb(async (db, client) => {
+      await seed(client);
+      const manager = await actor(db, MANAGER);
+
+      // Super Admin holds every key, so is beyond the manager; staff hold a subset; nobody is
+      // beyond themselves
+      await expect(store(db).getUser(ADMIN, manager)).resolves.toMatchObject({
+        withinReach: false
+      });
+      await expect(store(db).getUser(STAFF_USER, manager)).resolves.toMatchObject({
+        withinReach: true
+      });
+      await expect(store(db).getUser(MANAGER, manager)).resolves.toMatchObject({
+        withinReach: true
+      });
+      await expect(store(db).getUser(ADMIN, await actor(db, ADMIN))).resolves.toMatchObject({
+        withinReach: true
+      });
+
+      const list = await store(db).listUsers(userListQuery({ perPage: 100 }), manager);
+      expect(list.items.find((user) => user.id === ADMIN)?.withinReach).toBe(false);
+      expect(list.items.find((user) => user.id === STAFF_USER)?.withinReach).toBe(true);
+
+      // the flag is the guard's own test: what it calls out of reach, the write refuses
+      const admin = await store(db).getUser(ADMIN, manager);
+      await expect(store(db).deleteUser(admin.id, manager)).rejects.toMatchObject({
+        code: "PERMISSION_ESCALATION"
+      });
+    });
+  });
+
   it("lets a caller manage someone whose permissions they hold, and themselves", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const staff = await store(db).getUser(STAFF_USER);
-      const manager = await store(db).getUser(MANAGER);
+      const staff = await store(db).getUser(STAFF_USER, READER);
+      const manager = await store(db).getUser(MANAGER, READER);
 
       await expect(
         store(db).updateUser(STAFF_USER, resetPassword(staff), await actor(db, MANAGER))
@@ -1038,7 +1101,7 @@ describe("reaching a more privileged user", () => {
       await expect(
         store(db).updateUser(
           MANAGER,
-          resetPassword(await store(db).getUser(MANAGER)),
+          resetPassword(await store(db).getUser(MANAGER, READER)),
           await actor(db, ADMIN)
         )
       ).resolves.toMatchObject({
@@ -1102,7 +1165,7 @@ describe("reaching a more privileged user", () => {
       await withMigratedDb(async (db, client, _statements, connect) => {
         await seed(client);
         const manager = await actor(db, MANAGER);
-        const staff = await store(db).getUser(STAFF_USER);
+        const staff = await store(db).getUser(STAFF_USER, READER);
 
         await expect(
           grantWhileWriting(connect!, () =>
@@ -1110,7 +1173,7 @@ describe("reaching a more privileged user", () => {
           )
         ).rejects.toMatchObject({ code: "PERMISSION_ESCALATION" });
 
-        expect((await store(db).getUser(STAFF_USER)).updatedAt).toBe(staff.updatedAt);
+        expect((await store(db).getUser(STAFF_USER, READER)).updatedAt).toBe(staff.updatedAt);
         expect(
           await count(
             client,
@@ -1139,7 +1202,7 @@ describe("reaching a more privileged user", () => {
   it("leaves a user's roles alone when the update names none", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const manager = await store(db).getUser(MANAGER);
+      const manager = await store(db).getUser(MANAGER, READER);
       const before = manager.roles.map((role) => role.name);
       expect(before.length).toBeGreaterThan(0);
 
@@ -1156,7 +1219,7 @@ describe("reaching a more privileged user", () => {
   it("reads uppercase role ids as the same role", async () => {
     await withMigratedDb(async (db, client) => {
       await seed(client);
-      const target = await store(db).getUser(STAFF_USER);
+      const target = await store(db).getUser(STAFF_USER, READER);
 
       const updated = await store(db).updateUser(
         STAFF_USER,
@@ -1190,7 +1253,7 @@ describe("what a request costs (ADR-0045's amendment)", () => {
         hashPassword: async (password) => password,
         transaction: transactionsOn(db)
       });
-      const target = await store.getUser(STAFF_USER);
+      const target = await store.getUser(STAFF_USER, READER);
       statements.length = 0;
 
       const caller = await actor(db, ADMIN);
@@ -1251,7 +1314,7 @@ describe("what a request costs (ADR-0045's amendment)", () => {
         hashPassword: async (password) => password,
         transaction: transactionsOn(db)
       });
-      const target = await store.getUser(STAFF_USER);
+      const target = await store.getUser(STAFF_USER, READER);
       const caller = await actor(db, ADMIN);
       statements.length = 0;
 
@@ -1291,7 +1354,7 @@ describe("what a role save costs", () => {
         transaction: transactionsOn(db)
       });
       const caller = await actor(db, fixtureId(ID_GROUPS.user, 1));
-      const staff = await store.getRole(STAFF_ROLE);
+      const staff = await store.getRole(STAFF_ROLE, READER);
       statements.length = 0;
 
       await store.updateRole(

@@ -53,6 +53,7 @@ const role: Role = {
   description: "",
   divisionId: null,
   permissionCount: 0,
+  grantable: true,
   createdAt: STAMP,
   updatedAt: STAMP
 };
@@ -80,7 +81,8 @@ const user: User = {
   profilePhotoPath: "",
   createdAt: STAMP,
   updatedAt: STAMP,
-  deletedAt: null
+  deletedAt: null,
+  withinReach: true
 };
 
 const EMPTY_USERS: UserListResponse = {
@@ -218,6 +220,15 @@ describe("master API: divisions", () => {
     await appWith(store).request("/divisions?status=all", {}, env);
 
     expect(store.listDivisions).toHaveBeenCalledWith(expect.objectContaining({ status: [] }));
+  });
+
+  it("asks the store for a user as the caller, and answers whether they are within the caller's reach", async () => {
+    const store = fakeStore({ getUser: vi.fn(async () => ({ ...user, withinReach: false })) });
+
+    const response = await appWith(store).request(`/users/${ID}`, {}, env);
+
+    expect(store.getUser).toHaveBeenCalledWith(ID, CALLER);
+    await expect(response.json()).resolves.toMatchObject({ id: ID, withinReach: false });
   });
 
   it.each([
@@ -580,17 +591,20 @@ describe("master API: roles", () => {
 
     await appWith(store).request("/roles", {}, env);
 
-    expect(store.listRoles).toHaveBeenCalledWith({
-      search: undefined,
-      status: [],
-      updated: undefined,
-      created: undefined,
-      sort: "name",
-      dir: "asc",
-      page: 1,
-      perPage: 25,
-      tz: "Asia/Jakarta"
-    });
+    expect(store.listRoles).toHaveBeenCalledWith(
+      {
+        search: undefined,
+        status: [],
+        updated: undefined,
+        created: undefined,
+        sort: "name",
+        dir: "asc",
+        page: 1,
+        perPage: 25,
+        tz: "Asia/Jakarta"
+      },
+      CALLER
+    );
   });
 
   it("passes the status and date filters on, and answers with the status counts", async () => {
@@ -617,7 +631,8 @@ describe("master API: roles", () => {
         sort: "createdAt",
         dir: "desc",
         tz: "Asia/Makassar"
-      })
+      }),
+      CALLER
     );
     await expect(response.json()).resolves.toMatchObject({
       facets: { status: { active: 4, inactive: 1 } }
@@ -724,6 +739,32 @@ describe("master API: roles", () => {
         issues: [{ path: "divisionId", message: error.message }]
       });
     }
+  });
+
+  it("asks the store for a role as the caller, and answers whether they may grant it", async () => {
+    const store = fakeStore({
+      getRole: vi.fn(async () => ({
+        ...role,
+        grantable: false,
+        divisionName: null,
+        divisionInactive: false,
+        userCount: 0,
+        permissionKeys: ["master-users.update"]
+      })),
+      listRoles: vi.fn(async () => ({
+        ...EMPTY_ROLES,
+        items: [{ ...role, grantable: false }],
+        total: 1
+      }))
+    });
+
+    const detail = await appWith(store).request(`/roles/${ID}`, {}, env);
+    const list = await appWith(store).request("/roles", {}, env);
+
+    expect(store.getRole).toHaveBeenCalledWith(ID, CALLER);
+    expect(store.listRoles).toHaveBeenCalledWith(expect.anything(), CALLER);
+    await expect(detail.json()).resolves.toMatchObject({ id: ID, grantable: false });
+    await expect(list.json()).resolves.toMatchObject({ items: [{ id: ID, grantable: false }] });
   });
 
   it("creates, updates and deletes", async () => {
@@ -1082,20 +1123,23 @@ describe("master API: users", () => {
 
     await appWith(store).request("/users", {}, env);
 
-    expect(store.listUsers).toHaveBeenCalledWith({
-      search: undefined,
-      status: [],
-      division: [],
-      role: [],
-      updated: undefined,
-      created: undefined,
-      trashed: "exclude",
-      sort: "name",
-      dir: "asc",
-      page: 1,
-      perPage: 25,
-      tz: "Asia/Jakarta"
-    } satisfies UserListRequest);
+    expect(store.listUsers).toHaveBeenCalledWith(
+      {
+        search: undefined,
+        status: [],
+        division: [],
+        role: [],
+        updated: undefined,
+        created: undefined,
+        trashed: "exclude",
+        sort: "name",
+        dir: "asc",
+        page: 1,
+        perPage: 25,
+        tz: "Asia/Jakarta"
+      } satisfies UserListRequest,
+      CALLER
+    );
   });
 
   it("takes several statuses and divisions, date filters and the reader's zone", async () => {
@@ -1127,7 +1171,8 @@ describe("master API: users", () => {
         updated: "week",
         created: "2025-01-01..2025-01-31",
         tz: "UTC"
-      })
+      }),
+      CALLER
     );
     await expect(response.json()).resolves.toMatchObject({
       views: { all: 4, trash: 1 },

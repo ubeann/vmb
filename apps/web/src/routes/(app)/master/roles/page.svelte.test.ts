@@ -124,6 +124,7 @@ const staff: Role = {
   description: "Supports daily operations",
   divisionId: null,
   permissionCount: 2,
+  grantable: true,
   createdAt: "2026-01-05T01:00:00.000Z",
   updatedAt: "2026-10-05T03:04:00.000Z"
 };
@@ -313,6 +314,49 @@ describe("roles list", () => {
     // it sits in the name's cell, beside the link
     const cell = screen.getByRole("link", { name: "Administrator" }).element().closest("td");
     expect(cell?.contains(badges[0] ?? null)).toBe(true);
+  });
+
+  it("offers a Role that grants what the caller lacks Delete… alone: no Edit, as the API refuses it", async () => {
+    await browser.viewport(1280, 900);
+    const beyond: Role = {
+      ...staff,
+      id: "d1000000-0000-4000-8000-000000000004",
+      name: "Auditor Plus",
+      grantable: false
+    };
+    const screen = await render(Page, props("/master/roles", { items: [staff, beyond] }));
+
+    // the one it may edit has both; the one it may not has Delete… as a lone button
+    await screen.getByRole("button", { name: "Actions for Staff" }).click();
+    await expect.element(screen.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+
+    await expect
+      .element(screen.getByRole("button", { name: "Actions for Auditor Plus" }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("link", { name: "Edit Auditor Plus" }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "Delete Auditor Plus" })).toBeVisible();
+  });
+
+  it("leaves it View alone to a caller who may not delete either", async () => {
+    await browser.viewport(1280, 900);
+    const beyond: Role = { ...staff, name: "Auditor Plus", grantable: false };
+    const screen = await render(
+      Page,
+      props("/master/roles", {
+        items: [beyond],
+        permissions: ["master-roles.view_any", "master-roles.view", "master-roles.update"]
+      })
+    );
+
+    await expect
+      .element(screen.getByRole("link", { name: "View Auditor Plus" }))
+      .toHaveAttribute("href", `/master/roles/${beyond.id}`);
+    await expect
+      .element(screen.getByRole("link", { name: "Edit Auditor Plus" }))
+      .not.toBeInTheDocument();
   });
 
   it("offers a System Role View alone, as a button and not a menu, never Edit or Delete", async () => {

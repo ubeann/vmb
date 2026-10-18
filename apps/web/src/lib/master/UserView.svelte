@@ -2,9 +2,11 @@
   A User's full page (#304): the form's own three sections, as facts, so View
   and Edit read as one record. The footer holds what the caller may do: Edit
   and Delete… for a live user, Restore for one in the Trash, which is read-only
-  until it comes back (ADR-0055). Each action is a real link or form, so the
-  page works without JavaScript; Delete… asks in a dialog when it has one, and
-  on the page itself (`?delete`) when it has not.
+  until it comes back (ADR-0055). A user holding permissions the caller lacks is
+  out of their reach: the footer is empty and says why, since the API would
+  refuse each of them with 403 `PERMISSION_ESCALATION`. Each action is a real
+  link or form, so the page works without JavaScript; Delete… asks in a dialog
+  when it has one, and on the page itself (`?delete`) when it has not.
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
@@ -30,8 +32,16 @@
     ondelete?: () => void;
   } = $props();
 
-  const can = (permission: PermissionKey) => permissions.includes(permission);
+  const holds = (permission: PermissionKey) => permissions.includes(permission);
+  // what the caller may do to this user: a permission, and the user within reach
+  const can = (permission: PermissionKey) => user.withinReach && holds(permission);
   const trashed = $derived(user.deletedAt !== null);
+  const viewOnly = $derived(
+    !user.withinReach &&
+      (trashed
+        ? holds("master-users.restore")
+        : holds("master-users.update") || holds("master-users.delete"))
+  );
 
   const recordHref = $derived(resolve("/(app)/master/users/[id]", { id: user.id }));
 
@@ -53,6 +63,10 @@
       This user is in the Trash, so nothing can be changed until they are restored. Their sessions
       ended when they were deleted.
     </Notice>
+  {/if}
+
+  {#if viewOnly}
+    <Notice>They hold permissions you don't hold, so you can only view them.</Notice>
   {/if}
 
   <FormSection title="Personal details">

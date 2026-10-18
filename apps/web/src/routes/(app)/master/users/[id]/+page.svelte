@@ -2,7 +2,8 @@
   A User's full page (#304). Users keep full pages rather than a layer over the
   list: their form has three sections and a password. Delete asks first in a
   dialog, or without JavaScript on the page itself (`?delete`); a Trashed user
-  shows read-only with Restore.
+  shows read-only with Restore. A user out of the caller's reach shows read-only
+  too, and `?delete` asks nothing of them.
 -->
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
@@ -42,7 +43,10 @@
 
   const recordHref = $derived(resolve("/(app)/master/users/[id]", { id: data.user.id }));
   const askingDelete = $derived(
-    data.confirmDelete && !data.user.deletedAt && data.permissions.includes("master-users.delete")
+    data.confirmDelete &&
+      !data.user.deletedAt &&
+      data.user.withinReach &&
+      data.permissions.includes("master-users.delete")
   );
 </script>
 

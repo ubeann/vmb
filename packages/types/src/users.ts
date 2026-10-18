@@ -41,7 +41,14 @@ export const UserSchema = z.object({
   profilePhotoPath: z.string().nullable(),
   createdAt: z.iso.datetime().nullable(),
   updatedAt: z.iso.datetime().nullable(),
-  deletedAt: z.iso.datetime().nullable()
+  deletedAt: z.iso.datetime().nullable(),
+  /**
+   * Whether the caller may change this user: the user holds no permission the
+   * caller lacks, or is the caller (ADR-0045). The API refuses an edit, a
+   * delete and a restore of a user out of reach with 403 `PERMISSION_ESCALATION`;
+   * this lets a screen stop offering them.
+   */
+  withinReach: z.boolean()
 });
 
 export type User = z.infer<typeof UserSchema>;
