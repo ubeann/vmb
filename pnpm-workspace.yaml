@@ -36,3 +36,9 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - chokidar@4.0.3
   - undici-types@6.21.0
+# formsnap 2.0.1 still declares sveltekit-superforms ^2.19.0 as a peer, though
+# it works with 3. Delete this rule once a formsnap release includes
+# svecosystem/formsnap#233, which widens the range (release tracked in #234).
+peerDependencyRules:
+  allowedVersions:
+    "formsnap>sveltekit-superforms": "^3.0.0"

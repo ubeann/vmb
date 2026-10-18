@@ -1,6 +1,7 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // `std-env`'s rule: CI is on when the variable is set and not "false".
@@ -27,7 +28,17 @@ export default defineConfig({
           name: "unit",
           environment: "node",
           include: ["src/**/*.test.ts"],
-          exclude: ["src/**/*.svelte.test.ts"]
+          exclude: ["src/**/*.svelte.test.ts"],
+          // sveltekit-superforms 3's server entry starts with
+          // `import '$app/server'`. Inline it so Vite resolves that import,
+          // and point it at an empty stub: this project has no SvelteKit
+          // plugin to provide the module.
+          server: { deps: { inline: ["sveltekit-superforms"] } }
+        },
+        resolve: {
+          alias: {
+            "$app/server": fileURLToPath(new URL("./src/test-stubs/app-server.ts", import.meta.url))
+          }
         }
       },
       {
