@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getRoleMock = vi.fn();
+const loadDivisionOptionsMock = vi.fn();
 
 // The unit project runs without SvelteKit's Vite plugin, so `$lib` isn't a
 // resolvable alias here — mock the specifiers the routes themselves import.
@@ -25,6 +26,10 @@ vi.mock("$lib/master/form-data.js", () => ({
   roleFormData: (role: unknown) => role,
   RoleFormSchema: {},
   RoleFormUpdateSchema: {}
+}));
+vi.mock("$lib/master/loads.js", async () => ({
+  loadDivisionOptions: (...args: unknown[]) => loadDivisionOptionsMock(...args),
+  divisionChoices: (await import("../../../../../lib/master/loads.js")).divisionChoices
 }));
 vi.mock("$lib/master/permissions.js", () => import("../../../../../lib/master/permissions.js"));
 vi.mock("$lib/master/appearance.js", () => import("../../../../../lib/master/appearance.js"));
@@ -58,6 +63,8 @@ const event = eventFor();
 beforeEach(() => {
   getRoleMock.mockReset();
   getRoleMock.mockResolvedValue({ ok: true, value: role });
+  loadDivisionOptionsMock.mockReset();
+  loadDivisionOptionsMock.mockResolvedValue([]);
 });
 
 describe("a role's pages name it for the top bar's trail", () => {
@@ -106,6 +113,45 @@ describe("a role's edit route", () => {
     getRoleMock.mockResolvedValue({ ok: true, value: system });
 
     await expect(view.load(event)).resolves.toMatchObject({ role: system });
+  });
+});
+
+describe("a role's Division choices (#463)", () => {
+  const hub = { id: "d-hub", name: "Hub", isActive: true };
+  const depot = { id: "d-depot", name: "Depot", isActive: false };
+
+  it("offers a new role the active Divisions only", async () => {
+    loadDivisionOptionsMock.mockResolvedValue([hub, depot]);
+
+    await expect(create.load(eventFor())).resolves.toMatchObject({
+      divisions: [{ id: "d-hub", name: "Hub", inactive: false }]
+    });
+  });
+
+  it("keeps an edited role's Inactive Division among the choices, marked, beside the active ones", async () => {
+    loadDivisionOptionsMock.mockResolvedValue([hub, depot]);
+    getRoleMock.mockResolvedValue({
+      ok: true,
+      value: { ...role, divisionId: "d-depot", divisionName: "Depot", divisionInactive: true }
+    });
+
+    await expect(edit.load(event)).resolves.toMatchObject({
+      divisions: [
+        { id: "d-depot", name: "Depot", inactive: true },
+        { id: "d-hub", name: "Hub", inactive: false }
+      ]
+    });
+  });
+
+  it("still lists the role's own Division for a caller who cannot read Divisions", async () => {
+    getRoleMock.mockResolvedValue({
+      ok: true,
+      value: { ...role, divisionId: "d-hub", divisionName: "Hub", divisionInactive: false }
+    });
+
+    await expect(edit.load(event)).resolves.toMatchObject({
+      divisions: [{ id: "d-hub", name: "Hub", inactive: false }]
+    });
   });
 });
 

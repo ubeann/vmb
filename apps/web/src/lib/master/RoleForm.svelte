@@ -3,7 +3,9 @@
   full page alike. The fields check the shared schema's rules as they are
   typed, and the server checks the same ones. A System Role never reaches it:
   the API refuses to edit one. Its Permissions section grants and revokes
-  only what the caller holds (#462, ADR-0045's amendment of 2026-10-17).
+  only what the caller holds (#462, ADR-0045's amendment of 2026-10-17). Its
+  Division moves every user who holds the Role, so an edit that changes it says
+  how many (#463).
 -->
 <script lang="ts">
   import FormSection from "$lib/components/form/FormSection.svelte";
@@ -19,7 +21,9 @@
   import type { Component } from "svelte";
   import AppearanceFields from "./AppearanceFields.svelte";
   import { pickedColor, PENDING_COLOR, type RoleDraft } from "./appearance.js";
+  import DivisionCombobox from "./DivisionCombobox.svelte";
   import { RoleFormSchema, type RoleFormFields as Fields } from "./form-data.js";
+  import type { DivisionChoice } from "./loads.js";
   import PermissionGrants from "./PermissionGrants.svelte";
   import UpdatedAtField from "./UpdatedAtField.svelte";
   import type { SuperValidated } from "sveltekit-superforms";
@@ -28,6 +32,8 @@
   let {
     form,
     held,
+    divisions,
+    holders = 0,
     action,
     submitLabel = "Save role",
     pendingLabel = "Saving…",
@@ -42,6 +48,10 @@
     form: SuperValidated<Fields>;
     /** The caller's own permissions: the only grants they may add or take away. */
     held: readonly string[];
+    /** The Divisions it can be placed in, and the one it is in already. */
+    divisions: DivisionChoice[];
+    /** An edit's count of the users who hold the Role, whose division a change moves. */
+    holders?: number;
     /** The route that saves it, when the form sits in the layer over the list. */
     action?: string;
     submitLabel?: string;
@@ -71,6 +81,11 @@
   const { form: fields, errors, tainted, isTainted } = superform;
 
   const picked = $derived(pickedColor($fields.colorHex));
+  // the Division it was loaded in, to tell when an edit moves it
+  // svelte-ignore state_referenced_locally
+  const savedDivisionId = form.data.divisionId ?? null;
+  const moved = $derived(($fields.divisionId ?? null) !== savedDivisionId);
+
   // an edit's name as it was loaded, for "Discard changes to Staff?"; a new Role has none
   // svelte-ignore state_referenced_locally
   const savedName = reloadHref ? form.data.name : undefined;
@@ -116,6 +131,7 @@
       colorHex: "color",
       iconName: "icon",
       isActive: "status",
+      divisionId: "division",
       permissionKeys: "permissions"
     }
   }}
@@ -151,6 +167,35 @@
           />
         {/snippet}
       </Form.Control>
+      <Form.FieldErrors class={HINT} />
+    </Form.Field>
+  </FormSection>
+
+  <FormSection title="Division" hint="Where it applies.">
+    <Form.Field form={superform} name="divisionId" class="space-y-1.5">
+      <Form.Control>
+        {#snippet children({ props })}
+          <Form.Label>Division</Form.Label>
+          <DivisionCombobox
+            id={props.id}
+            {divisions}
+            bind:value={$fields.divisionId}
+            invalid={props["aria-invalid"] === "true"}
+            describedby={props["aria-describedby"]}
+          />
+        {/snippet}
+      </Form.Control>
+      <Form.Description class={HINT}
+        >Leave it on Every division for a role that works across them, such as Super Admin. A role
+        of an Inactive Division can't be given to anyone new.</Form.Description
+      >
+      <!-- always in the page, so a screen reader announces the text when it appears -->
+      <p class={cn(HINT, "text-pretty")} role="status">
+        {#if moved && holders > 0}
+          {holders}
+          {holders === 1 ? "user holds" : "users hold"} this role. Their division changes with it.
+        {/if}
+      </p>
       <Form.FieldErrors class={HINT} />
     </Form.Field>
   </FormSection>

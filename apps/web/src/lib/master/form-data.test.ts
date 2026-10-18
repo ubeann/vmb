@@ -28,6 +28,8 @@ const role: RoleDetail = {
   description: null,
   divisionId: null,
   divisionName: null,
+  divisionInactive: false,
+  userCount: 0,
   permissionCount: 2,
   permissionKeys: ["master-users.view", "master-users.view_any"],
   createdAt: STAMP,
@@ -60,6 +62,11 @@ describe("edit form data", () => {
     expect(divisionFormData({ ...division, updatedAt: null }).updatedAt).toBeNull();
     expect(roleFormData({ ...role, updatedAt: null }).updatedAt).toBeNull();
     expect(userFormData({ ...user, updatedAt: null }).updatedAt).toBeNull();
+  });
+
+  it("loads a role's Division, or none for every Division, so a save that changes nothing else keeps it", () => {
+    expect(roleFormData(role).divisionId).toBeNull();
+    expect(roleFormData({ ...role, divisionId: ID, divisionName: "Hub" }).divisionId).toBe(ID);
   });
 
   it("loads a role's grants, so a save that changes nothing else keeps them", () => {

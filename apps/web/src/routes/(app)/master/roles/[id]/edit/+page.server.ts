@@ -2,6 +2,7 @@ import { withApiClient } from "$lib/api-access.js";
 import { getRole, updateRole, pageErrorStatus } from "$lib/master/api.js";
 import { RoleFormUpdateSchema, roleFormData } from "$lib/master/form-data.js";
 import { createMasterFormAction } from "$lib/master/form-action.js";
+import { divisionChoices, loadDivisionOptions } from "$lib/master/loads.js";
 import { requirePermission } from "$lib/master/permissions.js";
 import { error } from "@sveltejs/kit";
 import { superValidate } from "sveltekit-superforms/server";
@@ -28,8 +29,14 @@ export const load: PageServerLoad = async (event) => {
     error(403, "You cannot change a role that carries permissions you do not have.");
   }
 
+  // the Division it is in stays a choice, though it went Inactive (the Inactive rule)
+  const current = role.divisionId
+    ? { id: role.divisionId, name: role.divisionName ?? "", inactive: role.divisionInactive }
+    : null;
+
   return {
     role,
+    divisions: divisionChoices(await loadDivisionOptions(event), current),
     crumb: { label: role.name, tile: { iconName: role.iconName, colorHex: role.colorHex } },
     form: await superValidate(roleFormData(role), zod4(RoleFormUpdateSchema))
   };

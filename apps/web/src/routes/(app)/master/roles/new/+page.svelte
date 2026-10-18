@@ -20,6 +20,7 @@
   <div class="bg-background flex flex-col overflow-hidden rounded-xl border pt-3">
     <RoleForm
       form={data.form}
+      divisions={data.divisions}
       held={data.permissions}
       submitLabel="Create role"
       submitIcon={PlusIcon}

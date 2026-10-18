@@ -88,10 +88,20 @@
     <p class="text-pretty">
       <span class="text-muted-foreground">Division</span>
       {#if role.divisionName}
-        <span class="font-medium">{role.divisionName}</span>
+        <span class="font-medium"
+          >{role.divisionName}{role.divisionInactive ? " (inactive)" : ""}</span
+        >
       {:else}
         <span class="font-medium">Every division</span>
       {/if}
+    </p>
+    <!-- the number a change of Division moves, and the one deleting the role is refused for -->
+    <p class="text-pretty">
+      <span class="text-muted-foreground">Held by</span>
+      <span class="font-medium">
+        {#if role.userCount === 0}No users{:else}<span class="tabular-nums">{role.userCount}</span>
+          {role.userCount === 1 ? "user" : "users"}{/if}
+      </span>
     </p>
     {#if canListUsers}
       <p>

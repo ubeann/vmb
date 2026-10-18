@@ -19,6 +19,8 @@ const role: RoleDetail = {
   description: null,
   divisionId: null,
   divisionName: null,
+  divisionInactive: false,
+  userCount: 0,
   permissionCount: 0,
   permissionKeys: [],
   createdAt: STAMP,
@@ -40,7 +42,7 @@ async function pageData(overrides: Record<string, unknown> = {}) {
     },
     zod4(RoleUpdateInputSchema)
   );
-  return { role, form } as unknown as PageData;
+  return { role, form, divisions: [] } as unknown as PageData;
 }
 
 describe("the role edit page", () => {
