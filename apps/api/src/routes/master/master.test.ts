@@ -680,11 +680,8 @@ describe("master API: roles", () => {
 
     // not mentioned: an edit leaves the Division where it is
     await appWith(store).request(`/roles/${ID}`, json("PATCH", { ...body, updatedAt: STAMP }), env);
-    expect(store.updateRole).toHaveBeenLastCalledWith(
-      ID,
-      expect.not.objectContaining({ divisionId: expect.anything() }),
-      CALLER
-    );
+    // no property at all: `null` would clear it
+    expect(vi.mocked(store.updateRole).mock.lastCall?.[1]).not.toHaveProperty("divisionId");
 
     const response = await appWith(store).request(
       "/roles",
