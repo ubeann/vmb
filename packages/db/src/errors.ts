@@ -17,12 +17,15 @@ export abstract class DomainError extends Error {
   }
 }
 
-/** A record the caller named does not exist. */
+/**
+ * A record the caller named does not exist. One a field names, such as a
+ * role's Division, says which in `issues`, so a form shows it on that field.
+ */
 export class NotFoundError extends DomainError {
   readonly code = "NOT_FOUND";
 
-  constructor(message = "Record not found.") {
-    super(message);
+  constructor(message = "Record not found.", path?: string) {
+    super(message, path ? [{ path, message }] : undefined);
   }
 }
 

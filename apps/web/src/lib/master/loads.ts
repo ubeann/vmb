@@ -115,3 +115,23 @@ export function roleChoices(options: RoleOption[], held: Array<{ id: string; nam
     .map((role) => ({ ...role, divisionName: null, divisionInactive: false }));
   return [...offered, ...missing].sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/** A Division a role can be placed in, as the Role form's combobox lists it. */
+export type DivisionChoice = { id: string; name: string; inactive: boolean };
+
+/**
+ * The Divisions to offer a role: the Active ones, plus the role's current
+ * Division even when it is Inactive, Trashed, or one the caller cannot list, so
+ * a save never moves a role out of it by omission. An Inactive Division is not
+ * offered for a new choice (the Inactive rule), and the current one is marked
+ * as such where it shows.
+ */
+export function divisionChoices(
+  divisions: Division[],
+  current: DivisionChoice | null
+): DivisionChoice[] {
+  const offered = divisions
+    .filter((division) => division.isActive && division.id !== current?.id)
+    .map(({ id, name }) => ({ id, name, inactive: false }));
+  return [...(current ? [current] : []), ...offered].sort((a, b) => a.name.localeCompare(b.name));
+}

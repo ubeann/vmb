@@ -60,6 +60,7 @@ export function roleFormData(role: RoleDetail) {
     colorHex: role.colorHex,
     iconName: role.iconName as IconName,
     isActive: role.isActive,
+    divisionId: role.divisionId,
     permissionKeys: role.permissionKeys,
     updatedAt: role.updatedAt
   };

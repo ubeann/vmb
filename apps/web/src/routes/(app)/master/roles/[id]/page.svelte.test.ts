@@ -19,6 +19,8 @@ const role: RoleDetail = {
   description: null,
   divisionId: null,
   divisionName: null,
+  divisionInactive: false,
+  userCount: 0,
   permissionCount: 0,
   permissionKeys: [],
   createdAt: STAMP,
@@ -121,6 +123,28 @@ describe("the role view page", () => {
 
     await expect.element(screen.getByText("Warehouse")).toBeVisible();
     expect(screen.getByText("Every division").elements()).toHaveLength(0);
+  });
+
+  it("marks a Division that went Inactive, which the role keeps", async () => {
+    const screen = await render(Page, {
+      data: pageData({ divisionId: ID, divisionName: "Warehouse", divisionInactive: true }),
+      form: null
+    });
+
+    await expect.element(screen.getByText("Warehouse (inactive)")).toBeVisible();
+  });
+
+  it("counts the users who hold the role, and says so for none", async () => {
+    const some = await render(Page, { data: pageData({ userCount: 3 }), form: null });
+    await expect.element(some.getByText("3 users")).toBeVisible();
+
+    document.body.innerHTML = "";
+    const one = await render(Page, { data: pageData({ userCount: 1 }), form: null });
+    await expect.element(one.getByText("1 user", { exact: true })).toBeVisible();
+
+    document.body.innerHTML = "";
+    const none = await render(Page, { data: pageData(), form: null });
+    await expect.element(none.getByText("No users")).toBeVisible();
   });
 
   it("explains a System Role, and offers neither Edit nor Delete, whatever the caller may do", async () => {

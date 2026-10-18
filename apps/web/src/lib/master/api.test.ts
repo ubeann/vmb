@@ -300,6 +300,8 @@ describe("master API client", () => {
         description: null,
         divisionId: ID,
         divisionName: "Hub",
+        divisionInactive: true,
+        userCount: 2,
         permissionCount: 1,
         permissionKeys: ["master-users.view_any"],
         createdAt: STAMP,
@@ -309,7 +311,12 @@ describe("master API client", () => {
 
     await expect(getRole(client, ID)).resolves.toMatchObject({
       ok: true,
-      value: { divisionName: "Hub", permissionKeys: ["master-users.view_any"] }
+      value: {
+        divisionName: "Hub",
+        divisionInactive: true,
+        userCount: 2,
+        permissionKeys: ["master-users.view_any"]
+      }
     });
   });
 });

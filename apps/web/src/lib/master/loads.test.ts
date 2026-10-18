@@ -14,7 +14,7 @@ vi.mock("$lib/master/api.js", () => ({
   listDivisions: vi.fn()
 }));
 
-const { loadRoleFilterOptions } = await import("./loads.js");
+const { divisionChoices, loadRoleFilterOptions } = await import("./loads.js");
 
 const roles = (from: number, count: number) =>
   Array.from({ length: count }, (_, index) => ({
@@ -81,5 +81,32 @@ describe("the Users list's Role filter options", () => {
     withApiClientMock.mockResolvedValue({ ok: false, error: new Error("down") });
 
     await expect(loadRoleFilterOptions(event)).resolves.toEqual([]);
+  });
+});
+
+describe("divisionChoices", () => {
+  const division = (id: string, name: string, isActive = true) => ({ id, name, isActive }) as never;
+  const all = [division("b", "Yard"), division("a", "Hub"), division("c", "Depot", false)];
+
+  it("offers the active Divisions by name, and leaves out an Inactive one", () => {
+    expect(divisionChoices(all, null)).toEqual([
+      { id: "a", name: "Hub", inactive: false },
+      { id: "b", name: "Yard", inactive: false }
+    ]);
+  });
+
+  it("keeps the Division the role already has, marked Inactive when it is", () => {
+    expect(divisionChoices(all, { id: "c", name: "Depot", inactive: true })).toEqual([
+      { id: "c", name: "Depot", inactive: true },
+      { id: "a", name: "Hub", inactive: false },
+      { id: "b", name: "Yard", inactive: false }
+    ]);
+  });
+
+  it("keeps a current Division the caller cannot list, or that is Trashed, once", () => {
+    expect(divisionChoices([], { id: "t", name: "Old", inactive: true })).toEqual([
+      { id: "t", name: "Old", inactive: true }
+    ]);
+    expect(divisionChoices(all, { id: "a", name: "Hub", inactive: false })).toHaveLength(2);
   });
 });

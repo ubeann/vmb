@@ -57,6 +57,7 @@
   import SystemBadge from "$lib/master/SystemBadge.svelte";
   import type { RoleDraft } from "$lib/master/appearance.js";
   import type { RoleFormFields } from "$lib/master/form-data.js";
+  import type { DivisionChoice } from "$lib/master/loads.js";
   import { listHref } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { RoleListQuerySchema, type PermissionKey, type Role, type RoleDetail } from "@vmb/types";
@@ -155,8 +156,12 @@
 
   // what each of the layer's pages gets from its load
   type ViewData = { role: RoleDetail; permissions: string[] };
-  type EditData = { role: RoleDetail; form: SuperValidated<RoleFormFields> };
-  type NewData = { form: SuperValidated<RoleFormFields> };
+  type EditData = {
+    role: RoleDetail;
+    form: SuperValidated<RoleFormFields>;
+    divisions: DivisionChoice[];
+  };
+  type NewData = { form: SuperValidated<RoleFormFields>; divisions: DivisionChoice[] };
 
   // the entry the layer last showed, kept while it animates out
   let shown = $state.raw(layer.shown);
@@ -694,9 +699,11 @@
           ondeleted={deleted}
         />
       {:else if shown.kind === "edit"}
-        {@const { role, form } = shown.data as EditData}
+        {@const { role, form, divisions } = shown.data as EditData}
         <RoleForm
           {form}
+          {divisions}
+          holders={role.userCount}
           held={data.permissions}
           action={editHref(role.id)}
           reloadHref={editHref(role.id)}
@@ -706,9 +713,10 @@
           ondraft={(next) => (draft = next)}
         />
       {:else}
-        {@const { form } = shown.data as NewData}
+        {@const { form, divisions } = shown.data as NewData}
         <RoleForm
           {form}
+          {divisions}
           held={data.permissions}
           action={newHref}
           submitLabel="Create role"

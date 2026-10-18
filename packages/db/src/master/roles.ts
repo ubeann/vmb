@@ -33,7 +33,13 @@ import {
   type MasterDb
 } from "./db.js";
 import { roleOutOfReach, roleWithinReach, textArray, type Actor } from "./guards.js";
-import { ConflictError, ForbiddenError, NotFoundError, StaleRecordError } from "../errors.js";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  RuleBrokenError,
+  StaleRecordError
+} from "../errors.js";
 
 /** The legacy policy refuses to modify a system role (`RolePolicy.php`). */
 const SYSTEM_ROLE_MESSAGE = "System roles cannot be modified or deleted.";
@@ -47,6 +53,9 @@ const roleColumns = {
 };
 
 type RoleRow = typeof roles.$inferSelect & { permissionCount: number };
+
+// a Division no role can be moved into: Inactive, or Trashed (the Inactive rule)
+const divisionOutOfUse = sql`(not ${divisions.isActive} or ${divisions.deletedAt} is not null)`;
 
 const SORT_COLUMNS = {
   name: roles.name,
@@ -142,12 +151,18 @@ export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<R
 /**
  * A role with the name of its Division, for the view, and the keys it grants,
  * for the view and the form; no Division means it applies in every Division.
+ * It also counts the users who hold it, the number a change of Division moves
+ * (the one `ROLE_IN_USE` names).
  */
 export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
   const rows = await db
     .select({
       role: getTableColumns(roles),
       divisionName: divisions.name,
+      divisionInactive: sql<boolean>`${divisions.id} is not null and ${divisionOutOfUse}`,
+      userCount: sql<number>`(
+        select cast(count(*) as integer) from master.user_roles ur where ur.role_id = ${roles.id}
+      )`.mapWith(Number),
       permissionKeys: sql<string[]>`coalesce((
         select json_agg(rp.permission_key)
           from master.role_permissions rp where rp.role_id = ${roles.id}
@@ -164,6 +179,8 @@ export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
   return {
     ...toRole({ ...row.role, permissionCount: permissionKeys.length }),
     divisionName: row.divisionName,
+    divisionInactive: row.divisionInactive,
+    userCount: row.userCount,
     permissionKeys
   };
 }
@@ -187,6 +204,39 @@ function grantable(keys: readonly string[], actor: Actor): string[] {
     );
   }
   return unique;
+}
+
+/**
+ * Whether a save may put a role in `divisionId`: it exists (404 on the field),
+ * and is not Inactive or Trashed, which no role can be moved into (400 on the
+ * field, the Inactive rule). A role that is already in the Division keeps it
+ * whatever its state became, so `current` passes; so do every, `null`, and an
+ * edit that does not mention it, `undefined`.
+ */
+async function assertDivisionChoosable(
+  db: MasterDb,
+  divisionId: string | null | undefined,
+  current: string | null = null
+): Promise<void> {
+  if (divisionId === undefined || divisionId === null) return;
+  if (divisionId.toLowerCase() === current?.toLowerCase()) return;
+
+  const rows = await db
+    .select({
+      name: divisions.name,
+      unusable: sql<boolean>`${divisionOutOfUse}`
+    })
+    .from(divisions)
+    .where(eq(divisions.id, divisionId))
+    .limit(1);
+  const found = rows[0];
+  if (!found) throw new NotFoundError("That division no longer exists.", "divisionId");
+  if (found.unusable) {
+    throw new RuleBrokenError(
+      `“${found.name}” is an Inactive Division, so a role cannot be moved into it. Choose an active one.`,
+      "divisionId"
+    );
+  }
 }
 
 /**
@@ -217,14 +267,17 @@ function fromReturned(row: ReturnedRole): Role {
  */
 export async function createRole(db: MasterDb, input: RoleInput, actor: Actor): Promise<Role> {
   const keys = grantable(input.permissionKeys ?? [], actor);
+  await assertDivisionChoosable(db, input.divisionId);
 
   try {
     const result = await db.execute(sql`
       with r as (
         insert into master.roles
-          (name, description, color_hex, icon_name, is_active, is_system, created_at, updated_at)
+          (name, description, color_hex, icon_name, is_active, is_system, division_id,
+           created_at, updated_at)
         values (${input.name}, ${nullIfEmpty(input.description)}, ${input.colorHex},
-                ${input.iconName}, ${input.isActive}, false, now(), now())
+                ${input.iconName}, ${input.isActive}, false, ${input.divisionId ?? null},
+                now(), now())
         returning *
       ), granted as (
         insert into master.role_permissions (role_id, permission_key)
@@ -264,8 +317,9 @@ export async function updateRole(
   input: RoleUpdateInput,
   actor: Actor
 ): Promise<Role> {
-  await assertEditable(db, id, actor);
+  const current = await assertEditable(db, id, actor);
   const { updatedAt, permissionKeys, ...fields } = input;
+  await assertDivisionChoosable(db, fields.divisionId, current.divisionId);
   // the role grants nothing the caller lacks, so this also covers what a save revokes
   const keys = permissionKeys === undefined ? undefined : grantable(permissionKeys, actor);
 
@@ -297,6 +351,7 @@ export async function updateRole(
                color_hex = ${fields.colorHex},
                icon_name = ${fields.iconName},
                is_active = ${fields.isActive},
+               division_id = ${fields.divisionId === undefined ? sql.raw("division_id") : fields.divisionId},
                updated_at = ${nextStamp(roles.updatedAt)}
          where id = ${id} and not is_system and ${unchangedSince(roles.updatedAt, updatedAt)}
            and ${roleWithinReach(actor)}
@@ -345,11 +400,17 @@ export async function deleteRole(db: MasterDb, id: string): Promise<void> {
  * System Role (403 `SYSTEM_ROLE`). Given an `actor`, an edit, it also grants
  * nothing the caller lacks (403 `PERMISSION_ESCALATION`); a delete passes none,
  * since the reach rule is about editing (ADR-0045's amendment of 2026-10-17).
+ * It returns the role's Division, which the Inactive rule compares a save with.
  */
-async function assertEditable(db: MasterDb, id: string, actor?: Actor): Promise<void> {
+async function assertEditable(
+  db: MasterDb,
+  id: string,
+  actor?: Actor
+): Promise<{ divisionId: string | null }> {
   const rows = await db
     .select({
       isSystem: roles.isSystem,
+      divisionId: roles.divisionId,
       inReach: actor ? sql<boolean>`${roleWithinReach(actor)}` : sql<boolean>`true`
     })
     .from(roles)
@@ -360,4 +421,5 @@ async function assertEditable(db: MasterDb, id: string, actor?: Actor): Promise<
   if (!row) throw new NotFoundError("Role not found.");
   if (row.isSystem) throw new ForbiddenError("SYSTEM_ROLE", SYSTEM_ROLE_MESSAGE);
   if (!row.inReach) throw roleOutOfReach();
+  return { divisionId: row.divisionId };
 }

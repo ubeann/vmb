@@ -1,3 +1,7 @@
+// Isolated renders don't load the global stylesheet; axe reads the colours it sees.
+import "../../app.css";
+
+import { axeViolations } from "$lib/a11y-support.js";
 import { RoleInputSchema, RoleUpdateInputSchema, allPermissionKeys } from "@vmb/types";
 import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
@@ -13,7 +17,7 @@ vi.mock("$app/forms", async (original) => ({
 
 const { render } = await import("vitest-browser-svelte");
 const { default: RoleForm } = await import("./RoleForm.svelte");
-const { RoleFormSchema } = await import("./form-data.js");
+const { RoleFormSchema, RoleFormUpdateSchema } = await import("./form-data.js");
 
 // a caller who holds every key, unless a test says otherwise
 const HELD = allPermissionKeys();
@@ -23,7 +27,7 @@ describe("RoleForm", () => {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
     form.data.isActive = true;
 
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
 
     await expect.element(screen.getByRole("textbox", { name: "Name" })).toBeVisible();
     await expect
@@ -34,14 +38,6 @@ describe("RoleForm", () => {
     await expect.element(screen.getByRole("switch", { name: "Active" })).toBeChecked();
     await expect.element(screen.getByRole("button", { name: "Save role" })).toBeVisible();
     expect(document.querySelectorAll("button[type=submit]")).toHaveLength(1);
-  });
-
-  it("has no Division field: a role's division is set with its permissions, not here", async () => {
-    const form = await superValidate(zod4(RoleInputSchema), { errors: false });
-
-    await render(RoleForm, { held: HELD, form });
-
-    expect(document.querySelector('[name="divisionId"]')).toBeNull();
   });
 
   it("loads an existing role into the form", async () => {
@@ -56,7 +52,7 @@ describe("RoleForm", () => {
       zod4(RoleInputSchema)
     );
 
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
 
     await expect
       .element(screen.getByRole("textbox", { name: "Name" }))
@@ -70,7 +66,7 @@ describe("RoleForm", () => {
 
   it("previews the role from what is typed, unless a layer's header shows it", async () => {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
 
     await expect.element(screen.getByText("Role name")).toBeVisible();
     await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Dispatcher");
@@ -81,6 +77,7 @@ describe("RoleForm", () => {
     document.body.innerHTML = "";
     const layered = await render(RoleForm, {
       held: HELD,
+      divisions: [],
       form,
       ondraft: (draft) => drafts.push(draft)
     });
@@ -104,7 +101,7 @@ describe("RoleForm on an edit", () => {
   it("posts the updatedAt it loaded in a hidden field, with no conflict line", async () => {
     const form = await superValidate({ ...loaded, updatedAt: STAMP }, zod4(RoleUpdateInputSchema));
 
-    const screen = await render(RoleForm, { held: HELD, form, reloadHref });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form, reloadHref });
 
     const stamp = document.querySelector<HTMLInputElement>('input[name="updatedAt"]');
     expect(stamp?.type).toBe("hidden");
@@ -115,7 +112,7 @@ describe("RoleForm on an edit", () => {
   it("posts an empty field for a record that was never stamped", async () => {
     const form = await superValidate({ ...loaded, updatedAt: null }, zod4(RoleUpdateInputSchema));
 
-    await render(RoleForm, { held: HELD, form, reloadHref });
+    await render(RoleForm, { held: HELD, divisions: [], form, reloadHref });
 
     expect(document.querySelector<HTMLInputElement>('input[name="updatedAt"]')?.value).toBe("");
   });
@@ -123,7 +120,7 @@ describe("RoleForm on an edit", () => {
   it("has no updatedAt field on a create", async () => {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
 
-    await render(RoleForm, { held: HELD, form });
+    await render(RoleForm, { held: HELD, divisions: [], form });
 
     expect(document.querySelector('input[name="updatedAt"]')).toBeNull();
   });
@@ -135,7 +132,7 @@ describe("RoleForm on an edit", () => {
     );
     setError(form, "updatedAt", "This record was changed by someone else since you opened it.");
 
-    const screen = await render(RoleForm, { held: HELD, form, reloadHref });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form, reloadHref });
 
     await expect.element(screen.getByRole("alert")).toBeVisible();
     expect(screen.getByRole("alert").element().textContent).toContain(
@@ -160,7 +157,7 @@ describe("RoleForm's checks", () => {
 
   it("says an empty name is required, under the field", async () => {
     const form = await superValidate(loaded, zod4(RoleInputSchema));
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
 
     await userEvent.clear(screen.getByRole("textbox", { name: "Name" }));
     await userEvent.tab();
@@ -172,7 +169,7 @@ describe("RoleForm's checks", () => {
     const refused = await superValidate(loaded, zod4(RoleInputSchema));
     setError(refused, "name", "A role with that name already exists.");
 
-    const screen = await render(RoleForm, { held: HELD, form: refused });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form: refused });
 
     await expect.element(screen.getByText("A role with that name already exists.")).toBeVisible();
     await expect
@@ -230,6 +227,7 @@ describe("RoleForm in the layer", () => {
     const saved: unknown[] = [];
     const screen = await render(RoleForm, {
       held: HELD,
+      divisions: [],
       form,
       action: "/master/roles/r-1/edit",
       onsaved: (role) => saved.push(role)
@@ -273,7 +271,7 @@ describe("RoleForm's permissions", () => {
       { ...loaded, permissionKeys: ["master-users.view_any"] },
       zod4(RoleFormSchema)
     );
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
 
     const users = screen.getByRole("group", { name: "Users" });
     await expect.element(users).toBeVisible();
@@ -290,7 +288,7 @@ describe("RoleForm's permissions", () => {
 
   it("ticks and clears a whole resource with its All box", async () => {
     const form = await superValidate({ ...loaded, permissionKeys: [] }, zod4(RoleFormSchema));
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
     const all = screen.getByRole("checkbox", { name: "All Roles permissions" });
 
     await userEvent.click(
@@ -317,7 +315,7 @@ describe("RoleForm's permissions", () => {
       { ...loaded, permissionKeys: ["master-divisions.manager"] },
       zod4(RoleFormSchema)
     );
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
     const search = screen.getByRole("searchbox", { name: "Search permissions" });
 
     await userEvent.type(search, "trash");
@@ -347,7 +345,7 @@ describe("RoleForm's permissions", () => {
       { ...loaded, permissionKeys: ["master-users.view_any"] },
       zod4(RoleFormSchema)
     );
-    const screen = await render(RoleForm, { held: MANAGER, form });
+    const screen = await render(RoleForm, { held: MANAGER, divisions: [], form });
     const users = screen.getByRole("group", { name: "Users" });
 
     await expect
@@ -376,6 +374,7 @@ describe("RoleForm's permissions", () => {
     const drafts: { dirty: boolean }[] = [];
     const screen = await render(RoleForm, {
       held: HELD,
+      divisions: [],
       form,
       ondraft: (draft) => drafts.push(draft)
     });
@@ -394,7 +393,7 @@ describe("RoleForm's permissions", () => {
       { ...loaded, permissionKeys: ["master-users.view_any"] },
       zod4(RoleFormSchema)
     );
-    const screen = await render(RoleForm, { held: HELD, form });
+    const screen = await render(RoleForm, { held: HELD, divisions: [], form });
 
     await userEvent.click(
       screen.getByRole("group", { name: "Users" }).getByRole("checkbox", { name: "List" })
@@ -403,5 +402,164 @@ describe("RoleForm's permissions", () => {
     expect(posted()).toEqual([]);
     const parsed = await superValidate(new FormData(), zod4(RoleFormSchema));
     expect(parsed.data.permissionKeys).toEqual([]);
+  });
+});
+
+describe("RoleForm's Division (#463)", () => {
+  const HUB = "d1000000-0000-4000-8000-000000000001";
+  const YARD = "d1000000-0000-4000-8000-000000000002";
+  const DIVISIONS = [
+    { id: HUB, name: "Hub", inactive: false },
+    { id: YARD, name: "Yard", inactive: false }
+  ];
+  const loaded = {
+    name: "Staff",
+    description: "",
+    colorHex: "#805AD5",
+    iconName: "user" as const,
+    isActive: true,
+    permissionKeys: [],
+    updatedAt: "2026-01-05T01:10:00.123Z"
+  };
+  const posted = () => document.querySelector<HTMLInputElement>('input[name="divisionId"]')?.value;
+  const editing = async (divisionId: string | null) =>
+    superValidate({ ...loaded, divisionId }, zod4(RoleFormUpdateSchema));
+
+  it("has Every division as the empty choice, chosen on a new role, and posts it empty", async () => {
+    const form = await superValidate(zod4(RoleFormSchema), { errors: false });
+
+    const screen = await render(RoleForm, { held: HELD, divisions: DIVISIONS, form });
+
+    await expect
+      .element(screen.getByRole("combobox", { name: "Division" }))
+      .toHaveValue("Every division");
+    expect(posted()).toBe("");
+  });
+
+  it("lists the Divisions, narrows them as typed, and posts the one chosen", async () => {
+    const form = await superValidate(zod4(RoleFormSchema), { errors: false });
+    const screen = await render(RoleForm, { held: HELD, divisions: DIVISIONS, form });
+
+    const field = screen.getByRole("combobox", { name: "Division" });
+    await userEvent.click(field);
+    await expect.element(screen.getByRole("option", { name: "Every division" })).toBeVisible();
+    await expect.element(screen.getByRole("option", { name: "Hub" })).toBeVisible();
+
+    await userEvent.fill(field, "yar");
+    await expect.element(screen.getByRole("option", { name: "Yard" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Hub" }).elements()).toHaveLength(0);
+
+    await userEvent.click(screen.getByRole("option", { name: "Yard" }));
+    expect(posted()).toBe(YARD);
+    await expect.element(field).toHaveValue("Yard");
+
+    // and back to the empty choice
+    await userEvent.click(field);
+    await userEvent.click(screen.getByRole("option", { name: "Every division" }));
+    expect(posted()).toBe("");
+  });
+
+  it("loads an edit in its Division, and keeps an Inactive one marked, out of the others' choices", async () => {
+    const choices = [{ id: HUB, name: "Hub", inactive: true }, DIVISIONS[1]!];
+    const screen = await render(RoleForm, {
+      held: HELD,
+      divisions: choices,
+      form: await editing(HUB),
+      reloadHref: "/master/roles/1/edit",
+      holders: 0
+    });
+
+    await expect
+      .element(screen.getByRole("combobox", { name: "Division" }))
+      .toHaveValue("Hub (inactive)");
+    expect(posted()).toBe(HUB);
+  });
+
+  it("says how many users hold the role, and that their division changes with it, once the Division changes", async () => {
+    const screen = await render(RoleForm, {
+      held: HELD,
+      divisions: DIVISIONS,
+      form: await editing(HUB),
+      reloadHref: "/master/roles/1/edit",
+      holders: 3
+    });
+    const note = screen.getByText(/division changes with it/);
+
+    // as loaded, there is nothing to warn of
+    expect(note.elements()).toHaveLength(0);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Division" }));
+    await userEvent.click(screen.getByRole("option", { name: "Yard" }));
+    await expect
+      .element(note)
+      .toHaveTextContent("3 users hold this role. Their division changes with it.");
+
+    // choosing the one it came from takes the warning back
+    await userEvent.click(screen.getByRole("combobox", { name: "Division" }));
+    await userEvent.click(screen.getByRole("option", { name: "Hub" }));
+    expect(note.elements()).toHaveLength(0);
+  });
+
+  it("names one holder in the singular, and says nothing for a role nobody holds", async () => {
+    const one = await render(RoleForm, {
+      held: HELD,
+      divisions: DIVISIONS,
+      form: await editing(HUB),
+      reloadHref: "/master/roles/1/edit",
+      holders: 1
+    });
+    await userEvent.click(one.getByRole("combobox", { name: "Division" }));
+    await userEvent.click(one.getByRole("option", { name: "Every division" }));
+    await expect
+      .element(one.getByText("1 user holds this role. Their division changes with it."))
+      .toBeVisible();
+
+    document.body.innerHTML = "";
+    const none = await render(RoleForm, {
+      held: HELD,
+      divisions: DIVISIONS,
+      form: await editing(HUB),
+      reloadHref: "/master/roles/1/edit",
+      holders: 0
+    });
+    await userEvent.click(none.getByRole("combobox", { name: "Division" }));
+    await userEvent.click(none.getByRole("option", { name: "Yard" }));
+    expect(none.getByText(/division changes with it/).elements()).toHaveLength(0);
+  });
+
+  it("passes axe with its list open, long enough to scroll, and closed", async () => {
+    const many = Array.from({ length: 14 }, (_, index) => ({
+      id: `d1000000-0000-4000-8000-0000000001${String(index).padStart(2, "0")}`,
+      name: `Division ${index + 1}`,
+      inactive: false
+    }));
+    const form = await superValidate(zod4(RoleFormSchema), { errors: false });
+    const screen = await render(RoleForm, { held: HELD, divisions: many, form });
+
+    expect(await axeViolations(document.body)).toEqual([]);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Division" }));
+    await expect.element(screen.getByRole("option", { name: "Division 14" })).toBeVisible();
+    // axe reads the colours it sees: wait out the list's fade in
+    await expect.poll(() => document.getAnimations().length).toBe(0);
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("opens its list under the whole field, the same width and left edge", async () => {
+    const form = await superValidate(zod4(RoleFormSchema), { errors: false });
+    const screen = await render(RoleForm, { held: HELD, divisions: DIVISIONS, form });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Division" }));
+    const list = await vi.waitUntil(() => document.querySelector("[data-slot=division-options]"));
+    const field = screen.getByRole("combobox", { name: "Division" }).element().parentElement!;
+
+    await expect
+      .poll(() =>
+        Math.round(list.getBoundingClientRect().left - field.getBoundingClientRect().left)
+      )
+      .toBe(0);
+    expect(Math.round(list.getBoundingClientRect().width)).toBe(
+      Math.round(field.getBoundingClientRect().width)
+    );
   });
 });

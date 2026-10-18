@@ -1,6 +1,8 @@
 import type { Division, RoleDetail, User } from "@vmb/types";
+import { superValidate } from "sveltekit-superforms/server";
+import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
-import { divisionFormData, roleFormData, userFormData } from "./form-data.js";
+import { RoleFormSchema, divisionFormData, roleFormData, userFormData } from "./form-data.js";
 
 const STAMP = "2026-01-05T01:10:00.123Z";
 const ID = "d1000000-0000-4000-8000-000000000001";
@@ -28,6 +30,8 @@ const role: RoleDetail = {
   description: null,
   divisionId: null,
   divisionName: null,
+  divisionInactive: false,
+  userCount: 0,
   permissionCount: 2,
   permissionKeys: ["master-users.view", "master-users.view_any"],
   createdAt: STAMP,
@@ -62,10 +66,36 @@ describe("edit form data", () => {
     expect(userFormData({ ...user, updatedAt: null }).updatedAt).toBeNull();
   });
 
+  it("loads a role's Division, or none for every Division, so a save that changes nothing else keeps it", () => {
+    expect(roleFormData(role).divisionId).toBeNull();
+    expect(roleFormData({ ...role, divisionId: ID, divisionName: "Hub" }).divisionId).toBe(ID);
+  });
+
   it("loads a role's grants, so a save that changes nothing else keeps them", () => {
     expect(roleFormData(role).permissionKeys).toEqual([
       "master-users.view",
       "master-users.view_any"
     ]);
+  });
+});
+
+describe("the Role form's Division, as a post carries it", () => {
+  const post = (divisionId?: string) => {
+    const data = new FormData();
+    data.set("name", "Staff");
+    if (divisionId !== undefined) data.set("divisionId", divisionId);
+    return superValidate(data, zod4(RoleFormSchema));
+  };
+
+  it("reads the empty choice, Every division, as null and valid", async () => {
+    const parsed = await post("");
+
+    expect(parsed.valid).toBe(true);
+    expect(parsed.data.divisionId).toBeNull();
+  });
+
+  it("reads a Division's id as it is, and refuses text that is not an id", async () => {
+    await expect(post(ID)).resolves.toMatchObject({ valid: true, data: { divisionId: ID } });
+    await expect(post("hub")).resolves.toMatchObject({ valid: false });
   });
 });

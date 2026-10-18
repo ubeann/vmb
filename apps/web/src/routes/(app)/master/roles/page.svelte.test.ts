@@ -42,14 +42,20 @@ async function loadLayer(href: string) {
   if (id === "new") {
     const form = await superValidate(zod4(RoleInputSchema), { errors: false });
     form.data.isActive = true;
-    return { type: "loaded" as const, status: 200, data: { form } };
+    return { type: "loaded" as const, status: 200, data: { form, divisions: [] } };
   }
   const record = [staff, inactive, admin].find((role) => role.id === id);
   if (!record) return { type: "loaded" as const, status: 404, data: {} };
-  const detail: RoleDetail = { ...record, divisionName: null, permissionKeys: [] };
+  const detail: RoleDetail = {
+    ...record,
+    divisionName: null,
+    divisionInactive: false,
+    userCount: 0,
+    permissionKeys: []
+  };
   if (edit) {
     const form = await superValidate(roleFormData(detail), zod4(RoleUpdateInputSchema));
-    return { type: "loaded" as const, status: 200, data: { role: detail, form } };
+    return { type: "loaded" as const, status: 200, data: { role: detail, form, divisions: [] } };
   }
   return {
     type: "loaded" as const,
@@ -562,7 +568,14 @@ describe("a Role in the layer over the list (#303)", () => {
       type: "loaded" as const,
       status: 200,
       data: {
-        role: { ...staff, divisionId: "x", divisionName: "Warehouse", permissionKeys: [] },
+        role: {
+          ...staff,
+          divisionId: "x",
+          divisionName: "Warehouse",
+          divisionInactive: false,
+          userCount: 0,
+          permissionKeys: []
+        },
         permissions: ALL
       }
     }));
