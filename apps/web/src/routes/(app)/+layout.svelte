@@ -21,6 +21,7 @@
   <AppShell
     user={data.user}
     division={data.division}
+    permissions={data.permissions}
     sidebarOpen={data.sidebarOpen}
     sidebarSaved={data.sidebarSaved}
   >

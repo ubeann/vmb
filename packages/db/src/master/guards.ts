@@ -133,7 +133,21 @@ export function outOfReach() {
  */
 export function withinReach(actor: Actor, targetId: string): SQL {
   if (isSelf(actor, targetId)) return sql`true`;
+  return holdsNothingBeyond(actor);
+}
 
+/**
+ * `withinReach` for the row being selected, so a list or a record can say, for
+ * the caller, which of its users they may change: the web offers no edit,
+ * delete or restore of one the API would refuse. The caller's own row is within
+ * reach, as the guard has it. Like `withinReach` it reads `master.users`.
+ */
+export function userWithinReach(actor: Actor): SQL {
+  return sql`(${users.id} = ${actor.id}::uuid or ${holdsNothingBeyond(actor)})`;
+}
+
+/** The user in `master.users` holds, through active roles, no permission outside `actor`'s. */
+function holdsNothingBeyond(actor: Actor): SQL {
   const held = textArray(actor.permissions);
 
   return sql`not exists (

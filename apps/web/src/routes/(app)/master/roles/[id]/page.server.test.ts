@@ -46,7 +46,8 @@ const role = {
   isSystem: false,
   iconName: "user",
   colorHex: "#805AD5",
-  permissionKeys: ["master-roles.view_any"]
+  permissionKeys: ["master-roles.view_any"],
+  grantable: true
 };
 
 const ALL = ["master-roles.view_any", "master-roles.create", "master-roles.update"];
@@ -99,7 +100,11 @@ describe("a role's edit route", () => {
   it("is refused for a role that grants what the caller lacks, as the API refuses its save", async () => {
     getRoleMock.mockResolvedValue({
       ok: true,
-      value: { ...role, permissionKeys: ["master-roles.view_any", "master-users.delete"] }
+      value: {
+        ...role,
+        permissionKeys: ["master-roles.view_any", "master-users.delete"],
+        grantable: false
+      }
     });
 
     await expect(edit.load(event)).rejects.toMatchObject({

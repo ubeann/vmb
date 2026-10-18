@@ -17,6 +17,7 @@
 <AppShell
   user={{ id: "u-1", name: "Siti Rahma", email: "siti@vmblogistics.id" }}
   division={null}
+  permissions={data.permissions}
   {sidebarOpen}
   {sidebarSaved}
 >

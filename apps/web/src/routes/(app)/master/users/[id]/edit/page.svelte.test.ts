@@ -21,7 +21,8 @@ const user: User = {
   profilePhotoPath: null,
   createdAt: STAMP,
   updatedAt: STAMP,
-  deletedAt: null
+  deletedAt: null,
+  withinReach: true
 };
 
 async function pageData(overrides: Record<string, unknown> = {}) {

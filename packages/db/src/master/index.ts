@@ -74,14 +74,14 @@ export type MasterStore = {
   /** Delete, restore, activate or deactivate several divisions, all or none (#305, #467). */
   bulkDivisions(request: DivisionBulkRequest): Promise<BulkResponse>;
 
-  listRoles(query: RoleListRequest): Promise<RoleListResponse>;
-  getRole(id: string): Promise<RoleDetail>;
+  listRoles(query: RoleListRequest, actor: Actor): Promise<RoleListResponse>;
+  getRole(id: string, actor: Actor): Promise<RoleDetail>;
   createRole(input: RoleInput, actor: Actor): Promise<Role>;
   updateRole(id: string, input: RoleUpdateInput, actor: Actor): Promise<Role>;
   deleteRole(id: string): Promise<void>;
 
-  listUsers(query: UserListRequest): Promise<UserListResponse>;
-  getUser(id: string): Promise<User>;
+  listUsers(query: UserListRequest, actor: Actor): Promise<UserListResponse>;
+  getUser(id: string, actor: Actor): Promise<User>;
   getSignInEligibility(id: string): Promise<SignInEligibility>;
   createUser(input: UserCreateInput, actor: Actor): Promise<User>;
   updateUser(id: string, input: UserUpdateInput, actor: Actor): Promise<User>;
@@ -109,14 +109,14 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     setDivisionActive: (id, isActive) => setDivisionActive(db, id, isActive),
     bulkDivisions: (request) => bulkDivisions(options, request),
 
-    listRoles: (query) => listRoles(db, query),
-    getRole: (id) => getRole(db, id),
+    listRoles: (query, actor) => listRoles(db, query, actor),
+    getRole: (id, actor) => getRole(db, id, actor),
     createRole: (input, actor) => createRole(db, input, actor),
     updateRole: (id, input, actor) => updateRole(db, id, input, actor),
     deleteRole: (id) => deleteRole(db, id),
 
-    listUsers: (query) => listUsers(db, query),
-    getUser: (id) => getUser(db, id),
+    listUsers: (query, actor) => listUsers(db, query, actor),
+    getUser: (id, actor) => getUser(db, id, actor),
     getSignInEligibility: (id) => getSignInEligibility(db, id),
     createUser: (input, actor) => createUser(db, options, input, actor),
     updateUser: (id, input, actor) => updateUser(db, options, id, input, actor),

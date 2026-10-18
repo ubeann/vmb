@@ -22,6 +22,7 @@ const role: RoleDetail = {
   divisionInactive: false,
   userCount: 0,
   permissionCount: 0,
+  grantable: true,
   permissionKeys: [],
   createdAt: STAMP,
   updatedAt: STAMP

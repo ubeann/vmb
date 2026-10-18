@@ -44,15 +44,17 @@ import {
 /** The legacy policy refuses to modify a system role (`RolePolicy.php`). */
 const SYSTEM_ROLE_MESSAGE = "System roles cannot be modified or deleted.";
 
-// a role's columns plus how many permissions it grants, so a list needs no second query
-const roleColumns = {
+// a role's columns plus how many permissions it grants, so a list needs no second query,
+// and whether the caller may grant it, so a screen need not restate the rule
+const roleColumns = (actor: Actor) => ({
   ...getTableColumns(roles),
   permissionCount: sql<number>`(
     select cast(count(*) as integer) from master.role_permissions rp where rp.role_id = ${roles.id}
-  )`.mapWith(Number)
-};
+  )`.mapWith(Number),
+  grantable: sql<boolean>`${roleWithinReach(actor)}`
+});
 
-type RoleRow = typeof roles.$inferSelect & { permissionCount: number };
+type RoleRow = typeof roles.$inferSelect & { permissionCount: number; grantable: boolean };
 
 // a Division no role can be moved into: Inactive, or Trashed (the Inactive rule)
 const divisionOutOfUse = sql`(not ${divisions.isActive} or ${divisions.deletedAt} is not null)`;
@@ -78,6 +80,7 @@ function toRole(row: RoleRow): Role {
     description: row.description,
     divisionId: row.divisionId,
     permissionCount: row.permissionCount,
+    grantable: row.grantable,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt)
   };
@@ -114,7 +117,11 @@ function statusCondition(status: RoleListRequest["status"]): SQL | undefined {
  * the search and the other filters (ADR-0051 rule 4), from one aggregate over
  * the rows the shared conditions match.
  */
-export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<RoleListResponse> {
+export async function listRoles(
+  db: MasterDb,
+  query: RoleListRequest,
+  actor: Actor
+): Promise<RoleListResponse> {
   const shared = sharedConditions(query);
   const status = statusCondition(query.status);
   const column = SORT_COLUMNS[query.sort];
@@ -122,7 +129,7 @@ export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<R
 
   const [rows, totals] = await Promise.all([
     db
-      .select(roleColumns)
+      .select(roleColumns(actor))
       .from(roles)
       .where(and(...shared, status))
       .orderBy(order, asc(roles.name), asc(roles.id))
@@ -154,10 +161,10 @@ export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<R
  * It also counts the users who hold it, the number a change of Division moves
  * (the one `ROLE_IN_USE` names).
  */
-export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
+export async function getRole(db: MasterDb, id: string, actor: Actor): Promise<RoleDetail> {
   const rows = await db
     .select({
-      role: getTableColumns(roles),
+      role: roleColumns(actor),
       divisionName: divisions.name,
       divisionInactive: sql<boolean>`${divisions.id} is not null and ${divisionOutOfUse}`,
       userCount: sql<number>`(
@@ -243,6 +250,8 @@ async function assertDivisionChoosable(
  * What a raw role statement returns, under the names a `Role` has. The stamps
  * are formatted in SQL, so every driver hands back the same ISO string the
  * query builder's would; `permissionCount` is the grants once it is written.
+ * A role the caller just created or edited is grantable: both statements hold
+ * it to the caller's own permissions.
  */
 function returnedRole(permissionCount: SQL): SQL {
   const iso = (column: string) =>
@@ -250,6 +259,7 @@ function returnedRole(permissionCount: SQL): SQL {
   return sql`r.id, r.name, r.is_active as "isActive", r.is_system as "isSystem",
     r.color_hex as "colorHex", r.icon_name as "iconName", r.description,
     r.division_id as "divisionId", ${permissionCount} as "permissionCount",
+    true as "grantable",
     ${iso("r.created_at")} as "createdAt", ${iso("r.updated_at")} as "updatedAt"`;
 }
 

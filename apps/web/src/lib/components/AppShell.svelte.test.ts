@@ -39,6 +39,7 @@ const division = { name: "Warehouse", iconName: "store" };
 const props = (overrides: Record<string, unknown> = {}) => ({
   user,
   division,
+  permissions: ["master-divisions.view_any", "master-roles.view_any", "master-users.view_any"],
   sidebarOpen: true,
   sidebarSaved: true,
   children: body,
@@ -76,6 +77,53 @@ describe("AppShell", () => {
     await expect
       .element(nav.getByRole("link", { name: "Dashboard" }))
       .not.toHaveAttribute("aria-current");
+  });
+
+  it("lists only the screens the caller may open", async () => {
+    await desktop();
+    const screen = await render(AppShell, props({ permissions: ["master-roles.view_any"] }));
+
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    await expect.element(nav.getByRole("link", { name: "Dashboard" })).toBeVisible();
+    await expect.element(nav.getByRole("link", { name: "Roles" })).toBeVisible();
+    await expect.element(nav.getByRole("link", { name: "Divisions" })).not.toBeInTheDocument();
+    await expect.element(nav.getByRole("link", { name: "Users" })).not.toBeInTheDocument();
+  });
+
+  it("drops the Master group for a caller who may open none of its lists", async () => {
+    await desktop();
+    const screen = await render(AppShell, props({ permissions: ["master-users.view"] }));
+
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    await expect.element(nav.getByRole("link", { name: "Dashboard" })).toBeVisible();
+    await expect.element(nav.getByText("Master")).not.toBeInTheDocument();
+    await expect.element(nav.getByRole("link", { name: "Users" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a record's trail when its list is not the caller's to open", async () => {
+    await desktop();
+    mockPage.url = new URL("http://localhost/master/users/3f2");
+    mockPage.data = { crumb: { label: "Rina Wijaya" } };
+    const screen = await render(AppShell, props({ permissions: ["master-users.view"] }));
+
+    await expect.element(screen.getByText("Rina Wijaya")).toBeVisible();
+    // the Users crumb names the section but is no link to a list the API would refuse
+    const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+    await expect.element(trail.getByText("Users")).toBeVisible();
+    expect(trail.getByRole("link", { name: "Users" }).elements()).toHaveLength(0);
+  });
+
+  it("links the section crumb when the caller may open its list", async () => {
+    await desktop();
+    mockPage.url = new URL("http://localhost/master/users/3f2");
+    mockPage.data = { crumb: { label: "Rina Wijaya" } };
+    const screen = await render(AppShell, props());
+
+    await expect
+      .element(
+        screen.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Users" })
+      )
+      .toHaveAttribute("href", "/master/users");
   });
 
   it("washes the current page green and the hovered one warm in light mode, not blue", async () => {

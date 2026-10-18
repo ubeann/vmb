@@ -3,6 +3,11 @@ import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
+
+// Isolated renders don't load the global stylesheet; axe's colour reads need it.
+import "../../app.css";
+
+import { axeViolations } from "$lib/a11y-support.js";
 import type { RoleOption } from "./loads.js";
 
 const { render } = await import("vitest-browser-svelte");
@@ -13,10 +18,43 @@ const STAFF = "c1000000-0000-4000-8000-000000000002";
 const HUB = "c1000000-0000-4000-8000-000000000003";
 
 const roles: RoleOption[] = [
-  { id: FINANCE, name: "Manager Finance", divisionName: "Finance", divisionInactive: false },
-  { id: STAFF, name: "Staff", divisionName: null, divisionInactive: false },
-  { id: HUB, name: "Hub staff", divisionName: "Hub", divisionInactive: true }
+  {
+    id: FINANCE,
+    name: "Manager Finance",
+    isActive: true,
+    divisionName: "Finance",
+    divisionInactive: false,
+    grantable: true
+  },
+  {
+    id: STAFF,
+    name: "Staff",
+    isActive: true,
+    divisionName: null,
+    divisionInactive: false,
+    grantable: true
+  },
+  {
+    id: HUB,
+    name: "Hub staff",
+    isActive: true,
+    divisionName: "Hub",
+    divisionInactive: true,
+    grantable: true
+  }
 ];
+
+// a role granting what the caller does not hold: theirs neither to give nor to take away
+const ADMIN = "c1000000-0000-4000-8000-000000000004";
+const superAdmin: RoleOption = {
+  id: ADMIN,
+  name: "Super Admin",
+  isActive: true,
+  divisionName: null,
+  divisionInactive: false,
+  grantable: false
+};
+const HINT = "You don't hold every permission this role grants";
 
 const posted = (name: string) =>
   Array.from(document.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`)).map(
@@ -69,6 +107,92 @@ describe("UserForm", () => {
 
     await screen.getByRole("button", { name: "Remove the role Manager Finance" }).click();
     expect(posted("roleIds")).toEqual([]);
+  });
+
+  describe("a role the caller may not grant", () => {
+    it("shows disabled in the list with the hint, and cannot be chosen", async () => {
+      const form = await superValidate(zod4(UserUpdateInputSchema));
+      const screen = await render(UserForm, { form, roles: [...roles, superAdmin] });
+
+      await screen.getByRole("combobox", { name: "Roles" }).click();
+      const option = screen.getByRole("option", { name: /Super Admin/ });
+      await expect.element(option).toBeVisible();
+      await expect.element(option).toHaveAttribute("aria-disabled", "true");
+      await expect.element(option.getByText(HINT)).toBeVisible();
+      // a role the caller may grant has no hint
+      await expect
+        .element(screen.getByRole("option", { name: /Staff/ }).getByText(HINT))
+        .not.toBeInTheDocument();
+
+      await option.click({ force: true });
+      expect(posted("roleIds")).toEqual([]);
+    });
+
+    for (const scheme of ["light", "dark"] as const) {
+      it(`has no axe violations in ${scheme} mode: the held chip, and the disabled option with its hint`, async () => {
+        document.documentElement.classList.toggle("dark", scheme === "dark");
+        const form = await superValidate(
+          { roleIds: [ADMIN], status: "active" },
+          zod4(UserUpdateInputSchema)
+        );
+        const other: RoleOption = {
+          ...superAdmin,
+          id: "c1000000-0000-4000-8000-000000000005",
+          name: "Auditor"
+        };
+        const screen = await render(UserForm, { form, roles: [...roles, superAdmin, other] });
+
+        const field = screen.getByRole("combobox", { name: "Roles" });
+        const chip = document.querySelector("[data-slot=role-chip]");
+        expect(await axeViolations(chip as Element)).toEqual([]);
+
+        await field.click();
+        const option = screen.getByRole("option", { name: /Auditor/ });
+        await expect.element(option).toBeVisible();
+        // axe is run on the option alone: the open list's own listbox and combobox findings
+        // are the picker's, and there before this role was disabled
+        await new Promise((done) => setTimeout(done, 400));
+        expect(await axeViolations(option.element())).toEqual([]);
+        document.documentElement.classList.remove("dark");
+      });
+    }
+
+    it("is disabled on the create form too, where nobody holds anything yet", async () => {
+      const form = await superValidate(zod4(UserCreateInputSchema), { errors: false });
+      const screen = await render(UserForm, { form, roles: [superAdmin, ...roles] });
+
+      await screen.getByRole("combobox", { name: "Roles" }).click();
+      await expect
+        .element(screen.getByRole("option", { name: /Super Admin/ }))
+        .toHaveAttribute("aria-disabled", "true");
+    });
+
+    it("stays on a user who holds it, with no way to remove it, and the rest still can go", async () => {
+      const form = await superValidate(
+        { roleIds: [ADMIN, STAFF], status: "active" },
+        zod4(UserUpdateInputSchema)
+      );
+      const screen = await render(UserForm, { form, roles: [...roles, superAdmin] });
+      expect(posted("roleIds")).toEqual([ADMIN, STAFF]);
+
+      // a chip with no remove button, saying why in words
+      await expect
+        .element(screen.getByRole("button", { name: "Remove the role Super Admin" }))
+        .not.toBeInTheDocument();
+      await expect
+        .element(screen.getByText("Super Admin, which you can't remove"))
+        .toBeInTheDocument();
+      await screen.getByRole("button", { name: "Remove the role Staff" }).click();
+      expect(posted("roleIds")).toEqual([ADMIN]);
+
+      // Backspace in the empty field leaves it too, and so does choosing it from the list
+      await screen.getByRole("combobox", { name: "Roles" }).click();
+      await userEvent.keyboard("{Escape}{Backspace}");
+      expect(posted("roleIds")).toEqual([ADMIN]);
+      await screen.getByRole("combobox", { name: "Roles" }).click();
+      await screen.getByRole("option", { name: /Super Admin/ }).click({ force: true });
+      expect(posted("roleIds")).toEqual([ADMIN]);
+    });
   });
 
   it("takes the last role back on Backspace in the empty field", async () => {

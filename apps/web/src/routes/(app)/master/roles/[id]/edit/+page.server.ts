@@ -24,8 +24,7 @@ export const load: PageServerLoad = async (event) => {
   // nobody can edit a System Role: the API answers an edit of it 403, and so does this
   if (role.isSystem) error(403, "System roles cannot be modified or deleted.");
   // nor one that grants what the caller lacks (ADR-0045's amendment of 2026-10-17)
-  const { permissions } = await event.parent();
-  if (!role.permissionKeys.every((key) => permissions.includes(key))) {
+  if (!role.grantable) {
     error(403, "You cannot change a role that carries permissions you do not have.");
   }
 

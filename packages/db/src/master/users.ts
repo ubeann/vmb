@@ -31,6 +31,7 @@ import {
   currentRoleIds,
   outOfReach,
   uniqueIds,
+  userWithinReach,
   withinReach,
   type Actor
 } from "./guards.js";
@@ -51,7 +52,7 @@ import { DomainError, ForbiddenError, NotFoundError, StaleRecordError } from "..
 // A user's columns plus whether Better Auth has verified the email: the
 // identity owns verification (ADR-0032), so it is read from there rather than
 // kept as a second copy on the business row.
-const userColumns = {
+const userColumns = (actor: Actor) => ({
   ...getTableColumns(users),
   emailVerified: sql<boolean>`coalesce(${authUser.emailVerified}, false)`,
   // the roles the user holds, by name, so a list needs no second query
@@ -68,18 +69,21 @@ const userColumns = {
        select r.division_id from master.user_roles ur join master.roles r on r.id = ur.role_id
         where ur.user_id = ${users.id} and r.division_id is not null
      )
-  ), '[]'::json)`
-};
+  ), '[]'::json)`,
+  // whether the caller may change the user, so a screen need not restate the rule
+  withinReach: sql<boolean>`${userWithinReach(actor)}`
+});
 
 type UserRow = typeof users.$inferSelect & {
   emailVerified: boolean;
+  withinReach: boolean;
   roles: Array<{ id: string; name: string }>;
   divisions: Array<{ id: string; name: string }>;
 };
 
-function selectUsers(db: MasterDb) {
+function selectUsers(db: MasterDb, actor: Actor) {
   return db
-    .select(userColumns)
+    .select(userColumns(actor))
     .from(users)
     .leftJoin(authUser, sql`${authUser.id} = ${users.id}::text`);
 }
@@ -116,7 +120,8 @@ function toUser(row: UserRow): User {
     profilePhotoPath: row.profilePhotoPath,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
-    deletedAt: toIso(row.deletedAt)
+    deletedAt: toIso(row.deletedAt),
+    withinReach: row.withinReach
   };
 }
 
@@ -189,7 +194,11 @@ function roleCondition(role: UserListRequest["role"]): SQL | undefined {
  * options of. The counts come from one aggregate over the rows the shared
  * conditions match, and one grouped read each for the divisions and the roles.
  */
-export async function listUsers(db: MasterDb, query: UserListRequest): Promise<UserListResponse> {
+export async function listUsers(
+  db: MasterDb,
+  query: UserListRequest,
+  actor: Actor
+): Promise<UserListResponse> {
   const shared = sharedConditions(query);
   const view = viewCondition(query.trashed);
   const status = statusCondition(query.status);
@@ -199,7 +208,7 @@ export async function listUsers(db: MasterDb, query: UserListRequest): Promise<U
   const order = query.dir === "asc" ? asc(column) : desc(column);
 
   const [rows, totals, divisionCounts, roleCounts] = await Promise.all([
-    selectUsers(db)
+    selectUsers(db, actor)
       .where(and(...shared, view, status, division, role))
       .orderBy(order, asc(users.id))
       .limit(query.perPage)
@@ -257,8 +266,8 @@ export async function listUsers(db: MasterDb, query: UserListRequest): Promise<U
   };
 }
 
-export async function getUser(db: MasterDb, id: string): Promise<User> {
-  const rows = await selectUsers(db).where(eq(users.id, id)).limit(1);
+export async function getUser(db: MasterDb, id: string, actor: Actor): Promise<User> {
+  const rows = await selectUsers(db, actor).where(eq(users.id, id)).limit(1);
   const row = rows[0];
   if (!row) throw new NotFoundError("User not found.");
   return toUser(row);
@@ -296,6 +305,11 @@ function accountUnavailable() {
   return new ForbiddenError("FORBIDDEN", "This account is unavailable. Contact an administrator.");
 }
 
+/** Reading your own record: it is always within your reach, whatever you hold. */
+function asSelf(id: string): Actor {
+  return { id, permissions: [] };
+}
+
 /**
  * The signed-in caller's own record, for their profile page. Only an Active,
  * live user may read it, the same rule as signing in.
@@ -305,7 +319,7 @@ export async function getOwnProfile(db: MasterDb, id: string): Promise<User> {
   if (!eligibility || eligibility.deletedAt !== null || eligibility.status !== "active") {
     throw accountUnavailable();
   }
-  return getUser(db, id);
+  return getUser(db, id, asSelf(id));
 }
 
 /**
@@ -343,7 +357,7 @@ export async function updateOwnProfile(
   `);
   if (rowsOf(result).length === 0) throw accountUnavailable();
 
-  return getUser(db, id);
+  return getUser(db, id, asSelf(id));
 }
 
 /** A SQL `uuid[]` for a list of ids, empty included. */
@@ -398,7 +412,7 @@ export async function createUser(
     return conflictFrom(error, EMAIL_CONFLICT);
   }
 
-  return getUser(db, id);
+  return getUser(db, id, actor);
 }
 
 /**
@@ -515,7 +529,7 @@ export async function updateUser(
     await db.delete(authSession).where(eq(authSession.userId, id));
   }
 
-  return getUser(db, id);
+  return getUser(db, id, actor);
 }
 
 /**
@@ -709,7 +723,7 @@ export async function deleteUser(db: MasterDb, id: string, actor: Actor): Promis
 
 export async function restoreUser(db: MasterDb, id: string, actor: Actor): Promise<User> {
   await writeRestore(db, id, actor);
-  return getUser(db, id);
+  return getUser(db, id, actor);
 }
 
 async function writeRestore(db: MasterDb, id: string, actor: Actor): Promise<void> {

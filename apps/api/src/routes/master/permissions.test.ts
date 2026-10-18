@@ -188,7 +188,8 @@ describe("master API permissions", () => {
       profilePhotoPath: "",
       createdAt: "2026-01-05T01:10:00.000Z",
       updatedAt: "2026-01-05T01:10:00.000Z",
-      deletedAt: null
+      deletedAt: null,
+      withinReach: true
     }));
     const methods = { getPermissions, updateUser } as Record<string, unknown>;
     const store = new Proxy({} as MasterStore, {

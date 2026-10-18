@@ -39,7 +39,7 @@
   import SiteFooter from "$lib/components/SiteFooter.svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { trailFor } from "$lib/breadcrumbs.js";
-  import { isCurrent, NAV_GROUPS, visibleGroups } from "$lib/nav.js";
+  import { canOpen, isCurrent, NAV_GROUPS, visibleGroups } from "$lib/nav.js";
   import { NAV_ICONS } from "$lib/nav-icons.js";
   import { onMount, type Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
@@ -47,19 +47,22 @@
   let {
     user,
     division,
+    permissions,
     sidebarOpen,
     sidebarSaved,
     children
   }: {
     user: { id: string; name: string; email: string; image?: string | null };
     division: { name: string; iconName: string } | null;
+    /** What the caller's roles grant: the sidebar lists only the screens they may open. */
+    permissions: readonly string[];
     sidebarOpen: boolean;
     /** Whether `sidebarOpen` is the user's own saved choice, rather than the default. */
     sidebarSaved: boolean;
     children: Snippet;
   } = $props();
 
-  const groups = visibleGroups(NAV_GROUPS);
+  const groups = $derived(visibleGroups(NAV_GROUPS, canOpen(permissions)));
 
   // The user's toggle, once there is one: it wins over the tablet default from then on.
   let chosen = $state<boolean | null>(null);
@@ -68,7 +71,20 @@
   onMount(() => (mounted = true));
   const open = $derived(chosen ?? (sidebarSaved ? sidebarOpen : !(mounted && tablet.current)));
 
-  const trail = $derived(trailFor(page.url.pathname, page.data.crumb, groups));
+  // the trail names where a page sits, so it reads the whole menu: a record opened by its link
+  // keeps its crumbs when its list is not the caller's to open, but then the section crumb is
+  // plain text, not a link to a list the API refuses
+  const hrefs = (from: typeof NAV_GROUPS) =>
+    new Set<string>(from.flatMap((group) => group.items.map((item) => item.href)));
+  const menuHrefs = hrefs(NAV_GROUPS);
+  const openable = $derived(hrefs(groups));
+  const trail = $derived(
+    trailFor(page.url.pathname, page.data.crumb).map((crumb) =>
+      crumb.href && menuHrefs.has(crumb.href) && !openable.has(crumb.href)
+        ? { ...crumb, href: undefined }
+        : crumb
+    )
+  );
 
   // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);

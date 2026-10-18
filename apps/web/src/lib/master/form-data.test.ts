@@ -33,6 +33,7 @@ const role: RoleDetail = {
   divisionInactive: false,
   userCount: 0,
   permissionCount: 2,
+  grantable: true,
   permissionKeys: ["master-users.view", "master-users.view_any"],
   createdAt: STAMP,
   updatedAt: STAMP
@@ -50,7 +51,8 @@ const user: User = {
   profilePhotoPath: null,
   createdAt: STAMP,
   updatedAt: STAMP,
-  deletedAt: null
+  deletedAt: null,
+  withinReach: true
 };
 
 describe("edit form data", () => {

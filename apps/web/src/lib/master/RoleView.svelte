@@ -42,9 +42,8 @@
   const can = (permission: PermissionKey) => permissions.includes(permission);
 
   // a System Role is read-only whoever the caller is, and so is one that grants
-  // what the caller lacks; the API refuses the same
-  const inReach = $derived(role.permissionKeys.every((key) => permissions.includes(key)));
-  const canEdit = $derived(!role.isSystem && inReach && can("master-roles.update"));
+  // what the caller lacks (`grantable`, from the API); the API refuses the same
+  const canEdit = $derived(!role.isSystem && role.grantable && can("master-roles.update"));
 
   // what it grants, by resource in catalogue order, with each action's label
   const granted = $derived.by(() => {
@@ -132,7 +131,7 @@
         {/each}
       </dl>
     {/if}
-    {#if !role.isSystem && !inReach && can("master-roles.update")}
+    {#if !role.isSystem && !role.grantable && can("master-roles.update")}
       <p class="text-muted-foreground text-xs text-pretty">
         It grants permissions you don't hold, so you can't edit it.
       </p>
