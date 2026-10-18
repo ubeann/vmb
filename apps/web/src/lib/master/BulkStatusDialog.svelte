@@ -45,8 +45,8 @@
     action: string;
     /** Where focus goes when the dialog closes, since the button that opened it is gone with the selection. */
     returnFocus?: () => HTMLElement | null;
-    /** Once switched, with the records whose state changed: the ones an Undo puts back. */
-    onswitched: (changed: string[], chosen: string[]) => void;
+    /** Once switched, with the records whose state changed (the ones an Undo puts back) and the state they were switched to. */
+    onswitched: (changed: string[], chosen: string[], active: boolean) => void;
   } = $props();
 
   let switching = $state(false);
@@ -62,7 +62,9 @@
   const Icon = $derived(active ? PowerIcon : PowerOffIcon);
 
   const submit: SubmitFunction = () => {
+    // Cancel stays live while the request runs, so the dialog may show another choice by the time it answers
     const chosen = [...ids];
+    const chosenActive = active;
     switching = true;
     refusal = null;
     return async ({ result, update }) => {
@@ -74,10 +76,10 @@
         else toast.error(error);
         return;
       }
-      open = false;
+      if (open && chosenActive === active && chosen.join() === ids.join()) open = false;
       if (result.type === "success") {
         const changed = result.data?.ids;
-        onswitched(Array.isArray(changed) ? (changed as string[]) : chosen, chosen);
+        onswitched(Array.isArray(changed) ? (changed as string[]) : chosen, chosen, chosenActive);
       }
       await update();
     };

@@ -80,6 +80,7 @@ vi.mock("$app/navigation", () => ({
   afterNavigate: () => {}
 }));
 beforeEach(() => {
+  holdReply = null;
   vi.spyOn(history, "go").mockImplementation((delta = 0) => {
     at += delta;
     showEntry();
@@ -91,6 +92,8 @@ beforeEach(() => {
 
 // The form action's answer, as `use:enhance` would hand it to the page.
 let deleteResult: { type: "success" | "failure"; status: number; data: Record<string, unknown> };
+// When set, the action answers only once this settles: a request still in flight.
+let holdReply: Promise<void> | null = null;
 // The real `deserialize` decodes through the running app's transport, which an
 // isolated render doesn't start, so action replies here carry plain JSON data.
 vi.mock("$app/forms", () => ({
@@ -103,6 +106,7 @@ vi.mock("$app/forms", () => ({
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const after = (await submit({ formData: new FormData(form) })) as (input: unknown) => unknown;
+      await holdReply;
       await after({ result: deleteResult, update: async () => {} });
     });
     return { destroy() {} };
@@ -2580,6 +2584,40 @@ describe("selecting divisions for a bulk action (#305)", () => {
     expect(body.get("action")).toBe("activate");
     expect(body.getAll("ids")).toEqual([division.id]);
     expect(invalidateAll).toHaveBeenCalled();
+  });
+
+  it("answers a switch the dialog has moved on from with the choice it was sent with", async () => {
+    await browser.viewport(1280, 900);
+    let release!: () => void;
+    holdReply = new Promise<void>((resolve) => (release = resolve));
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+    await screen.getByRole("button", { name: "Deactivate…" }).click();
+    deleteResult = { type: "success", status: 200, data: { ok: true, ids: [division.id] } };
+    await screen
+      .getByRole("dialog", { name: "Deactivate 2 divisions?" })
+      .getByRole("button", { name: "Deactivate" })
+      .click();
+    // Cancel stays live while the request runs: close it and ask the other way
+    await screen.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await screen.getByRole("button", { name: "Activate…" }).click();
+    const again = screen.getByRole("dialog", { name: "Activate 2 divisions?" });
+    await expect.element(again).toBeVisible();
+
+    holdReply = null;
+    release();
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("1 division deactivated", expect.anything())
+    );
+    // the new dialog is still its own question, and the Undo goes back the way it came
+    await expect.element(again).toBeVisible();
+    const [, options] = toast.success.mock.calls[0] as [string, { action: { onClick(): void } }];
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    options.action.onClick();
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 division activated"));
+    expect((fetch.mock.calls[0]?.[1]?.body as FormData).get("action")).toBe("activate");
   });
 
   it("activates the chosen rows after asking, and says so when none needed it", async () => {

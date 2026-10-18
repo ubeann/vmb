@@ -221,8 +221,7 @@
   }
 
   /** `changed` is what the batch switched: the Undo puts back those, not the ones already in the state. */
-  function bulkSwitched(changed: string[], chosen: string[]) {
-    const active = statusActive;
+  function bulkSwitched(changed: string[], chosen: string[], active: boolean) {
     selection.clear();
     if (changed.length === 0) {
       toast.success(`${manyDivisions(chosen.length)} already ${active ? "active" : "inactive"}`);
