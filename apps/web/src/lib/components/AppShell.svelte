@@ -72,8 +72,19 @@
   const open = $derived(chosen ?? (sidebarSaved ? sidebarOpen : !(mounted && tablet.current)));
 
   // the trail names where a page sits, so it reads the whole menu: a record opened by its link
-  // keeps its crumbs when its list is not the caller's to open
-  const trail = $derived(trailFor(page.url.pathname, page.data.crumb));
+  // keeps its crumbs when its list is not the caller's to open, but then the section crumb is
+  // plain text, not a link to a list the API refuses
+  const hrefs = (from: typeof NAV_GROUPS) =>
+    new Set<string>(from.flatMap((group) => group.items.map((item) => item.href)));
+  const menuHrefs = hrefs(NAV_GROUPS);
+  const openable = $derived(hrefs(groups));
+  const trail = $derived(
+    trailFor(page.url.pathname, page.data.crumb).map((crumb) =>
+      crumb.href && menuHrefs.has(crumb.href) && !openable.has(crumb.href)
+        ? { ...crumb, href: undefined }
+        : crumb
+    )
+  );
 
   // On a phone the bar lifts off the page once the page has scrolled under it.
   let scrollY = $state(0);

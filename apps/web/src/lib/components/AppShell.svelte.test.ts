@@ -107,6 +107,23 @@ describe("AppShell", () => {
     const screen = await render(AppShell, props({ permissions: ["master-users.view"] }));
 
     await expect.element(screen.getByText("Rina Wijaya")).toBeVisible();
+    // the Users crumb names the section but is no link to a list the API would refuse
+    const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+    await expect.element(trail.getByText("Users")).toBeVisible();
+    expect(trail.getByRole("link", { name: "Users" }).elements()).toHaveLength(0);
+  });
+
+  it("links the section crumb when the caller may open its list", async () => {
+    await desktop();
+    mockPage.url = new URL("http://localhost/master/users/3f2");
+    mockPage.data = { crumb: { label: "Rina Wijaya" } };
+    const screen = await render(AppShell, props());
+
+    await expect
+      .element(
+        screen.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Users" })
+      )
+      .toHaveAttribute("href", "/master/users");
   });
 
   it("washes the current page green and the hovered one warm in light mode, not blue", async () => {
