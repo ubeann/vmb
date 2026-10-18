@@ -10,6 +10,10 @@ const finance = {
 const labels = (trail: ReturnType<typeof trailFor>) => trail.map((crumb) => crumb.label);
 
 describe("trailFor", () => {
+  it("names the person's own page, which no menu item owns", () => {
+    expect(trailFor("/profile")).toEqual([{ label: "Profile", current: true }]);
+  });
+
   it("shows the group as plain text, then the section, on a list", () => {
     const trail = trailFor("/master/divisions");
 

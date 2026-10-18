@@ -1332,6 +1332,152 @@ describe("users store", () => {
       await expect(store.restoreUser(missing, ACTOR)).rejects.toThrow("Deleted user not found.");
     });
   });
+
+  describe("a person's own profile (#458)", () => {
+    const UNAVAILABLE = "This account is unavailable. Contact an administrator.";
+    const NOBODY = "00000000-0000-4000-8000-000000000000";
+
+    it("saves the name, phone and photo on the business row and the identity, leaving the email alone", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const created = await store.createUser(input(), ACTOR);
+
+        const saved = await store.updateOwnProfile(created.id, {
+          name: "Rina W.",
+          phone: "+628111000002",
+          profilePhotoPath: "https://example.test/rina.png"
+        });
+
+        expect(saved).toMatchObject({
+          name: "Rina W.",
+          phone: "+628111000002",
+          profilePhotoPath: "https://example.test/rina.png",
+          email: "rina@vmblogistics.id",
+          status: "active"
+        });
+        expect(saved.updatedAt).not.toBe(created.updatedAt);
+        expect(
+          await scalar<string>(
+            client,
+            `select name || '|' || coalesce(image, '') || '|' || email
+               from public."user" where id = '${created.id}'`
+          )
+        ).toBe("Rina W.|https://example.test/rina.png|rina@vmblogistics.id");
+      });
+    });
+
+    it("clears the photo when the link is emptied, on both rows", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const created = await store.createUser(
+          input({ profilePhotoPath: "https://example.test/rina.png" }),
+          ACTOR
+        );
+
+        const saved = await store.updateOwnProfile(created.id, {
+          name: created.name,
+          phone: "+628111000001",
+          profilePhotoPath: ""
+        });
+
+        expect(saved.profilePhotoPath).toBeNull();
+        expect(
+          await count(
+            client,
+            `select count(*)::int as value from public."user"
+              where id = '${created.id}' and image is null`
+          )
+        ).toBe(1);
+      });
+    });
+
+    it("leaves the roles, the credential and the sessions as they were", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const roleId = await insertRole(client, "Clerk");
+        const created = await store.createUser(input({ roleIds: [roleId] }), {
+          ...ACTOR,
+          permissions: allPermissionKeys()
+        });
+        await client.exec(
+          `insert into public.session (id, expires_at, token, created_at, updated_at, user_id)
+            values ('s1', now() + interval '1 day', 'token-1', now(), now(), '${created.id}')`
+        );
+
+        const saved = await store.updateOwnProfile(created.id, {
+          name: "Rina W.",
+          phone: "+628111000002",
+          profilePhotoPath: ""
+        });
+
+        expect(saved.roles.map((role) => role.id)).toEqual([roleId]);
+        expect(
+          await scalar<string>(
+            client,
+            `select password from public.account
+              where provider_id = 'credential' and account_id = '${created.id}'`
+          )
+        ).toBe("hashed:password123");
+        expect(await count(client, `select count(*)::int as value from public.session`)).toBe(1);
+      });
+    });
+
+    it("refuses a Trashed, Suspended, Inactive or missing caller and writes nothing", async () => {
+      await withMigratedDb(async (db, client) => {
+        const store = storeFor(db);
+        const edit = { name: "Changed", phone: "+628111000009", profilePhotoPath: "" };
+        const trashed = await store.createUser(input({ email: "trashed@vmblogistics.id" }), ACTOR);
+        const suspended = await store.createUser(
+          input({ email: "suspended@vmblogistics.id", status: "suspended" }),
+          ACTOR
+        );
+        const inactive = await store.createUser(
+          input({ email: "inactive@vmblogistics.id", status: "inactive" }),
+          ACTOR
+        );
+        await store.deleteUser(trashed.id, ACTOR);
+
+        for (const refused of [trashed, suspended, inactive]) {
+          await expect(store.updateOwnProfile(refused.id, edit)).rejects.toMatchObject({
+            code: "FORBIDDEN",
+            message: UNAVAILABLE
+          });
+          await expect(store.getOwnProfile(refused.id)).rejects.toMatchObject({
+            code: "FORBIDDEN",
+            message: UNAVAILABLE
+          });
+          expect(
+            await scalar<string>(
+              client,
+              `select name from public."user" where id = '${refused.id}'`
+            )
+          ).toBe("Rina Wijaya");
+          expect(
+            await scalar<string>(client, `select name from master.users where id = '${refused.id}'`)
+          ).toBe("Rina Wijaya");
+        }
+
+        await expect(store.updateOwnProfile(NOBODY, edit)).rejects.toMatchObject({
+          code: "FORBIDDEN"
+        });
+        await expect(store.getOwnProfile(NOBODY)).rejects.toMatchObject({ code: "FORBIDDEN" });
+      });
+    });
+
+    it("reads the caller's own record, email and phone included", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const created = await store.createUser(input(), ACTOR);
+
+        expect(await store.getOwnProfile(created.id)).toMatchObject({
+          id: created.id,
+          name: "Rina Wijaya",
+          email: "rina@vmblogistics.id",
+          phone: "+628111000001"
+        });
+      });
+    });
+  });
 });
 
 describe("edits over a newer save", () => {

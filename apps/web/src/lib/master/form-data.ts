@@ -65,6 +65,15 @@ export function roleFormData(role: RoleDetail) {
   };
 }
 
+/** The profile form: a person's own name, phone and photo link. */
+export function profileFormData(user: User) {
+  return {
+    name: user.name,
+    phone: user.phone ?? "",
+    profilePhotoPath: user.profilePhotoPath ?? ""
+  };
+}
+
 export function userFormData(user: User) {
   return {
     name: user.name,

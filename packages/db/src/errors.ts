@@ -58,10 +58,10 @@ export class StaleRecordError extends DomainError {
   }
 }
 
-/** The caller may not do this to this record, whatever their permissions. */
+/** The caller may not do this, whatever their permissions: to this record, or with an account that has no place in the app. */
 export class ForbiddenError extends DomainError {
   constructor(
-    readonly code: Extract<ApiErrorCode, "SYSTEM_ROLE" | "PERMISSION_ESCALATION">,
+    readonly code: Extract<ApiErrorCode, "FORBIDDEN" | "SYSTEM_ROLE" | "PERMISSION_ESCALATION">,
     message: string
   ) {
     super(message);
