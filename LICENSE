@@ -4,7 +4,14 @@ Copyright (c) 2026 Muhammad Rizal Bagus Prakasa. All rights reserved.
 
 This software, meaning the source code, documentation, designs and other
 material in this repository and its history, is owned by the copyright holder
-named above. It is published for viewing only.
+named above. It includes material carried over from the Customer's earlier
+warehouse system, which the copyright holder also wrote. It is published for
+viewing only.
+
+The copyright holder develops and maintains the software for the Customer as
+an independent vendor, not as an employee. Payment for development,
+maintenance or hosting does not transfer ownership of the copyright; only a
+written assignment signed by the copyright holder can.
 
 1. No licence to the public
 
@@ -17,13 +24,23 @@ named above. It is published for viewing only.
 
 2. Licence to the Customer
 
-   PT. Vifiera Minova Bersaudara (the "Customer") is granted a non-exclusive,
-   non-transferable, royalty-free licence to use, run, deploy and modify the
-   software for its own internal business operations. The Customer may not
-   sell, sublicense, distribute or host the software for any third party, and
-   may not transfer this licence, except with the copyright holder's written
-   consent. Where a written agreement between the Customer and the copyright
-   holder covers the software, that agreement prevails over this section.
+   PT Vifiera Minova Bersaudara (the "Customer") is granted a perpetual,
+   non-exclusive, non-transferable, royalty-free licence to use, run and deploy
+   the software for its own internal business operations. The licence covers
+   every version delivered to the Customer and continues after the copyright
+   holder's engagement with the Customer ends.
+
+   Changes to the software are made by the copyright holder. Anyone else,
+   including the Customer's own developers and other vendors or contractors,
+   may access, maintain or modify the software for the Customer only with the
+   copyright holder's prior written consent, and may not keep or reuse it for
+   anyone else.
+
+   The Customer may not sell, sublicense, distribute or host the software for
+   any third party, and may not transfer this licence, except with the
+   copyright holder's written consent. Where a written agreement between the
+   Customer and the copyright holder covers the software, that agreement
+   prevails over this section.
 
 3. Third-party material
 
