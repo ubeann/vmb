@@ -1,6 +1,7 @@
 version: 2
 updates:
-  # Actions are pinned to moving major tags. Without a bump mechanism, a new
+  # Actions are pinned to commit SHAs with the version in a trailing comment
+  # (#489); Dependabot bumps both together. Without a bump mechanism, a new
   # action runtime only surfaces here once GitHub starts force-running the old
   # one (the Node 20 deprecation warnings, issue #33). Grouped so the whole
   # workflow surface arrives as one PR a week rather than a trickle. The
