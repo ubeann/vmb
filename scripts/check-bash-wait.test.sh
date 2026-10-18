@@ -55,6 +55,13 @@ check "an until loop over gh pr checks is refused" 2 'until s=$(gh pr checks 475
 # shellcheck disable=SC2016
 check "a for loop over gh api is refused" 2 'for i in $(seq 1 16); do now=$(gh api repos/ubeann/vmb/pulls/487/reviews --jq length); echo "$now"; done'
 check "a while loop over gh run is refused" 2 'while true; do gh run list --limit 1; done'
+check "gh in the loop condition is refused" 2 'until gh pr checks 475; do :; done'
+check "a loop split across lines is refused" 2 $'until gh pr checks 475\ndo\n  :\ndone'
+check "a sleep by full path is refused" 2 "/bin/sleep 2"
+# shellcheck disable=SC2016
+check "a sleep with a variable duration is refused" 2 'n=30; sleep "$n"'
+check "a sleep with a fractional duration is refused" 2 "sleep .5; echo done"
+check "a redirect before the watch flag is still refused" 2 "gh pr checks 482 2>&1 --watch"
 
 check "a plain gh pr checks passes" 0 "gh pr checks 485"
 check "ci-failed.sh passes" 0 "scripts/ci-failed.sh 485"

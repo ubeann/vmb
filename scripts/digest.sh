@@ -68,7 +68,22 @@ fi
 
 # Search strings cannot take GraphQL variables, so they are built here.
 q() { printf 'search(query: "repo:%s %s", type: ISSUE, first: %s)' "$repo" "$1" "$2"; }
-doc=$(timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
+# GNU `timeout` is coreutils; macOS ships none, and Homebrew installs it as
+# `timeout` or `gtimeout`. Without either the call runs unbounded, which still
+# beats a report that never prints.
+with_timeout() {
+  local secs=$1
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$secs" "$@"
+  else
+    "$@"
+  fi
+}
+
+doc=$(with_timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
   decide: $(q 'is:pr is:open label:needs-decision' 20) {
     nodes { ... on PullRequest {
       number title url
@@ -96,12 +111,14 @@ doc=$(timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
   }
   openprs: $(q 'is:pr is:open' 50) {
     nodes { ... on PullRequest {
-      number title isDraft
+      number title isDraft headRefOid
       author { login }
       closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } } } }
       files(first: 100) { nodes { path } }
-      comments(first: 100) { nodes { author { login } body createdAt } }
-      reviews(first: 50) { nodes { author { login } submittedAt } }
+      comments(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } body createdAt } }
+      reviews(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } submittedAt commit { oid } } }
+      reviewThreads(first: 50) { pageInfo { hasNextPage }
+        nodes { isResolved comments(first: 10) { pageInfo { hasNextPage } nodes { author { login } } } } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }
   }
 }")
@@ -143,7 +160,12 @@ printf '%s' "$doc" | jq -r '
 
 # The same reviewer rules as merge-gate.sh: CodeRabbit on every standard or
 # complex ticket, Sourcery too when the ticket is complex or the PR touches
-# apps/api or packages/db. A PR is listed only when something is missing.
+# apps/api or packages/db; a review counts on the current head only; a
+# reviewer thread is answered when resolved or when a trusted author has the
+# last word. A PR is listed only when something is missing. The last 100
+# comments and reviews, 50 threads and 10 replies a thread are read (GitHub
+# caps one query at 500,000 nodes); anything past that is reported as unread,
+# not guessed at, and the gate reads every page before a merge.
 printf '\nreview round:\n'
 printf '%s' "$doc" | jq -r '
   def login: (. // "") | sub("\\[bot\\]$"; "");
@@ -155,16 +177,31 @@ printf '%s' "$doc" | jq -r '
   select(($labels | index("complexity:standard")) != null or ($labels | index("complexity:complex")) != null) |
   ([.files.nodes[].path] | any(test("^apps/api/") or test("^packages/db/"))) as $apidb |
   . as $pr |
-  [ {name: "CodeRabbit", bot: "coderabbitai", ask: "@coderabbitai (full )?review", due: true},
-    {name: "Sourcery", bot: "sourcery-ai", ask: "@sourcery-ai review",
-     due: ((($labels | index("complexity:complex")) != null) or $apidb)} ] |
-  map(select(.due)) |
-  map(. as $r |
-    ([$pr.comments.nodes[] | select((.author.login | trusted) and (.body | test($r.ask))) | .createdAt] | max) as $asked |
-    ([$pr.reviews.nodes[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // ""))] | length > 0) as $answered |
-    "\($r.name): \(if $asked == null then "not asked" elif $answered then "answered" else "asked \($asked[11:16])Z, no review yet" end)") |
-  select(any(.[]; endswith("answered") | not)) |
-  "  #\($pr.number)  \($pr.title)  \(join("  "))"'
+  ($pr.headRefOid) as $head |
+  ([ {name: "CodeRabbit", bot: "coderabbitai", ask: "@coderabbitai (full )?review", due: true},
+     {name: "Sourcery", bot: "sourcery-ai", ask: "@sourcery-ai review",
+      due: ((($labels | index("complexity:complex")) != null) or $apidb)} ] |
+   map(select(.due)) |
+   map(. as $r |
+     ([$pr.comments.nodes[] | select((.author.login | trusted) and (.body | test($r.ask))) | .createdAt] | max) as $asked |
+     [$pr.reviews.nodes[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // ""))] as $since |
+     (any($since[]; .commit.oid == $head)) as $answered |
+     (any($pr.comments.nodes[]; (.author.login | login) == $r.bot and .createdAt >= ($asked // "") and (.body | test("rate limit"; "i")))) as $limited |
+     "\($r.name): \(
+       if $asked == null then "not asked"
+       elif $answered then "answered"
+       elif $limited then "rate-limited, ask again later"
+       elif ($since | length) > 0 then "reviewed an older head, ask again"
+       else "asked \($asked[11:16])Z, no review yet" end)")) as $statuses |
+  ([$pr.reviewThreads.nodes[]
+    | select((.comments.nodes[0].author.login | login) | IN("coderabbitai", "sourcery-ai"))
+    | select((.isResolved | not) and ((.comments.nodes | last | .author.login | trusted) | not))] | length) as $open |
+  ($pr.comments.pageInfo.hasPreviousPage or $pr.reviews.pageInfo.hasPreviousPage or $pr.reviewThreads.pageInfo.hasNextPage
+    or any($pr.reviewThreads.nodes[]; .comments.pageInfo.hasNextPage)) as $truncated |
+  ($statuses + (if $open > 0 then ["\($open) reviewer thread(s) unanswered"] else [] end)
+             + (if $truncated then ["over 100 comments, reviews or threads: read the PR"] else [] end)) as $parts |
+  select(any($parts[]; endswith(": answered") | not)) |
+  "  #\($pr.number)  \($pr.title)  \($parts | join("  "))"'
 
 printf '\nnext up:\n'
 bash "$frontier" | sed 's/^/  /' | tee "$tmp/frontier.txt"

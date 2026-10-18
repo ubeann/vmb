@@ -21,6 +21,7 @@ passing='{
   "repo": "ubeann/vmb",
   "pr": {
     "number": 300, "baseRefName": "master", "mergeable": "MERGEABLE", "labels": [],
+    "headRefOid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "body": "Closes #218\n\n## Acceptance criteria\n\n- [x] Footer renders\n\n## Merge Danger\n\n**Door:** two-way",
     "files": [{"path": "apps/web/src/lib/components/AppShell.svelte"}],
     "statusCheckRollup": [
@@ -33,7 +34,7 @@ passing='{
       {"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@coderabbitai review"}
     ],
     "reviews": [
-      {"author": {"login": "coderabbitai"}, "submittedAt": "2026-10-18T10:05:00Z", "state": "COMMENTED", "body": "Actionable comments posted: 0"}
+      {"author": {"login": "coderabbitai"}, "submittedAt": "2026-10-18T10:05:00Z", "state": "COMMENTED", "body": "Actionable comments posted: 0", "commit": {"oid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
     ],
     "reviewThreads": []
   },
@@ -41,7 +42,7 @@ passing='{
 }'
 
 sourcery_round='.pr.comments += [{"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@sourcery-ai review"}]
-  | .pr.reviews += [{"author": {"login": "sourcery-ai"}, "submittedAt": "2026-10-18T10:04:00Z", "state": "COMMENTED", "body": "Hey - I have reviewed your changes and they look great!"}]'
+  | .pr.reviews += [{"author": {"login": "sourcery-ai"}, "submittedAt": "2026-10-18T10:04:00Z", "state": "COMMENTED", "body": "Hey - I have reviewed your changes and they look great!", "commit": {"oid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]'
 
 bot_thread='{"isResolved": false, "path": "apps/web/src/lib/components/AppShell.svelte",
   "comments": [{"author": "sourcery-ai", "createdAt": "2026-10-18T10:04:00Z"}]}'
@@ -184,7 +185,7 @@ check "a web-only standard PR needs no Sourcery" 0 "PASS" \
   '.pr.files = [{"path": "apps/web/src/lib/components/AppShell.svelte"}]'
 
 # Every finding answered: a bot thread is resolved or carries a trusted reply.
-check "an unanswered bot thread fails" 1 "Review thread by sourcery-ai on \`apps/web/src/lib/components/AppShell.svelte\` has no reply" \
+check "an unanswered bot thread fails" 1 "Review thread by sourcery-ai on \`apps/web/src/lib/components/AppShell.svelte\` has no reply after its last finding" \
   ".pr.reviewThreads = [$bot_thread]"
 
 check "a resolved bot thread passes" 0 "PASS" \
@@ -195,6 +196,23 @@ check "a bot thread answered by vmb-agent passes" 0 "PASS" \
 
 check "a thread opened by a stranger is not the round's" 0 "PASS" \
   ".pr.reviewThreads = [$bot_thread | .comments[0].author = \"someone-else\"]"
+
+check "a bot follow-up after the reply reopens the thread" 1 "has no reply after its last finding" \
+  ".pr.reviewThreads = [$bot_thread | .comments += [{\"author\": \"vmb-agent\", \"createdAt\": \"2026-10-18T10:30:00Z\"}, {\"author\": \"sourcery-ai\", \"createdAt\": \"2026-10-18T10:40:00Z\"}]]"
+
+check "a thread too long to fetch whole is not judged" 1 "has over 100 replies: not judged" \
+  ".pr.reviewThreads = [$bot_thread | .complete = false]"
+
+# A review counts only for the head it was made on.
+check "a review of an older head fails until the reviewer is asked again" 1 "The last CodeRabbit review is of 1111111, not the head 2222222: a push followed it" \
+  '.pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"'
+
+check "a second review on the new head passes" 0 "PASS" \
+  '.pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   | .pr.reviews += [{"author": {"login": "coderabbitai"}, "submittedAt": "2026-10-18T10:20:00Z", "state": "COMMENTED", "body": "Actionable comments posted: 0", "commit": {"oid": "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}]'
+
+check "a document without a head judges reviews by time alone" 0 "PASS" \
+  'del(.pr.headRefOid) | del(.pr.reviews[0].commit)'
 
 check "an old document without the review fields still judges the rest" 1 "CodeRabbit has not been asked" \
   'del(.pr.comments, .pr.reviews, .pr.reviewThreads)'

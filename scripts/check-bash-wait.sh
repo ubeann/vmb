@@ -9,13 +9,15 @@
 # that with a `sleep` further along the line, an `until … gh pr checks` loop,
 # `gh pr checks --watch` and `gh run watch`, one of them for 560 seconds.
 #
-# Refused shapes:
-#   - `sleep <n>` anywhere in the command;
+# Refused shapes, read over the whole command with its newlines folded:
+#   - `sleep` anywhere in the command, by any path and with any duration;
 #   - `gh pr checks … --watch`, `gh run watch`;
-#   - a `for`, `while` or `until` loop whose body calls `gh pr`, `gh api` or
-#     `gh run`.
+#   - a `for`, `while` or `until` loop with `gh pr`, `gh api` or `gh run` in
+#     its condition or its body.
 # A script under `scripts/` may still sleep inside itself; the hook reads only
-# the command line the agent typed.
+# the command line the agent typed. Prose inside that line counts too: a
+# commit message or PR body that quotes one of these shapes is refused, so
+# such text goes through the Write tool and a `--body-file`.
 #
 # The hook reads the tool call as JSON on stdin and exits 2 with the reason on
 # stderr, which Claude Code shows the model instead of running the command.
@@ -34,12 +36,14 @@ else
 fi
 [ -n "$cmd" ] || exit 0
 
+# One line, so a loop or a pipeline split across lines reads as one command.
+flat=$(printf '%s' "$cmd" | tr '\n' ' ')
 reason=""
-if printf '%s' "$cmd" | grep -Eq '(^|[;&|(`{]|[[:space:]])sleep[[:space:]]+[0-9]'; then
+if printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(/[^[:space:]]*/)?sleep([[:space:]]|$)'; then
   reason="sleep"
-elif printf '%s' "$cmd" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+checks[^;&|]*--watch|gh[[:space:]]+run[[:space:]]+watch'; then
+elif printf '%s' "$flat" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+checks[^;|]*--watch|gh[[:space:]]+run[[:space:]]+watch'; then
   reason="a gh watch"
-elif printf '%s' "$cmd" | grep -Eq '(^|[;&|(`{]|[[:space:]])(for|while|until)[[:space:]].*[[:space:]]do[[:space:]].*gh[[:space:]]+(pr|api|run)[[:space:]]'; then
+elif printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(for|while|until)[[:space:]].*gh[[:space:]]+(pr|api|run)([[:space:]]|$)'; then
   reason="a shell loop over gh"
 fi
 [ -n "$reason" ] || exit 0

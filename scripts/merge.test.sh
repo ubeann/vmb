@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 #
 # Tests for `merge.sh`: the gate decides, the owner's recorded approval is the
-# only way past a FAIL, and `--dry-run` runs no `gh` call. A stub stands in for
-# `merge-gate.sh` through MERGE_GATE.
+# only way past a FAIL and never past an error, the merge is pinned to the
+# head the gate judged, and `--dry-run` runs no write. A stub stands in for
+# `merge-gate.sh` through MERGE_GATE, and a stub `gh` on PATH records every
+# call it receives, in order.
 #
 # Run from anywhere: `bash scripts/merge.test.sh`. CI runs it in the `Verify`
 # job, and lefthook runs it on a commit that touches the script or this file.
@@ -22,58 +24,94 @@ echo FAIL
 echo "- Touches one-way path \`.github/workflows/ci.yml\`."
 exit 1
 EOF
+cat >"$tmp/error.sh" <<'EOF'
+echo "gh: Could not resolve to a PullRequest" >&2
+exit 1
+EOF
+
+# The stub gh: logs its arguments, answers the head lookup, succeeds otherwise.
+mkdir -p "$tmp/bin"
+cat >"$tmp/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "gh $*" >>"$GH_LOG"
+if [ "$1 $2" = "pr view" ]; then echo "abc1234ffffffffffffffffffffffffffffffffff"; fi
+EOF
+chmod +x "$tmp/bin/gh"
+export PATH="$tmp/bin:$PATH"
 
 failures=0
 checks=0
 
-# check <description> <gate stub> <expected exit> <expected output substring> <args...>
+# check <description> <gate stub> <expected exit> <expected output substring> <expected gh log, newline-separated or ""> <args...>
 check() {
-  local description=$1 gate=$2 expected_exit=$3 expected_text=$4
-  shift 4
-  local output status=0
+  local description=$1 gate=$2 expected_exit=$3 expected_text=$4 expected_log=$5
+  shift 5
+  local output log status=0
   checks=$((checks + 1))
-  output=$(MERGE_GATE="$tmp/$gate" bash merge.sh "$@" 2>&1) || status=$?
-  if [ "$status" -eq "$expected_exit" ] && [[ "$output" == *"$expected_text"* ]]; then
+  : >"$tmp/gh.log"
+  output=$(GH_LOG="$tmp/gh.log" MERGE_GATE="$tmp/$gate" bash merge.sh "$@" 2>&1) || status=$?
+  log=$(cat "$tmp/gh.log")
+  if [ "$status" -eq "$expected_exit" ] && [[ "$output" == *"$expected_text"* ]] && [ "$log" = "$expected_log" ]; then
     printf 'ok   %s\n' "$description"
   else
-    printf 'FAIL %s\n       exit: %s (expected %s)\n       output: %s\n' \
-      "$description" "$status" "$expected_exit" "$output"
+    printf 'FAIL %s\n       exit: %s (expected %s)\n       output: %s\n       gh log: %s\n       expected log: %s\n' \
+      "$description" "$status" "$expected_exit" "$output" "$log" "$expected_log"
     failures=$((failures + 1))
   fi
 }
 
-check "a PASS marks the PR ready and squash-merges it" pass.sh 0 \
-  "would run: gh pr merge 300 --squash --delete-branch" 300 --dry-run
+head=abc1234ffffffffffffffffffffffffffffffffff
+view="gh pr view 300 --json headRefOid --jq .headRefOid"
+ready="gh pr ready 300"
+merge="gh pr merge 300 --squash --delete-branch --match-head-commit $head"
 
-check "a PASS marks ready before merging" pass.sh 0 \
-  "would run: gh pr ready 300" 300 --dry-run
+check "a PASS reads the head, marks ready, then merges pinned to that head" pass.sh 0 \
+  "Merged #300 at head $head" \
+  "$(printf '%s\n%s\n%s' "$view" "$ready" "$merge")" 300
 
-check "a PASS posts no approval comment" pass.sh 0 "" 300 --dry-run
-output=$(MERGE_GATE="$tmp/pass.sh" bash merge.sh 300 --dry-run)
-if [[ "$output" == *"gh pr comment"* ]]; then
-  echo "FAIL a PASS posts no approval comment: a comment was posted"
-  failures=$((failures + 1))
-fi
-
-check "a FAIL without approval merges nothing" fail.sh 1 \
-  "Not merged: the gate refused" 300 --dry-run
+check "a FAIL without approval stops after the head lookup" fail.sh 1 \
+  "Not merged: the gate refused" \
+  "$view" 300
 
 check "a FAIL without approval prints the reasons" fail.sh 1 \
-  "one-way path" 300 --dry-run
+  "one-way path" \
+  "$view" 300
 
-check "a FAIL with the owner's approval records it on the PR" fail.sh 0 \
-  "would run: gh pr comment 300 --body Owner approved the merge past the gate: ubeann in the thread" \
-  300 --dry-run --owner-approved "ubeann in the thread"
+check "a FAIL with the owner's approval comments, then readies, then merges" fail.sh 0 \
+  "Merged #300" \
+  "$(printf '%s\n%s\n%s\n%s' "$view" "gh pr comment 300 --body Owner approved the merge past the gate: ubeann in the thread
 
-check "the approval comment quotes the gate's reasons" fail.sh 0 \
-  "Touches one-way path" 300 --dry-run --owner-approved "ubeann in the thread"
+The gate said at the time, on head $head:
 
-check "a FAIL with the owner's approval then merges" fail.sh 0 \
-  "would run: gh pr merge 300 --squash --delete-branch" 300 --dry-run --owner-approved "ubeann in the thread"
+\`\`\`
+FAIL
+- Touches one-way path \`.github/workflows/ci.yml\`.
+\`\`\`" "$ready" "$merge")" \
+  300 --owner-approved "ubeann in the thread"
 
-check "a PR number is required" pass.sh 2 "usage" abc --dry-run
+check "a gate that reached no verdict is never overridden" error.sh 1 \
+  "reached no verdict" \
+  "$view" 300 --owner-approved "ubeann in the thread"
 
-check "an unknown flag is refused" pass.sh 2 "usage" 300 --force
+check "a dry run runs the reads and prints the writes" pass.sh 0 \
+  "would run: $merge" \
+  "$view" 300 --dry-run
+
+check "a dry run does not claim a merge" pass.sh 0 \
+  "Dry run: #300 would merge at head $head. Nothing was changed." \
+  "$view" 300 --dry-run
+
+check "a dry run prints the approval comment instead of posting it" fail.sh 0 \
+  "would run: gh pr comment 300" \
+  "$view" 300 --dry-run --owner-approved "ubeann in the thread"
+
+check "an approval with no text is refused" pass.sh 2 "usage" "" 300 --owner-approved ""
+
+check "an approval followed by a flag is refused" pass.sh 2 "usage" "" 300 --owner-approved --dry-run
+
+check "a PR number is required" pass.sh 2 "usage" "" abc --dry-run
+
+check "an unknown flag is refused" pass.sh 2 "usage" "" 300 --force
 
 printf '\n%d checks, %d failed\n' "$checks" "$failures"
 [ "$failures" -eq 0 ]

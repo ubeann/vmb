@@ -64,12 +64,27 @@ if [ ! -f "$lint" ]; then
   lint="$tmp/ticket-lint.sh"
 fi
 
+# GNU `timeout` is coreutils; macOS ships none, and Homebrew installs it as
+# `timeout` or `gtimeout`. Without either the call runs unbounded, which still
+# beats a report that never prints.
+with_timeout() {
+  local secs=$1
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$secs" "$@"
+  else
+    "$@"
+  fi
+}
+
 fetch() {
   local owner name issues numbers aliases referenced
   owner=${repo%/*}
   name=${repo#*/}
   # shellcheck disable=SC2016 # the $variables are GraphQL's, bound with -F
-  issues=$(timeout "${FRONTIER_TIMEOUT:-60}" gh api graphql -F owner="$owner" -F name="$name" -f query='
+  issues=$(with_timeout "${FRONTIER_TIMEOUT:-60}" gh api graphql -F owner="$owner" -F name="$name" -f query='
     query($owner: String!, $name: String!) {
       repository(owner: $owner, name: $name) {
         issues(labels: ["ready-for-agent"], states: OPEN, first: 100,
@@ -107,7 +122,7 @@ fetch() {
     for n in $numbers; do
       aliases+="i$n: issue(number: $n) { number state } "
     done
-    referenced=$(timeout "${FRONTIER_TIMEOUT:-60}" gh api graphql -F owner="$owner" -F name="$name" -f query="
+    referenced=$(with_timeout "${FRONTIER_TIMEOUT:-60}" gh api graphql -F owner="$owner" -F name="$name" -f query="
       query(\$owner: String!, \$name: String!) {
         repository(owner: \$owner, name: \$name) { $aliases }
       }" | jq '[.data.repository[] | select(. != null)] | map({(.number | tostring): .state}) | add // {}')
