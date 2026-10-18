@@ -24,6 +24,9 @@ export function trailFor(
   record?: RecordCrumb,
   groups: NavGroup[] = NAV_GROUPS
 ): Crumb[] {
+  // The person's own page is no menu item: it opens from the account menu.
+  if (pathname === "/profile") return [{ label: "Profile", current: true }];
+
   for (const group of groups) {
     for (const item of group.items) {
       if (!isCurrent(pathname, item.href)) continue;

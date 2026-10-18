@@ -8,6 +8,7 @@ import type {
   DivisionListRequest,
   DivisionListResponse,
   DivisionUpdateInput,
+  ProfileUpdateInput,
   Role,
   RoleDetail,
   RoleInput,
@@ -38,10 +39,12 @@ import {
   bulkUsers,
   createUser,
   deleteUser,
+  getOwnProfile,
   getSignInEligibility,
   getUser,
   listUsers,
   restoreUser,
+  updateOwnProfile,
   updateUser
 } from "./users.js";
 import type { SignInEligibility, UserStoreOptions } from "./users.js";
@@ -81,6 +84,10 @@ export type MasterStore = {
   getSignInEligibility(id: string): Promise<SignInEligibility>;
   createUser(input: UserCreateInput, actor: Actor): Promise<User>;
   updateUser(id: string, input: UserUpdateInput, actor: Actor): Promise<User>;
+  /** The signed-in caller's own record; 403 unless they are Active and live (#458). */
+  getOwnProfile(id: string): Promise<User>;
+  /** The caller's own name, phone and photo, with their identity; no permission needed (#458). */
+  updateOwnProfile(id: string, input: ProfileUpdateInput): Promise<User>;
   deleteUser(id: string, actor: Actor): Promise<void>;
   restoreUser(id: string, actor: Actor): Promise<User>;
   /** Delete or restore several users, all or none (#305). */
@@ -112,6 +119,8 @@ export function createMasterStore(db: MasterDb, options: UserStoreOptions): Mast
     getSignInEligibility: (id) => getSignInEligibility(db, id),
     createUser: (input, actor) => createUser(db, options, input, actor),
     updateUser: (id, input, actor) => updateUser(db, options, id, input, actor),
+    getOwnProfile: (id) => getOwnProfile(db, id),
+    updateOwnProfile: (id, input) => updateOwnProfile(db, id, input),
     deleteUser: (id, actor) => deleteUser(db, id, actor),
     restoreUser: (id, actor) => restoreUser(db, id, actor),
     bulkUsers: (request, actor) => bulkUsers(options, request, actor)

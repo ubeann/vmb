@@ -27,7 +27,7 @@ const app = withErrorReplies(
     // there. Everything under /api/master and /api/me requires a session (#7); the
     // master routes further require the permission each one names (#8).
     .route("/api/auth", authRoute)
-    .use("/api/me", requireSession)
+    .use("/api/me/*", requireSession)
     .route("/api/me", meRoute)
     .use("/api/master/*", requireSession)
     .route("/api/master", createMasterRoutes(masterStore))

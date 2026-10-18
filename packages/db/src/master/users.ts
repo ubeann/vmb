@@ -1,6 +1,7 @@
 import type {
   BulkRequest,
   BulkResponse,
+  ProfileUpdateInput,
   User,
   UserCreateInput,
   UserListRequest,
@@ -284,6 +285,65 @@ export async function getSignInEligibility(db: MasterDb, id: string): Promise<Si
   const row = rows[0];
   if (!row) return null;
   return { deletedAt: toIso(row.deletedAt), status: row.status as UserStatus };
+}
+
+/**
+ * The refusal of a caller with no place in the app: Trashed, Suspended,
+ * Inactive, or not there at all. It is the sign-in gate's rule and wording
+ * (`apps/api/src/sign-in-gate.ts`), for a session that outlived it.
+ */
+function accountUnavailable() {
+  return new ForbiddenError("FORBIDDEN", "This account is unavailable. Contact an administrator.");
+}
+
+/**
+ * The signed-in caller's own record, for their profile page. Only an Active,
+ * live user may read it, the same rule as signing in.
+ */
+export async function getOwnProfile(db: MasterDb, id: string): Promise<User> {
+  const eligibility = await getSignInEligibility(db, id);
+  if (!eligibility || eligibility.deletedAt !== null || eligibility.status !== "active") {
+    throw accountUnavailable();
+  }
+  return getUser(db, id);
+}
+
+/**
+ * Save a person's own name, phone and photo, with their Better Auth identity,
+ * in one statement, as `writeUser` does for an administrator. The email, status
+ * and roles are not in the statement: an administrator owns them. The `where`
+ * is the eligibility check and the write at once, so a user Trashed or
+ * suspended since the session began is refused without a write. There is no
+ * `updatedAt` check: nobody else edits this form, and the last save wins.
+ */
+export async function updateOwnProfile(
+  db: MasterDb,
+  id: string,
+  input: ProfileUpdateInput
+): Promise<User> {
+  const photo = nullIfEmpty(input.profilePhotoPath);
+  const result = await db.execute(sql`
+    with business_user as (
+      update master.users
+         set name = ${input.name},
+             phone = ${input.phone},
+             profile_photo_path = ${photo},
+             updated_at = ${nextStamp(users.updatedAt)}
+       where id = ${id} and deleted_at is null and status = 'active'
+      returning id
+    ), auth_update as (
+      update public."user"
+         set name = ${input.name},
+             image = ${photo},
+             updated_at = now()
+       where id = (select id::text from business_user)
+      returning id
+    )
+    select id from business_user
+  `);
+  if (rowsOf(result).length === 0) throw accountUnavailable();
+
+  return getUser(db, id);
 }
 
 /** A SQL `uuid[]` for a list of ids, empty included. */

@@ -21,6 +21,7 @@ import {
   type DivisionListRequest,
   type DivisionListResponse,
   type DivisionUpdateInput,
+  type ProfileUpdateInput,
   type Role,
   type RoleDetail,
   type RoleInput,
@@ -62,6 +63,21 @@ export function pageErrorStatus(status: number): 403 | 404 | 500 {
 /** The signed-in caller's permissions and divisions (`GET /api/me`). */
 export function getMyAccess(client: ApiClient): Promise<ApiResult<Access>> {
   return client.api.me.$get().then((response) => read(response, AccessSchema));
+}
+
+/** The signed-in caller's own record (`GET /api/me/profile`): what their profile page edits. */
+export function getMyProfile(client: ApiClient): Promise<ApiResult<User>> {
+  return client.api.me.profile.$get().then((response) => read(response, UserSchema));
+}
+
+/** Save the caller's own name, phone and photo link (`PATCH /api/me/profile`). */
+export function updateMyProfile(
+  client: ApiClient,
+  input: ProfileUpdateInput
+): Promise<ApiResult<User>> {
+  return client.api.me.profile
+    .$patch({ json: input })
+    .then((response) => read(response, UserSchema));
 }
 
 /** The status union SvelteKit and Superforms accept on a failure response. */

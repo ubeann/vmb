@@ -108,6 +108,20 @@ export const UserUpdateInputSchema = refusePasswordContext(
 
 export type UserUpdateInput = z.infer<typeof UserUpdateInputSchema>;
 
+/**
+ * What a signed-in person edits about themselves (`PATCH /api/me/profile`): the
+ * admin form's name, phone and photo link under the same rules. The email stays
+ * with an administrator, since it is what proves inbox control at activation
+ * (ADR-0033), and so does the status; neither is a field here.
+ */
+export const ProfileUpdateInputSchema = z.object({
+  name: userFields.name,
+  phone: userFields.phone,
+  profilePhotoPath: userFields.profilePhotoPath
+});
+
+export type ProfileUpdateInput = z.infer<typeof ProfileUpdateInputSchema>;
+
 export const UserSortSchema = z.enum(["name", "email", "createdAt", "updatedAt"]).default("name");
 
 /**

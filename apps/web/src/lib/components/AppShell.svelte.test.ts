@@ -181,6 +181,17 @@ describe("AppShell", () => {
     await expect.element(screen.getByText("No division").last()).toBeVisible();
   });
 
+  it("links the user's menu to their profile", async () => {
+    await desktop();
+    const screen = await render(AppShell, props());
+
+    await screen.getByRole("button", { name: "Siti Rahma, Warehouse, account menu" }).click();
+
+    await expect
+      .element(screen.getByRole("menuitem", { name: "Profile" }))
+      .toHaveAttribute("href", "/profile");
+  });
+
   it("signs out with a form post from the user's menu", async () => {
     await desktop();
     const screen = await render(AppShell, props());

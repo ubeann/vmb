@@ -1,7 +1,7 @@
 <!--
   The signed-in user's menu, at the right of the top bar (#167): who they are,
-  their division, the theme choice and sign-out. Account settings, and the role
-  beside the division, join it when those screens and #8's role assignments exist.
+  their division, a link to their profile (#458), the theme choice and sign-out.
+  The role beside the division joins it when #8's role assignments exist.
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
@@ -14,6 +14,7 @@
   import Monitor from "@lucide/svelte/icons/monitor";
   import Moon from "@lucide/svelte/icons/moon";
   import Sun from "@lucide/svelte/icons/sun";
+  import UserRound from "@lucide/svelte/icons/user-round";
   import { resetMode, setMode, userPrefersMode } from "mode-watcher";
 
   let {
@@ -80,6 +81,17 @@
         <span class="truncate text-sm font-medium">{divisionName}</span>
       </div>
     </div>
+
+    <DropdownMenu.Separator class="-mx-2 my-2" />
+
+    <DropdownMenu.Item class="py-2 pointer-coarse:min-h-11">
+      {#snippet child({ props })}
+        <a {...props} href={resolve("/profile")}>
+          <UserRound aria-hidden="true" />
+          Profile
+        </a>
+      {/snippet}
+    </DropdownMenu.Item>
 
     <DropdownMenu.Separator class="-mx-2 my-2" />
 
