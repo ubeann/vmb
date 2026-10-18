@@ -1,4 +1,9 @@
-import { DivisionInputSchema, DivisionUpdateInputSchema } from "@vmb/types";
+import {
+  BulkRequestSchema,
+  DivisionBulkRequestSchema,
+  DivisionInputSchema,
+  DivisionUpdateInputSchema
+} from "@vmb/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const withApiClientMock = vi.fn();
@@ -316,10 +321,18 @@ describe("runBulkAction", () => {
 
   it("fails without reaching the API when no row, or an unknown action, was sent", async () => {
     expect(
-      await runBulkAction(bulkEvent({ action: "delete" }), { logLabel: "t", run })
+      await runBulkAction(bulkEvent({ action: "delete" }), {
+        logLabel: "t",
+        schema: BulkRequestSchema,
+        run
+      })
     ).toMatchObject({ status: 400 });
     expect(
-      await runBulkAction(bulkEvent({ action: "destroy", ids: [A] }), { logLabel: "t", run })
+      await runBulkAction(bulkEvent({ action: "destroy", ids: [A] }), {
+        logLabel: "t",
+        schema: BulkRequestSchema,
+        run
+      })
     ).toMatchObject({ status: 400 });
     expect(run).not.toHaveBeenCalled();
   });
@@ -328,9 +341,36 @@ describe("runBulkAction", () => {
     run.mockResolvedValue({ ok: true, value: { ids: [A, B] } });
 
     await expect(
-      runBulkAction(bulkEvent({ action: "delete", ids: [A, B] }), { logLabel: "t", run })
+      runBulkAction(bulkEvent({ action: "delete", ids: [A, B] }), {
+        logLabel: "t",
+        schema: BulkRequestSchema,
+        run
+      })
     ).resolves.toEqual({ ok: true, ids: [A, B] });
     expect(run).toHaveBeenCalledWith({}, { action: "delete", ids: [A, B] });
+  });
+
+  it("takes the actions its schema names: activate for Divisions, not for the plain bulk", async () => {
+    run.mockResolvedValue({ ok: true, value: { ids: [A] } });
+
+    await expect(
+      runBulkAction(bulkEvent({ action: "activate", ids: [A, B] }), {
+        logLabel: "t",
+        schema: DivisionBulkRequestSchema,
+        run
+      })
+    ).resolves.toEqual({ ok: true, ids: [A] });
+    expect(run).toHaveBeenCalledWith({}, { action: "activate", ids: [A, B] });
+
+    run.mockClear();
+    expect(
+      await runBulkAction(bulkEvent({ action: "activate", ids: [A] }), {
+        logLabel: "t",
+        schema: BulkRequestSchema,
+        run
+      })
+    ).toMatchObject({ status: 400 });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("maps a refusal to its status, with the API's copy and code", async () => {
@@ -344,6 +384,7 @@ describe("runBulkAction", () => {
 
     const result = await runBulkAction(bulkEvent({ action: "delete", ids: [A, B] }), {
       logLabel: "t",
+      schema: BulkRequestSchema,
       run
     });
 

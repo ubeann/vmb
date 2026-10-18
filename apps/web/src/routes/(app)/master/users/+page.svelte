@@ -191,7 +191,10 @@
   // filters or the sort change, or the rows do
   const selection = new Selection();
   const pageIds = $derived(data.users?.items.map((user) => user.id) ?? []);
-  const selectable = $derived(inTrash ? can("master-users.restore") : can("master-users.delete"));
+  // the bulk actions check the `_any` keys, as legacy's did (#467)
+  const selectable = $derived(
+    inTrash ? can("master-users.restore_any") : can("master-users.delete_any")
+  );
   const pageState = $derived(selection.stateOf(pageIds));
   $effect.pre(() => {
     void page.url.search;
@@ -228,7 +231,7 @@
     selection.clear();
     toast.success(`${manyUsers(ids.length)} moved to Trash`, {
       duration: 10_000,
-      action: can("master-users.restore")
+      action: can("master-users.restore_any")
         ? { label: "Undo", onClick: () => restoreMany(ids) }
         : undefined
     });

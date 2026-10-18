@@ -1,5 +1,5 @@
 import { deserialize } from "$app/forms";
-import type { BulkRequest } from "@vmb/types";
+import type { DivisionBulkRequest } from "@vmb/types";
 
 const GENERIC = "Something went wrong. Please try again.";
 
@@ -27,7 +27,7 @@ export async function postRowAction(
  */
 export function postBulkAction(
   action: `${string}?/${string}`,
-  request: BulkRequest
+  request: DivisionBulkRequest
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const body = new FormData();
   body.set("action", request.action);

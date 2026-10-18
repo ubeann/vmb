@@ -16,6 +16,7 @@ import {
   type BulkRequest,
   type BulkResponse,
   type Division,
+  type DivisionBulkRequest,
   type DivisionDetail,
   type DivisionInput,
   type DivisionListRequest,
@@ -212,10 +213,10 @@ export function restoreDivision(client: ApiClient, id: string): Promise<ApiResul
     .then((response) => read(response, DivisionSchema));
 }
 
-/** Delete or restore several divisions, all or none (#305). */
+/** Delete, restore, activate or deactivate several divisions, all or none (#305, #467). */
 export function bulkDivisions(
   client: ApiClient,
-  request: BulkRequest
+  request: DivisionBulkRequest
 ): Promise<ApiResult<BulkResponse>> {
   return client.api.master.divisions.bulk
     .$post({ json: request })

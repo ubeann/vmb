@@ -1,10 +1,11 @@
 import type { ApiClient } from "$lib/api.js";
 import { withApiClient } from "$lib/api-access.js";
-import { BulkRequestSchema, type BulkRequest, type BulkResponse } from "@vmb/types";
+import type { BulkResponse } from "@vmb/types";
 import { fail, redirect, type RequestEvent } from "@sveltejs/kit";
 import type { ErrorStatus, FormPathLeavesWithErrors, Infer } from "sveltekit-superforms";
 import { message, setError, superValidate } from "sveltekit-superforms/server";
 import { zod4, type ZodValidationSchema } from "sveltekit-superforms/adapters";
+import type { z } from "zod";
 import type { ApiResult } from "./api.js";
 
 /**
@@ -91,19 +92,21 @@ export async function runRowAction(
 
 /**
  * The list page's bulk action (#305): the form carries `action` (delete or
- * restore) and one `ids` field per chosen row. The API takes them all or none,
+ * restore, and for Divisions activate or deactivate: the `schema` says which) and
+ * one `ids` field per chosen row. The API takes them all or none,
  * so a refusal lands on the page as `form.error` and its `code`, as a row
  * action's does, and a success answers with the ids it changed.
  */
-export async function runBulkAction(
+export async function runBulkAction<Request extends { ids: string[] }>(
   event: RequestEvent,
   config: {
     logLabel: string;
-    run: (client: ApiClient, request: BulkRequest) => Promise<ApiResult<BulkResponse>>;
+    schema: z.ZodType<Request>;
+    run: (client: ApiClient, request: Request) => Promise<ApiResult<BulkResponse>>;
   }
 ) {
   const data = await event.request.formData();
-  const request = BulkRequestSchema.safeParse({
+  const request = config.schema.safeParse({
     action: data.get("action"),
     ids: data.getAll("ids")
   });

@@ -80,6 +80,7 @@ vi.mock("$app/navigation", () => ({
   afterNavigate: () => {}
 }));
 beforeEach(() => {
+  holdReply = null;
   vi.spyOn(history, "go").mockImplementation((delta = 0) => {
     at += delta;
     showEntry();
@@ -91,6 +92,8 @@ beforeEach(() => {
 
 // The form action's answer, as `use:enhance` would hand it to the page.
 let deleteResult: { type: "success" | "failure"; status: number; data: Record<string, unknown> };
+// When set, the action answers only once this settles: a request still in flight.
+let holdReply: Promise<void> | null = null;
 // The real `deserialize` decodes through the running app's transport, which an
 // isolated render doesn't start, so action replies here carry plain JSON data.
 vi.mock("$app/forms", () => ({
@@ -103,6 +106,7 @@ vi.mock("$app/forms", () => ({
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const after = (await submit({ formData: new FormData(form) })) as (input: unknown) => unknown;
+      await holdReply;
       await after({ result: deleteResult, update: async () => {} });
     });
     return { destroy() {} };
@@ -147,7 +151,9 @@ const ALL = [
   "master-divisions.create",
   "master-divisions.update",
   "master-divisions.delete",
-  "master-divisions.restore"
+  "master-divisions.delete_any",
+  "master-divisions.restore",
+  "master-divisions.restore_any"
 ];
 
 function props(
@@ -2422,29 +2428,34 @@ describe("selecting divisions for a bulk action (#305)", () => {
     await expect.element(bulkCount(screen)).toHaveTextContent("1 selected");
   });
 
-  it("is not offered to a caller who may not delete, or in the Trash to one who may not restore", async () => {
+  it("is not offered to a caller who may neither delete in bulk nor update, or in the Trash to one who may not restore in bulk", async () => {
     await browser.viewport(1280, 900);
-    const noDelete = await render(
+    // the single delete is not the bulk one (#467); an update still offers the switch
+    const noBulk = await render(
       Page,
-      props("/master/divisions", { permissions: ALL.filter((key) => !key.endsWith(".delete")) })
+      props("/master/divisions", {
+        permissions: ALL.filter((key) => !key.endsWith(".delete_any") && !key.endsWith(".update"))
+      })
     );
-    expect(noDelete.getByRole("checkbox").elements()).toHaveLength(0);
-    await noDelete.unmount();
+    expect(noBulk.getByRole("checkbox").elements()).toHaveLength(0);
+    await noBulk.unmount();
 
     const noRestore = await render(
       Page,
       props("/master/divisions?trashed=only", {
         items: trashedRows,
-        permissions: ALL.filter((key) => !key.endsWith(".restore"))
+        permissions: ALL.filter((key) => !key.endsWith(".restore_any"))
       })
     );
     expect(noRestore.getByRole("checkbox").elements()).toHaveLength(0);
     await noRestore.unmount();
 
-    // delete without restore: the All tab selects, and its Undo is left out
+    // delete_any without restore_any: the All tab selects, and its Undo is left out
     const deleteOnly = await render(
       Page,
-      props("/master/divisions", { permissions: ALL.filter((key) => !key.endsWith(".restore")) })
+      props("/master/divisions", {
+        permissions: ALL.filter((key) => !key.endsWith(".restore_any"))
+      })
     );
     await deleteOnly.getByRole("checkbox", { name: "Select Operations" }).click();
     await deleteOnly.getByRole("button", { name: "Delete…" }).click();
@@ -2456,6 +2467,34 @@ describe("selecting divisions for a bulk action (#305)", () => {
         action: undefined
       })
     );
+  });
+
+  it("offers each bulk action only to a caller who holds its key", async () => {
+    await browser.viewport(1280, 900);
+    const switchOnly = await render(
+      Page,
+      props("/master/divisions", {
+        permissions: ["master-divisions.view_any", "master-divisions.update"]
+      })
+    );
+    await switchOnly.getByRole("checkbox", { name: "Select Operations" }).click();
+    const bar = switchOnly.getByRole("region", { name: "Bulk actions for divisions" });
+    await expect.element(bar.getByRole("button", { name: "Activate…" })).toBeVisible();
+    await expect.element(bar.getByRole("button", { name: "Deactivate…" })).toBeVisible();
+    expect(bar.getByRole("button", { name: "Delete…" }).elements()).toHaveLength(0);
+    await switchOnly.unmount();
+
+    const deleteOnly = await render(
+      Page,
+      props("/master/divisions", {
+        permissions: ["master-divisions.view_any", "master-divisions.delete_any"]
+      })
+    );
+    await deleteOnly.getByRole("checkbox", { name: "Select Operations" }).click();
+    const deleteBar = deleteOnly.getByRole("region", { name: "Bulk actions for divisions" });
+    await expect.element(deleteBar.getByRole("button", { name: "Delete…" })).toBeVisible();
+    expect(deleteBar.getByRole("button", { name: "Activate…" }).elements()).toHaveLength(0);
+    expect(deleteBar.getByRole("button", { name: "Deactivate…" }).elements()).toHaveLength(0);
   });
 
   it("asks naming the count, then offers an Undo that restores the same rows", async () => {
@@ -2502,6 +2541,129 @@ describe("selecting divisions for a bulk action (#305)", () => {
     expect(body.get("action")).toBe("restore");
     expect(body.getAll("ids")).toEqual([division.id, inactive.id]);
     expect(invalidateAll).toHaveBeenCalled();
+  });
+
+  it("asks naming the count before it deactivates, and Undo puts back only the rows that changed", async () => {
+    await browser.viewport(1280, 900);
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+    await screen.getByRole("button", { name: "Deactivate…" }).click();
+
+    const dialog = screen.getByRole("dialog", { name: "Deactivate 2 divisions?" });
+    await expect.element(dialog.getByText("They stay in the list, marked Inactive.")).toBeVisible();
+    expect(dialog.getByRole("button", { name: "Close" }).elements()).toHaveLength(0);
+    const form = dialog.element().querySelector("form")!;
+    expect(new FormData(form).get("action")).toBe("deactivate");
+    expect(new FormData(form).getAll("ids")).toEqual([division.id, inactive.id]);
+
+    // Retired was already inactive: the API answers only Operations, which is what an Undo restores
+    deleteResult = { type: "success", status: 200, data: { ok: true, ids: [division.id] } };
+    await dialog.getByRole("button", { name: "Deactivate" }).click();
+
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "1 division deactivated",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Undo" }) })
+      )
+    );
+    expect(
+      screen.getByRole("region", { name: "Bulk actions for divisions" }).elements()
+    ).toHaveLength(0);
+
+    const [, options] = toast.success.mock.calls[0] as [string, { action: { onClick(): void } }];
+    options.action.onClick();
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 division activated"));
+    const body = fetch.mock.calls[0]?.[1]?.body as FormData;
+    expect(fetch).toHaveBeenCalledWith(
+      "/master/divisions?/bulk",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(body.get("action")).toBe("activate");
+    expect(body.getAll("ids")).toEqual([division.id]);
+    expect(invalidateAll).toHaveBeenCalled();
+  });
+
+  it("answers a switch the dialog has moved on from with the choice it was sent with", async () => {
+    await browser.viewport(1280, 900);
+    let release!: () => void;
+    holdReply = new Promise<void>((resolve) => (release = resolve));
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+    await screen.getByRole("button", { name: "Deactivate…" }).click();
+    deleteResult = { type: "success", status: 200, data: { ok: true, ids: [division.id] } };
+    await screen
+      .getByRole("dialog", { name: "Deactivate 2 divisions?" })
+      .getByRole("button", { name: "Deactivate" })
+      .click();
+    // Cancel stays live while the request runs: close it and ask the other way
+    await screen.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await screen.getByRole("button", { name: "Activate…" }).click();
+    const again = screen.getByRole("dialog", { name: "Activate 2 divisions?" });
+    await expect.element(again).toBeVisible();
+
+    holdReply = null;
+    release();
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("1 division deactivated", expect.anything())
+    );
+    // the new dialog is still its own question, and the Undo goes back the way it came
+    await expect.element(again).toBeVisible();
+    const [, options] = toast.success.mock.calls[0] as [string, { action: { onClick(): void } }];
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(actionReply("success", 200, '{"ok":true}'));
+    options.action.onClick();
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 division activated"));
+    expect((fetch.mock.calls[0]?.[1]?.body as FormData).get("action")).toBe("activate");
+  });
+
+  it("activates the chosen rows after asking, and says so when none needed it", async () => {
+    await browser.viewport(1280, 900);
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select Retired" }).click();
+    await screen.getByRole("button", { name: "Activate…" }).click();
+
+    const dialog = screen.getByRole("dialog", { name: "Activate 1 division?" });
+    await expect.element(dialog.getByText("It becomes Active.")).toBeVisible();
+    expect(new FormData(dialog.element().querySelector("form")!).get("action")).toBe("activate");
+
+    deleteResult = { type: "success", status: 200, data: { ok: true, ids: [] } };
+    await dialog.getByRole("button", { name: "Activate" }).click();
+
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 division already active"));
+  });
+
+  it("keeps the dialog open when a chosen division is gone, and switches none", async () => {
+    await browser.viewport(1280, 900);
+    const message =
+      "Some of the selected divisions are gone or in the Trash. Reload the list and try again.";
+    deleteResult = { type: "failure", status: 404, data: { error: message } };
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select all 2 on this page" }).click();
+    await screen.getByRole("button", { name: "Activate…" }).click();
+    const dialog = screen.getByRole("dialog", { name: "Activate 2 divisions?" });
+    await dialog.getByRole("button", { name: "Activate" }).click();
+
+    await expect.element(dialog.getByRole("alert")).toBeVisible();
+    expect(dialog.getByRole("alert").element().textContent).toContain(message);
+    expect(toast.error).not.toHaveBeenCalled();
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect.element(bulkCount(screen)).toHaveTextContent("2 selected");
+  });
+
+  it("toasts a bulk switch that failed for another reason", async () => {
+    await browser.viewport(1280, 900);
+    deleteResult = { type: "failure", status: 500, data: { error: "Something went wrong." } };
+    const screen = await render(Page, props("/master/divisions"));
+    await screen.getByRole("checkbox", { name: "Select Operations" }).click();
+    await screen.getByRole("button", { name: "Deactivate…" }).click();
+    await screen.getByRole("dialog").getByRole("button", { name: "Deactivate" }).click();
+
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Something went wrong."));
+    expect(screen.getByRole("alert").elements()).toHaveLength(0);
   });
 
   it("says 'it' for a single row and keeps its title in the singular", async () => {
