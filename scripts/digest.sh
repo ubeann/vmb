@@ -189,14 +189,14 @@ printf '%s' "$doc" | jq -r '
      [$pr.reviews.nodes[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // "") and ((.body // "") != ""))] as $since |
      [$pr.comments.nodes[] | select((.author.login | login) == $r.bot and .createdAt >= ($asked // ""))] as $replies |
      ($pr.commits.nodes[0].commit.committedDate) as $head_date |
-     ((any($since[]; .commit.oid == $head))
-       or ($r.bot == "coderabbitai" and $asked != null and $asked >= $head_date and any($replies[]; .body | test("Review finished")))) as $answered |
+     ($r.bot == "coderabbitai" and $asked != null and any($replies[]; .body | test("Review finished"))) as $acked |
+     ((any($since[]; .commit.oid == $head)) or ($acked and $asked >= $head_date)) as $answered |
      (any($replies[]; .body | test("rate limit"; "i"))) as $limited |
      "\($r.name): \(
        if $asked == null then "not asked"
        elif $answered then "answered"
        elif $limited then "rate-limited, ask again later"
-       elif ($since | length) > 0 then "reviewed an older head, ask again"
+       elif ($since | length) > 0 or $acked then "reviewed an older head, ask again"
        else "asked \($asked[11:16])Z, no review yet" end)")) as $statuses |
   ([$pr.reviewThreads.nodes[]
     | select((.comments.nodes[0].author.login | login) | IN("coderabbitai", "sourcery-ai"))
