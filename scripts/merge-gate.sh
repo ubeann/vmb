@@ -56,7 +56,7 @@ if [ "$1" = "--input" ]; then
 else
   # `gh pr view` loads every page of `comments` and `reviews` before printing.
   pr=$(gh pr view "$1" --json \
-    number,baseRefName,mergeable,labels,body,headRefOid,statusCheckRollup,closingIssuesReferences,comments,reviews)
+    number,baseRefName,mergeable,labels,body,headRefOid,commits,statusCheckRollup,closingIssuesReferences,comments,reviews)
   # `gh pr view --json files` stops at 100 files on older gh releases, which
   # would hide a one-way path in a big PR; the paginated REST list never does.
   files=$(gh api --paginate "repos/{owner}/{repo}/pulls/$1/files" --jq '.[].filename' |
@@ -129,11 +129,16 @@ reasons=$(printf '%s' "$doc" | jq -r '
   | ($reviewed_tier and ($complex or any($paths[]; api_or_db))) as $sourcery_due
   # One entry per reviewer: its bot login, how it is asked, and the latest
   # ask by a trusted author. A reply from the bot counts only when it is a
-  # submitted review dated after that ask and made on the current head of the
-  # PR: a push after the review leaves code the reviewer never saw. A
-  # rate-limit reply is named apart. (No apostrophes in this jq program: the
-  # shell quotes it with single quotes.)
+  # submitted review with a body, dated after that ask and made on the current
+  # head of the PR: a push after the review leaves code the reviewer never
+  # saw, and a bodiless review is the bot acknowledging a reply in a thread.
+  # CodeRabbit posts no review when an incremental round finds nothing; it
+  # edits its acknowledgement to "Review finished" instead, which counts when
+  # the ask itself came after the head commit. A rate-limit reply is named
+  # apart. (No apostrophes in this jq program: the shell quotes it with
+  # single quotes.)
   | ($pr.headRefOid // null) as $head
+  | ([($pr.commits // [])[] | select(.oid == $head) | .committedDate] | first // null) as $head_date
   | [
       {name: "CodeRabbit", bot: "coderabbitai", ask: "@coderabbitai (full )?review", due: $reviewed_tier},
       {name: "Sourcery", bot: "sourcery-ai", ask: "@sourcery-ai review", due: $sourcery_due}
@@ -142,12 +147,16 @@ reasons=$(printf '%s' "$doc" | jq -r '
   | map(. as $r
       | ([$comments[] | select((.author.login | trusted) and (.body | test($r.ask)))
           | .createdAt] | max) as $asked
-      | [$reviews[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // ""))] as $since_ask
+      | [$reviews[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // "")
+          and ((.body // "") != ""))] as $since_ask
       | ([$since_ask[] | select($head == null or .commit.oid == $head) | .submittedAt] | max) as $reviewed
       | ([$since_ask[] | .commit.oid // ""] | last // "") as $stale_oid
-      | ([$comments[] | select((.author.login | login) == $r.bot and .createdAt >= ($asked // "")
-          and (.body | test("rate limit"; "i")))] | length > 0) as $limited
-      | . + {asked: $asked, reviewed: $reviewed, stale: ($since_ask | length > 0), stale_oid: $stale_oid, limited: $limited})
+      | [$comments[] | select((.author.login | login) == $r.bot and .createdAt >= ($asked // ""))] as $replies
+      | (any($replies[]; .body | test("rate limit"; "i"))) as $limited
+      | ($r.bot == "coderabbitai" and ($asked != null) and ($head_date == null or $asked >= $head_date)
+          and any($replies[]; .body | test("Review finished"))) as $finished
+      | . + {asked: $asked, done: ($reviewed != null or $finished), stale: ($since_ask | length > 0),
+             stale_oid: $stale_oid, limited: $limited})
     as $reviewers
   | [
       (if $pr.baseRefName != "master"
@@ -180,13 +189,13 @@ reasons=$(printf '%s' "$doc" | jq -r '
       ($reviewers[]
         | if .asked == null
             then "\(.name) has not been asked for a review: comment `\(.ask | sub("\\(full \\)\\?"; ""))`."
-          elif .limited and .reviewed == null
+          elif .done
+            then empty
+          elif .limited
             then "\(.name) answered the ask at \(.asked) with a rate limit: ask again after the time it names."
-          elif .reviewed == null and .stale
+          elif .stale
             then "The last \(.name) review is of \(.stale_oid[0:7]), not the head \($head[0:7]): a push followed it, so ask again."
-          elif .reviewed == null
-            then "\(.name) has not reviewed since the ask at \(.asked)."
-          else empty end),
+          else "\(.name) has not reviewed since the ask at \(.asked)." end),
       # A reviewer thread is answered when it is resolved or when a trusted
       # author wrote its last comment: a bot follow-up after the reply reopens
       # the question. A thread too long to have been fetched whole is not

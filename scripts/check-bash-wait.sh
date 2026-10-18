@@ -14,10 +14,13 @@
 #   - `gh pr checks … --watch`, `gh run watch`;
 #   - a `for`, `while` or `until` loop with `gh pr`, `gh api` or `gh run` in
 #     its condition or its body.
-# A script under `scripts/` may still sleep inside itself; the hook reads only
-# the command line the agent typed. Prose inside that line counts too: a
-# commit message or PR body that quotes one of these shapes is refused, so
-# such text goes through the Write tool and a `--body-file`.
+# The hook reads only the command line the agent typed, so a script file is
+# outside it: a batch of `gh` writes in a loop (answering twenty review
+# threads) goes in a file written with the Write tool and run by name, and a
+# script under `scripts/` may pause inside itself. Prose inside the line
+# counts too: a commit message or PR body that quotes one of these shapes is
+# refused, so such text goes through the Write tool and a `-F` or
+# `--body-file`.
 #
 # The hook reads the tool call as JSON on stdin and exits 2 with the reason on
 # stderr, which Claude Code shows the model instead of running the command.

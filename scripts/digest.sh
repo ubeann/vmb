@@ -119,7 +119,7 @@ doc=$(with_timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
       reviews(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } submittedAt commit { oid } } }
       reviewThreads(first: 50) { pageInfo { hasNextPage }
         nodes { isResolved comments(first: 10) { pageInfo { hasNextPage } nodes { author { login } } } } }
-      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }
   }
 }")
 
@@ -160,7 +160,9 @@ printf '%s' "$doc" | jq -r '
 
 # The same reviewer rules as merge-gate.sh: CodeRabbit on every standard or
 # complex ticket, Sourcery too when the ticket is complex or the PR touches
-# apps/api or packages/db; a review counts on the current head only; a
+# apps/api or packages/db; a review counts on the current head only (a
+# bodiless one is a thread acknowledgement; CodeRabbit reports an empty
+# incremental round as a "Review finished" acknowledgement instead); a
 # reviewer thread is answered when resolved or when a trusted author has the
 # last word. A PR is listed only when something is missing. The last 100
 # comments and reviews, 50 threads and 10 replies a thread are read (GitHub
@@ -184,9 +186,12 @@ printf '%s' "$doc" | jq -r '
    map(select(.due)) |
    map(. as $r |
      ([$pr.comments.nodes[] | select((.author.login | trusted) and (.body | test($r.ask))) | .createdAt] | max) as $asked |
-     [$pr.reviews.nodes[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // ""))] as $since |
-     (any($since[]; .commit.oid == $head)) as $answered |
-     (any($pr.comments.nodes[]; (.author.login | login) == $r.bot and .createdAt >= ($asked // "") and (.body | test("rate limit"; "i")))) as $limited |
+     [$pr.reviews.nodes[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // "") and ((.body // "") != ""))] as $since |
+     [$pr.comments.nodes[] | select((.author.login | login) == $r.bot and .createdAt >= ($asked // ""))] as $replies |
+     ($pr.commits.nodes[0].commit.committedDate) as $head_date |
+     ((any($since[]; .commit.oid == $head))
+       or ($r.bot == "coderabbitai" and $asked != null and $asked >= $head_date and any($replies[]; .body | test("Review finished")))) as $answered |
+     (any($replies[]; .body | test("rate limit"; "i"))) as $limited |
      "\($r.name): \(
        if $asked == null then "not asked"
        elif $answered then "answered"

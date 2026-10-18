@@ -22,6 +22,7 @@ passing='{
   "pr": {
     "number": 300, "baseRefName": "master", "mergeable": "MERGEABLE", "labels": [],
     "headRefOid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "commits": [{"oid": "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "committedDate": "2026-10-18T09:00:00Z"}],
     "body": "Closes #218\n\n## Acceptance criteria\n\n- [x] Footer renders\n\n## Merge Danger\n\n**Door:** two-way",
     "files": [{"path": "apps/web/src/lib/components/AppShell.svelte"}],
     "statusCheckRollup": [
@@ -213,6 +214,31 @@ check "a second review on the new head passes" 0 "PASS" \
 
 check "a document without a head judges reviews by time alone" 0 "PASS" \
   'del(.pr.headRefOid) | del(.pr.reviews[0].commit)'
+
+# CodeRabbit acknowledges thread replies as bodiless reviews and reports an
+# empty incremental round by editing its acknowledgement, not by a review.
+check "a bodiless reply review is not a review" 1 "CodeRabbit has not reviewed since the ask" \
+  '.pr.reviews[0].body = ""'
+
+check "a finished CodeRabbit acknowledgement counts when the ask came after the head" 0 "PASS" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "<details><summary>✅ Action performed</summary>Review finished.</details>"}]'
+
+check "a triggered acknowledgement is not finished" 1 "CodeRabbit has not reviewed since the ask" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "<details><summary>Action performed</summary>Review triggered.</details>"}]'
+
+check "a finished acknowledgement for an ask older than the head does not count" 1 "CodeRabbit has not reviewed since the ask" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "✅ Action performed Review finished."}]
+   | .pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   | .pr.commits += [{"oid": "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "committedDate": "2026-10-18T10:30:00Z"}]'
+
+check "a finished acknowledgement does not stand in for Sourcery" 1 "Sourcery has not reviewed since the ask" \
+  '.pr.files += [{"path": "apps/api/src/routes/master/users.ts"}]
+   | .pr.statusCheckRollup += [{"__typename": "CheckRun", "name": "CodeQL", "status": "COMPLETED", "conclusion": "SUCCESS"}]
+   | .pr.comments += [{"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@sourcery-ai review"},
+                      {"author": {"login": "sourcery-ai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "Review finished."}]'
 
 check "an old document without the review fields still judges the rest" 1 "CodeRabbit has not been asked" \
   'del(.pr.comments, .pr.reviews, .pr.reviewThreads)'
