@@ -30,7 +30,8 @@ export function metaTags({
 }: {
   title: string;
   description: string;
-  url: URL;
+  // `page.url` is read-only from kit 3; only these two are read
+  url: Pick<URL, "origin" | "pathname">;
 }): MetaTag[] {
   const fullTitle = pageTitle(title);
   // Crawlers fetch og:image on their own, so it must be absolute.

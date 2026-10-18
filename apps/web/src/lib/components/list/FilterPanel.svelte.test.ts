@@ -143,7 +143,7 @@ describe("the Status filter", () => {
     await screen.getByRole("checkbox", { name: /^Inactive/ }).click();
     expect(goto).toHaveBeenLastCalledWith(
       "/master/divisions?status=inactive",
-      expect.objectContaining({ noScroll: true, keepFocus: true })
+      expect.objectContaining({ reset: false })
     );
     // a second tick before the first navigation lands (the URL has not moved) builds on it
     await screen.getByRole("checkbox", { name: /^Active/ }).click();
@@ -166,7 +166,7 @@ describe("the Status filter", () => {
     await screen.getByRole("button", { name: "Reset" }).click();
     expect(goto).toHaveBeenLastCalledWith(
       "/master/divisions?search=ops",
-      expect.objectContaining({ noScroll: true })
+      expect.objectContaining({ reset: false })
     );
   });
 
@@ -333,7 +333,7 @@ describe("the Filter layer's measures", () => {
       await reset.click();
       expect(goto).toHaveBeenLastCalledWith(
         "/master/divisions?search=ops",
-        expect.objectContaining({ noScroll: true })
+        expect.objectContaining({ reset: false })
       );
       await userEvent.keyboard("{Escape}");
       await expect.poll(() => find("[data-layer-frame]")).toBeNull();
@@ -431,7 +431,7 @@ describe("a date filter", () => {
 
     expect(goto).toHaveBeenLastCalledWith(
       "/master/divisions?status=active&updated=week",
-      expect.objectContaining({ noScroll: true })
+      expect.objectContaining({ reset: false })
     );
     await expect.poll(() => picker()).toBeNull();
     await expect.element(screen.getByRole("dialog", { name: "Filters" })).toBeVisible();
@@ -456,7 +456,7 @@ describe("a date filter", () => {
 
     expect(goto).toHaveBeenLastCalledWith(
       "/master/divisions?created=2026-01-05..2026-01-08",
-      expect.objectContaining({ noScroll: true })
+      expect.objectContaining({ reset: false })
     );
     await expect.poll(() => picker()).toBeNull();
   });

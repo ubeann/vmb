@@ -477,7 +477,7 @@
        way it goes; the pencil says "change what you typed". -->
   {#snippet footer()}
     <div class="flex flex-wrap items-center justify-between gap-x-6">
-      <a href={resolve("/login")} class="{linkClass} gap-1.5">
+      <a href={resolve("login")} class="{linkClass} gap-1.5">
         <ArrowLeft class="size-4" aria-hidden="true" />Back to log in
       </a>
       {#if step !== "request"}

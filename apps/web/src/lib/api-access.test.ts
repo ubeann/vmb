@@ -10,7 +10,15 @@ const createAuthApiClientMock = vi.fn((baseUrl: string, fetchFn?: typeof fetch):
   baseUrl,
   fetchFn
 }));
-const resolveApiUrlMock = vi.fn((_platform: unknown) => "http://localhost:8787");
+const resolveApiUrlMock = vi.fn((_apiUrl: unknown) => "http://localhost:8787");
+const bindings = vi.hoisted(() => ({ CLIENT_IP_SECRET: undefined as string | undefined }));
+
+vi.mock("$app/env/private", () => ({
+  API_URL: undefined,
+  get CLIENT_IP_SECRET() {
+    return bindings.CLIENT_IP_SECRET;
+  }
+}));
 
 vi.mock("./api.js", () => ({
   createApiClient: (baseUrl: string, fetchFn?: typeof fetch) =>
@@ -23,7 +31,7 @@ vi.mock("./auth.js", () => ({
 }));
 
 vi.mock("./env.js", () => ({
-  resolveApiUrl: (platform: unknown) => resolveApiUrlMock(platform)
+  resolveApiUrl: (apiUrl: unknown) => resolveApiUrlMock(apiUrl)
 }));
 
 const { withApiClient, withAuthApiClient } = await import("./api-access.js");
@@ -34,8 +42,8 @@ function fakeEvent(
   cookie?: string,
   { secret, getClientAddress = () => "203.0.113.5" }: FakeEventOptions = {}
 ) {
+  bindings.CLIENT_IP_SECRET = secret;
   return {
-    platform: secret === undefined ? undefined : { env: { API_URL: "", CLIENT_IP_SECRET: secret } },
     request: new Request("https://web.test/page", { headers: cookie ? { cookie } : {} }),
     fetch: fetchFn,
     getClientAddress

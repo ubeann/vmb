@@ -30,7 +30,7 @@
             label: "Undo",
             onClick: async () => {
               const result = await postRowAction(
-                `${resolve("/master/divisions")}?/restore`,
+                `${resolve("master/divisions")}?/restore`,
                 division.id
               );
               if (!result.ok) return void toast.error(result.error);
@@ -69,7 +69,7 @@
     <Notice variant="destructive">
       {form.error}
       {#if form.code === "DIVISION_IN_USE"}
-        <a href={resolve("/master/roles")} class="font-medium underline underline-offset-2"
+        <a href={resolve("master/roles")} class="font-medium underline underline-offset-2"
           >Go to Roles</a
         >
       {/if}

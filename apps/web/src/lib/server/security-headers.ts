@@ -1,7 +1,7 @@
 // The response headers every Worker response carries (ADR-0047). Cloudflare
 // Pages' `_headers` file never reaches what the Pages Function renders, so
 // `handle` sets these; `apps/web/_headers` sets the same on static assets.
-// The CSP itself comes from `kit.csp` in svelte.config.js, on pages only.
+// The CSP itself comes from `csp` in csp.ts (vite.config.ts), on pages only.
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   // No `preload`: once a browser list carries it, it takes months to undo.
   "strict-transport-security": "max-age=31536000; includeSubDomains",

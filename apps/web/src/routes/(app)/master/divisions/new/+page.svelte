@@ -23,7 +23,7 @@
       submitLabel="Create division"
       submitIcon={PlusIcon}
       pendingLabel="Creating…"
-      cancelHref={resolve("/master/divisions")}
+      cancelHref={resolve("master/divisions")}
     />
   </div>
 </Page>

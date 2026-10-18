@@ -24,7 +24,7 @@
       form={data.form}
       roles={data.roles}
       passwordRequired
-      cancelHref={resolve("/master/users")}
+      cancelHref={resolve("master/users")}
     />
   </div>
 </Page>

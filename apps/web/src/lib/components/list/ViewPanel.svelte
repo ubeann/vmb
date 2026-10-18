@@ -17,6 +17,7 @@
 <script lang="ts" generics="Id extends string">
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -101,12 +102,14 @@
     const sorted = sortChanges(shownSort, defaultSort);
     void goto(
       resolve(
-        listHref(base, page.url.searchParams, {
-          perPage: shownPerPage === DEFAULT_PER_PAGE ? null : shownPerPage,
-          ...sorted
-        })
+        appPath(
+          listHref(base, page.url.searchParams, {
+            perPage: shownPerPage === DEFAULT_PER_PAGE ? null : shownPerPage,
+            ...sorted
+          })
+        )
       ),
-      { noScroll: true, keepFocus: true }
+      { reset: false }
     ).finally(() => {
       if (seq === picks) pending = {};
     });

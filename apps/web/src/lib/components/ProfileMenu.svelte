@@ -86,7 +86,7 @@
 
     <DropdownMenu.Item class="py-2 pointer-coarse:min-h-11">
       {#snippet child({ props })}
-        <a {...props} href={resolve("/profile")}>
+        <a {...props} href={resolve("profile")}>
           <UserRound aria-hidden="true" />
           Profile
         </a>

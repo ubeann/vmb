@@ -24,7 +24,6 @@ function fakeEvent(fields: Record<string, string> = {}, url = "http://localhost/
   return {
     request: new Request(url, { method: "POST", body: form }),
     url: new URL(url),
-    platform: undefined,
     fetch: () => {
       throw new Error("unexpected fetch");
     }
@@ -236,7 +235,6 @@ describe("runRowAction", () => {
     return {
       request: new Request("http://localhost/master/divisions", { method: "POST", body: form }),
       url: new URL("http://localhost/master/divisions"),
-      platform: undefined,
       fetch: () => {
         throw new Error("unexpected fetch");
       }
@@ -302,7 +300,6 @@ describe("runBulkAction", () => {
     return {
       request: new Request("http://localhost/master/divisions", { method: "POST", body: form }),
       url: new URL("http://localhost/master/divisions"),
-      platform: undefined,
       fetch: () => {
         throw new Error("unexpected fetch");
       }

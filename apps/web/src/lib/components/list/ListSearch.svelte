@@ -16,6 +16,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { shortcuts, useShortcuts } from "$lib/components/shortcuts.svelte.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { listHref, type MasterListPathname } from "$lib/master/list.js";
@@ -114,10 +115,9 @@
     // the first search from an unsearched list is a new entry; refining it replaces that entry
     const replaceState = page.url.searchParams.has("search");
     try {
-      await goto(resolve(listHref(base, page.url.searchParams, { search: sent })), {
-        keepFocus: true,
-        noScroll: true,
-        replaceState
+      await goto(resolve(appPath(listHref(base, page.url.searchParams, { search: sent }))), {
+        reset: false,
+        replace: replaceState
       });
     } finally {
       // a later search is still on its way

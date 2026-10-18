@@ -9,6 +9,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import {
     countSummary,
@@ -65,7 +66,7 @@
           {#if list.page > 1}
             <a
               class={cn(pageLink, "hover:bg-muted")}
-              href={resolve(to({ page: Math.min(list.page - 1, totalPages) }))}
+              href={resolve(appPath(to({ page: Math.min(list.page - 1, totalPages) })))}
             >
               <ChevronLeftIcon aria-hidden="true" class="size-4" /><span class="sr-only"
                 >Previous page</span
@@ -89,7 +90,7 @@
                     ? "bg-primary/10 ring-primary/30 text-foreground dark:bg-primary/15 font-medium ring-1 ring-inset"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
-                href={resolve(to({ page: entry }))}
+                href={resolve(appPath(to({ page: entry })))}
                 aria-current={entry === list.page ? "page" : undefined}
                 ><span class="sr-only">Page </span>{entry}</a
               >
@@ -98,7 +99,10 @@
         {/each}
         <li>
           {#if list.page < totalPages}
-            <a class={cn(pageLink, "hover:bg-muted")} href={resolve(to({ page: list.page + 1 }))}>
+            <a
+              class={cn(pageLink, "hover:bg-muted")}
+              href={resolve(appPath(to({ page: list.page + 1 })))}
+            >
               <ChevronRightIcon aria-hidden="true" class="size-4" /><span class="sr-only"
                 >Next page</span
               >
@@ -117,7 +121,7 @@
       <Button
         variant="outline"
         class="h-11 w-28"
-        href={resolve(to({ page: Math.max(1, current - 1) }))}
+        href={resolve(appPath(to({ page: Math.max(1, current - 1) })))}
         disabled={current <= 1}
       >
         <ChevronLeftIcon aria-hidden="true" data-icon="inline-start" />Previous
@@ -128,7 +132,7 @@
       <Button
         variant="outline"
         class="h-11 w-28"
-        href={resolve(to({ page: Math.min(totalPages, current + 1) }))}
+        href={resolve(appPath(to({ page: Math.min(totalPages, current + 1) })))}
         disabled={current >= totalPages}
       >
         Next<ChevronRightIcon aria-hidden="true" data-icon="inline-end" />

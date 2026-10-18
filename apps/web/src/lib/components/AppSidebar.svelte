@@ -135,7 +135,7 @@
   <!-- Anchored left in both looks (5px puts the collapsed mark at the middle of the
        rail), so the mark never swings across the panel while it narrows. -->
   <a
-    href={resolve("/")}
+    href={resolve("")}
     class="focus-visible:ring-sidebar-ring rail:pr-0 rail:pl-[5px] rail:duration-(--duration-exit) flex h-10 items-center rounded-md pr-2 pl-4 transition-[padding] duration-(--duration-panel) ease-(--easing-standard) focus-visible:ring-2 focus-visible:outline-none"
   >
     <VmbLogo

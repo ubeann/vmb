@@ -20,7 +20,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { nounFor, type CountNoun } from "$lib/master/list.js";
-  import type { SubmitFunction } from "@sveltejs/kit";
+  import type { SubmitFunction } from "$app/forms";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import type { Snippet } from "svelte";
   import { toast } from "svelte-sonner";

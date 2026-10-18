@@ -47,7 +47,7 @@
     <Notice variant="destructive">
       {form.error}
       {#if form.code === "ROLE_IN_USE"}
-        <a href={resolve("/master/users")} class="font-medium underline underline-offset-2"
+        <a href={resolve("master/users")} class="font-medium underline underline-offset-2"
           >Go to Users</a
         >
       {/if}

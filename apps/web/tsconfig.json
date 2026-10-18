@@ -1,7 +1,13 @@
 {
-  "extends": ["@vmb/config/tsconfig.base.json", "./.svelte-kit/tsconfig.json"],
+  "extends": ["@vmb/config/tsconfig.base.json", "$app/tsconfig"],
   "compilerOptions": {
     "moduleResolution": "Bundler",
-    "types": ["node", "vitest/globals"]
-  }
+    "types": ["$app/types", "node", "vitest/globals"],
+    // SvelteKit writes $app/tsconfig per run, pointing rootDirs at that run's
+    // outDir; `build` and `test` use their own (#286). Pin typecheck's to the
+    // `.svelte-kit` that `sync` writes, whichever task wrote it last.
+    "rootDirs": [".", "./.svelte-kit/types"]
+  },
+  "include": ["src", "*.ts", "*.js"],
+  "exclude": ["src/service-worker"]
 }

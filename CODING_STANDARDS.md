@@ -24,7 +24,7 @@ Merging to `master` deploys to production. In order of cost:
 | Web data flow and forms    | ADR-0031 server loads and form actions; ADR-0035 rule 4 forms (visible label, errors under the field, one primary action); `packages/types` Zod schemas shared with the API        |
 | Design system              | ADR-0035 tokens, registry, icons, tables, accessibility, dark mode, and its amendments on control skin and heights; ADR-0036 palette; ADR-0046 type; ADR-0040 motion               |
 | Signed-in screens          | ADR-0050 page layout, ADR-0051 list kit, ADR-0052 keyboard shortcuts, ADR-0053 layered controls; the parity sheet `docs/design/list-kit/parity.md` the tickets quote               |
-| Client hardening           | ADR-0047: the CSP and security headers; `apps/web/svelte.config.js` and `hooks.server.ts`                                                                                          |
+| Client hardening           | ADR-0047: the CSP and security headers; `apps/web/csp.ts` and `hooks.server.ts`                                                                                                    |
 | CI, tooling, scripts       | ADR-0010 mise, ADR-0037 knip, ADR-0043 per-job billing, ADR-0054 the `master` ruleset; every `scripts/*.sh` header states its rules and names its test                             |
 | Agent docs                 | `docs/agents/*.md`: pointers over prose, no sentence that goes stale when the code moves, dates on claims that will                                                                |
 | Domain terms               | `GLOSSARY.md` when it exists, else the ADR that names the term (`docs/agents/domain.md`)                                                                                           |

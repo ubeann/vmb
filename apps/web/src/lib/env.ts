@@ -1,4 +1,7 @@
-export function resolveApiUrl(platform: App.Platform | undefined): string {
+// `apiUrl` is the API_URL Pages binding, read through `$app/env/private`
+// (src/env.ts); `dev` is `$app/env`'s. Both are passed in so this stays a pure
+// function the node-environment unit tests can call.
+export function resolveApiUrl(apiUrl: string | undefined, { dev }: { dev: boolean }): string {
   // Per-PR preview deployments bake this PR's own `apps/api` preview URL in at
   // build time (issue #23). It has to take precedence: a Pages Preview
   // environment's API_URL binding is shared across every preview deployment,
@@ -8,15 +11,14 @@ export function resolveApiUrl(platform: App.Platform | undefined): string {
     return buildTimeApiUrl;
   }
 
-  if (!platform) {
-    // Local `vite dev` outside the Cloudflare runtime — no platform object at all.
+  if (apiUrl) {
+    return apiUrl;
+  }
+
+  if (dev) {
+    // Local `vite dev` with no API_URL in `.dev.vars`: the API's own dev server.
     return "http://localhost:8787";
   }
 
-  const apiUrl = platform.env?.API_URL;
-  if (!apiUrl) {
-    throw new Error("API_URL is not configured for this deployment (missing Pages binding)");
-  }
-
-  return apiUrl;
+  throw new Error("API_URL is not configured for this deployment (missing Pages binding)");
 }

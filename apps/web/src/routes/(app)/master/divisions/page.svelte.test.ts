@@ -4,7 +4,6 @@ import {
   DivisionInputSchema,
   type Division
 } from "@vmb/types";
-import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -120,6 +119,8 @@ function actionReply(type: "success" | "failure", status: number, data: string) 
   });
 }
 
+// after the mocks: its client half imports the mocked $app modules
+const { setError, superValidate } = await import("sveltekit-superforms");
 const { render } = await import("vitest-browser-svelte");
 const { default: Page } = await import("./+page.svelte");
 const { LayerRoute } = await import("$lib/components/list/layer/layer-route.svelte.js");
@@ -390,7 +391,7 @@ describe("divisions list", () => {
     await inactive.click();
     expect(goto).toHaveBeenCalledWith(
       "/master/divisions?status=active,inactive",
-      expect.objectContaining({ noScroll: true })
+      expect.objectContaining({ reset: false })
     );
     // the panel stays open for the next choice
     await expect.element(active).toBeVisible();
@@ -1038,16 +1039,14 @@ describe("divisions list", () => {
     goto.mockImplementationOnce(() => new Promise(() => {}));
     await sizes.getByRole("radio", { name: "50" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions?search=ops&perPage=50", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
     await expect.element(sizes.getByRole("radio", { name: "50" })).toBeChecked();
 
     // the default size leaves the URL
     await sizes.getByRole("radio", { name: "25" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions?search=ops", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
   });
 
@@ -1078,26 +1077,22 @@ describe("divisions list", () => {
 
     await by.getByRole("radio", { name: "Last updated" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions?sort=updatedAt&dir=desc", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
     // the words for the direction follow the column
     await expect.element(order.getByRole("radio", { name: "Newest first" })).toBeChecked();
     await order.getByRole("radio", { name: "Oldest first" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions?sort=updatedAt", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
 
     await by.getByRole("radio", { name: "Name" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
     await order.getByRole("radio", { name: "Z to A" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions?dir=desc", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
   });
 
@@ -1115,15 +1110,13 @@ describe("divisions list", () => {
       .getByRole("radio", { name: "Code" })
       .click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions?perPage=50&sort=code", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
 
     // the URL hasn't caught up, but the dot and Reset already know
     await screen.getByRole("button", { name: "Reset" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
   });
 
@@ -1162,8 +1155,7 @@ describe("divisions list", () => {
     await screen.getByRole("button", { name: "View changed" }).click();
     await screen.getByRole("button", { name: "Reset" }).click();
     expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
-      noScroll: true,
-      keepFocus: true
+      reset: false
     });
     await expect
       .element(
@@ -1199,8 +1191,7 @@ describe("divisions list", () => {
       );
       await reset.click();
       expect(goto).toHaveBeenLastCalledWith("/master/divisions", {
-        noScroll: true,
-        keepFocus: true
+        reset: false
       });
       await userEvent.keyboard("{Escape}");
       modal.unmount();

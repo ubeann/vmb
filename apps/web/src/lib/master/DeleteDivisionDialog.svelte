@@ -20,7 +20,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import type { Division } from "@vmb/types";
-  import type { SubmitFunction } from "@sveltejs/kit";
+  import type { SubmitFunction } from "$app/forms";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import { toast } from "svelte-sonner";
 
@@ -93,7 +93,7 @@
     {#if refusal}
       <Notice variant="destructive" class="text-left">
         {refusal}
-        <a href={resolve("/master/roles")} class="font-medium underline underline-offset-2"
+        <a href={resolve("master/roles")} class="font-medium underline underline-offset-2"
           >Go to Roles</a
         >
       </Notice>

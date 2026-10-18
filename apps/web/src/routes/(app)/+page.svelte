@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import RecordIcon from "$lib/components/RecordIcon.svelte";
   import * as Card from "$lib/components/ui/card/index.js";
@@ -123,7 +124,7 @@
         {#each links as link (link.href)}
           <li>
             <a
-              href={resolve(link.href)}
+              href={resolve(appPath(link.href))}
               class="group focus-visible:ring-ring block h-full rounded-xl focus-visible:ring-2 focus-visible:outline-none"
             >
               <Card.Root class="group-hover:bg-accent h-full transition-colors">

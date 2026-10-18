@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import * as Table from "$lib/components/ui/table/index.js";
   import { sortState, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
@@ -40,7 +41,7 @@
 
 {#snippet link()}
   <a
-    href={resolve(sorting.href)}
+    href={resolve(appPath(sorting.href))}
     aria-label="{label}, sort {next}"
     data-sveltekit-noscroll
     data-sveltekit-keepfocus

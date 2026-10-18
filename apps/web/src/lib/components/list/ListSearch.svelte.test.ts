@@ -41,9 +41,8 @@ describe("ListSearch", () => {
 
     await vi.waitFor(() => expect(goto).toHaveBeenCalledTimes(1));
     expect(goto).toHaveBeenCalledWith("/master/divisions?status=active&search=ops", {
-      keepFocus: true,
-      noScroll: true,
-      replaceState: false
+      reset: false,
+      replace: false
     });
   });
 
@@ -56,9 +55,8 @@ describe("ListSearch", () => {
 
     await vi.waitFor(() =>
       expect(goto).toHaveBeenCalledWith("/master/divisions?search=ops", {
-        keepFocus: true,
-        noScroll: true,
-        replaceState: true
+        reset: false,
+        replace: true
       })
     );
   });
@@ -80,7 +78,7 @@ describe("ListSearch", () => {
     expect(goto).toHaveBeenCalledTimes(1);
     expect(goto).toHaveBeenCalledWith(
       "/master/divisions?status=active&sort=code&search=ops",
-      expect.objectContaining({ keepFocus: true })
+      expect.objectContaining({ reset: false })
     );
   });
 
