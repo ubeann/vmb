@@ -19,10 +19,17 @@
 #   bounced:  tickets labelled needs-triage since the cutoff (not ones filed
 #             with the label), with their last comment
 #   stalled:  claimed ready-for-agent tickets with no open PR, claimed more
-#             than 6 hours ago, with the thread id from the claim comment
+#             than 2 hours ago, with the thread id from the claim comment (four
+#             of five builds on 2026-10-18 stopped before opening their PR)
+#   review round: open PRs on a standard or complex ticket, checks green, where
+#             a reviewer the gate requires (merge-gate.sh) has not been asked or
+#             has not answered: the build stopped before its round
 #   next up:  frontier.sh's output, then how many ready-for-agent tickets fail
 #             ticket-lint
 #   guides:   the PR numbers under decide, for write_pull_request_guides
+#
+# The GitHub call runs under `timeout` (DIGEST_TIMEOUT, default 60 s), like
+# frontier.sh's: a hung call must not spend the digest's turn.
 
 set -euo pipefail
 
@@ -61,7 +68,7 @@ fi
 
 # Search strings cannot take GraphQL variables, so they are built here.
 q() { printf 'search(query: "repo:%s %s", type: ISSUE, first: %s)' "$repo" "$1" "$2"; }
-doc=$(gh api graphql -f query="{
+doc=$(timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
   decide: $(q 'is:pr is:open label:needs-decision' 20) {
     nodes { ... on PullRequest {
       number title url
@@ -89,7 +96,13 @@ doc=$(gh api graphql -f query="{
   }
   openprs: $(q 'is:pr is:open' 50) {
     nodes { ... on PullRequest {
-      number closingIssuesReferences(first: 5) { nodes { number } } } }
+      number title isDraft
+      author { login }
+      closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } } } }
+      files(first: 100) { nodes { path } }
+      comments(first: 100) { nodes { author { login } body createdAt } }
+      reviews(first: 50) { nodes { author { login } submittedAt } }
+      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }
   }
 }")
 
@@ -124,9 +137,34 @@ printf '%s' "$doc" | jq -r '
   select((.assignees.nodes | length) > 0) |
   select(.number as $n | $with_pr | index($n) | not) |
   ([.timelineItems.nodes[].createdAt] | last) as $claimed |
-  select($claimed != null and (now - ($claimed | fromdateiso8601)) > 6 * 3600) |
+  select($claimed != null and (now - ($claimed | fromdateiso8601)) > 2 * 3600) |
   ([.comments.nodes[].body | capture("(?<t>(mcp:|thread:)[A-Za-z0-9:%.-]+)").t] | last // "no thread id in a comment") as $thread |
   "  #\(.number)  \(.title)  claimed \($claimed)  thread \($thread)"'
+
+# The same reviewer rules as merge-gate.sh: CodeRabbit on every standard or
+# complex ticket, Sourcery too when the ticket is complex or the PR touches
+# apps/api or packages/db. A PR is listed only when something is missing.
+printf '\nreview round:\n'
+printf '%s' "$doc" | jq -r '
+  def login: (. // "") | sub("\\[bot\\]$"; "");
+  def trusted: login | IN("ubeann", "vmb-agent");
+  .data.openprs.nodes[] |
+  select((.author.login | login) != "dependabot") |
+  select(.commits.nodes[0].commit.statusCheckRollup.state == "SUCCESS") |
+  ([.closingIssuesReferences.nodes[].labels.nodes[].name]) as $labels |
+  select(($labels | index("complexity:standard")) != null or ($labels | index("complexity:complex")) != null) |
+  ([.files.nodes[].path] | any(test("^apps/api/") or test("^packages/db/"))) as $apidb |
+  . as $pr |
+  [ {name: "CodeRabbit", bot: "coderabbitai", ask: "@coderabbitai (full )?review", due: true},
+    {name: "Sourcery", bot: "sourcery-ai", ask: "@sourcery-ai review",
+     due: ((($labels | index("complexity:complex")) != null) or $apidb)} ] |
+  map(select(.due)) |
+  map(. as $r |
+    ([$pr.comments.nodes[] | select((.author.login | trusted) and (.body | test($r.ask))) | .createdAt] | max) as $asked |
+    ([$pr.reviews.nodes[] | select((.author.login | login) == $r.bot and .submittedAt >= ($asked // ""))] | length > 0) as $answered |
+    "\($r.name): \(if $asked == null then "not asked" elif $answered then "answered" else "asked \($asked[11:16])Z, no review yet" end)") |
+  select(any(.[]; endswith("answered") | not)) |
+  "  #\($pr.number)  \($pr.title)  \(join("  "))"'
 
 printf '\nnext up:\n'
 bash "$frontier" | sed 's/^/  /' | tee "$tmp/frontier.txt"
