@@ -93,9 +93,31 @@ export function privateEmailOtp(
     await ctx.context.adapter.update({ model: "verification", where, update: { value } });
   });
 
+  // Better Auth 1.7.10's reset looks a code up twice, and the first lookup
+  // deletes every expired row, so an expired code reaches the second as missing
+  // and fails as INVALID_OTP. Read it through the adapter first and fail it as
+  // expired, as the other code paths do. Every email has a row (a decoy for an
+  // unknown one), so the work stays equal.
+  const expireResetCode = createAuthMiddleware(async (ctx) => {
+    const body = (ctx.body ?? {}) as Record<string, unknown>;
+    if (typeof body.email !== "string") return;
+    const identifier = `forget-password-otp-${body.email.toLowerCase()}`;
+    const row = await ctx.context.adapter.findOne<{ expiresAt: Date }>({
+      model: "verification",
+      where: [{ field: "identifier", value: identifier }]
+    });
+    if (!row || new Date(row.expiresAt) >= new Date()) return;
+    await ctx.context.internalAdapter.deleteVerificationByIdentifier(identifier);
+    throw new APIError("BAD_REQUEST", { code: "OTP_EXPIRED", message: "OTP expired" });
+  });
+
   const decoyHook = {
     matcher: (context: { path?: string }) => !!context.path && context.path in CODE_PATHS,
     handler: decoyTrashedCode
+  };
+  const expireResetHook = {
+    matcher: (context: { path?: string }) => context.path === "/email-otp/reset-password",
+    handler: expireResetCode
   };
   // The plugin's type lists only `after` hooks today. Append to whatever
   // `before` hooks a Better Auth upgrade adds, rather than replacing them.
@@ -106,7 +128,7 @@ export function privateEmailOtp(
     ...plugin,
     hooks: {
       ...plugin.hooks,
-      before: [...upstreamBefore, decoyHook]
+      before: [...upstreamBefore, decoyHook, expireResetHook]
     },
     endpoints: {
       ...endpoints,
