@@ -141,26 +141,38 @@ export type PermissionGroup = {
   permissions: PermissionOption[];
 };
 
-/** The catalogue as the Role form shows it: one group per resource, in catalogue order. */
-export function permissionGroups(): PermissionGroup[] {
-  return PERMISSION_CATALOGUE.map((entry) => {
-    const actions: readonly PermissionAction[] = entry.actions;
-    const trash = actions.includes("restore");
-    return {
-      resource: entry.resource,
-      label: entry.label,
-      description: entry.description,
-      permissions: actions.map((action) => ({
-        key: permissionKey(entry.resource, action),
-        action,
-        label: PERMISSION_ACTIONS[action].label,
-        description: PERMISSION_ACTIONS[action].description(entry.noun, trash)
-      }))
-    };
-  });
-}
+/**
+ * The catalogue as the Role form and view show it: one group per resource, in
+ * catalogue order. Built once, since the catalogue is fixed.
+ */
+export const PERMISSION_GROUPS: readonly PermissionGroup[] = PERMISSION_CATALOGUE.map((entry) => {
+  const actions: readonly PermissionAction[] = entry.actions;
+  const trash = actions.includes("restore");
+  return {
+    resource: entry.resource,
+    label: entry.label,
+    description: entry.description,
+    permissions: actions.map((action) => ({
+      key: permissionKey(entry.resource, action),
+      action,
+      label: PERMISSION_ACTIONS[action].label,
+      description: PERMISSION_ACTIONS[action].description(entry.noun, trash)
+    }))
+  };
+});
 
 const CATALOGUE_KEYS: ReadonlySet<string> = new Set(allPermissionKeys());
+const CATALOGUE_ORDER = new Map(allPermissionKeys().map((key, index) => [key, index]));
+
+/**
+ * Keys in the order the catalogue lists them, the order the Role form keeps its
+ * value in, so a form loaded from a role and a form edited back to it hold the
+ * same array. A key outside the catalogue sorts last.
+ */
+export function inCatalogueOrder(keys: readonly string[]): string[] {
+  const at = (key: string) => CATALOGUE_ORDER.get(key) ?? Number.MAX_SAFE_INTEGER;
+  return [...keys].sort((a, b) => at(a) - at(b));
+}
 
 /** Whether `key` is one the catalogue defines. */
 export function isPermissionKey(key: string): key is PermissionKey {

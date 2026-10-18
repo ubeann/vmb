@@ -15,25 +15,22 @@
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { cn } from "$lib/utils.js";
-  import { permissionGroups } from "@vmb/types";
+  import { PERMISSION_GROUPS as GROUPS } from "@vmb/types";
   import SearchIcon from "@lucide/svelte/icons/search";
   import XIcon from "@lucide/svelte/icons/x";
 
   let {
     value = $bindable(),
     held,
-    name = "permissionKeys",
-    describedby
+    name = "permissionKeys"
   }: {
     /** The keys chosen; undefined, as an untouched form may have it, is none. */
     value?: string[];
     /** The caller's own permissions: the only keys they may grant or revoke. */
     held: readonly string[];
     name?: string;
-    describedby?: string;
   } = $props();
 
-  const GROUPS = permissionGroups();
   const ALL_KEYS = GROUPS.flatMap((group) => group.permissions.map((option) => option.key));
   const TOTAL = ALL_KEYS.length;
 
@@ -102,7 +99,6 @@
       variant="kit"
       type="search"
       aria-label="Search permissions"
-      aria-describedby={describedby}
       placeholder="Search {TOTAL} permissions"
       autocomplete="off"
       spellcheck={false}
@@ -194,7 +190,10 @@
                 onCheckedChange={(next) => set([option.key], next)}
               />
               {#if locked && on}
-                <!-- a disabled box sends nothing, so the grant it shows posts from here -->
+                <!-- a disabled box sends nothing, so the grant it shows posts from here. Only a
+                     permission revoked from the caller mid-session gets here (a role holding a key
+                     the caller lacks is refused before its form opens); without it, the save would
+                     quietly drop the grant rather than be refused by the API -->
                 <input type="hidden" {name} value={option.key} />
               {/if}
               <span class="flex min-w-0 flex-col gap-0.5">

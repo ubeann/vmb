@@ -6,7 +6,7 @@ import type {
   RoleListResponse,
   RoleUpdateInput
 } from "@vmb/types";
-import { isPermissionKey } from "@vmb/types";
+import { inCatalogueOrder, isPermissionKey } from "@vmb/types";
 import {
   and,
   asc,
@@ -146,10 +146,10 @@ export async function listRoles(db: MasterDb, query: RoleListRequest): Promise<R
 export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
   const rows = await db
     .select({
-      role: roleColumns,
+      role: getTableColumns(roles),
       divisionName: divisions.name,
       permissionKeys: sql<string[]>`coalesce((
-        select json_agg(rp.permission_key order by rp.permission_key)
+        select json_agg(rp.permission_key)
           from master.role_permissions rp where rp.role_id = ${roles.id}
       ), '[]'::json)`
     })
@@ -159,10 +159,12 @@ export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
     .limit(1);
   const row = rows[0];
   if (!row) throw new NotFoundError("Role not found.");
+  // the count is the keys read here, so the grants are scanned once
+  const permissionKeys = inCatalogueOrder(row.permissionKeys);
   return {
-    ...toRole(row.role),
+    ...toRole({ ...row.role, permissionCount: permissionKeys.length }),
     divisionName: row.divisionName,
-    permissionKeys: row.permissionKeys
+    permissionKeys
   };
 }
 
@@ -173,7 +175,7 @@ export async function getRole(db: MasterDb, id: string): Promise<RoleDetail> {
  * (ADR-0045), and a test holds `master.permissions` to it.
  */
 function grantable(keys: readonly string[], actor: Actor): string[] {
-  const unique = [...new Set(keys)].sort();
+  const unique = inCatalogueOrder([...new Set(keys)]);
   if (!unique.every(isPermissionKey)) {
     throw new NotFoundError("One of the chosen permissions does not exist.");
   }
@@ -314,7 +316,7 @@ export async function updateRole(
 }
 
 export async function deleteRole(db: MasterDb, id: string): Promise<void> {
-  await assertMutable(db, id);
+  await assertEditable(db, id);
 
   // a role in use is refused, not cascaded: deleting it would strip access
   // from everyone who holds it (the foreign key is the backstop)
@@ -339,13 +341,17 @@ export async function deleteRole(db: MasterDb, id: string): Promise<void> {
 }
 
 /**
- * Whether `actor` may edit this role, in one read: it exists (404), is not a
- * System Role (403 `SYSTEM_ROLE`), and grants nothing the caller lacks (403
- * `PERMISSION_ESCALATION`).
+ * Whether this role may be changed, in one read: it exists (404) and is not a
+ * System Role (403 `SYSTEM_ROLE`). Given an `actor`, an edit, it also grants
+ * nothing the caller lacks (403 `PERMISSION_ESCALATION`); a delete passes none,
+ * since the reach rule is about editing (ADR-0045's amendment of 2026-10-17).
  */
-async function assertEditable(db: MasterDb, id: string, actor: Actor): Promise<void> {
+async function assertEditable(db: MasterDb, id: string, actor?: Actor): Promise<void> {
   const rows = await db
-    .select({ isSystem: roles.isSystem, inReach: sql<boolean>`${roleWithinReach(actor)}` })
+    .select({
+      isSystem: roles.isSystem,
+      inReach: actor ? sql<boolean>`${roleWithinReach(actor)}` : sql<boolean>`true`
+    })
     .from(roles)
     .where(eq(roles.id, id))
     .limit(1);
@@ -354,16 +360,4 @@ async function assertEditable(db: MasterDb, id: string, actor: Actor): Promise<v
   if (!row) throw new NotFoundError("Role not found.");
   if (row.isSystem) throw new ForbiddenError("SYSTEM_ROLE", SYSTEM_ROLE_MESSAGE);
   if (!row.inReach) throw roleOutOfReach();
-}
-
-async function assertMutable(db: MasterDb, id: string): Promise<void> {
-  const rows = await db
-    .select({ isSystem: roles.isSystem })
-    .from(roles)
-    .where(eq(roles.id, id))
-    .limit(1);
-
-  const row = rows[0];
-  if (!row) throw new NotFoundError("Role not found.");
-  if (row.isSystem) throw new ForbiddenError("SYSTEM_ROLE", SYSTEM_ROLE_MESSAGE);
 }

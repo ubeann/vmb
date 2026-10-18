@@ -23,7 +23,7 @@
   import { listHref } from "./list.js";
   import { plainClick } from "$lib/components/list/rows.js";
   import { Button } from "$lib/components/ui/button/index.js";
-  import { permissionGroups, type PermissionKey, type RoleDetail } from "@vmb/types";
+  import { PERMISSION_GROUPS, type PermissionKey, type RoleDetail } from "@vmb/types";
   import PencilIcon from "@lucide/svelte/icons/pencil";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
 
@@ -49,12 +49,10 @@
   // what it grants, by resource in catalogue order, with each action's label
   const granted = $derived.by(() => {
     const keys = new Set(role.permissionKeys);
-    return permissionGroups()
-      .map((group) => ({
-        label: group.label,
-        actions: group.permissions.filter((option) => keys.has(option.key))
-      }))
-      .filter((group) => group.actions.length > 0);
+    return PERMISSION_GROUPS.map((group) => ({
+      label: group.label,
+      actions: group.permissions.filter((option) => keys.has(option.key))
+    })).filter((group) => group.actions.length > 0);
   });
   const canDelete = $derived(!role.isSystem && can("master-roles.delete"));
 

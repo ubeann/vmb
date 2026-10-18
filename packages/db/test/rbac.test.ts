@@ -1,6 +1,7 @@
 import {
   allPermissionKeys,
-  permissionGroups,
+  PERMISSION_GROUPS,
+  inCatalogueOrder,
   type Role,
   type RoleUpdateInput,
   type User,
@@ -641,7 +642,7 @@ describe("the permission catalogue", () => {
   });
 
   it("labels and describes every resource and every key, for the Role form", () => {
-    const groups = permissionGroups();
+    const groups = PERMISSION_GROUPS;
 
     expect(groups.flatMap((group) => group.permissions.map((option) => option.key))).toEqual(
       allPermissionKeys()
@@ -672,7 +673,8 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
   const ADMIN = fixtureId(ID_GROUPS.user, 1); // Super Admin: every key
   const STAFF_ROLE = fixtureId(ID_GROUPS.role, 4); // grants the two Division views
 
-  const DIVISION_VIEWS = ["master-divisions.view", "master-divisions.view_any"];
+  // in catalogue order, the order a role's detail lists its keys in
+  const DIVISION_VIEWS = ["master-divisions.view_any", "master-divisions.view"];
   // a role editor who holds the manager's keys and may edit roles, but holds no Users write
   const EDITOR: Actor = {
     id: fixtureId(ID_GROUPS.user, 2),
@@ -699,13 +701,15 @@ describe("editing a role's grants (ADR-0045's amendment of 2026-10-17)", () => {
     ...(permissionKeys === undefined ? {} : { permissionKeys })
   });
 
+  // what the table holds, in catalogue order to compare with what the store reads
   const grantsOf = async (client: Parameters<typeof count>[0], roleId: string) =>
-    (
-      await client.query<{ key: string }>(
-        `select permission_key as key from master.role_permissions
-          where role_id = '${roleId}' order by permission_key`
-      )
-    ).map((row) => row.key);
+    inCatalogueOrder(
+      (
+        await client.query<{ key: string }>(
+          `select permission_key as key from master.role_permissions where role_id = '${roleId}'`
+        )
+      ).map((row) => row.key)
+    );
 
   it("grants and revokes keys the caller holds, as the whole new set", async () => {
     await withMigratedDb(async (db, client) => {

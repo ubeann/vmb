@@ -367,6 +367,28 @@ describe("RoleForm's permissions", () => {
       .toBeDisabled();
   });
 
+  it("is unchanged again once a box is ticked and cleared, so closing asks nothing", async () => {
+    // loaded as the API serves a role's keys: in catalogue order
+    const form = await superValidate(
+      { ...loaded, permissionKeys: ["master-divisions.view_any", "master-divisions.create"] },
+      zod4(RoleFormSchema)
+    );
+    const drafts: { dirty: boolean }[] = [];
+    const screen = await render(RoleForm, {
+      held: HELD,
+      form,
+      ondraft: (draft) => drafts.push(draft)
+    });
+    const view = screen
+      .getByRole("group", { name: "Divisions" })
+      .getByRole("checkbox", { name: "View", exact: true });
+
+    await userEvent.click(view);
+    await expect.poll(() => drafts.at(-1)?.dirty).toBe(true);
+    await userEvent.click(view);
+    await expect.poll(() => drafts.at(-1)?.dirty).toBe(false);
+  });
+
   it("posts the empty set when every box is cleared, so the save revokes them all", async () => {
     const form = await superValidate(
       { ...loaded, permissionKeys: ["master-users.view_any"] },
