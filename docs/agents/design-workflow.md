@@ -24,6 +24,15 @@ Each design round gets its own folder, `docs/design/<round>/`, holding the round
 - **Decorative art is `aria-hidden`.** Show extra layers only where there is room for them. In the pilot, the sky appears at 64rem and wider, and the flock only on screens at least 56rem tall.
 - **Tokens only.** Art colours, washes and shadows come from `app.css` tokens (ADR-0035 rule 1). A new colour gets a new token in both `:root` and `.dark`.
 
+## Polish rounds
+
+A polish round is the owner and a thread refining a built screen against a reference, item by item: the Division layer against Cloudflare's dashboard in #302, about 25 items, which amended ADR-0035. The build thread of #302 hosted it and paid for that: 103 owner messages, 857 commands, four compactions (one from 705K tokens), and three turns per item (a recommendation, "yes, try it", "commit"). The rules:
+
+- **Its own `daily` thread, on the PR's branch.** Launch it with `t3_thread_launch` on the existing worktree (`workspaceStrategy` `existing_worktree`), not inside the `frontier` build thread, which then only reviews and merges. A compaction in a build thread loses the ticket's context; a polish thread holds nothing it cannot re-read from the branch.
+- **One turn per item.** Give the recommendation, build it, run the checks that cover it (`design-screenshots.mjs` for the touched state, `contrast.mjs` for any text pair it moves), commit it as a checkpoint whose subject names the item, and show the capture. The owner reverts what they dislike with `git revert <sha>`: one message instead of two.
+- **Batch the owner's asks.** Several items in one message become separate commits in one turn, each with its capture, so the owner reviews a strip rather than a conversation.
+- **Stop rule.** After each batch, report what changed and name the next three candidates; the owner picks or ends the round. A decision that changes a token or a rule is recorded as an ADR amendment before the round ends (as #302 did in ADR-0035), so the next ticket builds on it instead of rediscovering it.
+
 ## Skills
 
 Checked 2026-10-06 against impeccable 4.5.0. Three design skill sets are installed per machine, and all three describe themselves as "improve this UI", so name the one you want instead of letting the model pick. Each has one job. All three defer to ADR-0035, ADR-0036, ADR-0040, `app.css` and the steps above.
