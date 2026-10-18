@@ -43,6 +43,7 @@
 
   let search = $state("");
   let open = $state(false);
+  const listId = $derived(`${id}-options`);
 
   const label = (division: DivisionChoice) =>
     division.inactive ? `${division.name} (inactive)` : division.name;
@@ -84,6 +85,7 @@
         {id}
         aria-invalid={invalid ? "true" : undefined}
         aria-describedby={describedby}
+        aria-controls={open ? listId : undefined}
         autocomplete="off"
         defaultValue={chosen?.label ?? EVERY}
         onclick={() => (open = true)}
@@ -100,31 +102,31 @@
 
     <Combobox.Portal>
       <Combobox.Content
+        id={listId}
+        aria-label="Divisions"
         sideOffset={4}
         data-slot="division-options"
-        class="bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 ring-foreground/10 z-50 max-h-(--bits-combobox-content-available-height) w-(--bits-combobox-anchor-width) min-w-48 overflow-hidden rounded-lg p-1 shadow-md ring-1 duration-100"
+        class="bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 ring-foreground/10 z-50 max-h-[min(16rem,var(--bits-combobox-content-available-height))] w-(--bits-combobox-anchor-width) min-w-48 overflow-y-auto rounded-lg p-1 shadow-md ring-1 duration-100"
       >
-        <Combobox.Viewport class="max-h-64 overflow-y-auto">
-          {#each shown as option (option.value)}
-            <Combobox.Item
-              value={option.value}
-              label={option.label}
-              class="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-8 w-full cursor-default items-center gap-2 rounded-md py-1 pr-2 pl-2 text-sm outline-hidden select-none pointer-coarse:min-h-11"
-            >
-              {#snippet children({ selected })}
-                <CheckIcon
-                  aria-hidden="true"
-                  class={cn("text-primary size-4 shrink-0", !selected && "invisible")}
-                />
-                <span class="min-w-0 flex-1 truncate font-medium"
-                  ><Marked text={option.label} term={search} /></span
-                >
-              {/snippet}
-            </Combobox.Item>
-          {:else}
-            <p class="text-muted-foreground px-2 py-2 text-sm">No division matches.</p>
-          {/each}
-        </Combobox.Viewport>
+        {#each shown as option (option.value)}
+          <Combobox.Item
+            value={option.value}
+            label={option.label}
+            class="data-highlighted:bg-accent data-highlighted:text-accent-foreground flex min-h-8 w-full cursor-default items-center gap-2 rounded-md py-1 pr-2 pl-2 text-sm outline-hidden select-none pointer-coarse:min-h-11"
+          >
+            {#snippet children({ selected })}
+              <CheckIcon
+                aria-hidden="true"
+                class={cn("text-primary size-4 shrink-0", !selected && "invisible")}
+              />
+              <span class="min-w-0 flex-1 truncate font-medium"
+                ><Marked text={option.label} term={search} /></span
+              >
+            {/snippet}
+          </Combobox.Item>
+        {:else}
+          <p class="text-muted-foreground px-2 py-2 text-sm">No division matches.</p>
+        {/each}
       </Combobox.Content>
     </Combobox.Portal>
   </Combobox.Root>

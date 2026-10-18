@@ -1,3 +1,7 @@
+// Isolated renders don't load the global stylesheet; axe reads the colours it sees.
+import "../../app.css";
+
+import { axeViolations } from "$lib/a11y-support.js";
 import { RoleInputSchema, RoleUpdateInputSchema, allPermissionKeys } from "@vmb/types";
 import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
@@ -521,5 +525,21 @@ describe("RoleForm's Division (#463)", () => {
     await userEvent.click(none.getByRole("combobox", { name: "Division" }));
     await userEvent.click(none.getByRole("option", { name: "Yard" }));
     expect(none.getByText(/division changes with it/).elements()).toHaveLength(0);
+  });
+
+  it("passes axe with its list open, long enough to scroll, and closed", async () => {
+    const many = Array.from({ length: 14 }, (_, index) => ({
+      id: `d1000000-0000-4000-8000-0000000001${String(index).padStart(2, "0")}`,
+      name: `Division ${index + 1}`,
+      inactive: false
+    }));
+    const form = await superValidate(zod4(RoleFormSchema), { errors: false });
+    const screen = await render(RoleForm, { held: HELD, divisions: many, form });
+
+    expect(await axeViolations(document.body)).toEqual([]);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Division" }));
+    await expect.element(screen.getByRole("option", { name: "Division 14" })).toBeVisible();
+    expect(await axeViolations(document.body)).toEqual([]);
   });
 });
