@@ -22,7 +22,7 @@ describe("static assets", () => {
 
   // ADR-0047: a script without the per-request nonce is blocked by the CSP.
   it("gives every inline script in app.html the CSP nonce", () => {
-    const scripts = [...appHtml.matchAll(/<script\b[^>]*>/g)].map((match) => match[0]);
+    const scripts = [...appHtml.matchAll(/<script\b[^>]*>/gi)].map((match) => match[0]);
 
     expect(scripts.length).toBeGreaterThan(0);
     for (const script of scripts) expect(script).toContain('nonce="%sveltekit.nonce%"');
