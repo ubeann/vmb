@@ -316,6 +316,7 @@ const VISITS = {
   signedIn: [
     { path: "/" },
     { path: "/design-system" },
+    { path: "/profile" },
     { path: "/csp-check-no-such-page", name: "/404 (signed in)", shell: false }
   ]
 };
