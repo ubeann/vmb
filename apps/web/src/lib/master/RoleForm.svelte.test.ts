@@ -542,4 +542,22 @@ describe("RoleForm's Division (#463)", () => {
     await expect.element(screen.getByRole("option", { name: "Division 14" })).toBeVisible();
     expect(await axeViolations(document.body)).toEqual([]);
   });
+
+  it("opens its list under the whole field, the same width and left edge", async () => {
+    const form = await superValidate(zod4(RoleFormSchema), { errors: false });
+    const screen = await render(RoleForm, { held: HELD, divisions: DIVISIONS, form });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Division" }));
+    const list = await vi.waitUntil(() => document.querySelector("[data-slot=division-options]"));
+    const field = screen.getByRole("combobox", { name: "Division" }).element().parentElement!;
+
+    await expect
+      .poll(() =>
+        Math.round(list.getBoundingClientRect().left - field.getBoundingClientRect().left)
+      )
+      .toBe(0);
+    expect(Math.round(list.getBoundingClientRect().width)).toBe(
+      Math.round(field.getBoundingClientRect().width)
+    );
+  });
 });

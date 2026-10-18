@@ -43,6 +43,7 @@
 
   let search = $state("");
   let open = $state(false);
+  let box = $state<HTMLElement | null>(null);
   const listId = $derived(`${id}-options`);
 
   const label = (division: DivisionChoice) =>
@@ -80,7 +81,10 @@
       if (!next) search = "";
     }}
   >
-    <div class={cn(FIELD, invalid && "border-destructive ring-destructive/20 ring-3")}>
+    <div
+      bind:this={box}
+      class={cn(FIELD, invalid && "border-destructive ring-destructive/20 ring-3")}
+    >
       <Combobox.Input
         {id}
         aria-invalid={invalid ? "true" : undefined}
@@ -102,6 +106,7 @@
 
     <Combobox.Portal>
       <Combobox.Content
+        customAnchor={box}
         id={listId}
         aria-label="Divisions"
         sideOffset={4}
