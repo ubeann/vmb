@@ -1,0 +1,71 @@
+# CodeRabbit, on request only (docs.coderabbit.ai/reference/configuration).
+#
+# The Open Source plan needs a manual trigger on a public repository with
+# fewer than 10 stars anyway; these settings keep review on request once that
+# changes. The build posts `@coderabbitai review` on its draft PR after the
+# first green `Verify` (docs/agents/ticket-loop.md, Build), and answers the
+# findings under the three-round rule (docs/agents/model-routing.md, Review).
+# Everything optional is off. A review still posts one walkthrough comment,
+# collapsed and without findings; the build has nothing to answer in it and
+# only acts on the inline findings (docs/agents/ticket-loop.md, Build).
+language: en-GB
+tone_instructions: >-
+  Terse. Report correctness and security findings only, each with the failing
+  input or state. No praise, no style nits, no restating what the change does.
+reviews:
+  profile: chill
+  high_level_summary: false
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  poem: false
+  in_progress_fortune: false
+  collapse_walkthrough: true
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+  review_status: false
+  request_changes_workflow: false
+  auto_review:
+    enabled: false
+    drafts: false
+    ignore_title_keywords:
+      - WIP
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!**/*.snap"
+    - "!docs/**"
+  path_instructions:
+    - path: "apps/web/src/**"
+      instructions: >-
+        SvelteKit with Svelte 5 runes. Look first for auth, CSP, SQL and
+        form-action input handling bugs. CODING_STANDARDS.md at the repository
+        root is the reviewer's brief.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - CODING_STANDARDS.md
