@@ -76,6 +76,15 @@ describe("the profile page", () => {
     await expect.element(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/");
   });
 
+  it("titles its section one level under the page heading", async () => {
+    const screen = await render(Page, { data: await pageData() });
+
+    await expect.element(screen.getByRole("heading", { level: 1, name: "Profile" })).toBeVisible();
+    await expect
+      .element(screen.getByRole("heading", { level: 2, name: "Personal information" }))
+      .toBeVisible();
+  });
+
   it("has no accessibility violations, saved or refused", async () => {
     const saved = await render(Page, { data: await pageData({ saved: true }) });
 

@@ -2,12 +2,18 @@
   A titled group of a record form's fields (#302), so a form reads as a few
   sections rather than one long column. A section that follows another starts
   at a dashed line. Without a title it is only that break: a row such as
-  Active that labels itself.
+  Active that labels itself. The title is an h3, under a layer's h2; a form on
+  a page of its own, under the page's h1, passes `level={2}`.
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  let { title, hint, children }: { title?: string; hint?: string; children: Snippet } = $props();
+  let {
+    title,
+    hint,
+    level = 3,
+    children
+  }: { title?: string; hint?: string; level?: 2 | 3; children: Snippet } = $props();
 
   const id = $props.id();
 </script>
@@ -20,7 +26,9 @@
 >
   {#if title}
     <div class="flex flex-col gap-0.5">
-      <h3 {id} class="text-sm leading-tight font-semibold">{title}</h3>
+      <svelte:element this={`h${level}`} {id} class="text-sm leading-tight font-semibold">
+        {title}
+      </svelte:element>
       {#if hint}<p class="text-muted-foreground text-xs">{hint}</p>{/if}
     </div>
   {/if}

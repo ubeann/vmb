@@ -51,7 +51,11 @@
     fields: { name: "name", phone: "phone number", profilePhotoPath: "photo" }
   }}
 >
-  <FormSection title="Personal information" hint="How you appear in VMB, and how to reach you.">
+  <FormSection
+    title="Personal information"
+    hint="How you appear in VMB, and how to reach you."
+    level={2}
+  >
     <Form.Field form={superform} name="name" class="space-y-1.5">
       <Form.Control>
         {#snippet children({ props })}
