@@ -23,8 +23,8 @@ const ROUTES = [
   ["PATCH", "/divisions/:id", "master-divisions.update"],
   ["DELETE", "/divisions/:id", "master-divisions.delete"],
   ["POST", "/divisions/:id/restore", "master-divisions.restore"],
-  // a bulk action demands the key of its action: the table sends a delete, the test below a restore
-  ["POST", "/divisions/bulk", "master-divisions.delete"],
+  // a bulk action demands the key of its action: the table sends a delete, the tests below the rest
+  ["POST", "/divisions/bulk", "master-divisions.delete_any"],
   ["POST", "/divisions/:id/activate", "master-divisions.update"],
   ["POST", "/divisions/:id/deactivate", "master-divisions.update"],
   ["GET", "/roles", "master-roles.view_any"],
@@ -38,7 +38,7 @@ const ROUTES = [
   ["PATCH", "/users/:id", "master-users.update"],
   ["DELETE", "/users/:id", "master-users.delete"],
   ["POST", "/users/:id/restore", "master-users.restore"],
-  ["POST", "/users/bulk", "master-users.delete"]
+  ["POST", "/users/bulk", "master-users.delete_any"]
 ] as const;
 
 const concrete = (path: string) => path.replace(":id", ID);
@@ -103,19 +103,22 @@ describe("master API permissions", () => {
   });
 
   it.each([
-    ["/divisions/bulk", "master-divisions.restore"],
-    ["/users/bulk", "master-users.restore"]
-  ])("POST %s restoring needs %s, not the delete key", async (path, key) => {
-    const body = JSON.stringify({ action: "restore", ids: [ID] });
+    ["/divisions/bulk", "restore", "master-divisions.restore_any", "master-divisions.restore"],
+    ["/users/bulk", "restore", "master-users.restore_any", "master-users.restore"],
+    ["/divisions/bulk", "delete", "master-divisions.delete_any", "master-divisions.delete"],
+    ["/users/bulk", "delete", "master-users.delete_any", "master-users.delete"],
+    ["/divisions/bulk", "activate", "master-divisions.update", "master-divisions.delete_any"],
+    ["/divisions/bulk", "deactivate", "master-divisions.update", "master-divisions.delete_any"]
+  ])("POST %s %s needs %s, not %s", async (path, action, key, other) => {
+    const body = JSON.stringify({ action, ids: [ID] });
     const post = { method: "POST", headers: { "content-type": "application/json" }, body };
 
-    const deleteKey = key.replace("restore", "delete");
     const without = appFor(allPermissionKeys().filter((candidate) => candidate !== key));
     expect((await without.app.request(path, post, env)).status).toBe(403);
 
-    // holding the delete key alone is not enough to restore
-    const other = appFor([deleteKey]);
-    expect((await other.app.request(path, post, env)).status).toBe(403);
+    // holding the single-record key (or another action's) alone is not enough
+    const wrong = appFor([other]);
+    expect((await wrong.app.request(path, post, env)).status).toBe(403);
 
     const only = appFor([key]);
     expect((await only.app.request(path, post, env)).status).not.toBe(403);

@@ -41,12 +41,13 @@ export const userRoutes = new Hono<MasterEnv>()
       return c.json(UserSchema.parse(user), 201);
     }
   )
-  // delete or restore several at once, all or none (#305); the action names the permission
+  // delete or restore several at once, all or none (#305); the action names the `_any`
+  // permission, as legacy's bulk actions did (#467)
   .post("/bulk", jsonBody(BulkRequestSchema), async (c) => {
     const request = c.req.valid("json");
     await assertPermission(
       c,
-      request.action === "delete" ? "master-users.delete" : "master-users.restore"
+      request.action === "delete" ? "master-users.delete_any" : "master-users.restore_any"
     );
     const done = await c.get("store").bulkUsers(request, actor(c));
     return c.json(BulkResponseSchema.parse(done));

@@ -3,6 +3,7 @@ import type {
   BulkRequest,
   BulkResponse,
   Division,
+  DivisionBulkRequest,
   DivisionDetail,
   DivisionInput,
   DivisionListRequest,
@@ -67,8 +68,8 @@ export type MasterStore = {
   deleteDivision(id: string): Promise<void>;
   restoreDivision(id: string): Promise<Division>;
   setDivisionActive(id: string, isActive: boolean): Promise<Division>;
-  /** Delete or restore several divisions, all or none (#305). */
-  bulkDivisions(request: BulkRequest): Promise<BulkResponse>;
+  /** Delete, restore, activate or deactivate several divisions, all or none (#305, #467). */
+  bulkDivisions(request: DivisionBulkRequest): Promise<BulkResponse>;
 
   listRoles(query: RoleListRequest): Promise<RoleListResponse>;
   getRole(id: string): Promise<RoleDetail>;

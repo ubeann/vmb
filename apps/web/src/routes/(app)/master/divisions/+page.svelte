@@ -58,6 +58,7 @@
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import * as Table from "$lib/components/ui/table/index.js";
   import BulkDeleteDialog from "$lib/master/BulkDeleteDialog.svelte";
+  import BulkStatusDialog from "$lib/master/BulkStatusDialog.svelte";
   import DeleteDivisionDialog from "$lib/master/DeleteDivisionDialog.svelte";
   import DivisionForm from "$lib/master/DivisionForm.svelte";
   import DivisionView from "$lib/master/DivisionView.svelte";
@@ -164,9 +165,11 @@
   // filters or the sort change, or the rows do
   const selection = new Selection();
   const pageIds = $derived(data.divisions?.items.map((division) => division.id) ?? []);
-  const selectable = $derived(
-    inTrash ? can("master-divisions.restore") : can("master-divisions.delete")
-  );
+  // the bulk actions check the `_any` keys, as legacy's did, and a switch is an update (#467)
+  const canSwitch = $derived(can("master-divisions.update"));
+  const canBulkDelete = $derived(can("master-divisions.delete_any"));
+  const canBulkRestore = $derived(can("master-divisions.restore_any"));
+  const selectable = $derived(inTrash ? canBulkRestore : canBulkDelete || canSwitch);
   const pageState = $derived(selection.stateOf(pageIds));
   $effect.pre(() => {
     void page.url.search;
@@ -186,12 +189,22 @@
   // the rows a delete asks about, kept while the dialog closes after the selection is gone
   let bulkIds = $state<string[]>([]);
   let bulkOpen = $state(false);
+  // the same for Activate and Deactivate, with the state the dialog switches to
+  let statusIds = $state<string[]>([]);
+  let statusActive = $state(true);
+  let statusOpen = $state(false);
 
   const manyDivisions = (n: number) => `${n} ${n === 1 ? "division" : "divisions"}`;
 
   function askBulkDelete() {
     bulkIds = selection.ids;
     bulkOpen = true;
+  }
+
+  function askBulkStatus(active: boolean) {
+    statusIds = selection.ids;
+    statusActive = active;
+    statusOpen = true;
   }
 
   function clearSelection() {
@@ -203,11 +216,38 @@
     selection.clear();
     toast.success(`${manyDivisions(ids.length)} moved to Trash`, {
       duration: 10_000,
-      action: can("master-divisions.restore")
-        ? { label: "Undo", onClick: () => restoreMany(ids) }
-        : undefined
+      action: canBulkRestore ? { label: "Undo", onClick: () => restoreMany(ids) } : undefined
     });
   }
+
+  /** `changed` is what the batch switched: the Undo puts back those, not the ones already in the state. */
+  function bulkSwitched(changed: string[], chosen: string[]) {
+    const active = statusActive;
+    selection.clear();
+    if (changed.length === 0) {
+      toast.success(`${manyDivisions(chosen.length)} already ${active ? "active" : "inactive"}`);
+      return;
+    }
+    toast.success(`${manyDivisions(changed.length)} ${active ? "activated" : "deactivated"}`, {
+      duration: 10_000,
+      action: { label: "Undo", onClick: () => switchMany(changed, !active) }
+    });
+  }
+
+  /** The Undo of a bulk Activate or Deactivate: the same rows, back to the other state, with no Undo of its own. */
+  const switchMany = (ids: string[], active: boolean) =>
+    inOrder(async () => {
+      const result = await postBulkAction(`${actionPath}?/bulk`, {
+        action: active ? "activate" : "deactivate",
+        ids
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${manyDivisions(ids.length)} ${active ? "activated" : "deactivated"}`);
+      await invalidateAll();
+    });
 
   /** Restore several in one request: the Trash's bulk Restore, and the Undo of a bulk delete. */
   const restoreMany = (ids: string[]) =>
@@ -477,9 +517,19 @@
             <RotateCcwIcon aria-hidden="true" data-icon="inline-start" />Restore
           </Button>
         {:else}
-          <Button type="button" variant="outline" onclick={askBulkDelete}>
-            <Trash2Icon aria-hidden="true" data-icon="inline-start" />Delete…
-          </Button>
+          {#if canSwitch}
+            <Button type="button" variant="outline" onclick={() => askBulkStatus(true)}>
+              <PowerIcon aria-hidden="true" data-icon="inline-start" />Activate…
+            </Button>
+            <Button type="button" variant="outline" onclick={() => askBulkStatus(false)}>
+              <PowerOffIcon aria-hidden="true" data-icon="inline-start" />Deactivate…
+            </Button>
+          {/if}
+          {#if canBulkDelete}
+            <Button type="button" variant="outline" onclick={askBulkDelete}>
+              <Trash2Icon aria-hidden="true" data-icon="inline-start" />Delete…
+            </Button>
+          {/if}
         {/if}
       </ListBulkBar>
     {:else}
@@ -883,6 +933,16 @@
     >
   {/snippet}
 </BulkDeleteDialog>
+
+<BulkStatusDialog
+  bind:open={statusOpen}
+  ids={statusIds}
+  active={statusActive}
+  noun={NOUNS.all}
+  action="{actionPath}?/bulk"
+  returnFocus={() => [headerBox, stripBox].find((box) => box && box.offsetParent !== null) ?? null}
+  onswitched={bulkSwitched}
+/>
 
 <RecordLayer
   open={layer.shown !== null}

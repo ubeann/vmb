@@ -399,6 +399,22 @@ describe("master API: divisions", () => {
     expect(store.bulkDivisions).toHaveBeenLastCalledWith({ action: "restore", ids });
   });
 
+  it("switches several divisions on or off through the same bulk endpoint", async () => {
+    const store = fakeStore();
+    const ids = [ID, OTHER_ID];
+
+    for (const action of ["activate", "deactivate"] as const) {
+      const response = await appWith(store).request(
+        "/divisions/bulk",
+        json("POST", { action, ids }),
+        env
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ ids });
+      expect(store.bulkDivisions).toHaveBeenLastCalledWith({ action, ids });
+    }
+  });
+
   it("refuses a bulk request with no ids, more than 100, a bad id or an unknown action", async () => {
     const store = fakeStore();
     const crowd = Array.from(
@@ -1093,6 +1109,20 @@ describe("master API: users", () => {
 
     await appWith(store).request("/users/bulk", json("POST", { action: "restore", ids }), env);
     expect(store.bulkUsers).toHaveBeenLastCalledWith({ action: "restore", ids }, CALLER);
+  });
+
+  it("refuses a bulk activate or deactivate on users: a user has no such action", async () => {
+    const store = fakeStore();
+
+    for (const action of ["activate", "deactivate"]) {
+      const response = await appWith(store).request(
+        "/users/bulk",
+        json("POST", { action, ids: [ID] }),
+        env
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(store.bulkUsers).not.toHaveBeenCalled();
   });
 
   it("maps a bulk delete that reaches a user out of the caller's reach to 403", async () => {

@@ -225,6 +225,17 @@ export const BulkRequestSchema = z.object({
 
 export type BulkRequest = z.infer<typeof BulkRequestSchema>;
 
+/**
+ * A Division's bulk action: delete or restore as above, or switch every one on
+ * or off, as an explicit target state so a selection never ends half-flipped
+ * (#467).
+ */
+export const DivisionBulkRequestSchema = BulkRequestSchema.extend({
+  action: z.enum(["delete", "restore", "activate", "deactivate"])
+});
+
+export type DivisionBulkRequest = z.infer<typeof DivisionBulkRequestSchema>;
+
 /** The records a bulk action changed, once each, for the Undo that follows it. */
 export const BulkResponseSchema = z.object({ ids: z.array(z.uuid()) });
 

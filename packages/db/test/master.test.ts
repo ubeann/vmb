@@ -2228,6 +2228,67 @@ describe("bulk delete and restore (#305)", () => {
       });
     });
 
+    it("switches the batch on or off and answers only the divisions whose flag changed, for the Undo", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const on = await store.createDivision(division({ name: "Alpha", code: "ALP" }));
+        const off = await store.createDivision(
+          division({ name: "Beta", code: "BET", isActive: false })
+        );
+        const other = await store.createDivision(division({ name: "Gamma", code: "GAM" }));
+        const ids = [on.id, off.id];
+
+        // Alpha is already on: only Beta changed, so only Beta is undone
+        await expect(store.bulkDivisions({ action: "activate", ids })).resolves.toEqual({
+          ids: [off.id]
+        });
+        await expect(store.getDivision(off.id)).resolves.toMatchObject({ isActive: true });
+        // "Updated" moves only for the row that changed
+        await expect(store.getDivision(on.id)).resolves.toMatchObject({ updatedAt: on.updatedAt });
+
+        await expect(store.bulkDivisions({ action: "deactivate", ids: [off.id] })).resolves.toEqual(
+          { ids: [off.id] }
+        );
+        await expect(store.getDivision(off.id)).resolves.toMatchObject({ isActive: false });
+
+        await expect(store.bulkDivisions({ action: "deactivate", ids })).resolves.toEqual({
+          ids: [on.id]
+        });
+        await expect(store.getDivision(on.id)).resolves.toMatchObject({ isActive: false });
+        // a division outside the batch is left alone
+        await expect(store.getDivision(other.id)).resolves.toMatchObject({ isActive: true });
+        // nothing to change is not an error
+        await expect(store.bulkDivisions({ action: "deactivate", ids })).resolves.toEqual({
+          ids: []
+        });
+      });
+    });
+
+    it("refuses a switch when one division is gone or in the Trash, and switches none", async () => {
+      await withMigratedDb(async (db) => {
+        const store = storeFor(db);
+        const live = await store.createDivision(division({ name: "Live", code: "LIV" }));
+        const trashed = await store.createDivision(division({ name: "Old", code: "OLD" }));
+        await store.deleteDivision(trashed.id);
+
+        for (const action of ["activate", "deactivate"] as const) {
+          await expect(
+            store.bulkDivisions({ action, ids: [live.id, trashed.id] })
+          ).rejects.toMatchObject({ code: "NOT_FOUND" });
+          await expect(
+            store.bulkDivisions({
+              action,
+              ids: [live.id, "00000000-0000-4000-8000-000000000000"]
+            })
+          ).rejects.toMatchObject({ code: "NOT_FOUND" });
+        }
+
+        await expect(store.getDivision(live.id)).resolves.toMatchObject({ isActive: true });
+        await store.restoreDivision(trashed.id);
+        await expect(store.getDivision(trashed.id)).resolves.toMatchObject({ isActive: true });
+      });
+    });
+
     it("refuses a restore over a name taken meanwhile and restores none of the batch", async () => {
       await withMigratedDb(async (db, client) => {
         const store = storeFor(db);

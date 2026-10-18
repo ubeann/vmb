@@ -117,7 +117,9 @@ const ALL = [
   "master-users.create",
   "master-users.update",
   "master-users.delete",
-  "master-users.restore"
+  "master-users.delete_any",
+  "master-users.restore",
+  "master-users.restore_any"
 ];
 
 function props(
@@ -675,7 +677,8 @@ describe("selecting users for a bulk action (#305)", () => {
     await browser.viewport(1280, 900);
     const noDelete = await render(
       Page,
-      props("/master/users", { permissions: ALL.filter((key) => !key.endsWith(".delete")) })
+      // the single delete is not the bulk one: only `delete_any` offers the checkboxes (#467)
+      props("/master/users", { permissions: ALL.filter((key) => !key.endsWith(".delete_any")) })
     );
     expect(noDelete.getByRole("checkbox").elements()).toHaveLength(0);
     await noDelete.unmount();
@@ -684,7 +687,7 @@ describe("selecting users for a bulk action (#305)", () => {
       Page,
       props("/master/users?trashed=only", {
         items: trashed,
-        permissions: ALL.filter((key) => !key.endsWith(".restore"))
+        permissions: ALL.filter((key) => !key.endsWith(".restore_any"))
       })
     );
     expect(noRestore.getByRole("checkbox").elements()).toHaveLength(0);

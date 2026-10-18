@@ -1,7 +1,7 @@
 import {
-  type BulkRequest,
   type BulkResponse,
   type Division,
+  type DivisionBulkRequest,
   type DivisionDetail,
   type DivisionInput,
   type DivisionListRequest,
@@ -351,8 +351,8 @@ function withRoles(rows: { name: string; roles: number }[]): string {
 }
 
 /**
- * Delete or restore several divisions as one: all of them or none, in one
- * transaction (#305). A refusal is read over the whole batch, so it names every
+ * Delete, restore, activate or deactivate several divisions as one: all of them
+ * or none, in one transaction (#305, #467). A refusal is read over the whole batch, so it names every
  * division in the way: those that still have roles (`DIVISION_IN_USE`, with
  * how many each), or a 404 when one is gone or not where the action needs it.
  * The write repeats the rules in its own `where`, as the single delete does,
@@ -360,12 +360,56 @@ function withRoles(rows: { name: string; roles: number }[]): string {
  */
 export async function bulkDivisions(
   options: { transaction: OpenTransaction },
-  request: BulkRequest
+  request: DivisionBulkRequest
 ): Promise<BulkResponse> {
   const ids = uniqueIds(request.ids);
-  return options.transaction((tx) =>
-    request.action === "delete" ? bulkDeleteDivisions(tx, ids) : bulkRestoreDivisions(tx, ids)
-  );
+  return options.transaction((tx) => {
+    switch (request.action) {
+      case "delete":
+        return bulkDeleteDivisions(tx, ids);
+      case "restore":
+        return bulkRestoreDivisions(tx, ids);
+      case "activate":
+        return bulkSetDivisionsActive(tx, ids, true);
+      case "deactivate":
+        return bulkSetDivisionsActive(tx, ids, false);
+    }
+  });
+}
+
+/**
+ * Switch live divisions to one explicit state, never flipping each from its
+ * own (#467). The rows are locked and read first, so a Trashed or missing one
+ * is a 404 for the whole batch and the write cannot meet a row that changed in
+ * between. The answer is the divisions whose flag changed: an Undo of the batch
+ * puts those back and leaves the ones that were already in the state alone.
+ * Like the single switch, `updated_at` moves only for a row that changed.
+ */
+async function bulkSetDivisionsActive(
+  tx: MasterDb,
+  ids: string[],
+  isActive: boolean
+): Promise<BulkResponse> {
+  const found = await tx
+    .select({ id: divisions.id, isActive: divisions.isActive })
+    .from(divisions)
+    .where(and(inArray(divisions.id, ids), isNull(divisions.deletedAt)))
+    .for("update");
+  if (found.length !== ids.length) {
+    throw new NotFoundError(
+      "Some of the selected divisions are gone or in the Trash. Reload the list and try again."
+    );
+  }
+
+  const changing = found.filter((row) => row.isActive !== isActive).map((row) => row.id);
+  if (changing.length === 0) return { ids: [] };
+
+  const rows = await tx
+    .update(divisions)
+    .set({ isActive, updatedAt: nextStamp(divisions.updatedAt) })
+    .where(and(inArray(divisions.id, changing), isNull(divisions.deletedAt)))
+    .returning({ id: divisions.id });
+  return { ids: rows.map((row) => row.id) };
 }
 
 async function bulkDeleteDivisions(tx: MasterDb, ids: string[]): Promise<BulkResponse> {
