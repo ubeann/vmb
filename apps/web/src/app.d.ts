@@ -7,7 +7,7 @@ declare global {
   // Injected at build time by CI (issue #23) so each per-PR web preview can
   // point at its own `apps/api` Worker Preview. Exposed to the bundle by
   // Vite's `envPrefix` (see vite.config.ts). Unset for local dev/production,
-  // where resolveApiUrl falls back to the Pages binding / localhost.
+  // where resolveApiUrl falls back to the API_URL binding / localhost.
   interface ImportMetaEnv {
     readonly PUBLIC_API_URL?: string;
   }
@@ -18,7 +18,7 @@ declare global {
 
   namespace App {
     // `errorId` and `occurredAt` (ISO) are set by `handleError` for unexpected
-    // failures (hooks.server.ts).
+    // failures (hooks.server.ts). Kit 3 adds `status` to every App.Error.
     interface Error {
       message: string;
       errorId?: string;
@@ -39,14 +39,6 @@ declare global {
     // A record opened in a layer over its list (#302): its page's URL and data.
     interface PageState {
       layer?: LayerEntry;
-    }
-    interface Platform {
-      env: {
-        API_URL: string;
-        // Shared with apps/api; sent with the browser's address so apps/api
-        // can trust it as the client IP (ADR-0042). Unset, neither is sent.
-        CLIENT_IP_SECRET?: string;
-      };
     }
   }
 }

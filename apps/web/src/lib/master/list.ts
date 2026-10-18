@@ -1,3 +1,4 @@
+import type { ReadonlyURLSearchParams } from "$app/state";
 import { splitListParam } from "@vmb/types";
 import type { z } from "zod";
 
@@ -39,7 +40,7 @@ export function parseListQuery<T extends z.ZodType>(schema: T, url: URL): z.infe
  * A query string with the commas of a value filter left as they are
  * (`status=active,inactive`), which a URL allows and a reader can read.
  */
-function queryString(params: URLSearchParams): string {
+function queryString(params: ReadonlyURLSearchParams): string {
   return params.toString().replaceAll("%2C", ",");
 }
 
@@ -127,10 +128,10 @@ export function toggleListValue(
  */
 export function listHref(
   base: MasterListPathname,
-  params: URLSearchParams,
+  params: ReadonlyURLSearchParams,
   changes: Record<string, string | number | null>
 ): MasterListHref {
-  const next = new URLSearchParams(params);
+  const next = new URLSearchParams(params.toString());
   if (!("page" in changes)) next.delete("page");
 
   for (const [key, value] of Object.entries(changes)) {
@@ -149,7 +150,7 @@ export function listHref(
  */
 export function sortState(
   base: MasterListPathname,
-  params: URLSearchParams,
+  params: ReadonlyURLSearchParams,
   current: { sort: string; dir: "asc" | "desc" },
   column: string
 ): { ariaSort: "ascending" | "descending" | "none"; href: MasterListHref } {

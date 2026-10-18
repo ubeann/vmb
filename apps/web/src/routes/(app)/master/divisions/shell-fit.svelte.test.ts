@@ -20,7 +20,7 @@ vi.mock("$app/paths", () => ({
   resolve: (path: string, params: Record<string, string> = {}) =>
     Object.entries(params).reduce(
       (out, [key, value]) => out.replace(`[${key}]`, value),
-      path.replace("/(app)", "")
+      path.startsWith("/") ? path.replace("/(app)", "") : `/${path}`
     )
 }));
 vi.mock("$app/state", () => ({ page: mockPage, navigating: { to: null } }));

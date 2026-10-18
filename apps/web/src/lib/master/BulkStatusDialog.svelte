@@ -20,7 +20,7 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { nounFor, type CountNoun } from "$lib/master/list.js";
-  import type { SubmitFunction } from "@sveltejs/kit";
+  import type { SubmitFunction } from "$app/forms";
   import PowerIcon from "@lucide/svelte/icons/power";
   import PowerOffIcon from "@lucide/svelte/icons/power-off";
   import { toast } from "svelte-sonner";

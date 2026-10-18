@@ -1,22 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import type { Config } from "@sveltejs/kit";
 import { describe, expect, it } from "vitest";
+import { csp, EMPTY_STYLE_HASH, MODE_WATCHER_STYLE_HASH } from "../csp.js";
 
-// svelte.config.js is plain JS outside the typed project; import it untyped.
-const configPath: string = "../svelte.config.js";
-const {
-  default: config,
-  MODE_WATCHER_STYLE_HASH,
-  EMPTY_STYLE_HASH
-} = (await import(/* @vite-ignore */ configPath)) as {
-  default: Config;
-  MODE_WATCHER_STYLE_HASH: string;
-  EMPTY_STYLE_HASH: string;
-};
-
-const enforced = config.kit?.csp?.directives;
-const reportOnly = config.kit?.csp?.reportOnly;
+const enforced = csp.directives;
+const reportOnly = csp.reportOnly;
 const sha256 = (text: string) => `sha256-${createHash("sha256").update(text).digest("base64")}`;
 
 // mode-watcher exports no path to its files, so read it through the symlink.
@@ -39,8 +27,8 @@ describe("the CSP (ADR-0047)", () => {
     const hash = sha256(sheet!);
 
     expect(MODE_WATCHER_STYLE_HASH).toBe(hash);
-    expect(enforced?.["style-src-elem"]).toContain(hash);
-    expect(reportOnly?.["style-src-elem"]).toContain(hash);
+    expect(enforced["style-src-elem"]).toContain(hash);
+    expect(reportOnly["style-src-elem"]).toContain(hash);
   });
 
   it("allows the empty <style> bits-ui's PinInput appends", () => {
@@ -53,23 +41,23 @@ describe("the CSP (ADR-0047)", () => {
     );
 
     expect(EMPTY_STYLE_HASH).toBe(sha256(""));
-    expect(enforced?.["style-src-elem"]).toContain(EMPTY_STYLE_HASH);
-    expect(reportOnly?.["style-src-elem"]).toContain(EMPTY_STYLE_HASH);
+    expect(enforced["style-src-elem"]).toContain(EMPTY_STYLE_HASH);
+    expect(reportOnly["style-src-elem"]).toContain(EMPTY_STYLE_HASH);
   });
 
   it("enforces a policy and measures a tighter one beside it", () => {
-    expect(enforced?.["script-src"]).toEqual(["self"]);
-    expect(enforced?.["style-src-attr"]).toEqual(["unsafe-inline"]);
+    expect(enforced["script-src"]).toEqual(["self"]);
+    expect(enforced["style-src-attr"]).toEqual(["unsafe-inline"]);
 
-    expect(reportOnly?.["script-src"]).toEqual(["strict-dynamic"]);
-    expect({ ...reportOnly, "script-src": enforced?.["script-src"] }).toEqual(enforced);
+    expect(reportOnly["script-src"]).toEqual(["strict-dynamic"]);
+    expect({ ...reportOnly, "script-src": enforced["script-src"] }).toEqual(enforced);
   });
 
   it.each([
     ["enforced", enforced],
     ["report-only", reportOnly]
   ])("names a report endpoint in the %s policy", (_name, policy) => {
-    expect(policy?.["report-to"]).toEqual(["csp"]);
-    expect(policy?.["report-uri"]).toEqual(["/csp-report"]);
+    expect(policy["report-to"]).toEqual(["csp"]);
+    expect(policy["report-uri"]).toEqual(["/csp-report"]);
   });
 });

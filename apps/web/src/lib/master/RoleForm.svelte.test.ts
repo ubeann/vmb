@@ -3,7 +3,6 @@ import "../../app.css";
 
 import { axeViolations } from "$lib/a11y-support.js";
 import { RoleInputSchema, RoleUpdateInputSchema, allPermissionKeys } from "@vmb/types";
-import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -15,6 +14,8 @@ vi.mock("$app/forms", async (original) => ({
   applyAction: vi.fn()
 }));
 
+// after the mocks: its client half imports the mocked $app modules
+const { setError, superValidate } = await import("sveltekit-superforms");
 const { render } = await import("vitest-browser-svelte");
 const { default: RoleForm } = await import("./RoleForm.svelte");
 const { RoleFormSchema, RoleFormUpdateSchema } = await import("./form-data.js");

@@ -3,7 +3,7 @@
 // list's; its search, filters, sort and page must stay as they were, behind
 // the layer and once it closes.
 
-import { page } from "$app/state";
+import { page, type ReadonlyURL } from "$app/state";
 import { getContext, setContext } from "svelte";
 
 const KEY = Symbol("list-url");
@@ -26,7 +26,7 @@ export function provideListUrl(base: string) {
  * What a list control reads its state from, in place of `$app/state`'s `page`:
  * the list's URL where a list page provides one, and `page.url` elsewhere.
  */
-export function listPage(): { readonly url: URL } {
+export function listPage(): { readonly url: ReadonlyURL } {
   const url = getContext<(() => URL) | undefined>(KEY);
   return {
     get url() {

@@ -15,7 +15,10 @@ const mockPage: { url: URL; data: Record<string, unknown> } = {
 
 vi.mock("$app/paths", () => ({
   resolve: (path: string, params: Record<string, string> = {}) =>
-    Object.entries(params).reduce((out, [key, value]) => out.replace(`[${key}]`, value), path)
+    Object.entries(params).reduce(
+      (out, [key, value]) => out.replace(`[${key}]`, value),
+      path.startsWith("/") ? path : `/${path}`
+    )
 }));
 vi.mock("$app/state", () => ({ page: mockPage }));
 

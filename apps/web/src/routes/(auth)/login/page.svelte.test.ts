@@ -36,7 +36,7 @@ vi.mock("$app/forms", () => ({
   }
 }));
 vi.mock("$app/paths", () => ({
-  resolve: (path: string) => path
+  resolve: (path: string) => (path.startsWith("/") ? path : `/${path}`)
 }));
 vi.mock("$app/state", () => ({
   page: mockPage

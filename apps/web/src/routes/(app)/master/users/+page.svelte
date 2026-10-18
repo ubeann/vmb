@@ -19,6 +19,7 @@
 <script lang="ts">
   import { goto, invalidateAll } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { navigating } from "$app/state";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import KeyCap from "$lib/components/KeyCap.svelte";
@@ -100,7 +101,7 @@
   const SPACE = " ";
 
   const base = "/master/users";
-  const actionPath = resolve(base);
+  const actionPath = resolve(appPath(base));
 
   provideListUrl(actionPath);
   const page = listPage();
@@ -255,7 +256,7 @@
     confirmOpen = true;
   }
 
-  const newHref = resolve("/master/users/new");
+  const newHref = resolve("master/users/new");
 
   // restores run one after another, so an Undo clicked while another request is in flight
   // waits its turn rather than overtaking it, or being dropped
@@ -510,7 +511,7 @@
             description="The list is shorter than this page number."
           >
             <a
-              href={resolve(listHref(base, page.url.searchParams, { page: 1 }))}
+              href={resolve(appPath(listHref(base, page.url.searchParams, { page: 1 })))}
               class={buttonVariants({ variant: "outline" })}>Go to the first page</a
             >
           </EmptyState>
@@ -522,14 +523,16 @@
           >
             <a
               href={resolve(
-                listHref(base, page.url.searchParams, {
-                  search: null,
-                  status: null,
-                  division: null,
-                  role: null,
-                  updated: null,
-                  created: null
-                })
+                appPath(
+                  listHref(base, page.url.searchParams, {
+                    search: null,
+                    status: null,
+                    division: null,
+                    role: null,
+                    updated: null,
+                    created: null
+                  })
+                )
               )}
               class={buttonVariants({ variant: "outline" })}>Clear search and filters</a
             >

@@ -1,9 +1,10 @@
 import { RoleUpdateInputSchema, type RoleDetail } from "@vmb/types";
-import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
 import type { PageData } from "./$types.js";
 
+// after the mocks: its client half imports the mocked $app modules
+const { setError, superValidate } = await import("sveltekit-superforms");
 const { render } = await import("vitest-browser-svelte");
 const { default: Page } = await import("./+page.svelte");
 

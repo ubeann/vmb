@@ -1,5 +1,4 @@
 import { DivisionInputSchema, DivisionUpdateInputSchema, type IconName } from "@vmb/types";
-import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -12,6 +11,8 @@ vi.mock("$app/forms", async (original) => ({
   applyAction: vi.fn()
 }));
 
+// after the mocks: its client half imports the mocked $app modules
+const { setError, superValidate } = await import("sveltekit-superforms");
 const { render } = await import("vitest-browser-svelte");
 const { default: DivisionForm } = await import("./DivisionForm.svelte");
 

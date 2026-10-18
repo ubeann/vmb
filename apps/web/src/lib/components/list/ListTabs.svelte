@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { listHref, nounFor, type CountNoun, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
   import { listPage } from "./list-url.svelte.js";
@@ -54,7 +55,7 @@
 <nav aria-label={label} class={cn("-mb-px flex items-stretch gap-4 self-stretch", className)}>
   {#each tabs as tab (tab.name)}
     <a
-      href={resolve(listHref(base, page.url.searchParams, { trashed: tab.trashed }))}
+      href={resolve(appPath(listHref(base, page.url.searchParams, { trashed: tab.trashed })))}
       aria-current={tab.current ? "page" : undefined}
       data-sveltekit-noscroll
       class={cn(

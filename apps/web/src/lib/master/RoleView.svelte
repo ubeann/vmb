@@ -11,6 +11,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import LayerCard from "$lib/components/list/layer/LayerCard.svelte";
   import LayerFooter from "$lib/components/list/layer/LayerFooter.svelte";
   import RecordTile from "$lib/components/list/RecordTile.svelte";
@@ -105,7 +106,9 @@
     {#if canListUsers}
       <p>
         <a
-          href={resolve(listHref("/master/users", new URLSearchParams(), { role: role.id }))}
+          href={resolve(
+            appPath(listHref("/master/users", new URLSearchParams(), { role: role.id }))
+          )}
           class="text-primary font-medium underline-offset-4 hover:underline"
           >Users with this Role</a
         >

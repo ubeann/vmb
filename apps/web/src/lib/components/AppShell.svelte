@@ -30,6 +30,7 @@
 <script lang="ts">
   import { afterNavigate } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { page } from "$app/state";
   import AppBreadcrumbs from "$lib/components/AppBreadcrumbs.svelte";
   import AppSidebar from "$lib/components/AppSidebar.svelte";
@@ -94,9 +95,10 @@
   // (sort, filter, tab, search, page size) keeps the place, as its `noscroll` asks.
   // On a phone SvelteKit alone decides, as it always has. Back and forward are
   // SvelteKit's own at every width: it keeps the window's scroll for each history entry.
+  // A record layer opening or closing over its list (a shallow navigation) moves nothing.
   const wide = new MediaQuery("(min-width: 48rem)");
-  afterNavigate(({ type, from, to }) => {
-    if (!wide.current || type === "enter" || type === "popstate" || !from || !to) return;
+  afterNavigate(({ type, from, to, shallow }) => {
+    if (!wide.current || shallow || type === "enter" || type === "popstate" || !from || !to) return;
     const samePage =
       from.url.pathname === to.url.pathname &&
       from.url.searchParams.get("page") === to.url.searchParams.get("page");
@@ -132,7 +134,7 @@
                     {#snippet child({ props })}
                       <a
                         {...props}
-                        href={resolve(item.href)}
+                        href={resolve(appPath(item.href))}
                         aria-current={current ? "page" : undefined}
                       >
                         <Icon aria-hidden="true" />

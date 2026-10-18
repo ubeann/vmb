@@ -5,7 +5,6 @@ import {
   type Role,
   type RoleDetail
 } from "@vmb/types";
-import { superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page as browser, userEvent } from "vitest/browser";
@@ -110,6 +109,8 @@ vi.mock("$app/forms", () => ({
   }
 }));
 
+// after the mocks: its client half imports the mocked $app modules
+const { superValidate } = await import("sveltekit-superforms");
 const { render } = await import("vitest-browser-svelte");
 const { default: Page } = await import("./+page.svelte");
 const { LayerRoute } = await import("$lib/components/list/layer/layer-route.svelte.js");

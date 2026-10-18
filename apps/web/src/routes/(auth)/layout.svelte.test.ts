@@ -15,7 +15,7 @@ vi.mock("$app/navigation", () => ({
   afterNavigate: (callback: typeof hooks.afterNavigate) => (hooks.afterNavigate = callback)
 }));
 vi.mock("$app/paths", () => ({
-  resolve: (path: string) => path
+  resolve: (path: string) => (path.startsWith("/") ? path : `/${path}`)
 }));
 vi.mock("$app/state", () => ({
   page: { url: new URL("http://localhost/login") }
