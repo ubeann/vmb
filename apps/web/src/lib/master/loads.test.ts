@@ -147,6 +147,23 @@ describe("the user form's role options", () => {
     ]);
   });
 
+  it("follows the pages, so an active role past the first hundred is still offered", async () => {
+    listRolesMock
+      .mockResolvedValueOnce(
+        page(
+          Array.from({ length: 100 }, (_, index) => role({ id: `old-${index}`, isActive: false })),
+          101
+        )
+      )
+      .mockResolvedValueOnce(page([role({ id: "late", name: "Late" })], 101));
+
+    const options = await loadRoleOptions(event);
+
+    expect(listRolesMock).toHaveBeenCalledTimes(2);
+    expect(options).toHaveLength(101);
+    expect(options.at(-1)).toMatchObject({ id: "late", isActive: true });
+  });
+
   it("names a role's Division and whether it is inactive", async () => {
     listDivisionsMock.mockResolvedValue({
       ok: true,

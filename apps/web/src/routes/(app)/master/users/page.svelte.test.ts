@@ -784,6 +784,25 @@ describe("selecting users for a bulk action (#305)", () => {
       await expect.element(screen.getByRole("dialog", { name: "Delete 2 users?" })).toBeVisible();
     });
 
+    it("drops a chosen user who goes out of reach when the page reloads", async () => {
+      await browser.viewport(1280, 900);
+      const props_ = props("/master/users", { items: [rina, siti] });
+      const screen = await render(Page, props_);
+      await screen.getByRole("checkbox", { name: "Select Rina Wijaya" }).click();
+      await screen.getByRole("checkbox", { name: "Select Siti Lestari" }).click();
+      await expect.element(bar(screen).getByRole("status")).toHaveTextContent("2 selected");
+
+      // the same page, reloaded: Rina has since been given a role beyond the caller's
+      await screen.rerender({
+        data: {
+          ...props_.data,
+          users: { ...props_.data.users, items: [{ ...rina, withinReach: false }, siti] }
+        }
+      } as never);
+
+      await expect.element(bar(screen).getByRole("status")).toHaveTextContent("1 selected");
+    });
+
     it("has nothing to select when every row on the page is out of reach", async () => {
       await browser.viewport(1280, 900);
       const screen = await render(Page, props("/master/users", { items: [agus, dewi] }));

@@ -208,8 +208,9 @@
     void page.url.search;
     untrack(() => selection.clear());
   });
+  // a row that is gone, or has gone out of the caller's reach, leaves the selection
   $effect.pre(() => {
-    const rows = pageIds;
+    const rows = reachableIds;
     untrack(() => selection.keep(rows));
   });
   // the select-all box: the header's, or under 32rem (no header row) the strip's
