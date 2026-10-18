@@ -67,5 +67,11 @@ reviews:
 knowledge_base:
   code_guidelines:
     enabled: true
+    # CODING_STANDARDS.md is pointers; CodeRabbit does not follow them, so the
+    # four ADRs behind its "What a failure looks like" list are named here.
     filePatterns:
       - CODING_STANDARDS.md
+      - docs/adr/0031-master-crud-server-loads-before-tanstack-query.md
+      - docs/adr/0045-permissions-enforced-at-the-api-from-role-grants.md
+      - docs/adr/0048-one-api-error-contract.md
+      - docs/adr/0055-soft-delete-stays-a-timestamp.md
