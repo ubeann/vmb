@@ -49,7 +49,7 @@ joined=${cmd//\\$'\n'/}
 flat=$(printf '%s' "$joined" | tr '\n' ' ')
 reason=""
 # shellcheck disable=SC2016 # a `$(` inside a pattern is text, not an expansion
-if printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(/[^[:space:]]*/)?sleep([[:space:]]|$)'; then
+if printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(\\|/[^[:space:]]*/)?sleep([[:space:]]|$)'; then
   reason="sleep"
 elif printf '%s' "$flat" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+checks[^;|]*--watch|gh[[:space:]]+run[[:space:]]+watch'; then
   reason="a gh watch"
