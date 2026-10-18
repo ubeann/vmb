@@ -12,6 +12,10 @@ The five triage states, plus `complexity:*`, `review:human` and `needs-decision`
 
 Building a ticket unattended, gating and merging an agent PR, and the scheduled dispatcher and morning digest. See `docs/agents/ticket-loop.md`.
 
+### Coding standards
+
+The reviewer's brief: what a failure looks like here, where each area's rules live, the judgement calls that recur, what to skip, how to report. See `CODING_STANDARDS.md`.
+
 ### Domain docs
 
 Single-context layout: `GLOSSARY.md` at the repo root (created lazily) + `docs/adr/` for decision records. See `docs/agents/domain.md`.
@@ -30,7 +34,7 @@ VMB is being migrated from `ubeann/vmb-warehouse` (Laravel + Filament). See `doc
 
 ### Agent harnesses
 
-Which harnesses (Claude Code, Antigravity) load these instructions and the skill-driven flows, and the routing constraint that follows. See `docs/agents/harnesses.md`.
+Which harness (Claude Code, on two profiles) loads these instructions and the skill-driven flows, and the routing constraint that follows. See `docs/agents/harnesses.md`.
 
 ### Design workflow
 

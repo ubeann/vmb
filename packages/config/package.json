@@ -1,6 +1,7 @@
 {
   "name": "@vmb/config",
   "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
   "version": "0.0.0",
   "type": "module",
   "files": [
