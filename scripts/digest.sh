@@ -116,7 +116,7 @@ doc=$(with_timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
       closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } } } }
       files(first: 100) { nodes { path } }
       comments(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } body createdAt } }
-      reviews(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } submittedAt commit { oid } } }
+      reviews(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } submittedAt body commit { oid } } }
       reviewThreads(first: 50) { pageInfo { hasNextPage }
         nodes { isResolved comments(first: 10) { pageInfo { hasNextPage } nodes { author { login } } } } }
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }

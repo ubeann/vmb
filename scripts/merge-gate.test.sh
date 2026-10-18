@@ -228,7 +228,7 @@ check "a triggered acknowledgement is not finished" 1 "CodeRabbit has not review
   '.pr.reviews = []
    | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "<details><summary>Action performed</summary>Review triggered.</details>"}]'
 
-check "a finished acknowledgement for an ask older than the head does not count" 1 "CodeRabbit has not reviewed since the ask" \
+check "a finished acknowledgement for an ask older than the head does not count" 1 "The last CodeRabbit round finished before the head moved to 2222222: ask again" \
   '.pr.reviews = []
    | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:00:05Z", "body": "✅ Action performed Review finished."}]
    | .pr.headRefOid = "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

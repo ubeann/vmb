@@ -153,9 +153,9 @@ reasons=$(printf '%s' "$doc" | jq -r '
       | ([$since_ask[] | .commit.oid // ""] | last // "") as $stale_oid
       | [$comments[] | select((.author.login | login) == $r.bot and .createdAt >= ($asked // ""))] as $replies
       | (any($replies[]; .body | test("rate limit"; "i"))) as $limited
-      | ($r.bot == "coderabbitai" and ($asked != null) and ($head_date == null or $asked >= $head_date)
-          and any($replies[]; .body | test("Review finished"))) as $finished
-      | . + {asked: $asked, done: ($reviewed != null or $finished), stale: ($since_ask | length > 0),
+      | ($r.bot == "coderabbitai" and ($asked != null) and any($replies[]; .body | test("Review finished"))) as $acked
+      | ($acked and ($head_date == null or $asked >= $head_date)) as $finished
+      | . + {asked: $asked, done: ($reviewed != null or $finished), stale: (($since_ask | length > 0) or $acked),
              stale_oid: $stale_oid, limited: $limited})
     as $reviewers
   | [
@@ -193,8 +193,10 @@ reasons=$(printf '%s' "$doc" | jq -r '
             then empty
           elif .limited
             then "\(.name) answered the ask at \(.asked) with a rate limit: ask again after the time it names."
-          elif .stale
+          elif .stale and .stale_oid != ""
             then "The last \(.name) review is of \(.stale_oid[0:7]), not the head \($head[0:7]): a push followed it, so ask again."
+          elif .stale
+            then "The last \(.name) round finished before the head moved to \($head[0:7]): ask again."
           else "\(.name) has not reviewed since the ask at \(.asked)." end),
       # A reviewer thread is answered when it is resolved or when a trusted
       # author wrote its last comment: a bot follow-up after the reply reopens
