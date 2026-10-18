@@ -28,10 +28,23 @@ passing='{
       {"__typename": "CheckRun", "name": "Release", "status": "COMPLETED", "conclusion": "SKIPPED"},
       {"__typename": "StatusContext", "context": "Socket", "state": "SUCCESS"}
     ],
-    "closingIssuesReferences": [{"number": 218}]
+    "closingIssuesReferences": [{"number": 218}],
+    "comments": [
+      {"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@coderabbitai review"}
+    ],
+    "reviews": [
+      {"author": {"login": "coderabbitai"}, "submittedAt": "2026-10-18T10:05:00Z", "state": "COMMENTED", "body": "Actionable comments posted: 0"}
+    ],
+    "reviewThreads": []
   },
   "issues": [{"number": 218, "url": "https://github.com/ubeann/vmb/issues/218", "labels": [{"name": "ready-for-agent"}, {"name": "complexity:standard"}]}]
 }'
+
+sourcery_round='.pr.comments += [{"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T10:00:00Z", "body": "@sourcery-ai review"}]
+  | .pr.reviews += [{"author": {"login": "sourcery-ai"}, "submittedAt": "2026-10-18T10:04:00Z", "state": "COMMENTED", "body": "Hey - I have reviewed your changes and they look great!"}]'
+
+bot_thread='{"isResolved": false, "path": "apps/web/src/lib/components/AppShell.svelte",
+  "comments": [{"author": "sourcery-ai", "createdAt": "2026-10-18T10:04:00Z"}]}'
 
 # check <description> <expected exit> <expected output substring|""> <jq edit>
 check() {
@@ -123,6 +136,68 @@ check "secrets config fails" 1 "one-way path \`fnox.toml\`" \
 
 check "every reason is listed, not just the first" 1 "Closes no issue" \
   '.pr.mergeable = "CONFLICTING" | .pr.closingIssuesReferences = [] | .issues = []'
+
+# The checks that must have reported, not merely be green when present.
+check "a PR with checks but no Verify fails" 1 "Check \`Verify\` has not reported" \
+  '.pr.statusCheckRollup[0].name = "Build"'
+
+check "a .ts change without a CodeQL check fails" 1 "Check \`CodeQL\` has not reported" \
+  '.pr.files += [{"path": "apps/api/src/auth.ts"}] | .' \
+
+check "a .ts change with CodeQL reported passes" 0 "PASS" \
+  '.pr.files += [{"path": "packages/types/src/roles.ts"}]
+   | .pr.statusCheckRollup += [{"__typename": "CheckRun", "name": "CodeQL", "status": "COMPLETED", "conclusion": "SUCCESS"}]'
+
+check "a Svelte-only change needs no CodeQL check" 0 "PASS" \
+  '.pr.files = [{"path": "apps/web/src/routes/+page.svelte"}]'
+
+# The on-request review round (model-routing.md, Review).
+check "a trivial ticket skips the review round" 0 "PASS" \
+  '.issues[0].labels = [{"name": "complexity:trivial"}] | .pr.comments = [] | .pr.reviews = []'
+
+check "a standard PR nobody asked CodeRabbit about fails" 1 "CodeRabbit has not been asked for a review: comment \`@coderabbitai review\`" \
+  '.pr.comments = []'
+
+check "an ask by an untrusted author does not count" 1 "CodeRabbit has not been asked" \
+  '.pr.comments[0].author.login = "someone-else"'
+
+check "a review older than the latest ask fails" 1 "CodeRabbit has not reviewed since the ask at 2026-10-18T11:00:00Z" \
+  '.pr.comments += [{"author": {"login": "vmb-agent"}, "createdAt": "2026-10-18T11:00:00Z", "body": "@coderabbitai review"}]'
+
+check "a REST-spelled bot login still counts as the review" 0 "PASS" \
+  '.pr.reviews[0].author.login = "coderabbitai[bot]"'
+
+check "a rate-limit reply is not a review" 1 "CodeRabbit answered the ask at 2026-10-18T10:00:00Z with a rate limit" \
+  '.pr.reviews = []
+   | .pr.comments += [{"author": {"login": "coderabbitai"}, "createdAt": "2026-10-18T10:01:00Z", "body": "Rate limit exceeded. Please try again in 23 minutes."}]'
+
+check "an API change also needs Sourcery" 1 "Sourcery has not been asked for a review: comment \`@sourcery-ai review\`" \
+  '.pr.files += [{"path": "apps/api/src/routes/master/users.ts"}]
+   | .pr.statusCheckRollup += [{"__typename": "CheckRun", "name": "CodeQL", "status": "COMPLETED", "conclusion": "SUCCESS"}]'
+
+check "a db change with both rounds done passes" 0 "PASS" \
+  ".pr.files += [{\"path\": \"packages/db/src/master/users.ts\"}]
+   | .pr.statusCheckRollup += [{\"__typename\": \"CheckRun\", \"name\": \"CodeQL\", \"status\": \"COMPLETED\", \"conclusion\": \"SUCCESS\"}]
+   | $sourcery_round"
+
+check "a web-only standard PR needs no Sourcery" 0 "PASS" \
+  '.pr.files = [{"path": "apps/web/src/lib/components/AppShell.svelte"}]'
+
+# Every finding answered: a bot thread is resolved or carries a trusted reply.
+check "an unanswered bot thread fails" 1 "Review thread by sourcery-ai on \`apps/web/src/lib/components/AppShell.svelte\` has no reply" \
+  ".pr.reviewThreads = [$bot_thread]"
+
+check "a resolved bot thread passes" 0 "PASS" \
+  ".pr.reviewThreads = [$bot_thread | .isResolved = true]"
+
+check "a bot thread answered by vmb-agent passes" 0 "PASS" \
+  ".pr.reviewThreads = [$bot_thread | .comments += [{\"author\": \"vmb-agent\", \"createdAt\": \"2026-10-18T10:30:00Z\"}]]"
+
+check "a thread opened by a stranger is not the round's" 0 "PASS" \
+  ".pr.reviewThreads = [$bot_thread | .comments[0].author = \"someone-else\"]"
+
+check "an old document without the review fields still judges the rest" 1 "CodeRabbit has not been asked" \
+  'del(.pr.comments, .pr.reviews, .pr.reviewThreads)'
 
 printf '\n%d checks, %d failed\n' "$checks" "$failures"
 [ "$failures" -eq 0 ]
