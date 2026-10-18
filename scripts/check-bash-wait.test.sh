@@ -68,6 +68,10 @@ check "ci-failed.sh passes" 0 "scripts/ci-failed.sh 485"
 check "a test run passes" 0 "pnpm --filter @vmb/web test src/lib/nav.test.ts"
 # shellcheck disable=SC2016
 check "a for loop over files passes" 0 'for f in scripts/*.sh; do shellcheck "$f"; done'
+# shellcheck disable=SC2016
+check "a for loop over a fixed list of PRs passes" 0 'for n in 495 506; do gh pr view "$n" --json isDraft; done'
+# shellcheck disable=SC2016
+check "a for loop over a seq that calls gh is refused" 2 'for i in $(seq 1 55); do gh pr checks 485; done'
 check "a word containing sleep passes" 0 "grep -rn asleep docs/"
 check "a timeout around one gh call passes" 0 "timeout 60 gh api graphql -f query='{ viewer { login } }'"
 check "an empty command passes" 0 ""

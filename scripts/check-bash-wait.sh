@@ -12,8 +12,11 @@
 # Refused shapes, read over the whole command with its newlines folded:
 #   - `sleep` anywhere in the command, by any path and with any duration;
 #   - `gh pr checks … --watch`, `gh run watch`;
-#   - a `for`, `while` or `until` loop with `gh pr`, `gh api` or `gh run` in
-#     its condition or its body.
+#   - a `while` or `until` loop with `gh pr`, `gh api` or `gh run` in its
+#     condition or its body, or a `for` loop over a `seq` that calls them.
+#     A `for` over a fixed list (`for n in 495 506; do gh pr view "$n"`) is a
+#     batch, not a wait, and passes; a wait inside it is caught by the pause
+#     rule above.
 # The hook reads only the command line the agent typed, so a script file is
 # outside it: a batch of `gh` writes in a loop (answering twenty review
 # threads) goes in a file written with the Write tool and run by name, and a
@@ -42,12 +45,15 @@ fi
 # One line, so a loop or a pipeline split across lines reads as one command.
 flat=$(printf '%s' "$cmd" | tr '\n' ' ')
 reason=""
+# shellcheck disable=SC2016 # a `$(` inside a pattern is text, not an expansion
 if printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(/[^[:space:]]*/)?sleep([[:space:]]|$)'; then
   reason="sleep"
 elif printf '%s' "$flat" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+checks[^;|]*--watch|gh[[:space:]]+run[[:space:]]+watch'; then
   reason="a gh watch"
-elif printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(for|while|until)[[:space:]].*gh[[:space:]]+(pr|api|run)([[:space:]]|$)'; then
+elif printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])(while|until)[[:space:]].*gh[[:space:]]+(pr|api|run)([[:space:]]|$)'; then
   reason="a shell loop over gh"
+elif printf '%s' "$flat" | grep -Eq '(^|[;&|(`{]|[[:space:]])for[[:space:]].*[[:space:](`]seq[[:space:]].*gh[[:space:]]+(pr|api|run)([[:space:]]|$)'; then
+  reason="a counted loop over gh"
 fi
 [ -n "$reason" ] || exit 0
 
