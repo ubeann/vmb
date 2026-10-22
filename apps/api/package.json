@@ -20,13 +20,13 @@
   "dependencies": {
     "@vmb/db": "workspace:*",
     "@vmb/types": "workspace:*",
-    "better-auth": "^1.7.10",
+    "better-auth": "^1.7.12",
     "hono": "^4.13.13",
     "resend": "^6.34.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261016.1",
+    "@cloudflare/workers-types": "^5.20261021.1",
     "@electric-sql/pglite": "^0.5.10",
     "@neondatabase/serverless": "^1.2.0",
     "@vmb/config": "workspace:*",
@@ -34,6 +34,6 @@
     "eslint": "^10.13.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
-    "wrangler": "^4.151.1"
+    "wrangler": "^4.151.3"
   }
 }
