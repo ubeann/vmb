@@ -74,9 +74,9 @@ describe("UserForm", () => {
     await expect.element(screen.getByRole("textbox", { name: "Phone number" })).toBeVisible();
     await expect.element(screen.getByRole("textbox", { name: /Photo link/ })).toBeVisible();
     await expect.element(screen.getByRole("combobox", { name: "Roles" })).toBeVisible();
-    await expect.element(screen.getByRole("button", { name: "Status" })).toBeVisible();
+    await expect.element(screen.getByRole("combobox", { name: "Status" })).toBeVisible();
 
-    await screen.getByRole("button", { name: "Status" }).click();
+    await screen.getByRole("combobox", { name: "Status" }).click();
     for (const status of ["Active", "Inactive", "Suspended"]) {
       await expect.element(screen.getByRole("option", { name: status })).toBeVisible();
     }
@@ -262,7 +262,7 @@ describe("UserForm", () => {
     );
     const screen = await render(UserForm, { form, roles, reloadHref: "/master/users/1/edit" });
 
-    await screen.getByRole("button", { name: "Status" }).click();
+    await screen.getByRole("combobox", { name: "Status" }).click();
     await screen.getByRole("option", { name: "Suspended" }).click();
     await screen.getByRole("button", { name: "Save user" }).click();
 

@@ -19,11 +19,11 @@
   },
   "devDependencies": {
     "@vmb/config": "workspace:*",
-    "knip": "^6.41.0",
+    "knip": "^6.42.1",
     "prettier": "^3.9.10",
     "prettier-plugin-svelte": "^4.1.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
-    "turbo": "^2.11.9",
+    "turbo": "^2.11.10",
     "typescript": "^6.0.3"
   }
 }
