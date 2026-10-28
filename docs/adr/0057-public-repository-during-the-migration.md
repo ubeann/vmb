@@ -1,5 +1,7 @@
 # ADR-0057: The repository is public during the migration
 
+**Amended by [ADR-0060](0060-screenshots-attached-not-committed.md):** screenshots no longer live in `ubeann/vmb-assets`. New ones are attached to the issue or PR with `gh`'s `--attach` and are public like the repository, and the linked old ones were reviewed and moved there too, so the screenshot line below describes the state before that change.
+
 **Context:** The ticket loop pushes about 25 PRs a day, and the billed Actions minutes run at 7,000–9,000 a month against GitHub Pro's 3,000 even after the #379 trims, an overage of about $25–45 a month. #384 was to decide whether a self-hosted runner, a Tencent Lighthouse box (2 vCPU, 4 GB), should take `Verify`. That box would run `Verify`, which decrypts every dev secret with `FNOX_AGE_KEY`, on a machine that persists between jobs, and the owner also wants a box for T3 Code remote environments, which hold the Claude login and the `vmb-agent` token. Standard GitHub-hosted runners are free and unmetered for public repositories.
 
 **Options considered:**
