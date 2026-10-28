@@ -21,7 +21,7 @@ A ticket carries one category (`bug`, `enhancement` or `research`) and one state
 
 `.github/workflows/ticket-lint.yml` checks those rules on every open, unclaimed `ready-for-agent` ticket and moves one that fails back to `needs-triage`; a claimed ticket is already being built, and the frontier never reads it.
 
-On a PR, **`needs-decision`** means the merge gate stopped it or the agent needs the owner's call; the PR's last comment says which. An **assignee** on a `ready-for-agent` ticket means an agent has claimed it. How the labels move through a build is in `ticket-loop.md`.
+On a PR, **`needs-decision`** means the merge gate stopped it or the agent needs the owner's call; the PR's last comment says which. **`merge-paced`** means the gate passed and `scripts/pace.sh` held the merge (ADR-0059); the dispatcher's next run merges it. An **assignee** on a `ready-for-agent` ticket means an agent has claimed it. How the labels move through a build is in `ticket-loop.md`.
 
 ## Research and wayfinder
 
