@@ -24,6 +24,8 @@
 #   review round: open PRs on a standard or complex ticket, checks green, where
 #             a reviewer the gate requires (merge-gate.sh) has not been asked or
 #             has not answered: the build stopped before its round
+#   paced:    open PRs labelled merge-paced (the gate passed, the pace held the
+#             merge), then pace.sh's line for today (ADR-0059)
 #   next up:  frontier.sh's output, then how many ready-for-agent tickets fail
 #             ticket-lint
 #   guides:   the PR numbers under decide, for write_pull_request_guides
@@ -56,14 +58,19 @@ if [ -z "$since" ]; then
   since="${yesterday}T10:00:00Z"
 fi
 
-# frontier.sh sits beside this file. When the script is piped from `git show`,
-# there is no file beside it, so take it from origin/master.
+# frontier.sh and pace.sh sit beside this file. When the script is piped from
+# `git show`, there is no file beside it, so take them from origin/master.
 frontier="$(dirname "${BASH_SOURCE[0]:-$0}")/frontier.sh"
+pace="$(dirname "${BASH_SOURCE[0]:-$0}")/pace.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ ! -f "$frontier" ]; then
   git show origin/master:scripts/frontier.sh >"$tmp/frontier.sh"
   frontier="$tmp/frontier.sh"
+fi
+if [ ! -f "$pace" ]; then
+  git show origin/master:scripts/pace.sh >"$tmp/pace.sh"
+  pace="$tmp/pace.sh"
 fi
 
 # Search strings cannot take GraphQL variables, so they are built here.
@@ -114,6 +121,7 @@ doc=$(with_timeout "${DIGEST_TIMEOUT:-60}" gh api graphql -f query="{
     nodes { ... on PullRequest {
       number title isDraft headRefOid
       author { login }
+      labels(first: 20) { nodes { name } }
       closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } } } }
       files(first: 100) { pageInfo { hasNextPage } nodes { path } }
       comments(last: 100) { pageInfo { hasPreviousPage } nodes { author { login } body createdAt } }
@@ -209,6 +217,13 @@ printf '%s' "$doc" | jq -r '
              + (if $truncated then ["over 100 comments, reviews, files or threads: read the PR"] else [] end)) as $parts |
   select(any($parts[]; endswith(": answered") | not)) |
   "  #\($pr.number)  \($pr.title)  \($parts | join("  "))"'
+
+printf '\npaced:\n'
+printf '%s' "$doc" | jq -r '
+  .data.openprs.nodes[] | select(any(.labels.nodes[]; .name == "merge-paced")) |
+  "  #\(.number)  \(.title)  scripts/merge.sh \(.number) merges it once the pace allows"'
+# A WAIT is news, not a failure of the digest.
+bash "$pace" | sed 's/^/  /' || true
 
 printf '\nnext up:\n'
 bash "$frontier" | sed 's/^/  /' | tee "$tmp/frontier.txt"

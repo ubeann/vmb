@@ -134,7 +134,7 @@ fnox.local.toml
 
 # impeccable's scratch for one design round: critique snapshots, live-session
 # logs. It sits beside the app it ran on (apps/web/.impeccable/) or at the root.
-# A PR links what it needs through scripts/upload-asset.sh. Live mode's setup
+# A PR attaches what it needs with gh's --attach. Live mode's setup
 # is shared by every worktree, so it stays tracked.
 **/.impeccable/*
 !**/.impeccable/live/

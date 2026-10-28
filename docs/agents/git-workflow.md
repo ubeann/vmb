@@ -52,7 +52,7 @@ Write it with the `/pr` skill (Summary, Evidence, Merge Danger). This repo adds 
 - **`## Acceptance criteria`** after Evidence: the ticket's checklist, each item ticked only with its evidence beside it (a test name, a check, an uploaded screenshot). An item you couldn't verify stays unticked.
 - **`**Door:** two-way`** or **`**Door:** one-way`**, spelled exactly so.
 
-Upload screenshots with `scripts/upload-asset.sh <file> prs/<pr-number>` and paste the link it prints. What you ran, and a tier escalation (`model-routing.md`), go under Evidence; "Not run (documentation only)" is a valid entry there.
+Attach screenshots with `--attach` on `gh pr create`, `gh pr edit` or `gh pr comment`, all of a round's files in one command (`issue-tracker.md`, Images: they are public and permanent, so look before you attach). What you ran, and a tier escalation (`model-routing.md`), go under Evidence; "Not run (documentation only)" is a valid entry there.
 
 Keep the PR title identical to (or a clean rollup of) the first commit's message headline.
 

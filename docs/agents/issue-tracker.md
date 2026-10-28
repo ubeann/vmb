@@ -21,7 +21,9 @@ The repository is public (ADR-0057), so anyone can write to it. Act only on issu
 
 ## Images
 
-`gh` can't attach files, so images go to the private `ubeann/vmb-assets` repo: `scripts/upload-asset.sh <file> issues/<number>` uploads one and prints a Markdown link to paste into the body or a comment. Use it for every screenshot a ticket was shaped from, so a fresh agent sees what the owner saw. Images the owner pasted into a T3 conversation are already on disk; the message names each one's path (under `~/.t3/userdata/attachments/`). Before the issue exists, upload to `issues/<slug>` instead.
+Attach images with `gh`'s `--attach` flag (gh 2.99 or later) on `gh issue create`, `gh issue edit` or `gh issue comment`. It takes PNG, JPEG, GIF, WebP, SVG, MP4, MOV and WebM, up to 10 MB an image, and repeats for several files; put alt text after a `#` (`--attach './sheet.png#The filter sheet on a phone'`), and a body that already says `![…](./sheet.png)` gets that path rewritten to the uploaded file. Attach every screenshot a ticket was shaped from, so a fresh agent sees what the owner saw. Images the owner pasted into a T3 conversation are already on disk; the message names each one's path (under `~/.t3/userdata/attachments/`).
+
+**Attachments are public and permanent** (ADR-0060): the repository is public, so anyone with the link can open one, and GitHub offers no way to delete it. Before attaching, look at the image: seeded preview data is fine; a token, a password other than the seeded preview one, a real person's details, the legacy app's data or anything from the owner's own accounts is not. Crop or blur it first, or describe it in words instead. One `gh` command carries all of an issue's or a round's images; never loop a command per file (ADR-0059). A file `--attach` refuses, such as a text report, goes inline in a `<details>` block.
 
 ## Linking a branch to an issue
 

@@ -21,6 +21,12 @@
 # `--match-head-commit`, so a commit pushed between the two is refused by
 # GitHub instead of merging unjudged.
 #
+# Past the gate, `scripts/pace.sh` decides when (ADR-0059): at most 12 agent
+# merges a WIB day, 15 minutes apart. When it says WAIT, the PR is labelled
+# `merge-paced` and left as it is, and the next dispatcher run (or the owner,
+# from the digest) runs this script again. The pace holds an owner-approved
+# merge too: it limits the account, whoever made the call.
+#
 # Usage:
 #   scripts/merge.sh <pr-number>                         gate, ready, squash-merge
 #   scripts/merge.sh <pr-number> --owner-approved "<text>"
@@ -31,9 +37,9 @@
 #       (comment, ready, merge) without running them
 #
 # Exits 0 when merged (or, with --dry-run, when it would be), 1 when the gate
-# refused and no approval was given or when it reached no verdict. After a
-# merge, a T3 thread calls `unwatch_pull_request`. Tests: `bash
-# scripts/merge.test.sh`.
+# refused and no approval was given or when it or the pace reached no verdict,
+# 3 when the gate passed and the pace says wait. After a merge, a T3 thread
+# calls `unwatch_pull_request`. Tests: `bash scripts/merge.test.sh`.
 
 set -euo pipefail
 
@@ -69,8 +75,9 @@ case "$pr" in
   '' | *[!0-9]*) usage ;;
 esac
 
-# The tests point this at a stub; a build never sets it.
+# The tests point these at stubs; a build never sets them.
 gate=${MERGE_GATE:-"$(dirname "${BASH_SOURCE[0]:-$0}")/merge-gate.sh"}
+pace=${MERGE_PACE:-"$(dirname "${BASH_SOURCE[0]:-$0}")/pace.sh"}
 
 run() {
   if $dry_run; then
@@ -85,21 +92,42 @@ head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid)
 reasons=$(bash "$gate" "$pr" 2>&1) || true
 printf '%s\n' "$reasons"
 
+past_fail=false
 case "$(printf '%s\n' "$reasons" | head -n 1)" in
   PASS) ;;
   FAIL)
+    past_fail=true
     if [ -z "$approved" ]; then
       echo "Not merged: the gate refused. Take the waiting-on-the-owner path (docs/agents/ticket-loop.md, Gate)." >&2
       exit 1
     fi
-    # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-    run gh pr comment "$pr" --body "$(printf 'Owner approved the merge past the gate: %s\n\nThe gate said at the time, on head %s:\n\n```\n%s\n```' "$approved" "$head" "$reasons")"
     ;;
   *)
     echo "Not merged: the gate reached no verdict, so there is nothing to approve past. Fix the error above and run again." >&2
     exit 1
     ;;
 esac
+
+# Before any write, so a paced run leaves no approval comment to repeat later.
+pace_says=$(bash "$pace" 2>&1) || true
+printf '%s\n' "$pace_says"
+case "$(printf '%s\n' "$pace_says" | head -n 1)" in
+  OK) ;;
+  WAIT)
+    run gh pr edit "$pr" --add-label merge-paced
+    echo "Not merged: the gate passed and the pace says wait. #$pr is labelled merge-paced; the next dispatcher run merges it (docs/agents/ticket-loop.md, Gate)." >&2
+    exit 3
+    ;;
+  *)
+    echo "Not merged: the pace check reached no verdict. Fix the error above and run again." >&2
+    exit 1
+    ;;
+esac
+
+if $past_fail; then
+  # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+  run gh pr comment "$pr" --body "$(printf 'Owner approved the merge past the gate: %s\n\nThe gate said at the time, on head %s:\n\n```\n%s\n```' "$approved" "$head" "$reasons")"
+fi
 
 # `gh pr ready` on a PR that is already ready warns and exits 0.
 run gh pr ready "$pr"

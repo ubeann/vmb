@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
 # Tests for `merge.sh`: the gate decides, the owner's recorded approval is the
-# only way past a FAIL and never past an error, the merge is pinned to the
-# head the gate judged, and `--dry-run` runs no write. A stub stands in for
-# `merge-gate.sh` through MERGE_GATE, and a stub `gh` on PATH records every
+# only way past a FAIL and never past an error, the pace holds every merge
+# past the gate and labels the PR when it says wait, the merge is pinned to
+# the head the gate judged, and `--dry-run` runs no write. Stubs stand in for
+# `merge-gate.sh` through MERGE_GATE and for `pace.sh` through MERGE_PACE
+# (OK unless a check names another), and a stub `gh` on PATH records every
 # call it receives, in order.
 #
 # Run from anywhere: `bash scripts/merge.test.sh`. CI runs it in the `Verify`
@@ -28,6 +30,15 @@ cat >"$tmp/error.sh" <<'EOF'
 echo "gh: Could not resolve to a PullRequest" >&2
 exit 1
 EOF
+cat >"$tmp/pace-ok.sh" <<'EOF'
+echo OK
+echo "Merged today by vmb-agent: 0 of 12; last merge none."
+EOF
+cat >"$tmp/pace-wait.sh" <<'EOF'
+echo WAIT
+echo "- gap: the last merge was at 11:50 WIB, under 15 minutes ago; merge after 12:05 WIB."
+exit 1
+EOF
 
 # The stub gh: logs its arguments, answers the head lookup, succeeds otherwise.
 mkdir -p "$tmp/bin"
@@ -49,7 +60,8 @@ check() {
   local output log status=0
   checks=$((checks + 1))
   : >"$tmp/gh.log"
-  output=$(GH_LOG="$tmp/gh.log" MERGE_GATE="$tmp/$gate" bash merge.sh "$@" 2>&1) || status=$?
+  output=$(GH_LOG="$tmp/gh.log" MERGE_GATE="$tmp/$gate" MERGE_PACE="$tmp/${PACE_STUB:-pace-ok.sh}" \
+    bash merge.sh "$@" 2>&1) || status=$?
   log=$(cat "$tmp/gh.log")
   if [ "$status" -eq "$expected_exit" ] && [[ "$output" == *"$expected_text"* ]] && [ "$log" = "$expected_log" ]; then
     printf 'ok   %s\n' "$description"
@@ -92,6 +104,31 @@ FAIL
 check "a gate that reached no verdict is never overridden" error.sh 1 \
   "reached no verdict" \
   "$view" 300 --owner-approved "ubeann in the thread"
+
+PACE_STUB=pace-wait.sh check "a pace wait labels the PR and merges nothing" pass.sh 3 \
+  "Not merged: the gate passed and the pace says wait" \
+  "$(printf '%s\n%s' "$view" "gh pr edit 300 --add-label merge-paced")" 300
+
+PACE_STUB=pace-wait.sh check "a pace wait posts no approval comment, so a rerun posts one" fail.sh 3 \
+  "under 15 minutes ago" \
+  "$(printf '%s\n%s' "$view" "gh pr edit 300 --add-label merge-paced")" \
+  300 --owner-approved "ubeann in the thread"
+
+PACE_STUB=error.sh check "a pace with no verdict merges nothing" pass.sh 1 \
+  "the pace check reached no verdict" \
+  "$view" 300
+
+PACE_STUB=pace-wait.sh check "a FAIL without approval never reaches the pace" fail.sh 1 \
+  "Not merged: the gate refused" \
+  "$view" 300
+
+check "an approval on a PASS posts no comment" pass.sh 0 \
+  "Merged #300" \
+  "$(printf '%s\n%s\n%s' "$view" "$ready" "$merge")" 300 --owner-approved "ubeann in the thread"
+
+PACE_STUB=pace-wait.sh check "a dry run prints the label instead of adding it" pass.sh 3 \
+  "would run: gh pr edit 300 --add-label merge-paced" \
+  "$view" 300 --dry-run
 
 check "a dry run runs the reads and prints the writes" pass.sh 0 \
   "would run: $merge" \

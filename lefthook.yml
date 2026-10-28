@@ -67,6 +67,11 @@ pre-commit:
     merge:
       glob: "scripts/merge*.sh"
       run: bash scripts/merge.test.sh
+    # The agent account's merge pace (ADR-0059); a wrong window either lets a
+    # burst through or parks every PR.
+    pace:
+      glob: "scripts/pace*.sh"
+      run: bash scripts/pace.test.sh
     # The Claude Code hook that refuses a polling wait; a wrong pattern either
     # lets the loops back or blocks ordinary work.
     check-bash-wait:
