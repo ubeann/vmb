@@ -28,7 +28,7 @@
 
   <div class="bg-background flex flex-col overflow-hidden rounded-xl border pt-3">
     {#key data.stamp}
-      <ProfileForm form={data.form} email={data.email} cancelHref={resolve("/")} />
+      <ProfileForm form={data.form} email={data.email} cancelHref={resolve("")} />
     {/key}
   </div>
 </Page>

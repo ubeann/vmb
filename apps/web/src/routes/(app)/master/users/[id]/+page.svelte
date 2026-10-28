@@ -31,7 +31,7 @@
         ? {
             label: "Undo",
             onClick: async () => {
-              const result = await postRowAction(`${resolve("/master/users")}?/restore`, user.id);
+              const result = await postRowAction(`${resolve("master/users")}?/restore`, user.id);
               if (!result.ok) return void toast.error(result.error);
               toast.success(`${user.name} restored`);
               await invalidateAll();

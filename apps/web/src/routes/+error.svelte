@@ -100,7 +100,7 @@
         {/if}
         {#if page.data.user}
           <Button
-            href={resolve("/")}
+            href={resolve("")}
             variant={content.canRetry ? "outline" : "default"}
             class="min-h-11 rounded-(--touch-radius) px-4"
           >
@@ -109,7 +109,7 @@
           </Button>
         {:else}
           <Button
-            href={resolve("/login")}
+            href={resolve("login")}
             variant={content.canRetry ? "outline" : "default"}
             class="min-h-11 rounded-(--touch-radius) px-4"
           >

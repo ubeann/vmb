@@ -11,6 +11,7 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { navigating } from "$app/state";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import KeyCap from "$lib/components/KeyCap.svelte";
@@ -99,7 +100,7 @@
   const SPACE = " ";
 
   const base = "/master/divisions";
-  const actionPath = resolve(base);
+  const actionPath = resolve(appPath(base));
 
   // a record opens in a layer over the list, at its own URL (#302); the list keeps its own
   provideListUrl(actionPath);
@@ -276,7 +277,7 @@
 
   const recordHref = (id: string) => resolve("/(app)/master/divisions/[id]", { id });
   const editHref = (id: string) => resolve("/(app)/master/divisions/[id]/edit", { id });
-  const newHref = resolve("/master/divisions/new");
+  const newHref = resolve("master/divisions/new");
 
   // what each of the layer's pages gets from its load
   type ViewData = { division: DivisionDetail; permissions: string[] };
@@ -587,7 +588,7 @@
             description="The list is shorter than this page number."
           >
             <a
-              href={resolve(listHref(base, page.url.searchParams, { page: 1 }))}
+              href={resolve(appPath(listHref(base, page.url.searchParams, { page: 1 })))}
               class={buttonVariants({ variant: "outline" })}>Go to the first page</a
             >
           </EmptyState>
@@ -599,12 +600,14 @@
           >
             <a
               href={resolve(
-                listHref(base, page.url.searchParams, {
-                  search: null,
-                  status: null,
-                  updated: null,
-                  created: null
-                })
+                appPath(
+                  listHref(base, page.url.searchParams, {
+                    search: null,
+                    status: null,
+                    updated: null,
+                    created: null
+                  })
+                )
               )}
               class={buttonVariants({ variant: "outline" })}>Clear search and filters</a
             >
@@ -927,7 +930,7 @@
   ondeleted={bulkDeleted}
 >
   {#snippet refusalHelp()}
-    <a href={resolve("/master/roles")} class="font-medium underline underline-offset-2"
+    <a href={resolve("master/roles")} class="font-medium underline underline-offset-2"
       >Go to Roles</a
     >
   {/snippet}

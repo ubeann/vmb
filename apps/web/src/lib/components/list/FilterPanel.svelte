@@ -16,6 +16,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Checkbox } from "$lib/components/ui/checkbox/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -101,7 +102,7 @@
   });
   const valueOf = (key: string) => (key in chosen ? chosen[key]! : page.url.searchParams.get(key));
   const params = $derived.by(() => {
-    const next = new URLSearchParams(page.url.searchParams);
+    const next = new URLSearchParams(page.url.search);
     for (const [key, value] of Object.entries(chosen)) {
       if (value === null) next.delete(key);
       else next.set(key, value);
@@ -112,9 +113,8 @@
 
   function choose(key: string, value: string | null) {
     chosen[key] = value;
-    goto(resolve(listHref(base, page.url.searchParams, { ...chosen })), {
-      noScroll: true,
-      keepFocus: true
+    goto(resolve(appPath(listHref(base, page.url.searchParams, { ...chosen }))), {
+      reset: false
     });
   }
 
@@ -143,9 +143,15 @@
     for (const filter of filters) chosen[filter.key] = null;
     goto(
       resolve(
-        listHref(base, page.url.searchParams, Object.fromEntries(filters.map((f) => [f.key, null])))
+        appPath(
+          listHref(
+            base,
+            page.url.searchParams,
+            Object.fromEntries(filters.map((f) => [f.key, null]))
+          )
+        )
       ),
-      { noScroll: true, keepFocus: true }
+      { reset: false }
     );
   }
 

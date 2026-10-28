@@ -32,7 +32,6 @@ function fakeEvent(pathname = "/", routeId: string | null = pathname, cookie?: s
   if (cookie) headers.set("cookie", cookie);
 
   return {
-    platform: undefined,
     fetch: vi.fn(),
     request: new Request(`http://localhost${pathname}`, { headers }),
     url: new URL(`http://localhost${pathname}`),
@@ -206,15 +205,9 @@ describe("handleError", () => {
   it("gives an unexpected failure a reference and logs it", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = handleError({
-      error: new Error("boom"),
-      event,
-      status: 500,
-      message: "Internal Error"
-    } as never);
+    const result = handleError({ kind: "unknown", error: new Error("boom"), event } as never);
 
     expect(result).toEqual({
-      message: "Internal Error",
       errorId: expect.stringMatching(/^[0-9a-f]{8}$/),
       occurredAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)
     });
@@ -225,12 +218,27 @@ describe("handleError", () => {
 
   it("leaves a missing page without a reference", () => {
     const result = handleError({
-      error: new Error("Not found: /nowhere"),
-      event,
-      status: 404,
-      message: "Not Found"
+      kind: "framework",
+      error: { status: 404, message: "Not Found" },
+      event
     } as never);
 
-    expect(result).toEqual({ message: "Not Found" });
+    expect(result).toBeUndefined();
+  });
+
+  // Kit 3 passes `error(...)` responses here too (#331). The master routes'
+  // deliberate 403s and 500s keep their own message and get no reference.
+  it.each([403, 500])("leaves an expected %i from error() as it is, unlogged", (status) => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = handleError({
+      kind: "app",
+      error: { status, message: "You can't change this record." },
+      event
+    } as never);
+
+    expect(result).toBeUndefined();
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
   });
 });

@@ -8,8 +8,10 @@
       "ignoreDependencies": ["playwright"]
     },
     "apps/web": {
-      // Run by hand to check pages (docs/agents/page-checks.md).
-      "entry": ["scripts/*.mjs"]
+      // Run by hand to check pages (docs/agents/page-checks.md). SvelteKit
+      // reads src/env.ts for `$app/env/*`, and vite.config.ts aliases the
+      // test stubs for the unit project.
+      "entry": ["scripts/*.mjs", "src/env.ts", "src/test-stubs/*.ts"]
     },
     "apps/api": {
       // `@neondatabase/serverless` is never imported here: it is pinned so

@@ -1,4 +1,4 @@
-import type { ActionResult } from "@sveltejs/kit";
+import type { ActionResult } from "$app/forms";
 import { focusFirstInvalidField } from "$lib/field-validation.svelte.js";
 
 type Outcome = { result: ActionResult; update: () => Promise<void> };

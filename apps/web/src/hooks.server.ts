@@ -2,7 +2,8 @@ import { withAuthApiClient } from "$lib/api-access.js";
 import { isPublicRoute } from "$lib/public-routes.js";
 import { withSecurityHeaders } from "$lib/server/security-headers.js";
 import { loadSession } from "$lib/session.js";
-import { redirect, type Handle, type HandleServerError } from "@sveltejs/kit";
+import { redirect } from "@sveltejs/kit";
+import type { Handle, HandleServerError } from "@sveltejs/kit/hooks";
 
 // The two faces the first screen paints with (ADR-0046): the UI face and the
 // display headings' optical-size cut. The browser only discovers them after it
@@ -56,10 +57,15 @@ export const handle: Handle = async ({ event, resolve }) => {
 };
 
 // An unexpected failure gets a short reference and its time, logged with the
-// error and shown on the error page, so a support email can be matched to its log line. A
-// missing page is no failure: it gets neither.
-export const handleError: HandleServerError = ({ error, event, status, message }) => {
-  if (status === 404) return { message };
+// error and shown on the error page, so a support email can be matched to its
+// log line. Kit 3 calls this for every error, not only unexpected ones (#331):
+// an `error(...)` the app threw on purpose keeps its own status and message,
+// and a missing page or any other error SvelteKit raises itself is no failure.
+// None of those get a reference. What is returned is merged over SvelteKit's
+// default `{ status, message }`, which for an unknown error is 500 and
+// "Internal Error".
+export const handleError: HandleServerError = ({ kind, error, event }) => {
+  if (kind !== "unknown") return;
 
   const errorId = crypto.randomUUID().slice(0, 8);
   const occurredAt = new Date().toISOString();
@@ -67,5 +73,5 @@ export const handleError: HandleServerError = ({ error, event, status, message }
     `handleError: ${errorId} ${occurredAt} ${event.request.method} ${event.url.pathname}`,
     error
   );
-  return { message, errorId, occurredAt };
+  return { errorId, occurredAt };
 };

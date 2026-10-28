@@ -25,7 +25,7 @@
       submitLabel="Create role"
       submitIcon={PlusIcon}
       pendingLabel="Creating…"
-      cancelHref={resolve("/master/roles")}
+      cancelHref={resolve("master/roles")}
     />
   </div>
 </Page>

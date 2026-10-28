@@ -15,6 +15,9 @@ vi.mock("$app/server", () => ({
   getRequestEvent: () => ({ cookies: { set: cookiesSet } })
 }));
 
+// The access seam calls the API at the API_URL binding (src/env.ts).
+vi.mock("$app/env/private", () => ({ API_URL: "https://api.test", CLIENT_IP_SECRET: undefined }));
+
 const { createAuthApiClient } = await import("./auth.js");
 const { loadSession } = await import("./session.js");
 const { withAuthApiClient } = await import("./api-access.js");
@@ -100,7 +103,6 @@ describe("remember me through the cookie bridge", () => {
   // browser's cookies. Those the seam must forward itself (#226).
   function logoutEvent(fetchFn: typeof fetch, cookie: string) {
     return {
-      platform: undefined,
       request: new Request("https://web.test/logout", { method: "POST", headers: { cookie } }),
       fetch: (input: RequestInfo | URL, init?: RequestInit) => {
         const headers = new Headers(init?.headers);

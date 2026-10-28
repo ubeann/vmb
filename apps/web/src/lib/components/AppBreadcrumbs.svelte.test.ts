@@ -7,7 +7,9 @@ import "../../app.css";
 import { axeViolations } from "$lib/a11y-support.js";
 import { trailFor } from "$lib/breadcrumbs.js";
 
-vi.mock("$app/paths", () => ({ resolve: (path: string) => path }));
+vi.mock("$app/paths", () => ({
+  resolve: (path: string) => (path.startsWith("/") ? path : `/${path}`)
+}));
 
 const { render } = await import("vitest-browser-svelte");
 const { default: AppBreadcrumbs } = await import("./AppBreadcrumbs.svelte");

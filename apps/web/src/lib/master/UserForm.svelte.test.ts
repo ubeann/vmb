@@ -1,5 +1,4 @@
 import { UserCreateInputSchema, UserUpdateInputSchema } from "@vmb/types";
-import { setError, superValidate } from "sveltekit-superforms/server";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -10,6 +9,8 @@ import "../../app.css";
 import { axeViolations } from "$lib/a11y-support.js";
 import type { RoleOption } from "./loads.js";
 
+// after the mocks: its client half imports the mocked $app modules
+const { setError, superValidate } = await import("sveltekit-superforms");
 const { render } = await import("vitest-browser-svelte");
 const { default: UserForm } = await import("./UserForm.svelte");
 

@@ -272,13 +272,13 @@ describe("users list", () => {
     await panel.getByRole("checkbox", { name: /^Suspended/ }).click();
     expect(goto).toHaveBeenLastCalledWith(
       "/master/users?status=active,suspended",
-      expect.objectContaining({ noScroll: true })
+      expect.objectContaining({ reset: false })
     );
 
     await panel.getByRole("checkbox", { name: /^Finance/ }).click();
     expect(goto).toHaveBeenLastCalledWith(
       `/master/users?status=active,suspended&division=${FINANCE}`,
-      expect.objectContaining({ noScroll: true })
+      expect.objectContaining({ reset: false })
     );
   });
 
@@ -296,7 +296,7 @@ describe("users list", () => {
     await panel.getByRole("checkbox", { name: /^Manager Finance/ }).click();
     expect(goto).toHaveBeenLastCalledWith(
       `/master/users?role=${MANAGER}`,
-      expect.objectContaining({ noScroll: true })
+      expect.objectContaining({ reset: false })
     );
   });
 

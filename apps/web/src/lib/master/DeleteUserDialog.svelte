@@ -20,7 +20,7 @@
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import UserAvatar from "$lib/components/UserAvatar.svelte";
   import type { User } from "@vmb/types";
-  import type { SubmitFunction } from "@sveltejs/kit";
+  import type { SubmitFunction } from "$app/forms";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import { toast } from "svelte-sonner";
 

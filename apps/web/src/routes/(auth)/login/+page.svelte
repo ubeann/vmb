@@ -89,7 +89,7 @@
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-3">
         <Label for="password">Password</Label>
-        <a href={resolve("/activate")} class="{linkClass} text-sm">Forgot password?</a>
+        <a href={resolve("activate")} class="{linkClass} text-sm">Forgot password?</a>
       </div>
       <PasswordInput
         id="password"
@@ -122,6 +122,6 @@
 
   {#snippet footer()}
     First time here?
-    <a href={resolve("/activate")} class={linkClass}>Activate your account</a>
+    <a href={resolve("activate")} class={linkClass}>Activate your account</a>
   {/snippet}
 </AuthCard>

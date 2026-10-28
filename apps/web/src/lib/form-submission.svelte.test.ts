@@ -1,4 +1,4 @@
-import type { ActionResult } from "@sveltejs/kit";
+import type { ActionResult } from "$app/forms";
 import { describe, expect, it, vi } from "vitest";
 import { SLOW_AFTER_MS, createSubmission } from "./form-submission.svelte.js";
 
@@ -22,7 +22,11 @@ function submit(
   return {
     cancel,
     reply: (type: "success" | "failure", update: () => Promise<void> = async () => {}) => {
-      const result: ActionResult = { type, status: type === "success" ? 200 : 400 };
+      const result: ActionResult = {
+        type,
+        status: type === "success" ? 200 : 400,
+        location: formElement.action
+      };
       return (complete as (outcome: object) => Promise<void>)({ result, update });
     }
   };

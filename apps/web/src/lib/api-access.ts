@@ -1,3 +1,5 @@
+import { dev } from "$app/env";
+import { API_URL, CLIENT_IP_SECRET } from "$app/env/private";
 import { CLIENT_IP_HEADER, CLIENT_IP_SECRET_HEADER } from "@vmb/types";
 import type { ApiClient } from "./api.js";
 import { createApiClient } from "./api.js";
@@ -28,7 +30,6 @@ import { resolveApiUrl } from "./env.js";
 // The slice of a SvelteKit request event this seam needs, so it is callable
 // from hooks, page loads, and form actions alike.
 export interface ApiRequestEvent {
-  platform: App.Platform | undefined;
   fetch: typeof fetch;
   request: Request;
   getClientAddress: () => string;
@@ -73,11 +74,10 @@ function forwardingBrowser(event: ApiRequestEvent): typeof fetch {
 // address. `getClientAddress` can throw where SvelteKit has no address to
 // give; the call then goes without, and apps/api uses `cf-connecting-ip`.
 function clientIpProof(event: ApiRequestEvent): { address: string; secret: string } | null {
-  const secret = event.platform?.env.CLIENT_IP_SECRET;
-  if (!secret) return null;
+  if (!CLIENT_IP_SECRET) return null;
 
   try {
-    return { address: event.getClientAddress(), secret };
+    return { address: event.getClientAddress(), secret: CLIENT_IP_SECRET };
   } catch {
     return null;
   }
@@ -88,7 +88,7 @@ export function withApiClient<T>(
   run: (client: ApiClient) => Promise<T>
 ): Promise<ApiAccessResult<T>> {
   return withClient(
-    () => createApiClient(resolveApiUrl(event.platform), forwardingBrowser(event)),
+    () => createApiClient(resolveApiUrl(API_URL, { dev }), forwardingBrowser(event)),
     run
   );
 }
@@ -98,7 +98,7 @@ export function withAuthApiClient<T>(
   run: (client: AuthApiClient) => Promise<T>
 ): Promise<ApiAccessResult<T>> {
   return withClient(
-    () => createAuthApiClient(resolveApiUrl(event.platform), forwardingBrowser(event)),
+    () => createAuthApiClient(resolveApiUrl(API_URL, { dev }), forwardingBrowser(event)),
     run
   );
 }

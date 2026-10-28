@@ -1,4 +1,5 @@
 <script lang="ts" module>
+  import type { ReadonlyURLSearchParams } from "$app/state";
   import { splitListParam } from "@vmb/types";
   import type { Component } from "svelte";
   import { describeDateFilter } from "./dates.js";
@@ -34,7 +35,7 @@
    */
   export function activeFilters(
     filters: readonly ListFilter[],
-    params: URLSearchParams,
+    params: ReadonlyURLSearchParams,
     today: string
   ) {
     return filters.flatMap((filter): { filter: ListFilter; text: string }[] => {
@@ -54,7 +55,7 @@
   /** Whether the URL holds a search or any filter, so a strip of chips has something to show. */
   export function hasActiveFilters(
     filters: readonly ListFilter[],
-    params: URLSearchParams,
+    params: ReadonlyURLSearchParams,
     today: string
   ) {
     return Boolean(params.get("search")) || activeFilters(filters, params, today).length > 0;
@@ -72,6 +73,7 @@
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";
+  import { appPath } from "$lib/paths.js";
   import { buttonVariants } from "$lib/components/ui/button/index.js";
   import { listHref, type MasterListPathname } from "$lib/master/list.js";
   import { cn } from "$lib/utils.js";
@@ -142,7 +144,7 @@
         <span class="truncate">“{search}”</span>
       </button>
       <a
-        href={resolve(listHref(base, page.url.searchParams, { search: null }))}
+        href={resolve(appPath(listHref(base, page.url.searchParams, { search: null })))}
         data-sveltekit-noscroll
         aria-label="Clear the search"
         class={remove}><XIcon aria-hidden="true" class="size-3.5" /></a
@@ -171,7 +173,7 @@
         <span class={label}>{@render body()}</span>
       {/if}
       <a
-        href={resolve(listHref(base, page.url.searchParams, { [filter.key]: null }))}
+        href={resolve(appPath(listHref(base, page.url.searchParams, { [filter.key]: null })))}
         data-sveltekit-noscroll
         aria-label="Remove filter {filter.label}: {text}"
         class={remove}><XIcon aria-hidden="true" class="size-3.5" /></a
@@ -182,7 +184,7 @@
   {#if withClearAll && hasActiveFilters(filters, page.url.searchParams, today)}
     <li>
       <a
-        href={resolve(clearAll)}
+        href={resolve(appPath(clearAll))}
         data-sveltekit-noscroll
         data-slot="button"
         class={cn(buttonVariants({ variant: "ghost" }), "text-muted-foreground")}>Clear all</a

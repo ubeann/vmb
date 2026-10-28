@@ -93,7 +93,8 @@ export function useDiscardGuard(dirty: () => boolean): DiscardGuard {
   onMount(() => layer?.add(guard));
 
   beforeNavigate((navigation) => {
-    if (!guard.needed) return;
+    // a record layer closing (a shallow navigation) asks through `layer` instead
+    if (!guard.needed || navigation.shallow) return;
     // cancelling a leave makes the browser ask its own question
     navigation.cancel();
     if (navigation.type === "leave" || !navigation.to) return;

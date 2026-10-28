@@ -84,7 +84,7 @@
     <p class="text-pretty">
       <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve()d, with the list's filter after it -->
       <a
-        href="{resolve('/master/users')}?divisionId={division.id}"
+        href="{resolve('master/users')}?divisionId={division.id}"
         class="text-primary font-medium underline-offset-4 hover:underline">{users}</a
       >
       <span class="text-muted-foreground">in roles of this division</span>
