@@ -20,21 +20,21 @@
     "db:import": "tsx src/import/cli.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.2.0",
+    "@neondatabase/serverless": "^1.2.1",
     "@vmb/types": "workspace:*",
     "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261028.1",
-    "@electric-sql/pglite": "^0.5.12",
-    "@types/node": "^26.6.5",
+    "@cloudflare/workers-types": "^5.20261118.1",
+    "@electric-sql/pglite": "^0.5.16",
+    "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "@vmb/config": "workspace:*",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^10.13.0",
+    "eslint": "^10.15.0",
     "pg": "^8.23.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }
